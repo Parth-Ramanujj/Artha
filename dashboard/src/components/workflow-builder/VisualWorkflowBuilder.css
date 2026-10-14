@@ -3157,6 +3157,265 @@
   cursor: not-allowed;
 }
 
+/* =============================================================================
+   PROMINENT ACTIVEPIECES / N8N TEST WORKFLOW & TEST STEP BUTTONS
+   ============================================================================= */
+
+.wf-btn-tool.test-workflow-btn {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.18) 0%, rgba(37, 211, 102, 0.22) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  color: #38bdf8;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.wf-btn-tool.test-workflow-btn:hover {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(37, 211, 102, 0.35) 100%);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+.test-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  display: inline-block;
+  animation: pulse-dot-anim 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse-dot-anim {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+    box-shadow: 0 0 12px #38bdf8;
+  }
+}
+
+/* Node Inspector Header Actions */
+.wf-inspector-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wf-inspector-header-test-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 6px;
+  color: #38bdf8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wf-inspector-header-test-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.22);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.wf-inspector-header-test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Node Inspector Configuration Tab Step Test Panel */
+.wf-step-test-panel {
+  margin: 1.25rem 0 0.5rem 0;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.8) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.wf-step-test-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.wf-step-test-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.wf-step-test-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.wf-step-test-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.wf-step-test-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wf-btn-test-step-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  border: 1px solid #38bdf8;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);
+}
+
+.wf-btn-test-step-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+.wf-btn-test-step-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wf-btn-test-flow-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wf-btn-test-flow-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: #38bdf8;
+}
+
+/* Step Test Result Box */
+.wf-step-test-result-box {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wf-step-test-result-box.failed {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.wf-step-test-result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.wf-step-status-pill {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.wf-step-status-pill.success {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.wf-step-status-pill.failed {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.wf-step-duration-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.wf-btn-copy-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wf-btn-copy-result:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+}
+
+.wf-step-result-json {
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.72rem;
+  color: #a5f3fc;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 
 
 

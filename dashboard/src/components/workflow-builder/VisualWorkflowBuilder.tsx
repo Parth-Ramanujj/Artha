@@ -728,14 +728,16 @@ function BuilderInnerCanvas({
             )}
           </div>
 
-          {/* Test Simulation */}
+          {/* Test Workflow (Simulation) */}
           <button
             type="button"
-            className="wf-btn-tool secondary"
+            className="wf-btn-tool test-workflow-btn"
             onClick={() => setShowTestModal(true)}
-            title="Test run with simulated incoming message"
+            title="Simulate WhatsApp message flow execution"
           >
-            <FlaskConical size={15} /> Test Flow
+            <span className="test-pulse-dot" />
+            <FlaskConical size={16} />
+            <span>Test Workflow</span>
           </button>
 
           {/* Save Draft */}
@@ -809,6 +811,7 @@ function BuilderInnerCanvas({
             onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
             onClose={() => setSelectedNode(null)}
+            onOpenWorkflowTest={() => setShowTestModal(true)}
           />
         )}
       </div>

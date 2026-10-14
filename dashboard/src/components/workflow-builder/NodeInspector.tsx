@@ -26,6 +26,8 @@ import {
   Filter,
   StopCircle,
   Table,
+  FlaskConical,
+  Loader2,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
@@ -169,6 +171,7 @@ interface NodeInspectorProps {
   onUpdateNode: (nodeId: string, updatedData: Partial<WorkflowNodeData>) => void;
   onDeleteNode: (nodeId: string) => void;
   onClose: () => void;
+  onOpenWorkflowTest?: () => void;
 }
 
 export function NodeInspector({
@@ -179,6 +182,7 @@ export function NodeInspector({
   onUpdateNode,
   onDeleteNode,
   onClose,
+  onOpenWorkflowTest,
 }: NodeInspectorProps) {
   if (!selectedNode) return null;
 
@@ -543,6 +547,147 @@ export function NodeInspector({
     setTimeout(() => setCopiedResponse(false), 2000);
   };
 
+  // Step testing state for all node types
+  const [isTestingStep, setIsTestingStep] = useState(false);
+  const [stepTestResult, setStepTestResult] = useState<{
+    success: boolean;
+    status: 'completed' | 'failed';
+    durationMs: number;
+    output: any;
+    error?: string;
+  } | null>(null);
+
+  const handleExecuteStepTest = async () => {
+    if (type === 'webhook_call') {
+      await handleTestWebhook();
+      return;
+    }
+
+    setIsTestingStep(true);
+    const start = Date.now();
+    try {
+      await new Promise(r => setTimeout(r, 300));
+      const durationMs = Date.now() - start;
+
+      const sampleCustomer = {
+        name: 'Parth Ramanuj',
+        phone: '919876543210',
+        message: 'Hello, track my order 1234',
+      };
+
+      let simulatedOutput: any = {};
+      if (type === 'send_message') {
+        const rawMsg = config.message || '';
+        const rendered = rawMsg
+          .replace(/\{\{trigger\.contactName\}\}/g, sampleCustomer.name)
+          .replace(/\{\{trigger\.phone\}\}/g, sampleCustomer.phone)
+          .replace(/\{\{trigger\.message\}\}/g, sampleCustomer.message)
+          .replace(/\{\{name\}\}/g, sampleCustomer.name)
+          .replace(/\{\{phone\}\}/g, sampleCustomer.phone);
+
+        simulatedOutput = {
+          recipient: config.recipient || sampleCustomer.phone,
+          renderedText: rendered || '(Empty message text)',
+          messageId: `wamid.HBg${Date.now()}TEST`,
+          timestamp: new Date().toISOString(),
+          deliveryStatus: 'simulated_success',
+        };
+      } else if (type === 'interactive_buttons') {
+        const btns = config.buttons || [];
+        simulatedOutput = {
+          prompt: config.message || 'Please choose an option:',
+          choice: btns[0]?.id || 'opt_1',
+          userReply: btns[0]?.text || 'Option 1',
+          availableButtons: btns.map((b: any) => b.text),
+        };
+      } else if (type === 'ask_question') {
+        const slot = config.slot || 'response';
+        simulatedOutput = {
+          prompt: config.question || config.message || 'Please reply to continue:',
+          expectedSlot: slot,
+          answer: 'Test customer reply',
+          variables: { [slot]: 'Test customer reply' },
+        };
+      } else if (type === 'condition_branch') {
+        const fieldVal = sampleCustomer.message;
+        const operator = config.operator || 'contains';
+        const targetVal = config.value || 'order';
+        let matched = false;
+        if (operator === 'contains') matched = fieldVal.toLowerCase().includes(targetVal.toLowerCase());
+        else if (operator === 'equals') matched = fieldVal.toLowerCase() === targetVal.toLowerCase();
+        else if (operator === 'starts_with') matched = fieldVal.toLowerCase().startsWith(targetVal.toLowerCase());
+        else matched = Boolean(fieldVal);
+
+        simulatedOutput = {
+          testedField: config.field || 'trigger.message',
+          testedValue: fieldVal,
+          operator,
+          targetValue: targetVal,
+          matched,
+          branch: matched ? 'true' : 'false',
+        };
+      } else if (type === 'ai_assistant') {
+        simulatedOutput = {
+          systemPrompt: config.prompt || 'You are an AI WhatsApp assistant.',
+          userQuery: sampleCustomer.message,
+          reply: 'Simulated AI Response: Hello! I can help you with your order #1234. It is currently scheduled for delivery.',
+          confidence: 0.96,
+          model: config.model || 'gpt-4o-mini',
+        };
+      } else if (type === 'set_fields') {
+        const assignments = config.assignments || [];
+        const varsMap: Record<string, any> = {};
+        assignments.forEach((a: any) => {
+          if (a?.name) varsMap[a.name] = a.value || 'test_val';
+        });
+        simulatedOutput = {
+          assignedVariables: varsMap,
+          updatedCount: Object.keys(varsMap).length,
+        };
+      } else if (type === 'filter') {
+        simulatedOutput = {
+          checkedField: config.field || 'trigger.message',
+          operator: config.operator || 'contains',
+          passed: true,
+          action: 'continue_workflow',
+        };
+      } else if (type === 'trigger') {
+        simulatedOutput = {
+          event: config.eventType || 'message_received',
+          sender: `${sampleCustomer.phone}@c.us`,
+          phone: sampleCustomer.phone,
+          contactName: sampleCustomer.name,
+          message: sampleCustomer.message,
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        simulatedOutput = {
+          nodeId: id,
+          nodeType: type,
+          status: 'success',
+          config,
+        };
+      }
+
+      setStepTestResult({
+        success: true,
+        status: 'completed',
+        durationMs,
+        output: simulatedOutput,
+      });
+    } catch (err: any) {
+      setStepTestResult({
+        success: false,
+        status: 'failed',
+        durationMs: Date.now() - start,
+        output: null,
+        error: err?.message || 'Failed to simulate step',
+      });
+    } finally {
+      setIsTestingStep(false);
+    }
+  };
+
 
   return (
     <div className="wf-inspector-drawer">
@@ -557,9 +702,25 @@ export function NodeInspector({
             placeholder="Node Title"
           />
         </div>
-        <button className="wf-btn-icon-close" onClick={onClose} title="Close inspector">
-          <X size={18} />
-        </button>
+        <div className="wf-inspector-header-actions">
+          <button
+            type="button"
+            className="wf-inspector-header-test-btn"
+            onClick={handleExecuteStepTest}
+            disabled={isTestingStep || isTestingWebhook}
+            title="Test Step & Preview Output"
+          >
+            {isTestingStep || isTestingWebhook ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Play size={11} className="fill-current" />
+            )}
+            <span>Test Step</span>
+          </button>
+          <button className="wf-btn-icon-close" onClick={onClose} title="Close inspector">
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* SEGMENTED TAB BAR */}
@@ -601,10 +762,25 @@ export function NodeInspector({
           <div className="wf-outputs-tab-content">
             <NodeOutputInspector
               node={{ id, type, data, position: { x: 0, y: 0 } } as Node}
-              lastRun={lastRun}
+              lastRun={lastRun || (stepTestResult ? ({
+                id: 'sim_run',
+                workflowId: 'wf',
+                businessId: 'default',
+                status: 'completed',
+                triggerData: null,
+                startedAt: new Date().toISOString(),
+                completedAt: new Date().toISOString(),
+                createdAt: new Date().toISOString(),
+                steps: [{
+                  actionId: id,
+                  status: stepTestResult.status,
+                  durationMs: stepTestResult.durationMs,
+                  output: stepTestResult.output,
+                }],
+              } as unknown as WorkflowRun) : null)}
               onCopyToken={handleCopyVar}
-              onTestNode={type === 'webhook_call' ? handleTestWebhook : undefined}
-              isTesting={isTestingWebhook}
+              onTestNode={handleExecuteStepTest}
+              isTesting={isTestingStep || isTestingWebhook}
             />
           </div>
         )}
@@ -1963,6 +2139,109 @@ export function NodeInspector({
             />
           </div>
         )}
+
+        {/* TEST STEP ACTION PANEL */}
+        <div className="wf-step-test-panel">
+          <div className="wf-step-test-header">
+            <div className="wf-step-test-info">
+              <span className="wf-step-test-title">
+                <Play size={13} className="text-cyan-400 fill-current" />
+                Step Testing
+              </span>
+              <span className="wf-step-test-subtitle">
+                Test this step with sample data and verify output schema
+              </span>
+            </div>
+            <div className="wf-step-test-actions">
+              <button
+                type="button"
+                className="wf-btn-test-step-primary"
+                onClick={handleExecuteStepTest}
+                disabled={isTestingStep || isTestingWebhook}
+                title="Test this node and preview outputs"
+              >
+                {isTestingStep || isTestingWebhook ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span>Executing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={12} className="fill-current" />
+                    <span>Test Step</span>
+                  </>
+                )}
+              </button>
+              {onOpenWorkflowTest && (
+                <button
+                  type="button"
+                  className="wf-btn-test-flow-secondary"
+                  onClick={onOpenWorkflowTest}
+                  title="Run full workflow simulation"
+                >
+                  <FlaskConical size={13} />
+                  <span>Test Flow</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Webhook result */}
+          {type === 'webhook_call' && testResult && (
+            <div className={`wf-step-test-result-box ${testResult.success ? 'success' : 'failed'}`}>
+              <div className="wf-step-test-result-top">
+                <span className={`wf-step-status-pill ${testResult.success ? 'success' : 'failed'}`}>
+                  {testResult.success ? '200 OK' : `${testResult.statusCode || 500} ERROR`}
+                </span>
+                <span className="wf-step-duration-label">
+                  <Clock size={11} /> {testResult.durationMs}ms
+                </span>
+                <button
+                  type="button"
+                  className="wf-btn-copy-result"
+                  onClick={copyResultToClipboard}
+                >
+                  {copiedResponse ? <Check size={11} /> : <Copy size={11} />}
+                  <span>{copiedResponse ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="wf-step-result-json">
+                {typeof testResult.data === 'object'
+                  ? JSON.stringify(testResult.data, null, 2)
+                  : String(testResult.data ?? testResult.error ?? '')}
+              </pre>
+            </div>
+          )}
+
+          {/* Other node result */}
+          {type !== 'webhook_call' && stepTestResult && (
+            <div className={`wf-step-test-result-box ${stepTestResult.success ? 'success' : 'failed'}`}>
+              <div className="wf-step-test-result-top">
+                <span className={`wf-step-status-pill ${stepTestResult.success ? 'success' : 'failed'}`}>
+                  {stepTestResult.success ? 'SUCCESS' : 'FAILED'}
+                </span>
+                <span className="wf-step-duration-label">
+                  <Clock size={11} /> {stepTestResult.durationMs}ms
+                </span>
+                <button
+                  type="button"
+                  className="wf-btn-copy-result"
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(stepTestResult.output, null, 2));
+                    setCopiedResponse(true);
+                    setTimeout(() => setCopiedResponse(false), 1800);
+                  }}
+                >
+                  {copiedResponse ? <Check size={11} /> : <Copy size={11} />}
+                  <span>{copiedResponse ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <pre className="wf-step-result-json">
+                {JSON.stringify(stepTestResult.output, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
 
         {/* DELETE NODE FOOTER */}
         {type !== 'trigger' && (
