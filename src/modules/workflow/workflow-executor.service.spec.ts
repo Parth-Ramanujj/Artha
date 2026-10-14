@@ -654,4 +654,275 @@ describe('WorkflowExecutor', () => {
       }
     });
   });
+
+  describe('Flow Studio New Node Types & Dry-Run Safety', () => {
+    it('executes SET_FIELDS action, updates capturedVariables, and interpolates in subsequent step', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-set-fields',
+        businessId: 'biz-1',
+        name: 'Set Fields Test',
+        slug: 'set-fields-test',
+        description: null,
+        status: WorkflowStatus.PUBLISHED,
+        version: 1,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_set',
+              type: ActionType.SET_FIELDS,
+              config: {
+                assignments: [
+                  { name: 'leadScore', value: '95' },
+                  { name: 'customerTier', value: 'VIP-Gold' },
+                ],
+              },
+            },
+            {
+              id: 'step_send',
+              type: ActionType.SEND_MESSAGE,
+              config: {
+                message: 'Hello, your tier is {{vars.customerTier}} with score {{vars.leadScore}}.',
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 10,
+        maxExecutionSeconds: 30,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, triggerData: {}, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'Hello',
+      };
+
+      await executor.execute(wf, runState, ctx);
+
+      // Verify capturedVariables were updated
+      expect((runState.triggerData as any)?.capturedVariables?.customerTier).toBe('VIP-Gold');
+      expect((runState.triggerData as any)?.capturedVariables?.leadScore).toBe('95');
+
+      // Verify message was interpolated with captured variables
+      expect(messageService.sendText).toHaveBeenCalledWith('sess-1', {
+        chatId: '919876543210@c.us',
+        text: 'Hello, your tier is VIP-Gold with score 95.',
+      });
+    });
+
+    it('executes FILTER action and cleanly terminates execution when filter condition fails', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-filter',
+        businessId: 'biz-1',
+        name: 'Filter Test',
+        slug: 'filter-test',
+        description: null,
+        status: WorkflowStatus.PUBLISHED,
+        version: 1,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_filter',
+              type: ActionType.FILTER,
+              config: {
+                field: 'trigger.message',
+                operator: 'contains',
+                value: 'urgent',
+              },
+            },
+            {
+              id: 'step_send',
+              type: ActionType.SEND_MESSAGE,
+              config: {
+                message: 'Urgent priority acknowledged!',
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 10,
+        maxExecutionSeconds: 30,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'Just a routine inquiry, nothing special.',
+      };
+
+      await executor.execute(wf, runState, ctx);
+
+      // Filter condition was NOT met, so sendText should NOT have been called
+      expect(messageService.sendText).not.toHaveBeenCalled();
+      expect(workflowService.updateRunStatus).toHaveBeenCalledWith(
+        'run-1',
+        RunStatus.COMPLETED,
+        expect.objectContaining({
+          failureReason: expect.stringContaining('Workflow filtered at node step_filter'),
+        }),
+      );
+    });
+
+    it('executes STOP_WORKFLOW action and cleanly halts subsequent actions', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-stop',
+        businessId: 'biz-1',
+        name: 'Stop Test',
+        slug: 'stop-test',
+        description: null,
+        status: WorkflowStatus.PUBLISHED,
+        version: 1,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_stop',
+              type: ActionType.STOP_WORKFLOW,
+              config: {
+                reason: 'Customer requested human handover immediately',
+              },
+            },
+            {
+              id: 'step_send',
+              type: ActionType.SEND_MESSAGE,
+              config: {
+                message: 'This should never be sent',
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 10,
+        maxExecutionSeconds: 30,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'Halt please',
+      };
+
+      await executor.execute(wf, runState, ctx);
+
+      expect(messageService.sendText).not.toHaveBeenCalled();
+      expect(workflowService.updateRunStatus).toHaveBeenCalledWith(
+        'run-1',
+        RunStatus.COMPLETED,
+        expect.objectContaining({
+          failureReason: expect.stringContaining('Workflow terminated at node step_stop: Customer requested human handover immediately'),
+        }),
+      );
+    });
+
+    it('enforces strict dry-run mode and never calls messageService when ctx.metadata.isTest is true', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-dry-run',
+        businessId: 'biz-1',
+        name: 'Dry Run Test',
+        slug: 'dry-run-test',
+        description: null,
+        status: WorkflowStatus.PUBLISHED,
+        version: 1,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_send',
+              type: ActionType.SEND_MESSAGE,
+              config: {
+                message: 'Testing dry run mode safely',
+              },
+            },
+            {
+              id: 'step_media',
+              type: ActionType.SEND_MEDIA,
+              config: {
+                mediaType: 'image',
+                url: 'https://example.com/banner.jpg',
+                caption: 'Studio Banner Preview',
+              },
+            },
+            {
+              id: 'step_sheets',
+              type: ActionType.GOOGLE_SHEETS,
+              config: {
+                webhookUrl: 'https://sheets.googleapis.com/test',
+                columns: { Contact: '{{phone}}', Status: 'Verified' },
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 10,
+        maxExecutionSeconds: 30,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'Dry run check',
+        metadata: { isTest: true },
+      };
+
+      await executor.execute(wf, runState, ctx);
+
+      // Verify real outbound messaging was NOT invoked
+      expect(messageService.sendText).not.toHaveBeenCalled();
+
+      // Verify all steps completed in simulated dry-run mode
+      const sendStep = runState.steps.find(s => s.actionId === 'step_send');
+      expect(sendStep?.output?.['simulated']).toBe(true);
+      expect(sendStep?.output?.['dryRun']).toBe(true);
+
+      const mediaStep = runState.steps.find(s => s.actionId === 'step_media');
+      expect(mediaStep?.output?.['simulated']).toBe(true);
+      expect(mediaStep?.output?.['dryRun']).toBe(true);
+
+      const sheetsStep = runState.steps.find(s => s.actionId === 'step_sheets');
+      expect(sheetsStep?.output?.['simulated']).toBe(true);
+      expect(sheetsStep?.output?.['dryRun']).toBe(true);
+    });
+  });
 });

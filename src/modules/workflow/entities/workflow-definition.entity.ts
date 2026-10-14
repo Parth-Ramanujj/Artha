@@ -52,6 +52,11 @@ export enum ActionType {
   MARK_AS_READ = 'mark_as_read',
   SEND_REACTION = 'send_reaction',
   SEND_LOCATION = 'send_location',
+  SET_FIELDS = 'set_fields',
+  FILTER = 'filter',
+  STOP_WORKFLOW = 'stop_workflow',
+  GOOGLE_SHEETS = 'google_sheets',
+  SEND_MEDIA = 'send_media',
 }
 
 export interface WorkflowTrigger {

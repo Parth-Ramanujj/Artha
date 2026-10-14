@@ -516,4 +516,132 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       { id: 'e5', source: 'node-check-assistance', target: 'node-thankyou', sourceHandle: 'btn_done' },
     ],
   },
+  {
+    id: 'google_sheets_sync',
+    name: 'WhatsApp to Google Sheets Lead Capture',
+    category: 'Integrations & CRM',
+    description: 'Capture inbound inquiry, set lead score variables, append row directly to Google Sheets, and send instant confirmation.',
+    nodes: [
+      {
+        id: 'node-trigger',
+        type: 'trigger',
+        data: {
+          label: 'Inbound Inquiry',
+          config: {
+            triggerType: 'keyword_match',
+            keyword: 'lead, quote, inquire, order, demo',
+            workingHoursOnly: false,
+          },
+        },
+        position: { x: 300, y: 50 },
+      },
+      {
+        id: 'node-set-vars',
+        type: 'set_fields',
+        data: {
+          label: 'Assign Lead Score',
+          config: {
+            assignments: [
+              { name: 'leadScore', value: '100' },
+              { name: 'channel', value: 'WhatsApp Direct' },
+            ],
+          },
+        },
+        position: { x: 300, y: 220 },
+      },
+      {
+        id: 'node-sync-sheets',
+        type: 'google_sheets',
+        data: {
+          label: 'Append to Google Sheet',
+          config: {
+            webhookUrl: 'https://script.google.com/macros/s/AKfycbz_mock/exec',
+            columns: {
+              CustomerPhone: '{{trigger.phone}}',
+              Inquiry: '{{trigger.message}}',
+              Score: '{{vars.leadScore}}',
+              Timestamp: '{{now}}',
+            },
+          },
+        },
+        position: { x: 300, y: 390 },
+      },
+      {
+        id: 'node-reply-confirm',
+        type: 'send_message',
+        data: {
+          label: 'Confirmation Reply',
+          config: {
+            message: '✅ Thanks! We have received your inquiry and recorded it in our system. A specialist will follow up shortly.',
+          },
+        },
+        position: { x: 300, y: 560 },
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'node-trigger', target: 'node-set-vars', sourceHandle: 'out' },
+      { id: 'e2', source: 'node-set-vars', target: 'node-sync-sheets', sourceHandle: 'out' },
+      { id: 'e3', source: 'node-sync-sheets', target: 'node-reply-confirm', sourceHandle: 'out' },
+    ],
+  },
+  {
+    id: 'out_of_hours_responder',
+    name: 'Smart Message Filter & Stop Workflow',
+    category: 'Automation & Filtering',
+    description: 'Filter messages containing specific keywords, send automated auto-reply notice, and terminate flow cleanly.',
+    nodes: [
+      {
+        id: 'node-trigger',
+        type: 'trigger',
+        data: {
+          label: 'Incoming WhatsApp Message',
+          config: {
+            triggerType: 'message_received',
+            workingHoursOnly: false,
+          },
+        },
+        position: { x: 300, y: 50 },
+      },
+      {
+        id: 'node-filter',
+        type: 'filter',
+        data: {
+          label: 'Filter Urgent Keywords',
+          config: {
+            field: 'trigger.message',
+            operator: 'contains',
+            value: 'urgent',
+          },
+        },
+        position: { x: 300, y: 220 },
+      },
+      {
+        id: 'node-send-notice',
+        type: 'send_message',
+        data: {
+          label: 'Send Priority Notice',
+          config: {
+            message: '🚨 Priority inquiry detected. Our on-call team has been alerted and will reach out to {{trigger.phone}} right away.',
+          },
+        },
+        position: { x: 300, y: 390 },
+      },
+      {
+        id: 'node-stop',
+        type: 'stop_workflow',
+        data: {
+          label: 'Terminate Flow',
+          config: {
+            reason: 'Priority notification delivered',
+          },
+        },
+        position: { x: 300, y: 560 },
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'node-trigger', target: 'node-filter', sourceHandle: 'out' },
+      { id: 'e2', source: 'node-filter', target: 'node-send-notice', sourceHandle: 'out' },
+      { id: 'e3', source: 'node-send-notice', target: 'node-stop', sourceHandle: 'out' },
+    ],
+  },
 ];

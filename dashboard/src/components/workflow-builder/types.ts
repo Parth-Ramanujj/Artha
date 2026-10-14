@@ -16,7 +16,12 @@ export type CanvasNodeType =
   | 'ai_assistant'
   | 'handoff_to_human'
   | 'add_tag'
-  | 'webhook_call';
+  | 'webhook_call'
+  | 'set_fields'
+  | 'filter'
+  | 'stop_workflow'
+  | 'google_sheets'
+  | 'send_media';
 
 export interface ButtonItem {
   id: string;

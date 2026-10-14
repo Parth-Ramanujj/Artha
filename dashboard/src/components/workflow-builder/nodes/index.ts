@@ -8,6 +8,11 @@ import { AiNode } from './AiNode';
 import { HandoffNode } from './HandoffNode';
 import { TagNode } from './TagNode';
 import { WebhookNode } from './WebhookNode';
+import { SetFieldsNode } from './SetFieldsNode';
+import { FilterNode } from './FilterNode';
+import { StopNode } from './StopNode';
+import { GoogleSheetsNode } from './GoogleSheetsNode';
+import { MediaNode } from './MediaNode';
 
 export const nodeTypes = {
   trigger: TriggerNode,
@@ -20,6 +25,11 @@ export const nodeTypes = {
   handoff_to_human: HandoffNode,
   add_tag: TagNode,
   webhook_call: WebhookNode,
+  set_fields: SetFieldsNode,
+  filter: FilterNode,
+  stop_workflow: StopNode,
+  google_sheets: GoogleSheetsNode,
+  send_media: MediaNode,
 };
 
 export {
@@ -33,4 +43,9 @@ export {
   HandoffNode,
   TagNode,
   WebhookNode,
+  SetFieldsNode,
+  FilterNode,
+  StopNode,
+  GoogleSheetsNode,
+  MediaNode,
 };

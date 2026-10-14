@@ -22,6 +22,10 @@ import {
   Bot,
   GitBranch,
   CheckCircle2,
+  Paperclip,
+  Filter,
+  StopCircle,
+  Table,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
@@ -44,6 +48,11 @@ function getNodeIcon(nodeType: string) {
     case 'condition_branch': return <GitBranch size={13} />;
     case 'ai_assistant': return <Bot size={13} />;
     case 'send_message': return <Send size={13} />;
+    case 'set_fields': return <Sliders size={13} />;
+    case 'filter': return <Filter size={13} />;
+    case 'stop_workflow': return <StopCircle size={13} />;
+    case 'google_sheets': return <Table size={13} />;
+    case 'send_media': return <Paperclip size={13} />;
     default: return <Layers size={13} />;
   }
 }
@@ -113,6 +122,34 @@ function getNodeOutputs(node: Node): NodeOutputField[] {
       return [
         { label: 'Sent Message Text', token: `steps.${id}.text`, type: 'string', description: 'Rendered message text that was sent', example: 'Welcome!' },
         { label: 'WhatsApp Message ID', token: `steps.${id}.messageId`, type: 'string', description: 'Delivered WhatsApp message ID', example: 'msg_10023' },
+      ];
+    case 'set_fields': {
+      const assignments = Array.isArray(cfg.assignments) ? cfg.assignments : [];
+      const fields: NodeOutputField[] = [
+        { label: 'Variables Map', token: `steps.${id}.variables`, type: 'object', description: 'All variables updated by this node' },
+      ];
+      assignments.forEach((a: any) => {
+        if (a && a.name) {
+          fields.push({
+            label: `Variable: {{vars.${a.name}}}`,
+            token: `vars.${a.name}`,
+            type: 'string',
+            description: `Value of custom variable '${a.name}'`,
+            example: a.value,
+          });
+        }
+      });
+      return fields;
+    }
+    case 'google_sheets':
+      return [
+        { label: 'Append Success', token: `steps.${id}.success`, type: 'boolean', description: 'Whether the row was successfully appended', example: 'true' },
+        { label: 'HTTP Status Code', token: `steps.${id}.statusCode`, type: 'number', description: 'Response status code', example: '200' },
+      ];
+    case 'send_media':
+      return [
+        { label: 'Message Sent', token: `steps.${id}.sent`, type: 'boolean', description: 'Whether the media message was sent', example: 'true' },
+        { label: 'Message ID', token: `steps.${id}.messageId`, type: 'string', description: 'Assigned WhatsApp message ID', example: 'wamid.HBg...' },
       ];
     default:
       return [
@@ -248,6 +285,19 @@ export function NodeInspector({
       case 'handoff_to_human':
         return [
           { key: 'assignedName', label: 'Agent / Team Name' },
+        ];
+      case 'set_fields':
+        return [{ key: 'value', label: 'Field Value' }];
+      case 'filter':
+        return [{ key: 'value', label: 'Comparison Target' }];
+      case 'stop_workflow':
+        return [{ key: 'reason', label: 'Termination Reason' }];
+      case 'google_sheets':
+        return [{ key: 'webhookUrl', label: 'Google Sheets Webhook URL' }];
+      case 'send_media':
+        return [
+          { key: 'url', label: 'Media URL' },
+          { key: 'caption', label: 'Caption Text' },
         ];
       default:
         return [{ key: 'message', label: 'Message Text' }];
@@ -1815,6 +1865,223 @@ export function NodeInspector({
                   </pre>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* SET FIELDS NODE */}
+        {type === 'set_fields' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-header-row">
+              <label className="wf-field-label">Variable Assignments</label>
+              <button
+                type="button"
+                className="wf-btn-add-var"
+                onClick={() => {
+                  const current = Array.isArray(config.assignments) ? config.assignments : [];
+                  updateConfig('assignments', [...current, { name: '', value: '' }]);
+                }}
+              >
+                <Plus size={11} /> Add Variable
+              </button>
+            </div>
+            <div className="wf-assignments-editor">
+              {((Array.isArray(config.assignments) && config.assignments.length > 0)
+                ? config.assignments
+                : [{ name: 'customVar', value: '{{trigger.message}}' }]
+              ).map((a: any, idx: number) => {
+                const assignments = Array.isArray(config.assignments) ? config.assignments : [{ name: 'customVar', value: '{{trigger.message}}' }];
+                return (
+                  <div key={idx} className="wf-assignment-row" style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      className="wf-field-input"
+                      placeholder="Name"
+                      style={{ flex: 1 }}
+                      value={a.name || ''}
+                      onChange={e => {
+                        const updated = [...assignments];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        updateConfig('assignments', updated);
+                      }}
+                    />
+                    <span style={{ color: 'var(--text-secondary)' }}>=</span>
+                    <input
+                      type="text"
+                      className="wf-field-input"
+                      placeholder="Value"
+                      style={{ flex: 1.5 }}
+                      value={a.value || ''}
+                      onChange={e => {
+                        const updated = [...assignments];
+                        updated[idx] = { ...updated[idx], value: e.target.value };
+                        updateConfig('assignments', updated);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="wf-btn-del-mini"
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                      onClick={() => {
+                        const updated = assignments.filter((_: any, i: number) => i !== idx);
+                        updateConfig('assignments', updated);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <span className="wf-field-hint">
+              Variables can be referenced in downstream nodes as <code>{'{{vars.variableName}}'}</code>.
+            </span>
+          </div>
+        )}
+
+        {/* FILTER NODE */}
+        {type === 'filter' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Field to Check</label>
+              <input
+                type="text"
+                className="wf-field-input"
+                placeholder="trigger.message, trigger.phone, vars.leadScore"
+                value={config.field || 'trigger.message'}
+                onChange={e => updateConfig('field', e.target.value)}
+              />
+            </div>
+            <div className="wf-field-group">
+              <label className="wf-field-label">Operator</label>
+              <select
+                className="wf-field-select"
+                value={config.operator || 'contains'}
+                onChange={e => updateConfig('operator', e.target.value)}
+              >
+                <option value="contains">Contains (text)</option>
+                <option value="not_contains">Does not contain</option>
+                <option value="equals">Equals (exact match)</option>
+                <option value="not_equals">Does not equal</option>
+                <option value="starts_with">Starts with</option>
+                <option value="ends_with">Ends with</option>
+                <option value="empty">Is Empty</option>
+                <option value="not_empty">Is Not Empty</option>
+                <option value="greater_than">Greater than (&gt;)</option>
+                <option value="less_than">Less than (&lt;)</option>
+              </select>
+            </div>
+            {config.operator !== 'empty' && config.operator !== 'not_empty' && (
+              <div className="wf-field-group">
+                <label className="wf-field-label">Target Comparison Value</label>
+                <input
+                  type="text"
+                  className="wf-field-input"
+                  placeholder="e.g. invoice, urgent, order"
+                  value={config.value || ''}
+                  onChange={e => updateConfig('value', e.target.value)}
+                />
+              </div>
+            )}
+            <span className="wf-field-hint">
+              If the condition passes, workflow continues; otherwise, execution stops cleanly.
+            </span>
+          </div>
+        )}
+
+        {/* STOP WORKFLOW NODE */}
+        {type === 'stop_workflow' && (
+          <div className="wf-inspector-section">
+            <label className="wf-field-label">Termination Reason</label>
+            <input
+              type="text"
+              className="wf-field-input"
+              placeholder="e.g. Ineligible customer or completed branch"
+              value={config.reason || 'Workflow finished normally'}
+              onChange={e => updateConfig('reason', e.target.value)}
+            />
+            <span className="wf-field-hint">
+              This node terminates workflow execution cleanly. No further connected nodes will run.
+            </span>
+          </div>
+        )}
+
+        {/* GOOGLE SHEETS NODE */}
+        {type === 'google_sheets' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Google Sheets / Apps Script Webhook URL</label>
+              <input
+                type="text"
+                className="wf-field-input"
+                placeholder="https://script.google.com/macros/s/.../exec"
+                value={config.webhookUrl || config.url || ''}
+                onChange={e => {
+                  updateConfig('webhookUrl', e.target.value);
+                  updateConfig('url', e.target.value);
+                }}
+              />
+              <span className="wf-field-hint">
+                Deploy a Google Apps Script as Web App with <code>doPost(e)</code> to append spreadsheet rows.
+              </span>
+            </div>
+            <div className="wf-field-group">
+              <label className="wf-field-label">Row Data (JSON Columns)</label>
+              <textarea
+                className="wf-field-textarea"
+                rows={3}
+                placeholder='{"Phone": "{{trigger.phone}}", "Message": "{{trigger.message}}", "Date": "{{now}}"}'
+                value={typeof config.columns === 'object' ? JSON.stringify(config.columns, null, 2) : (config.columns || '')}
+                onChange={e => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    updateConfig('columns', parsed);
+                  } catch {
+                    updateConfig('columns', e.target.value);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* SEND MEDIA NODE */}
+        {type === 'send_media' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Media Type</label>
+              <select
+                className="wf-field-select"
+                value={config.mediaType || 'image'}
+                onChange={e => updateConfig('mediaType', e.target.value)}
+              >
+                <option value="image">Image (JPEG / PNG)</option>
+                <option value="document">Document (PDF / DOC)</option>
+                <option value="audio">Audio / Voice Note</option>
+              </select>
+            </div>
+            <div className="wf-field-group">
+              <label className="wf-field-label">Media File URL</label>
+              <input
+                type="text"
+                className="wf-field-input"
+                placeholder="https://example.com/brochure.pdf"
+                value={config.url || config.mediaUrl || ''}
+                onChange={e => {
+                  updateConfig('url', e.target.value);
+                  updateConfig('mediaUrl', e.target.value);
+                }}
+              />
+            </div>
+            <div className="wf-field-group">
+              <label className="wf-field-label">Caption / Description</label>
+              <input
+                type="text"
+                className="wf-field-input"
+                placeholder="Here is your requested catalog, {{trigger.contactName}}!"
+                value={config.caption || ''}
+                onChange={e => updateConfig('caption', e.target.value)}
+              />
             </div>
           </div>
         )}

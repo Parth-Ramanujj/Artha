@@ -10,6 +10,11 @@ import {
   Tag,
   Globe,
   Search,
+  Paperclip,
+  Filter,
+  Sliders,
+  StopCircle,
+  Table,
 } from 'lucide-react';
 import type { CanvasNodeType, NodePaletteItem } from './types';
 
@@ -128,6 +133,67 @@ const PALETTE_ITEMS: NodePaletteItem[] = [
       payload: {},
     },
   },
+  {
+    type: 'send_media',
+    title: 'Send Media',
+    category: 'message',
+    description: 'Send image, PDF document, or audio with caption',
+    iconName: 'paperclip',
+    defaultConfig: {
+      mediaType: 'image',
+      url: '',
+      caption: '',
+    },
+  },
+  {
+    type: 'filter',
+    title: 'Filter',
+    category: 'logic',
+    description: 'Continue workflow only if condition is met',
+    iconName: 'filter',
+    defaultConfig: {
+      field: 'trigger.message',
+      operator: 'contains',
+      value: '',
+    },
+  },
+  {
+    type: 'stop_workflow',
+    title: 'Stop Workflow',
+    category: 'logic',
+    description: 'Terminate workflow execution immediately',
+    iconName: 'stop',
+    defaultConfig: {
+      reason: 'Workflow finished',
+    },
+  },
+  {
+    type: 'set_fields',
+    title: 'Set Fields / Variables',
+    category: 'action',
+    description: 'Assign custom variables or transform values',
+    iconName: 'sliders',
+    defaultConfig: {
+      assignments: [
+        { name: 'leadScore', value: '10' },
+      ],
+    },
+  },
+  {
+    type: 'google_sheets',
+    title: 'Google Sheets',
+    category: 'action',
+    description: 'Append or sync rows to a Google Spreadsheet webhook',
+    iconName: 'table',
+    defaultConfig: {
+      webhookUrl: '',
+      columns: {
+        Phone: '{{trigger.phone}}',
+        Message: '{{trigger.message}}',
+        Date: '{{now}}',
+      },
+    },
+  },
 ];
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
@@ -146,12 +212,18 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
     switch (iconName) {
       case 'message':
         return <MessageSquare size={16} className="text-primary" />;
+      case 'paperclip':
+        return <Paperclip size={16} className="text-primary" />;
       case 'layers':
         return <Layers size={16} className="text-info" />;
       case 'help':
         return <HelpCircle size={16} className="text-warning" />;
       case 'split':
         return <Split size={16} className="text-purple" />;
+      case 'filter':
+        return <Filter size={16} className="text-purple" />;
+      case 'stop':
+        return <StopCircle size={16} className="text-danger" />;
       case 'clock':
         return <Clock size={16} className="text-orange" />;
       case 'bot':
@@ -160,8 +232,12 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
         return <UserCheck size={16} className="text-blue" />;
       case 'tag':
         return <Tag size={16} className="text-amber" />;
+      case 'sliders':
+        return <Sliders size={16} className="text-indigo" />;
       case 'globe':
         return <Globe size={16} className="text-cyan" />;
+      case 'table':
+        return <Table size={16} className="text-emerald" />;
       default:
         return <MessageSquare size={16} />;
     }

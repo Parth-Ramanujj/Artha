@@ -111,10 +111,29 @@ export class WorkflowExecutor {
 
         const step = await this.executeAction(action, ctx, workflow.maxRetries, run);
         steps.push(step);
+        if (run) run.steps = steps;
         actionCount++;
 
         if (step.output?.['suspended']) {
           await this.workflowService.updateRunStatus(run.id, RunStatus.PAUSED, { steps, actionCount });
+          return;
+        }
+
+        if (step.output?.['filtered']) {
+          await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
+            steps,
+            actionCount,
+            failureReason: `Workflow filtered at node ${action.id}: ${String(step.output?.['reason'] || 'Filter condition not met')}`,
+          });
+          return;
+        }
+
+        if (step.output?.['stopped']) {
+          await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
+            steps,
+            actionCount,
+            failureReason: `Workflow terminated at node ${action.id}: ${String(step.output?.['reason'] || 'Workflow stopped')}`,
+          });
           return;
         }
 
@@ -373,6 +392,21 @@ export class WorkflowExecutor {
       case ActionType.SEND_LOCATION:
         return this.actionSendLocation(action, ctx, run);
 
+      case ActionType.SET_FIELDS:
+        return this.actionSetFields(action, ctx, run);
+
+      case ActionType.FILTER:
+        return this.actionFilter(action, ctx, run);
+
+      case ActionType.STOP_WORKFLOW:
+        return this.actionStopWorkflow(action, ctx, run);
+
+      case ActionType.GOOGLE_SHEETS:
+        return this.actionGoogleSheets(action, ctx, run);
+
+      case ActionType.SEND_MEDIA:
+        return this.actionSendMedia(action, ctx, run);
+
       case ActionType.SCHEDULE_FOLLOWUP:
         return { status: 'not_implemented', actionType: action.type };
 
@@ -535,6 +569,19 @@ export class WorkflowExecutor {
 
     message = this.interpolateVariables(message, ctx, run);
 
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      this.logger.log(`Workflow send message (simulated dry-run): chat=${ctx.chatId} len=${message.length}`);
+      return {
+        sent: true,
+        simulated: true,
+        dryRun: true,
+        messageId: `dry_run_${Date.now()}`,
+        chatId: ctx.chatId,
+        text: message,
+        length: message.length,
+      };
+    }
+
     if (this.messageService) {
       const res = await this.messageService.sendText(ctx.sessionId, {
         chatId: ctx.chatId,
@@ -567,6 +614,19 @@ export class WorkflowExecutor {
     const vars: Record<string, string> = {};
     for (const [k, v] of Object.entries(rawVars)) {
       vars[k] = this.interpolateVariables(String(v ?? ''), ctx, run);
+    }
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      this.logger.log(`Workflow send template (simulated dry-run): chat=${ctx.chatId} template=${templateName || templateId}`);
+      return {
+        sent: true,
+        simulated: true,
+        dryRun: true,
+        messageId: `dry_run_tmpl_${Date.now()}`,
+        chatId: ctx.chatId,
+        template: templateName || templateId,
+        vars,
+      };
     }
 
     if (this.messageService) {
@@ -722,6 +782,18 @@ export class WorkflowExecutor {
       text: this.interpolateVariables(b.text, ctx, run),
     }));
     const mode = String(action.config['mode'] || 'auto');
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      this.logger.log(`Workflow interactive buttons (simulated dry-run): chat=${ctx.chatId}`);
+      return {
+        sent: true,
+        simulated: true,
+        dryRun: true,
+        mode,
+        message,
+        buttons: buttons.map(b => b.text),
+      };
+    }
 
     let sentVia = 'text_fallback';
 
@@ -1539,6 +1611,186 @@ export class WorkflowExecutor {
     }
   }
 
+  private async actionSetFields(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawAssignments = action.config['assignments'] as Array<{ name: string; value: string }> | undefined;
+    const assignments = Array.isArray(rawAssignments) ? rawAssignments : [];
+    const fields = (action.config['fields'] as Record<string, unknown>) || {};
+
+    const updatedVars: Record<string, unknown> = {};
+
+    for (const item of assignments) {
+      if (item && item.name) {
+        const val = this.interpolateVariables(String(item.value ?? ''), ctx, run);
+        updatedVars[item.name] = val;
+      }
+    }
+
+    for (const [k, v] of Object.entries(fields)) {
+      if (k) {
+        const val = typeof v === 'string' ? this.interpolateVariables(v, ctx, run) : v;
+        updatedVars[k] = val;
+      }
+    }
+
+    if (run) {
+      const triggerData = (run.triggerData || {}) as Record<string, unknown>;
+      const captured = (triggerData['capturedVariables'] || {}) as Record<string, unknown>;
+      Object.assign(captured, updatedVars);
+      triggerData['capturedVariables'] = captured;
+      run.triggerData = triggerData;
+    }
+
+    return { set: true, variables: updatedVars };
+  }
+
+  private async actionFilter(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawField = String(action.config['field'] || 'trigger.message');
+    const operator = String(action.config['operator'] || 'contains');
+    const rawTarget = String(action.config['value'] || '');
+
+    const resolvedFieldVal = this.interpolateVariables(`{{${rawField}}}`, ctx, run);
+    const resolvedTarget = this.interpolateVariables(rawTarget, ctx, run);
+
+    let passed = false;
+    const fLower = resolvedFieldVal.toLowerCase();
+    const tLower = resolvedTarget.toLowerCase();
+
+    switch (operator) {
+      case 'equals':
+      case '==':
+        passed = fLower === tLower;
+        break;
+      case 'not_equals':
+      case '!=':
+        passed = fLower !== tLower;
+        break;
+      case 'contains':
+        passed = fLower.includes(tLower);
+        break;
+      case 'not_contains':
+        passed = !fLower.includes(tLower);
+        break;
+      case 'starts_with':
+        passed = fLower.startsWith(tLower);
+        break;
+      case 'ends_with':
+        passed = fLower.endsWith(tLower);
+        break;
+      case 'empty':
+        passed = resolvedFieldVal.trim().length === 0;
+        break;
+      case 'not_empty':
+        passed = resolvedFieldVal.trim().length > 0;
+        break;
+      case 'greater_than':
+      case '>':
+        passed = Number(resolvedFieldVal) > Number(resolvedTarget);
+        break;
+      case 'less_than':
+      case '<':
+        passed = Number(resolvedFieldVal) < Number(resolvedTarget);
+        break;
+      default:
+        passed = fLower.includes(tLower);
+    }
+
+    if (!passed) {
+      return { passed: false, filtered: true, reason: `Filter condition '${rawField} ${operator} ${rawTarget}' not met` };
+    }
+
+    return { passed: true, filtered: false, value: resolvedFieldVal };
+  }
+
+  private async actionStopWorkflow(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawReason = String(action.config['reason'] || 'Workflow stopped by stop node');
+    const reason = this.interpolateVariables(rawReason, ctx, run);
+    return { stopped: true, reason };
+  }
+
+  private async actionGoogleSheets(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const webhookUrl = String(action.config['webhookUrl'] || action.config['url'] || '');
+    const rawColumns = (action.config['columns'] as Record<string, unknown>) || {};
+    const columns: Record<string, unknown> = {};
+
+    for (const [col, val] of Object.entries(rawColumns)) {
+      columns[col] = typeof val === 'string' ? this.interpolateVariables(val, ctx, run) : val;
+    }
+
+    if (Object.keys(columns).length === 0) {
+      columns['Phone'] = ctx.chatId?.replace(/@.*$/, '') || '';
+      columns['Message'] = ctx.messageBody || '';
+      columns['Timestamp'] = new Date().toISOString();
+    }
+
+    if (!webhookUrl || ctx.metadata?.isTest || action.config['dryRun']) {
+      return { success: true, simulated: true, dryRun: true, appendedRow: columns, destination: webhookUrl || 'simulated_sheets' };
+    }
+
+    const result = await this.testWebhookCall({
+      url: webhookUrl,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'appendRow', row: columns }),
+    });
+
+    return { success: result.statusCode >= 200 && result.statusCode < 300, statusCode: result.statusCode, appendedRow: columns };
+  }
+
+  private async actionSendMedia(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for send media');
+    if (!ctx.chatId) throw new Error('No chat context for send media');
+
+    const mediaType = String(action.config['mediaType'] || 'image');
+    const rawUrl = String(action.config['url'] || action.config['mediaUrl'] || '');
+    const url = this.interpolateVariables(rawUrl, ctx, run);
+    const rawCaption = String(action.config['caption'] || '');
+    const caption = this.interpolateVariables(rawCaption, ctx, run);
+
+    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+      return {
+        sent: true,
+        simulated: true,
+        dryRun: true,
+        messageId: `dry_run_media_${Date.now()}`,
+        mediaType,
+        url,
+        caption,
+      };
+    }
+
+    if (this.messageService && url) {
+      const res = await this.messageService.sendImage(ctx.sessionId, {
+        chatId: ctx.chatId,
+        mimetype: mediaType === 'document' ? 'application/pdf' : 'image/jpeg',
+        caption,
+        url,
+      });
+      return { sent: true, messageId: res.messageId, mediaType, url, caption };
+    }
+
+    return { sent: true, simulated: true, mediaType, url, caption };
+  }
+
   private async executeGraphFromNode(
     workflow: WorkflowDefinition,
     run: WorkflowRun,
@@ -1568,6 +1820,7 @@ export class WorkflowExecutor {
 
       const step = await this.executeAction(action, ctx, workflow.maxRetries, run);
       steps.push(step);
+      if (run) run.steps = steps;
 
       if (step.status === 'failed') {
         await this.workflowService.updateRunStatus(run.id, RunStatus.FAILED, {
@@ -1579,6 +1832,22 @@ export class WorkflowExecutor {
 
       if (step.output?.['suspended']) {
         await this.workflowService.updateRunStatus(run.id, RunStatus.PAUSED, { steps });
+        return;
+      }
+
+      if (step.output?.['filtered']) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
+          steps,
+          failureReason: `Workflow filtered at node ${currentNode.id}: ${String(step.output?.['reason'] || 'Filter condition not met')}`,
+        });
+        return;
+      }
+
+      if (step.output?.['stopped']) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
+          steps,
+          failureReason: `Workflow terminated at node ${currentNode.id}: ${String(step.output?.['reason'] || 'Workflow stopped')}`,
+        });
         return;
       }
 
