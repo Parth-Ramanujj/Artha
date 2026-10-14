@@ -190,7 +190,10 @@ export class WorkflowService {
     return this.runRepo.save(run);
   }
 
-  async getPublishedWorkflowsForTrigger(businessId: string | null, triggerType: TriggerType): Promise<WorkflowDefinition[]> {
+  async getPublishedWorkflowsForTrigger(
+    businessId: string | null,
+    triggerType: TriggerType,
+  ): Promise<WorkflowDefinition[]> {
     const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
     const all = await this.workflowRepo.find({
       where: { businessId: targetBusinessId, status: WorkflowStatus.PUBLISHED },
@@ -337,5 +340,64 @@ export class WorkflowService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 100);
+  }
+
+  // ── Analytics ──
+
+  async getAnalyticsSummary(businessId: string) {
+    const definitions = await this.workflowRepo.find({ where: { businessId } });
+    const total = definitions.length;
+    const published = definitions.filter(d => d.status === WorkflowStatus.PUBLISHED).length;
+    const draft = definitions.filter(d => d.status === WorkflowStatus.DRAFT).length;
+
+    const runs = await this.runRepo.find({ where: { businessId } });
+    const totalRuns = runs.length;
+    const completedRuns = runs.filter(r => r.status === RunStatus.COMPLETED).length;
+    const failedRuns = runs.filter(r => r.status === RunStatus.FAILED).length;
+
+    return {
+      totalWorkflows: total,
+      published,
+      draft,
+      totalRuns,
+      completedRuns,
+      failedRuns,
+      successRate: totalRuns > 0 ? Math.round((completedRuns / totalRuns) * 100) : 0,
+    };
+  }
+
+  async getPathStats(workflowId: string, businessId: string) {
+    const definition = await this.workflowRepo.findOne({ where: { id: workflowId, businessId } });
+    if (!definition) throw new NotFoundException('Workflow not found');
+
+    const runs = await this.runRepo.find({ where: { workflowId } });
+    const actionCounts: Record<string, number> = {};
+    for (const run of runs) {
+      if (run.steps && Array.isArray(run.steps)) {
+        for (const step of run.steps) {
+          const key = step.actionType ?? 'unknown';
+          actionCounts[key] = (actionCounts[key] || 0) + 1;
+        }
+      }
+    }
+
+    return {
+      workflowId,
+      workflowName: definition.name,
+      totalRuns: runs.length,
+      actionCounts,
+      averageDuration:
+        runs.length > 0
+          ? Math.round(
+              runs.reduce((sum, r) => {
+                const start = new Date(r.createdAt).getTime();
+                const end = r.updatedAt ? new Date(r.updatedAt).getTime() : start;
+                return sum + (end - start);
+              }, 0) /
+                runs.length /
+                1000,
+            )
+          : 0,
+    };
   }
 }

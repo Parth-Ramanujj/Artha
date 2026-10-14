@@ -785,6 +785,60 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     throw new EngineNotSupportedError('sendPollMessage');
   }
 
+  async sendInteractiveButtons(
+    chatId: string,
+    body: string,
+    buttons: Array<{ id?: string; text: string }>,
+    title?: string,
+    footer?: string,
+  ): Promise<MessageResult> {
+    const to = this.toE164(chatId);
+    if (buttons.length <= 3) {
+      const payload = {
+        type: 'interactive',
+        interactive: {
+          type: 'button',
+          ...(title ? { header: { type: 'text', text: title } } : {}),
+          body: { text: body },
+          ...(footer ? { footer: { text: footer } } : {}),
+          action: {
+            buttons: buttons.map((b, idx) => ({
+              type: 'reply',
+              reply: {
+                id: b.id || `btn_${idx + 1}`,
+                title: b.text.slice(0, 20),
+              },
+            })),
+          },
+        },
+      };
+      return this.sendMessage(to, payload);
+    } else {
+      const payload = {
+        type: 'interactive',
+        interactive: {
+          type: 'list',
+          ...(title ? { header: { type: 'text', text: title } } : {}),
+          body: { text: body },
+          ...(footer ? { footer: { text: footer } } : {}),
+          action: {
+            button: 'Select Option',
+            sections: [
+              {
+                title: title || 'Options',
+                rows: buttons.slice(0, 10).map((b, idx) => ({
+                  id: b.id || `btn_${idx + 1}`,
+                  title: b.text.slice(0, 24),
+                })),
+              },
+            ],
+          },
+        },
+      };
+      return this.sendMessage(to, payload);
+    }
+  }
+
   // ============================================================================
   // Reply & Forward
   // ============================================================================

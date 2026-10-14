@@ -1453,6 +1453,9 @@ export const workflowApi = {
       data?: unknown;
       error?: string;
     }>('/workflows/test-webhook', { method: 'POST', body: JSON.stringify(data) }),
+  listAgents: () => request<any[]>('/workflows/agents/list'),
+  listLeads: () => request<any[]>('/workflows/leads/list'),
+  seedInsuranceWorkflow: () => request<WorkflowDefinition>('/workflows/presets/seed-insurance', { method: 'POST' }),
 };
 
 export interface TestWebhookResult {
@@ -1479,15 +1482,10 @@ export interface CapturedWebhookRequest {
 }
 
 export const webhookTestApi = {
-  getRequests: () =>
-    request<{ total: number; requests: CapturedWebhookRequest[] }>('/webhook-test/requests'),
-  getLatest: () =>
-    request<CapturedWebhookRequest>('/webhook-test/latest'),
-  clearRequests: () =>
-    request<{ success: boolean; message: string }>('/webhook-test/requests', { method: 'DELETE' }),
+  getRequests: () => request<{ total: number; requests: CapturedWebhookRequest[] }>('/webhook-test/requests'),
+  getLatest: () => request<CapturedWebhookRequest>('/webhook-test/latest'),
+  clearRequests: () => request<{ success: boolean; message: string }>('/webhook-test/requests', { method: 'DELETE' }),
 };
-
-
 
 // =============================================================================
 // Campaigns & Consent
@@ -1652,8 +1650,11 @@ export const aiApi = {
   updateConfig: (data: Partial<AiConfig>) =>
     request<AiConfig>('/ai/config', { method: 'PUT', body: JSON.stringify(data) }),
   getModels: () => request<AiModel[]>('/ai/models'),
-  chat: (data: { message: string; sessionId?: string; conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) =>
-    request<AiChatResponse>('/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
+  chat: (data: {
+    message: string;
+    sessionId?: string;
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  }) => request<AiChatResponse>('/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
   listDocuments: (params?: { limit?: number; offset?: number }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set('limit', String(params.limit));
@@ -1699,8 +1700,233 @@ export const businessApi = {
   delete: (id: string) => request<void>(`/businesses/${id}`, { method: 'DELETE' }),
   getMemberships: (businessId: string) => request<BusinessMembership[]>(`/businesses/${businessId}/memberships`),
   addMembership: (businessId: string, data: { apiKeyId: string; role?: string }) =>
-    request<BusinessMembership>(`/businesses/${businessId}/memberships`, { method: 'POST', body: JSON.stringify(data) }),
+    request<BusinessMembership>(`/businesses/${businessId}/memberships`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   removeMembership: (businessId: string, membershipId: string) =>
     request<void>(`/businesses/${businessId}/memberships/${membershipId}`, { method: 'DELETE' }),
 };
 
+// =============================================================================
+// Canned Responses
+// =============================================================================
+
+export interface CannedResponse {
+  id: string;
+  businessId: string;
+  title: string;
+  shortcut: string;
+  content: string;
+  category: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const cannedResponseApi = {
+  list: (opts?: { category?: string; search?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.category) params.set('category', opts.category);
+    if (opts?.search) params.set('search', opts.search);
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return request<CannedResponse[]>(`/canned-responses${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<CannedResponse>(`/canned-responses/${id}`),
+  create: (data: { title: string; shortcut: string; content: string; category?: string }) =>
+    request<CannedResponse>('/canned-responses', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<{ title: string; shortcut: string; content: string; category: string }>) =>
+    request<CannedResponse>(`/canned-responses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/canned-responses/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Assignment Rules
+// =============================================================================
+
+export interface AssignmentRule {
+  id: string;
+  businessId: string;
+  name: string;
+  strategy: 'round_robin' | 'least_active' | 'manual';
+  agents: string[] | null;
+  conditions: Record<string, unknown> | null;
+  enabled: boolean;
+  priority: number;
+  lastAssignedIndex: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const assignmentRuleApi = {
+  list: () => request<AssignmentRule[]>('/assignment-rules'),
+  get: (id: string) => request<AssignmentRule>(`/assignment-rules/${id}`),
+  create: (data: { name: string; strategy?: string; agents?: string[]; enabled?: boolean; priority?: number }) =>
+    request<AssignmentRule>('/assignment-rules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<AssignmentRule>) =>
+    request<AssignmentRule>(`/assignment-rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/assignment-rules/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Notifications
+// =============================================================================
+
+export interface Notification {
+  id: string;
+  businessId: string;
+  recipientId: string | null;
+  type: string;
+  title: string;
+  message: string | null;
+  data: Record<string, unknown> | null;
+  read: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export const notificationApi = {
+  list: (opts?: { unreadOnly?: boolean; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.unreadOnly) params.set('unreadOnly', 'true');
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return request<Notification[]>(`/notifications${qs ? `?${qs}` : ''}`);
+  },
+  getUnreadCount: () => request<{ count: number }>('/notifications/unread-count'),
+  markAsRead: (id: string) => request<Notification>(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllRead: () => request<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
+  delete: (id: string) => request<void>(`/notifications/${id}`, { method: 'DELETE' }),
+  deleteAll: () => request<void>('/notifications', { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Contact Segments
+// =============================================================================
+
+export interface ContactSegment {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string | null;
+  filters: Record<string, unknown> | null;
+  staticContactIds: string[] | null;
+  type: 'dynamic' | 'static';
+  contactCount: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const contactSegmentApi = {
+  list: (opts?: { limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return request<ContactSegment[]>(`/contact-segments${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<ContactSegment>(`/contact-segments/${id}`),
+  getContacts: (id: string, opts?: { limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return request<Contact[]>(`/contact-segments/${id}/contacts${qs ? `?${qs}` : ''}`);
+  },
+  create: (data: {
+    name: string;
+    description?: string;
+    filters?: Record<string, unknown>;
+    staticContactIds?: string[];
+    type?: string;
+  }) => request<ContactSegment>('/contact-segments', { method: 'POST', body: JSON.stringify(data) }),
+  update: (
+    id: string,
+    data: Partial<{ name: string; description: string; filters: Record<string, unknown>; staticContactIds: string[] }>,
+  ) => request<ContactSegment>(`/contact-segments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/contact-segments/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Contact Import/Export
+// =============================================================================
+
+export const contactImportExportApi = {
+  importCsv: (csv: string) =>
+    request<{ imported: number; skipped: number; errors: string[] }>('/contacts/import', {
+      method: 'POST',
+      body: JSON.stringify({ csv }),
+    }),
+  exportCsv: () => requestText('/contacts/export/csv'),
+  exportConversationsCsv: () => requestText('/export/conversations'),
+};
+
+// =============================================================================
+// Settings (runtime)
+// =============================================================================
+
+export const settingsApi = {
+  get: () => request<Record<string, unknown>>('/settings'),
+  update: (data: { notifications?: Record<string, unknown> }) =>
+    request<Record<string, unknown>>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+// =============================================================================
+// SLA Policies & Events
+// =============================================================================
+
+export const slaPolicyApi = {
+  list: () => request<unknown[]>('/sla/policies'),
+  get: (id: string) => request<unknown>(`/sla/policies/${id}`),
+  create: (data: Record<string, unknown>) => request<unknown>('/sla/policies', { method: 'POST', body: data }),
+  update: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/sla/policies/${id}`, { method: 'PUT', body: data }),
+  delete: (id: string) => request<void>(`/sla/policies/${id}`, { method: 'DELETE' }),
+};
+
+export const slaEventApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<unknown[]>(`/sla/events${qs}`);
+  },
+  stats: () => request<{ total: number; breaches: number; met: number; complianceRate: number }>('/sla/stats'),
+};
+
+// =============================================================================
+// A/B Testing
+// =============================================================================
+
+export const abTestApi = {
+  list: () => request<unknown[]>('/ab-tests'),
+  get: (id: string) => request<unknown>(`/ab-tests/${id}`),
+  create: (data: Record<string, unknown>) => request<unknown>('/ab-tests', { method: 'POST', body: data }),
+  update: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/ab-tests/${id}`, { method: 'PUT', body: data }),
+  start: (id: string) => request<unknown>(`/ab-tests/${id}/start`, { method: 'POST' }),
+  complete: (id: string) => request<unknown>(`/ab-tests/${id}/complete`, { method: 'POST' }),
+  delete: (id: string) => request<void>(`/ab-tests/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Integrations
+// =============================================================================
+
+export const integrationApi = {
+  types: () =>
+    request<Array<{ type: string; label: string; category: string; description: string }>>('/integrations/types'),
+  list: (type?: string) => {
+    const qs = type ? `?type=${type}` : '';
+    return request<unknown[]>(`/integrations${qs}`);
+  },
+  get: (id: string) => request<unknown>(`/integrations/${id}`),
+  create: (data: Record<string, unknown>) => request<unknown>('/integrations', { method: 'POST', body: data }),
+  update: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/integrations/${id}`, { method: 'PUT', body: data }),
+  connect: (id: string) => request<unknown>(`/integrations/${id}/connect`, { method: 'POST' }),
+  disconnect: (id: string) => request<unknown>(`/integrations/${id}/disconnect`, { method: 'POST' }),
+  delete: (id: string) => request<void>(`/integrations/${id}`, { method: 'DELETE' }),
+};

@@ -46,6 +46,7 @@ import { ConversationModule } from './modules/conversation/conversation.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { AiModule } from './modules/ai/ai.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
+import { IntegrationModule as IntegrationsModule } from './modules/integrations/integration.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -173,6 +174,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/workflow/**/*.entity{.ts,.js}',
             __dirname + '/modules/ai/**/*.entity{.ts,.js}',
             __dirname + '/modules/campaign/**/*.entity{.ts,.js}',
+            __dirname + '/modules/integrations/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -313,6 +315,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     WorkflowModule, // Phase 7: Deterministic workflow engine
     AiModule, // Phase 8: AI chatbot and knowledge base
     CampaignModule, // Phase 9: Scheduled messages, campaigns, consent
+    IntegrationsModule, // CRM, e-commerce, and calendar integration stubs
     CloudApiWebhookModule, // Official WhatsApp Cloud API webhook receiver
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)

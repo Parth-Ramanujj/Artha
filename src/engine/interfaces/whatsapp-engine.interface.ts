@@ -632,6 +632,13 @@ export interface IWhatsAppEngine {
   sendContactMessage(chatId: string, contact: ContactCard): Promise<MessageResult>;
   sendStickerMessage(chatId: string, media: MediaInput): Promise<MessageResult>;
   sendPollMessage(chatId: string, poll: PollInput): Promise<MessageResult>;
+  sendInteractiveButtons?(
+    chatId: string,
+    body: string,
+    buttons: Array<{ id?: string; text: string }>,
+    title?: string,
+    footer?: string,
+  ): Promise<MessageResult>;
 
   // Reply & Forward
   replyToMessage(chatId: string, quotedMsgId: string, text: string): Promise<MessageResult>;

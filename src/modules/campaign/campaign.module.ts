@@ -7,10 +7,13 @@ import { ContactConsent } from './entities/contact-consent.entity';
 import { Template } from '../template/entities/template.entity';
 import { CampaignService } from './campaign.service';
 import { ScheduledMessageController, CampaignController, ConsentController } from './campaign.controller';
+import { CampaignAnalyticsController } from './campaign-analytics.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ScheduledMessage, Campaign, CampaignRecipient, ContactConsent, Template], 'data')],
-  controllers: [ScheduledMessageController, CampaignController, ConsentController],
+  imports: [
+    TypeOrmModule.forFeature([ScheduledMessage, Campaign, CampaignRecipient, ContactConsent, Template], 'data'),
+  ],
+  controllers: [ScheduledMessageController, CampaignController, ConsentController, CampaignAnalyticsController],
   providers: [CampaignService],
   exports: [CampaignService],
 })

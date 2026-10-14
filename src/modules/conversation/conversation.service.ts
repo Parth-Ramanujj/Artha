@@ -180,4 +180,141 @@ export class ConversationService {
 
     return this.createContact(businessId, { waContactId, name, phone });
   }
+
+  // ── Contact Import/Export ──
+
+  async importContactsCsv(
+    businessId: string | null,
+    csv: string,
+  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
+    const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    const lines = csv
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean);
+    if (lines.length < 2)
+      return { imported: 0, skipped: 0, errors: ['CSV must have a header row and at least one data row'] };
+
+    const header = lines[0].split(',').map(h =>
+      h
+        .trim()
+        .toLowerCase()
+        .replace(/^"(.*)"$/, '$1'),
+    );
+    const waIdIdx = header.indexOf('wacontactid') !== -1 ? header.indexOf('wacontactid') : header.indexOf('phone');
+    if (waIdIdx === -1) return { imported: 0, skipped: 0, errors: ['CSV must have a "waContactId" or "phone" column'] };
+
+    let imported = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCsvLine(lines[i]);
+      const row: Record<string, string> = {};
+      header.forEach((h, idx) => {
+        row[h] = values[idx] ?? '';
+      });
+
+      const waContactId = row['wacontactid'] || row['phone'];
+      if (!waContactId) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        const existing = await this.findContactByWaId(targetBusinessId, waContactId);
+        if (existing) {
+          if (row['name']) existing.name = row['name'];
+          if (row['email']) existing.email = row['email'];
+          if (row['phone']) existing.phone = row['phone'];
+          if (row['notes']) existing.notes = row['notes'];
+          if (row['tags'])
+            existing.tags = row['tags']
+              .split(';')
+              .map(t => t.trim())
+              .filter(Boolean);
+          await this.contactRepo.save(existing);
+        } else {
+          const contact = this.contactRepo.create({
+            businessId: targetBusinessId,
+            waContactId,
+            phone: row['phone'] || null,
+            name: row['name'] || null,
+            email: row['email'] || null,
+            notes: row['notes'] || null,
+            tags: row['tags']
+              ? row['tags']
+                  .split(';')
+                  .map(t => t.trim())
+                  .filter(Boolean)
+              : null,
+          });
+          await this.contactRepo.save(contact);
+        }
+        imported++;
+      } catch (err) {
+        errors.push(`Row ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return { imported, skipped, errors };
+  }
+
+  private parseCsvLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+        continue;
+      }
+      current += char;
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  async exportContactsCsv(businessId: string | null): Promise<string> {
+    const contacts = await this.findAllContacts(businessId, { limit: 10000 });
+    const header = 'waContactId,phone,name,email,notes,tags';
+    const rows = contacts.map(c => {
+      const esc = (v: string | null) => (v ? `"${v.replace(/"/g, '""')}"` : '');
+      return [
+        esc(c.waContactId),
+        esc(c.phone),
+        esc(c.name),
+        esc(c.email),
+        esc(c.notes),
+        esc(c.tags?.join(';') ?? ''),
+      ].join(',');
+    });
+    return [header, ...rows].join('\n');
+  }
+
+  async exportConversationsCsv(businessId: string | null): Promise<string> {
+    const conversations = await this.findAllConversations(businessId, { limit: 10000 });
+    const header = 'id,sessionId,chatId,chatName,status,assignedTo,assignedName,unreadCount,lastMessageAt,tags';
+    const rows = conversations.map(c => {
+      const esc = (v: string | null | undefined) => (v ? `"${v.replace(/"/g, '""')}"` : '');
+      return [
+        esc(c.id),
+        esc(c.sessionId),
+        esc(c.chatId),
+        esc(c.chatName),
+        esc(c.status),
+        esc(c.assignedTo),
+        esc(c.assignedName),
+        String(c.unreadCount),
+        c.lastMessageAt ? c.lastMessageAt.toISOString() : '',
+        esc(c.tags?.join(';') ?? ''),
+      ].join(',');
+    });
+    return [header, ...rows].join('\n');
+  }
 }

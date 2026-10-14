@@ -28,6 +28,9 @@ import {
   Table,
   FlaskConical,
   Loader2,
+  UserCheck,
+  ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
@@ -58,6 +61,9 @@ function getNodeIcon(nodeType: string) {
     case 'stop_workflow': return <StopCircle size={13} />;
     case 'google_sheets': return <Table size={13} />;
     case 'send_media': return <Paperclip size={13} />;
+    case 'search_agents': return <UserCheck size={13} />;
+    case 'create_lead': return <ShieldCheck size={13} />;
+    case 'validate_pincode': return <MapPin size={13} />;
     default: return <Layers size={13} />;
   }
 }
@@ -155,6 +161,26 @@ function getNodeOutputs(node: Node): NodeOutputField[] {
       return [
         { label: 'Message Sent', token: `steps.${id}.sent`, type: 'boolean', description: 'Whether the media message was sent', example: 'true' },
         { label: 'Message ID', token: `steps.${id}.messageId`, type: 'string', description: 'Assigned WhatsApp message ID', example: 'wamid.HBg...' },
+      ];
+    case 'search_agents':
+      return [
+        { label: 'Advisors Found Count', token: `steps.${id}.count`, type: 'number', description: 'Number of verified advisors matched', example: '3' },
+        { label: 'Formatted Profile Cards', token: `steps.${id}.formattedCards`, type: 'string', description: 'WhatsApp message text with Call Now and WhatsApp links', example: '✅ Found 3 verified advisors...' },
+        { label: 'Searched Pincode', token: `steps.${id}.pincode`, type: 'string', description: 'Pincode used for advisor lookup', example: '380015' },
+        { label: 'Advisors List', token: `steps.${id}.agents`, type: 'array', description: 'Raw array of matched advisor profiles' },
+      ];
+    case 'create_lead':
+      return [
+        { label: 'Lead Reference ID', token: `steps.${id}.leadNumber`, type: 'string', description: 'Unique CRM Lead Reference ID', example: 'LD-INS-59281' },
+        { label: 'Database Lead ID', token: `steps.${id}.leadId`, type: 'string', description: 'Primary key of the lead in database', example: 'uuid-1234' },
+        { label: 'Lead Status', token: `steps.${id}.status`, type: 'string', description: 'Current status: assigned / qualified / new', example: 'assigned' },
+        { label: 'Assigned Advisor Name', token: `steps.${id}.matchedAgentName`, type: 'string', description: 'Name of the advisor assigned to this lead', example: 'Rajesh Sharma' },
+        { label: 'Assigned Advisor Phone', token: `steps.${id}.matchedAgentPhone`, type: 'string', description: 'Contact phone of the assigned advisor', example: '919876501001' },
+      ];
+    case 'validate_pincode':
+      return [
+        { label: 'Is Valid', token: `steps.${id}.isValid`, type: 'boolean', description: 'Whether the PIN code is a valid 6-digit Indian Pincode', example: 'true' },
+        { label: 'Cleaned Pincode', token: `steps.${id}.pincode`, type: 'string', description: 'Sanitized 6-digit numeric Pincode', example: '380015' },
       ];
     default:
       return [
@@ -660,6 +686,39 @@ export function NodeInspector({
           message: sampleCustomer.message,
           timestamp: new Date().toISOString(),
         };
+      } else if (type === 'search_agents') {
+        const pin = config.pincode || '380015';
+        simulatedOutput = {
+          agentsFound: true,
+          count: 3,
+          pincode: pin,
+          agents: [
+            { id: 'ag_1', name: 'Rajesh Sharma (IRDAI & AMFI Certified)', phone: '919876501001', rating: 4.9, serviceArea: 'Gujarat & Western Region' },
+            { id: 'ag_2', name: 'Priya Patel (Claims & Portfolio Specialist)', phone: '919876501002', rating: 4.95, serviceArea: 'Ahmedabad' },
+            { id: 'ag_3', name: 'Artha Advisory Desk (Pan-India)', phone: '919227102108', rating: 5.0, serviceArea: 'Pan-India Priority' },
+          ],
+          formattedCards: `✅ Found 3 verified advisor(s) serving Pincode *${pin}*:\n\n*1. Rajesh Sharma* ⭐ 4.9/5\n📞 Call Now: tel:+919876501001\n💬 WhatsApp: https://wa.me/919876501001`,
+          branch: 'agents_found',
+        };
+      } else if (type === 'create_lead') {
+        simulatedOutput = {
+          leadCreated: true,
+          leadId: `lead_${Date.now()}`,
+          leadNumber: `LD-INS-${Math.floor(10000 + Math.random() * 90000)}`,
+          status: 'assigned',
+          matchedAgentName: 'Rajesh Sharma (IRDAI & AMFI Certified)',
+          matchedAgentPhone: '919876501001',
+          customerPhone: sampleCustomer.phone,
+          branch: 'lead_created',
+        };
+      } else if (type === 'validate_pincode') {
+        const pin = String(config.pincode || '380015').trim();
+        const isValid = /^[1-9][0-9]{5}$/.test(pin);
+        simulatedOutput = {
+          isValid,
+          pincode: pin,
+          branch: isValid ? 'pincode_valid' : 'invalid_pincode',
+        };
       } else {
         simulatedOutput = {
           nodeId: id,
@@ -1144,9 +1203,10 @@ export function NodeInspector({
                 value={config.mode || 'auto'}
                 onChange={e => updateConfig('mode', e.target.value)}
               >
-                <option value="auto">Auto (Native Poll with Numbered Text Fallback)</option>
-                <option value="poll">Native Poll Message Only</option>
-                <option value="text">Numbered Text Menu (1, 2, 3)</option>
+                <option value="auto">Interactive Buttons (with Numbered Menu Fallback)</option>
+                <option value="buttons">Interactive Buttons Only</option>
+                <option value="text">Numbered Interactive Menu (1, 2, 3)</option>
+                <option value="poll">WhatsApp Poll (Optional)</option>
               </select>
             </div>
 
@@ -2137,6 +2197,114 @@ export function NodeInspector({
               onChange={val => updateConfig('caption', val)}
               onOpenVariablePicker={handleOpenVariablePicker}
             />
+          </div>
+        )}
+
+        {/* SEARCH AGENTS NODE */}
+        {type === 'search_agents' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Primary Service</label>
+              <select
+                className="wf-field-select"
+                value={config.mainService || 'insurance'}
+                onChange={e => updateConfig('mainService', e.target.value)}
+              >
+                <option value="insurance">Insurance Advisory</option>
+                <option value="mutual_fund">Mutual Funds & Investments</option>
+              </select>
+            </div>
+            <DynamicInput
+              label="Customer Residential Pincode"
+              placeholder="{{steps.node-ask-pincode.answer}} or 380015"
+              value={config.pincode || ''}
+              onChange={val => updateConfig('pincode', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Product Category (Optional)"
+              placeholder="{{productCategory}} or Health Insurance"
+              value={config.productCategory || ''}
+              onChange={val => updateConfig('productCategory', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <div className="wf-field-group">
+              <label className="wf-field-label">Maximum Advisors to Display</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                className="wf-field-input"
+                value={config.limit || 3}
+                onChange={e => updateConfig('limit', parseInt(e.target.value, 10))}
+              />
+            </div>
+            <div className="wf-field-checkbox-row">
+              <input
+                type="checkbox"
+                id="sendDirectMessage"
+                checked={config.sendDirectMessage !== false}
+                onChange={e => updateConfig('sendDirectMessage', e.target.checked)}
+              />
+              <label htmlFor="sendDirectMessage" className="text-xs text-slate-300">
+                Send advisor profile cards directly to customer on WhatsApp
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* CREATE LEAD NODE */}
+        {type === 'create_lead' && (
+          <div className="wf-inspector-section">
+            <DynamicInput
+              label="Customer Phone Number"
+              placeholder="{{trigger.phone}}"
+              value={config.customerPhone || ''}
+              onChange={val => updateConfig('customerPhone', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <div className="wf-field-group">
+              <label className="wf-field-label">Main Service</label>
+              <select
+                className="wf-field-select"
+                value={config.mainService || 'insurance'}
+                onChange={e => updateConfig('mainService', e.target.value)}
+              >
+                <option value="insurance">Insurance</option>
+                <option value="mutual_fund">Mutual Fund & Investment</option>
+              </select>
+            </div>
+            <DynamicInput
+              label="Selected Service / Journey"
+              placeholder="Buy New Insurance / Claim Support / SIP"
+              value={config.selectedService || ''}
+              onChange={val => updateConfig('selectedService', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Residential Pincode"
+              placeholder="{{steps.node-ask-pincode.answer}}"
+              value={config.pincode || ''}
+              onChange={val => updateConfig('pincode', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+          </div>
+        )}
+
+        {/* VALIDATE PINCODE NODE */}
+        {type === 'validate_pincode' && (
+          <div className="wf-inspector-section">
+            <DynamicInput
+              label="Pincode to Validate"
+              placeholder="{{last.answer}}"
+              value={config.pincode || ''}
+              onChange={val => updateConfig('pincode', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <p className="text-xs text-slate-400 mt-2">
+              Validates against Indian PIN code standard regex: <code className="text-amber-400 font-mono">^[1-9][0-9]&#123;5&#125;$</code>.
+              Branches to <code className="text-emerald-400">pincode_valid</code> or <code className="text-red-400">invalid_pincode</code>.
+            </p>
           </div>
         )}
 

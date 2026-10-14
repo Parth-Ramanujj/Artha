@@ -24,6 +24,275 @@ export interface WorkflowPreset {
 
 export const WORKFLOW_PRESETS: WorkflowPreset[] = [
   {
+    id: 'insurance_mutual_fund_advisor',
+    name: 'Insurance & Mutual Fund Advisory Bot (Artha Flow)',
+    category: 'Financial Services & Insurance',
+    description: 'Complete production workflow: Buy/Port/Renew insurance, Claim Support (rejections, delays, short-settlements), Free Audit, SIP & Mutual Funds, Indian Pincode verification, and live verified Advisors with Call Now & WhatsApp links.',
+    nodes: [
+      {
+        id: 'node-trg',
+        type: 'trigger',
+        position: { x: 500, y: 50 },
+        data: {
+          label: 'WhatsApp Message Trigger',
+          config: {
+            triggerType: 'keyword_match',
+            keyword: 'hi, hello, start, insurance, mutual fund, claim, sip, policy, artha',
+          },
+        },
+      },
+      {
+        id: 'node-welcome',
+        type: 'send_message',
+        position: { x: 500, y: 200 },
+        data: {
+          label: 'Welcome Greeting',
+          config: {
+            message:
+              '👋 *Welcome to Artha Insurance & Mutual Fund Advisory!* 🛡️📈\n\n' +
+              'How can we help you today?\n\n' +
+              'Please select a service below to get instant guidance and connect with certified advisors in your area.',
+          },
+        },
+      },
+      {
+        id: 'node-main-menu',
+        type: 'interactive_buttons',
+        position: { x: 500, y: 350 },
+        data: {
+          label: 'Main Service Selection',
+          config: {
+            message: 'Please choose your primary interest:',
+            buttons: [
+              { id: 'btn_insurance', text: '🛡️ Insurance' },
+              { id: 'btn_mutual_fund', text: '📈 Mutual Fund' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-ins-menu',
+        type: 'interactive_buttons',
+        position: { x: 250, y: 520 },
+        data: {
+          label: 'Insurance Services',
+          config: {
+            message: 'Select the insurance service you need:',
+            buttons: [
+              { id: 'btn_buy_port_renew', text: '🛒 Buy / Port / Renew' },
+              { id: 'btn_claim_support', text: '⚖️ Claim Support' },
+              { id: 'btn_insurance_audit', text: '📋 Insurance Audit' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-ins-categories',
+        type: 'interactive_buttons',
+        position: { x: 80, y: 700 },
+        data: {
+          label: 'Insurance Categories',
+          config: {
+            message: 'Please select the insurance category:',
+            buttons: [
+              { id: 'btn_cat_life', text: '👨‍👩‍👧 Life Insurance' },
+              { id: 'btn_cat_health', text: '🏥 Health Insurance' },
+              { id: 'btn_cat_motor', text: '🚗 Motor Insurance' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-sub-life',
+        type: 'interactive_buttons',
+        position: { x: -160, y: 880 },
+        data: {
+          label: 'Life Sub-Products',
+          config: {
+            message: 'Choose Life Insurance Plan:',
+            buttons: [
+              { id: 'btn_sub_term', text: 'Term Life Cover' },
+              { id: 'btn_sub_endowment', text: 'Savings / Endowment' },
+              { id: 'btn_sub_pension', text: 'Retirement Pension' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-sub-health',
+        type: 'interactive_buttons',
+        position: { x: 80, y: 880 },
+        data: {
+          label: 'Health Sub-Products',
+          config: {
+            message: 'Choose Health Insurance Plan:',
+            buttons: [
+              { id: 'btn_sub_floater', text: 'Family Floater' },
+              { id: 'btn_sub_senior', text: 'Senior Citizen Cover' },
+              { id: 'btn_sub_critical', text: 'Critical Illness 1Cr' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-sub-motor',
+        type: 'interactive_buttons',
+        position: { x: 320, y: 880 },
+        data: {
+          label: 'Motor / SME Sub-Products',
+          config: {
+            message: 'Choose Vehicle or Business Plan:',
+            buttons: [
+              { id: 'btn_sub_car', text: 'Car Comprehensive' },
+              { id: 'btn_sub_bike', text: 'Two-Wheeler Cover' },
+              { id: 'btn_sub_sme', text: 'Shop & Commercial Fleet' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-claim-issues',
+        type: 'interactive_buttons',
+        position: { x: 500, y: 700 },
+        data: {
+          label: 'Claim Support Issue',
+          config: {
+            message: 'What issue are you facing with your insurance claim?',
+            buttons: [
+              { id: 'btn_claim_rejected', text: '❌ Claim Rejected' },
+              { id: 'btn_claim_short_settled', text: '📉 Short-Settled' },
+              { id: 'btn_claim_delayed', text: '⏳ Claim Delayed' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-ask-insurer',
+        type: 'ask_question',
+        position: { x: 500, y: 880 },
+        data: {
+          label: 'Type Insurer Name',
+          config: {
+            slot: 'insuranceCompany',
+            question: '🏢 Please type the name of your Insurance Company (e.g. Star Health, HDFC ERGO, Care Health, LIC, ICICI Lombard):',
+          },
+        },
+      },
+      {
+        id: 'node-audit-info',
+        type: 'send_message',
+        position: { x: 740, y: 700 },
+        data: {
+          label: 'Insurance Audit Overview',
+          config: {
+            message:
+              '📋 *Free 360° Policy Audit*\n\n' +
+              'Our certified IRDAI advisors will review your existing policy wordings for hidden exclusions, optimal sum insured, room rent capping, and lower premium options with zero fees.',
+          },
+        },
+      },
+      {
+        id: 'node-mf-menu',
+        type: 'interactive_buttons',
+        position: { x: 920, y: 520 },
+        data: {
+          label: 'Mutual Fund & Investments',
+          config: {
+            message: 'Select your preferred investment service:',
+            buttons: [
+              { id: 'btn_sip_stp_swp', text: '🔄 SIP / STP / SWP' },
+              { id: 'btn_lumpsum', text: '💰 Lumpsum Investment' },
+              { id: 'btn_elss_tax', text: '🏷️ ELSS Tax Saving' },
+            ],
+          },
+        },
+      },
+      {
+        id: 'node-ask-pincode',
+        type: 'ask_question',
+        position: { x: 500, y: 1120 },
+        data: {
+          label: 'Enter Residence Pincode',
+          config: {
+            slot: 'pincode',
+            validation: 'pincode',
+            question: '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
+            retryPrompt: '⚠️ Invalid format. Please enter a valid 6-digit Indian Pincode (e.g. 380015):',
+            maxRetries: 3,
+          },
+        },
+      },
+      {
+        id: 'node-search-agents',
+        type: 'search_agents',
+        position: { x: 500, y: 1300 },
+        data: {
+          label: 'Search 3 Matching Advisors',
+          config: {
+            pincode: '{{steps.node-ask-pincode.answer}}',
+            mainService: 'insurance',
+            limit: 3,
+            sendDirectMessage: true,
+          },
+        },
+      },
+      {
+        id: 'node-create-lead',
+        type: 'create_lead',
+        position: { x: 500, y: 1480 },
+        data: {
+          label: 'Record Lead & Assign',
+          config: {
+            customerPhone: '{{trigger.phone}}',
+            mainService: 'insurance',
+            selectedService: 'WhatsApp Interactive Flow',
+            pincode: '{{steps.node-ask-pincode.answer}}',
+          },
+        },
+      },
+      {
+        id: 'node-confirm',
+        type: 'send_message',
+        position: { x: 500, y: 1650 },
+        data: {
+          label: 'Confirmation Message',
+          config: {
+            message:
+              '✅ *Advisory Request Registered!* (Ref: *{{steps.node-create-lead.leadNumber}}*)\n\n' +
+              'Your request has been routed to our certified advisory desk. You can tap on any advisor’s profile above to connect immediately via Call or WhatsApp.\n\n' +
+              'Reply *Hi* anytime to start a new inquiry.',
+          },
+        },
+      },
+    ],
+    edges: [
+      { id: 'e-trg-welcome', source: 'node-trg', target: 'node-welcome' },
+      { id: 'e-welcome-main', source: 'node-welcome', target: 'node-main-menu' },
+      { id: 'e-main-ins', source: 'node-main-menu', sourceHandle: 'btn_insurance', target: 'node-ins-menu' },
+      { id: 'e-main-mf', source: 'node-main-menu', sourceHandle: 'btn_mutual_fund', target: 'node-mf-menu' },
+      { id: 'e-ins-buy', source: 'node-ins-menu', sourceHandle: 'btn_buy_port_renew', target: 'node-ins-categories' },
+      { id: 'e-ins-claim', source: 'node-ins-menu', sourceHandle: 'btn_claim_support', target: 'node-claim-issues' },
+      { id: 'e-ins-audit', source: 'node-ins-menu', sourceHandle: 'btn_insurance_audit', target: 'node-audit-info' },
+      { id: 'e-cat-life', source: 'node-ins-categories', sourceHandle: 'btn_cat_life', target: 'node-sub-life' },
+      { id: 'e-cat-health', source: 'node-ins-categories', sourceHandle: 'btn_cat_health', target: 'node-sub-health' },
+      { id: 'e-cat-motor', source: 'node-ins-categories', sourceHandle: 'btn_cat_motor', target: 'node-sub-motor' },
+      { id: 'e-life-pin', source: 'node-sub-life', target: 'node-ask-pincode' },
+      { id: 'e-health-pin', source: 'node-sub-health', target: 'node-ask-pincode' },
+      { id: 'e-motor-pin', source: 'node-sub-motor', target: 'node-ask-pincode' },
+      { id: 'e-claim-insurer-1', source: 'node-claim-issues', sourceHandle: 'btn_claim_rejected', target: 'node-ask-insurer' },
+      { id: 'e-claim-insurer-2', source: 'node-claim-issues', sourceHandle: 'btn_claim_short_settled', target: 'node-ask-insurer' },
+      { id: 'e-claim-insurer-3', source: 'node-claim-issues', sourceHandle: 'btn_claim_delayed', target: 'node-ask-insurer' },
+      { id: 'e-insurer-pin', source: 'node-ask-insurer', target: 'node-ask-pincode' },
+      { id: 'e-audit-pin', source: 'node-audit-info', target: 'node-ask-pincode' },
+      { id: 'e-mf-pin-1', source: 'node-mf-menu', sourceHandle: 'btn_sip_stp_swp', target: 'node-ask-pincode' },
+      { id: 'e-mf-pin-2', source: 'node-mf-menu', sourceHandle: 'btn_lumpsum', target: 'node-ask-pincode' },
+      { id: 'e-mf-pin-3', source: 'node-mf-menu', sourceHandle: 'btn_elss_tax', target: 'node-ask-pincode' },
+      { id: 'e-pin-search', source: 'node-ask-pincode', target: 'node-search-agents' },
+      { id: 'e-search-lead', source: 'node-search-agents', target: 'node-create-lead' },
+      { id: 'e-lead-confirm', source: 'node-create-lead', target: 'node-confirm' },
+    ],
+  },
+  {
     id: 'lead_qualification_bot',
     name: 'Interactive Lead Qualification & Capture',
     category: 'Sales & Marketing',

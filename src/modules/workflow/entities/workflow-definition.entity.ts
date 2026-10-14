@@ -57,6 +57,9 @@ export enum ActionType {
   STOP_WORKFLOW = 'stop_workflow',
   GOOGLE_SHEETS = 'google_sheets',
   SEND_MEDIA = 'send_media',
+  SEARCH_AGENTS = 'search_agents',
+  CREATE_LEAD = 'create_lead',
+  VALIDATE_PINCODE = 'validate_pincode',
 }
 
 export interface WorkflowTrigger {

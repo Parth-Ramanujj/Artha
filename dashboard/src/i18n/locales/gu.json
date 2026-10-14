@@ -1,0 +1,174 @@
+{
+  "toast": {
+    "connectionLost": {
+      "title": "સર્વર કનેક્શન ખોવાયું",
+      "message": "બેકએન્ડ સર્વર અનુપલબ્ધ છે. કૃપા કરી સર્વર ચાલુ છે કે નહીં તે તપાસો."
+    }
+  },
+  "common": {
+    "appName": "Artha",
+    "loading": "લોડ થઈ રહ્યું છે...",
+    "cancel": "રદ કરો",
+    "delete": "કાઢી નાખો",
+    "create": "બનાવો",
+    "close": "બંધ કરો",
+    "showApiKey": "API કી બતાવો",
+    "hideApiKey": "API કી છુપાવો",
+    "search": "શોધો",
+    "status": "સ્થિતિ",
+    "name": "નામ",
+    "role": "ભૂમિકા",
+    "url": "URL",
+    "port": "પોર્ટ",
+    "host": "હોસ્ટ",
+    "username": "વપરાશકર્તા નામ",
+    "password": "પાસવર્ડ",
+    "active": "સક્રિય",
+    "inactive": "નિષ્ક્રિય",
+    "connected": "જોડાયેલ",
+    "disconnected": "ડિસ્કનેક્ટ",
+    "never": "ક્યારેય નહીં",
+    "justNow": "હમણાં જ",
+    "minAgo": "{{count}} મિનિટ પહેલાં",
+    "hoursAgo": "{{count}} કલાક પહેલાં",
+    "optional": "વૈકલ્પિક",
+    "language": "ભાષા",
+    "back": "પાછા",
+    "next": "આગળ",
+    "previous": "પાછળ",
+    "expand": "વિસ્તૃત કરો",
+    "collapse": "સંકોચો",
+    "logout": "લૉગ આઉટ",
+    "refresh": "રિફ્રેશ",
+    "errorGeneric": "એક ભૂલ આવી",
+    "unknownError": "અજ્ઞાત ભૂલ",
+    "retry": "ફરી પ્રયાસ કરો",
+    "success": "સફળ",
+    "error": "ભૂલ"
+  },
+  "theme": {
+    "light": "લાઇટ",
+    "dark": "ડાર્ક",
+    "system": "સિસ્ટમ",
+    "label": "થીમ: {{value}}",
+    "appearance": "દેખાવ",
+    "mode": "મોડ",
+    "toggleTo": "{{value}} પર સ્વિચ કરો"
+  },
+  "nav": {
+    "dashboard": "ડેશબોર્ડ",
+    "sessions": "સત્રો",
+    "chats": "ચેટ્સ",
+    "webhooks": "વેબહુક્સ",
+    "templates": "ટેમ્પ્લેટ્સ",
+    "apiKeys": "API કીઝ",
+    "messageTester": "મેસેજ ટેસ્ટર",
+    "conversations": "વાતચીતો",
+    "workflows": "વર્કફ્લો",
+    "campaigns": "કેમ્પેઇન",
+    "ai": "AI સહાયક",
+    "workspaces": "વર્કસ્પેસ",
+    "infrastructure": "ઇન્ફ્રાસ્ટ્રક્ચર",
+    "plugins": "પ્લગઇન",
+    "cannedResponses": "તૈયાર જવાબો",
+    "notifications": "સૂચનાઓ",
+    "contactSegments": "સેગમેન્ટ્સ",
+    "assignmentRules": "સોંપણી નિયમો",
+    "sla": "SLA ટ્રેકિંગ",
+    "abTesting": "A/B ટેસ્ટિંગ",
+    "integrations": "ઇન્ટિગ્રેશન્સ",
+    "chatbotTraining": "ચેટબોટ ટ્રેનિંગ",
+    "campaignAnalytics": "કેમ્પેઇન એનાલિટિક્સ",
+    "workflowAnalytics": "વર્કફ્લો એનાલિટિક્સ",
+    "logs": "લૉગ્સ"
+  },
+  "login": {
+    "title": "Artha માં પ્રવેશ કરો",
+    "subtitle": "ચાલુ રાખવા માટે તમારી API કી દાખલ કરો",
+    "apiKeyPlaceholder": "તમારી API કી દાખલ કરો",
+    "loginButton": "લૉગ ઇન",
+    "loggingIn": "લૉગ ઇન થઈ રહ્યું છે..."
+  },
+  "dashboard": {
+    "title": "ડેશબોર્ડ",
+    "subtitle": "તમારા WhatsApp ગેટવેનો ઝાંખી",
+    "totalSessions": "કુલ સત્રો",
+    "activeSessions": "સક્રિય સત્રો",
+    "totalMessages": "કુલ સંદેશાઓ",
+    "totalWebhooks": "કુલ વેબહુક્સ",
+    "recentSessions": "તાજેતરના સત્રો",
+    "quickActions": "ઝડપી ક્રિયાઓ",
+    "noSessions": "કોઈ સત્રો મળ્યા નથી",
+    "createFirst": "તમારું પ્રથમ WhatsApp સત્ર બનાવો"
+  },
+  "sessions": {
+    "title": "સત્રો",
+    "subtitle": "તમારા WhatsApp સત્રોનું સંચાલન કરો",
+    "createSession": "સત્ર બનાવો",
+    "deleteSession": "સત્ર કાઢી નાખો",
+    "reconnect": "ફરીથી જોડો",
+    "noSessions": "કોઈ સત્રો નથી",
+    "status": {
+      "created": "બનાવેલ",
+      "initializing": "શરૂ થઈ રહ્યું છે",
+      "authenticating": "પ્રમાણિત થઈ રહ્યું છે",
+      "qr_ready": "QR તૈયાર",
+      "ready": "તૈયાર",
+      "disconnected": "ડિસ્કનેક્ટ",
+      "failed": "નિષ્ફળ"
+    }
+  },
+  "conversations": {
+    "title": "વાતચીતો",
+    "subtitle": "શેર ઇનબોક્સ",
+    "assignPrompt": "એજન્ટને સોંપો (નામ/ID):",
+    "noConversations": "કોઈ વાતચીત નથી"
+  },
+  "workflows": {
+    "title": "વર્કફ્લો",
+    "subtitle": "ઓટોમેશન વર્કફ્લો બનાવો અને સંચાલિત કરો",
+    "create": "વર્કફ્લો બનાવો",
+    "noWorkflows": "કોઈ વર્કફ્લો નથી"
+  },
+  "campaigns": {
+    "title": "કેમ્પેઇન",
+    "subtitle": "બલ્ક મેસેજ કેમ્પેઇન સંચાલિત કરો"
+  },
+  "cannedResponses": {
+    "title": "તૈયાર જવાબો",
+    "subtitle": "એજન્ટ માટે ઝડપી જવાબ ટેમ્પ્લેટ્સ",
+    "empty": "હજુ કોઈ તૈયાર જવાબ નથી"
+  },
+  "notifications": {
+    "title": "સૂચનાઓ",
+    "empty": "કોઈ સૂચના નથી"
+  },
+  "segments": {
+    "title": "સંપર્ક સેગમેન્ટ્સ",
+    "subtitle": "લક્ષિત કેમ્પેઇન માટે સંપર્કોને જૂથ બનાવો"
+  },
+  "assignmentRules": {
+    "title": "સોંપણી નિયમો",
+    "subtitle": "વાતચીતો એજન્ટોને ઓટો-સોંપો"
+  },
+  "ai": {
+    "title": "AI સહાયક",
+    "subtitle": "AI ચેટબોટ રૂપરેખાંકન"
+  },
+  "webhooks": {
+    "title": "વેબહુક્સ",
+    "subtitle": "ઇવેન્ટ વેબહુક રૂપરેખાંકન"
+  },
+  "templates": {
+    "title": "ટેમ્પ્લેટ્સ",
+    "subtitle": "મેસેજ ટેમ્પ્લેટ્સ સંચાલિત કરો"
+  },
+  "apiKeys": {
+    "title": "API કીઝ",
+    "subtitle": "API ઍક્સેસ કીઝ સંચાલિત કરો"
+  },
+  "logs": {
+    "title": "ઓડિટ લૉગ્સ",
+    "subtitle": "સિસ્ટમ ઓડિટ ટ્રેઇલ"
+  }
+}

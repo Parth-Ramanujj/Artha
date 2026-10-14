@@ -1,13 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpCode, HttpStatus, BadRequestException, Optional } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
+import { AgentService } from './agent.service';
+import { LeadService } from './lead.service';
 import { CreateWorkflowDto, UpdateWorkflowDto, TestWebhookDto } from './dto/workflow.dto';
-import { WorkflowStatus } from './entities/workflow-definition.entity';
+import { WorkflowStatus, TriggerType } from './entities/workflow-definition.entity';
 import { RunStatus } from './entities/workflow-run.entity';
 import { RequireRole, CurrentApiKey } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole, ApiKey } from '../auth/entities/api-key.entity';
 import { RequireActiveBusiness } from '../auth/guards/business-scope.guard';
+import { INSURANCE_PRESET_NODES, INSURANCE_PRESET_EDGES } from './presets/insurance-workflow.preset';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -16,10 +19,65 @@ export class WorkflowController {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly executor: WorkflowExecutor,
+    @Optional()
+    private readonly agentService?: AgentService,
+    @Optional()
+    private readonly leadService?: LeadService,
   ) {}
 
   private getBusinessId(apiKey?: ApiKey): string | null {
     return apiKey?.businessId ?? null;
+  }
+
+  @Get('agents/list')
+  @ApiOperation({ summary: 'List all certified insurance & mutual fund advisory agents' })
+  async listAgents(@CurrentApiKey() apiKey: ApiKey) {
+    if (!this.agentService) return [];
+    return this.agentService.listAgents(this.getBusinessId(apiKey) || undefined);
+  }
+
+  @Get('leads/list')
+  @ApiOperation({ summary: 'List captured insurance & mutual fund advisory leads' })
+  async listLeads(@CurrentApiKey() apiKey: ApiKey) {
+    if (!this.leadService) return [];
+    return this.leadService.listLeads(this.getBusinessId(apiKey) || undefined);
+  }
+
+  @Post('presets/seed-insurance')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Create and publish the complete Insurance & Mutual Fund Automation Workflow' })
+  async seedInsurancePreset(@CurrentApiKey() apiKey: ApiKey) {
+    const businessId = this.getBusinessId(apiKey);
+    const existing = await this.workflowService.findAll(businessId, { limit: 50 });
+    const found = existing.find(w => w.name.includes('Insurance') || w.name.includes('Mutual Fund'));
+    if (found) {
+      if (found.status !== WorkflowStatus.PUBLISHED) {
+        await this.workflowService.publish(found.id, businessId, apiKey?.id);
+      }
+      return this.workflowService.findOne(found.id, businessId);
+    }
+
+    const newWorkflow = await this.workflowService.create(
+      businessId,
+      {
+        name: 'Insurance & Mutual Fund Advisory Bot',
+        description:
+          'End-to-end interactive WhatsApp advisor: Buy/Port/Renew policies, Claim Support, Insurance Audit, SIP/Mutual Funds, Pincode verification, and live Agent matching with Call Now / WhatsApp direct actions.',
+        definition: {
+          trigger: {
+            type: TriggerType.KEYWORD_MATCH,
+            config: {
+              keyword: 'hi, hello, start, insurance, mutual fund, claim, sip, policy, help, artha',
+            },
+          },
+          nodes: INSURANCE_PRESET_NODES as any,
+          edges: INSURANCE_PRESET_EDGES as any,
+        },
+      },
+      apiKey?.id,
+    );
+
+    return this.workflowService.publish(newWorkflow.id, businessId, apiKey?.id);
   }
 
   @Post('test-webhook')

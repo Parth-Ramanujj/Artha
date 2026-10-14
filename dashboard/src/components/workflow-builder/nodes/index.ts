@@ -13,6 +13,9 @@ import { FilterNode } from './FilterNode';
 import { StopNode } from './StopNode';
 import { GoogleSheetsNode } from './GoogleSheetsNode';
 import { MediaNode } from './MediaNode';
+import { SearchAgentsNode } from './SearchAgentsNode';
+import { CreateLeadNode } from './CreateLeadNode';
+import { ValidatePincodeNode } from './ValidatePincodeNode';
 
 export const nodeTypes = {
   trigger: TriggerNode,
@@ -30,6 +33,9 @@ export const nodeTypes = {
   stop_workflow: StopNode,
   google_sheets: GoogleSheetsNode,
   send_media: MediaNode,
+  search_agents: SearchAgentsNode,
+  create_lead: CreateLeadNode,
+  validate_pincode: ValidatePincodeNode,
 };
 
 export {
@@ -48,4 +54,7 @@ export {
   StopNode,
   GoogleSheetsNode,
   MediaNode,
+  SearchAgentsNode,
+  CreateLeadNode,
+  ValidatePincodeNode,
 };

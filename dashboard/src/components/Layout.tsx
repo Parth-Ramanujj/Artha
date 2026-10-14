@@ -26,11 +26,22 @@ import {
   Megaphone,
   Bot,
   Building2,
+  MessageSquareDashed,
+  Bell,
+  Users,
+  UserCheck,
+  Timer,
+  FlaskConical,
+  Plug,
+  GraduationCap,
+  BarChart3,
+  Activity,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
 import { languageOptions, resolveSupportedLanguage, rtlLanguages, type SupportedLanguage } from '../i18n';
 import { healthApi } from '../services/api';
+import { TopConnectionBar } from './TopConnectionBar';
 import './Layout.css';
 
 interface LayoutProps {
@@ -54,6 +65,16 @@ const allNavItems = [
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).
   { to: '/infrastructure', icon: Server, key: 'infrastructure' as const, adminOnly: true },
   { to: '/plugins', icon: Puzzle, key: 'plugins' as const, adminOnly: true },
+  { to: '/canned-responses', icon: MessageSquareDashed, key: 'cannedResponses' as const, adminOnly: false },
+  { to: '/notifications', icon: Bell, key: 'notifications' as const, adminOnly: false },
+  { to: '/contact-segments', icon: Users, key: 'contactSegments' as const, adminOnly: false },
+  { to: '/assignment-rules', icon: UserCheck, key: 'assignmentRules' as const, adminOnly: false },
+  { to: '/sla', icon: Timer, key: 'sla' as const, adminOnly: false },
+  { to: '/ab-testing', icon: FlaskConical, key: 'abTesting' as const, adminOnly: false },
+  { to: '/integrations', icon: Plug, key: 'integrations' as const, adminOnly: true },
+  { to: '/chatbot-training', icon: GraduationCap, key: 'chatbotTraining' as const, adminOnly: false },
+  { to: '/campaign-analytics', icon: BarChart3, key: 'campaignAnalytics' as const, adminOnly: false },
+  { to: '/workflow-analytics', icon: Activity, key: 'workflowAnalytics' as const, adminOnly: false },
   { to: '/logs', icon: FileText, key: 'logs' as const, adminOnly: false },
 ];
 
@@ -263,6 +284,7 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
       </aside>
 
       <main className={`main-content ${isCollapsed ? 'expanded' : ''} ${isMobile ? 'mobile' : ''}`}>
+        <TopConnectionBar />
         <Outlet />
       </main>
     </div>

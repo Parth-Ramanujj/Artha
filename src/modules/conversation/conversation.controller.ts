@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpCode, HttpStatus, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { ConversationService } from './conversation.service';
 import { UpdateConversationDto, CreateContactDto, UpdateContactDto } from './dto/conversation.dto';
 import { ConversationStatus } from './entities/conversation.entity';
@@ -123,5 +124,52 @@ export class ContactController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string, @CurrentApiKey() apiKey: ApiKey) {
     await this.conversationService.deleteContact(id, this.getBusinessId(apiKey));
+  }
+
+  @Post('import')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Import contacts from CSV data' })
+  @ApiResponse({ status: 200, description: 'Import results' })
+  @HttpCode(HttpStatus.OK)
+  async importContacts(@Body() body: { csv: string }, @CurrentApiKey() apiKey: ApiKey) {
+    return this.conversationService.importContactsCsv(this.getBusinessId(apiKey), body.csv);
+  }
+
+  @Get('export/csv')
+  @ApiOperation({ summary: 'Export contacts as CSV' })
+  async exportContacts(@CurrentApiKey() apiKey: ApiKey, @Res() res: Response) {
+    const csv = await this.conversationService.exportContactsCsv(this.getBusinessId(apiKey));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=contacts.csv');
+    res.send(csv);
+  }
+}
+
+@ApiTags('export')
+@Controller('export')
+@RequireActiveBusiness()
+export class ExportController {
+  constructor(private readonly conversationService: ConversationService) {}
+
+  private getBusinessId(apiKey?: ApiKey): string | null {
+    return apiKey?.businessId ?? null;
+  }
+
+  @Get('conversations')
+  @ApiOperation({ summary: 'Export conversations as CSV' })
+  async exportConversations(@CurrentApiKey() apiKey: ApiKey, @Res() res: Response) {
+    const csv = await this.conversationService.exportConversationsCsv(this.getBusinessId(apiKey));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=conversations.csv');
+    res.send(csv);
+  }
+
+  @Get('contacts')
+  @ApiOperation({ summary: 'Export contacts as CSV' })
+  async exportContacts(@CurrentApiKey() apiKey: ApiKey, @Res() res: Response) {
+    const csv = await this.conversationService.exportContactsCsv(this.getBusinessId(apiKey));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=contacts.csv');
+    res.send(csv);
   }
 }

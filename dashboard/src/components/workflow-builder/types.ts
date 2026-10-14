@@ -21,7 +21,10 @@ export type CanvasNodeType =
   | 'filter'
   | 'stop_workflow'
   | 'google_sheets'
-  | 'send_media';
+  | 'send_media'
+  | 'search_agents'
+  | 'create_lead'
+  | 'validate_pincode';
 
 export interface ButtonItem {
   id: string;

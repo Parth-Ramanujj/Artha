@@ -27,6 +27,16 @@ const Workflows = lazy(() => import('./pages/Workflows').then(m => ({ default: m
 const Campaigns = lazy(() => import('./pages/Campaigns').then(m => ({ default: m.Campaigns })));
 const AiSettings = lazy(() => import('./pages/AiSettings').then(m => ({ default: m.AiSettings })));
 const Workspaces = lazy(() => import('./pages/Workspaces').then(m => ({ default: m.Workspaces })));
+const CannedResponses = lazy(() => import('./pages/CannedResponses').then(m => ({ default: m.CannedResponses })));
+const Notifications = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })));
+const ContactSegments = lazy(() => import('./pages/ContactSegments').then(m => ({ default: m.ContactSegments })));
+const AssignmentRules = lazy(() => import('./pages/AssignmentRules').then(m => ({ default: m.AssignmentRules })));
+const SlaTracking = lazy(() => import('./pages/SlaTracking').then(m => ({ default: m.SlaTracking })));
+const AbTesting = lazy(() => import('./pages/AbTesting').then(m => ({ default: m.AbTesting })));
+const IntegrationsPage = lazy(() => import('./pages/Integrations').then(m => ({ default: m.Integrations })));
+const ChatbotTraining = lazy(() => import('./pages/ChatbotTraining').then(m => ({ default: m.ChatbotTraining })));
+const CampaignAnalytics = lazy(() => import('./pages/CampaignAnalytics').then(m => ({ default: m.CampaignAnalytics })));
+const WorkflowAnalytics = lazy(() => import('./pages/WorkflowAnalytics').then(m => ({ default: m.WorkflowAnalytics })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,33 +117,49 @@ function AppContent() {
   );
 
   if (!isAuthenticated) {
-    return <Suspense fallback={loadingFallback}><Login onLogin={handleLogin} /></Suspense>;
+    return (
+      <Suspense fallback={loadingFallback}>
+        <Login onLogin={handleLogin} />
+      </Suspense>
+    );
   }
 
   return (
     <ToastProvider>
       <BrowserRouter>
         <Suspense fallback={loadingFallback}>
-        <Routes>
-          <Route path="/" element={<Layout onLogout={handleLogout} userRole={role} />}>
-            <Route index element={<Dashboard />} />
-            <Route path="sessions" element={<Sessions />} />
-            <Route path="chats" element={<Chats />} />
-            <Route path="webhooks" element={<Webhooks />} />
-            <Route path="templates" element={<Templates />} />
-            {role === 'admin' && <Route path="api-keys" element={<ApiKeys />} />}
-            {role === 'admin' && <Route path="workspaces" element={<Workspaces />} />}
-            <Route path="logs" element={<Logs />} />
-            <Route path="message-tester" element={<MessageTester />} />
-            <Route path="conversations" element={<Conversations />} />
-            <Route path="workflows" element={<Workflows />} />
-            <Route path="campaigns" element={<Campaigns />} />
-            {(role === 'admin' || role === 'operator') && <Route path="ai" element={<AiSettings />} />}
-            {role === 'admin' && <Route path="infrastructure" element={<Infrastructure />} />}
-            {role === 'admin' && <Route path="plugins" element={<Plugins />} />}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+          <Routes>
+            <Route path="/" element={<Layout onLogout={handleLogout} userRole={role} />}>
+              <Route index element={<Dashboard />} />
+              <Route path="sessions" element={<Sessions />} />
+              <Route path="chats" element={<Chats />} />
+              <Route path="webhooks" element={<Webhooks />} />
+              <Route path="templates" element={<Templates />} />
+              {role === 'admin' && <Route path="api-keys" element={<ApiKeys />} />}
+              {role === 'admin' && <Route path="workspaces" element={<Workspaces />} />}
+              <Route path="logs" element={<Logs />} />
+              <Route path="message-tester" element={<MessageTester />} />
+              <Route path="conversations" element={<Conversations />} />
+              <Route path="workflows" element={<Workflows />} />
+              <Route path="campaigns" element={<Campaigns />} />
+              {(role === 'admin' || role === 'operator') && <Route path="ai" element={<AiSettings />} />}
+              {role === 'admin' && <Route path="infrastructure" element={<Infrastructure />} />}
+              {role === 'admin' && <Route path="plugins" element={<Plugins />} />}
+              <Route path="canned-responses" element={<CannedResponses />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="contact-segments" element={<ContactSegments />} />
+              {(role === 'admin' || role === 'operator') && (
+                <Route path="assignment-rules" element={<AssignmentRules />} />
+              )}
+              <Route path="sla" element={<SlaTracking />} />
+              <Route path="ab-testing" element={<AbTesting />} />
+              {role === 'admin' && <Route path="integrations" element={<IntegrationsPage />} />}
+              <Route path="chatbot-training" element={<ChatbotTraining />} />
+              <Route path="campaign-analytics" element={<CampaignAnalytics />} />
+              <Route path="workflow-analytics" element={<WorkflowAnalytics />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+          </Routes>
         </Suspense>
       </BrowserRouter>
     </ToastProvider>

@@ -1,0 +1,54 @@
+import { memo } from 'react';
+import { Handle, Position } from '@xyflow/react';
+import { ShieldCheck, UserCheck } from 'lucide-react';
+import type { WorkflowNodeData } from '../types';
+
+export const CreateLeadNode = memo(function CreateLeadNode({
+  data,
+  selected,
+}: {
+  id: string;
+  data: WorkflowNodeData;
+  selected?: boolean;
+}) {
+  const phone = data.config?.customerPhone || '{{trigger.phone}}';
+  const mainService = data.config?.mainService || 'insurance';
+  const selectedService = data.config?.selectedService || 'WhatsApp Journey';
+
+  return (
+    <div className={`wf-canvas-node wf-node-create-lead ${selected ? 'is-selected' : ''}`}>
+      <Handle type="target" position={Position.Top} id="in" className="wf-handle wf-handle-top" />
+
+      <div className="wf-node-header">
+        <div className="wf-node-icon-wrapper" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}>
+          <ShieldCheck size={16} />
+        </div>
+        <div className="wf-node-title-box">
+          <span className="wf-node-badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#a5b4fc' }}>
+            RECORD LEAD
+          </span>
+          <h4 className="wf-node-title">{data.label || 'Create & Assign Lead'}</h4>
+        </div>
+      </div>
+
+      <div className="wf-node-body">
+        <div className="wf-media-details">
+          <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium truncate">
+            <span className="capitalize text-indigo-400 font-semibold">{mainService}:</span>
+            <span className="truncate">{selectedService}</span>
+          </div>
+          <div className="text-xs text-slate-400">
+            Phone: <span className="font-mono text-cyan-300">{phone}</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-700/60 text-[11px] text-indigo-300 font-medium">
+            <UserCheck size={12} className="text-indigo-400" />
+            <span>Auto-assign nearest advisor</span>
+            <span className="ml-auto text-emerald-400 font-mono">LD-INS-*****</span>
+          </div>
+        </div>
+      </div>
+
+      <Handle type="source" position={Position.Bottom} id="out" className="wf-handle wf-handle-bottom" />
+    </div>
+  );
+});

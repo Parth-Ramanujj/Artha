@@ -55,6 +55,15 @@ function planSteps(root) {
       options: { stdio: 'inherit', cwd: root },
     });
   }
+  const mediaPatcher = path.join(root, 'scripts', 'patch-wwebjs-media-getter.js');
+  if (fs.existsSync(mediaPatcher)) {
+    steps.push({
+      name: 'whatsapp-web.js media getter backport (scripts/patch-wwebjs-media-getter.js --best-effort)',
+      command: process.execPath,
+      args: [mediaPatcher, '--best-effort'],
+      options: { stdio: 'inherit', cwd: root },
+    });
+  }
   return steps;
 }
 

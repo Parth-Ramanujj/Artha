@@ -68,6 +68,16 @@
     "workspaces": "Workspaces",
     "infrastructure": "Infrastructure",
     "plugins": "Plugins",
+    "cannedResponses": "Canned Responses",
+    "notifications": "Notifications",
+    "contactSegments": "Segments",
+    "assignmentRules": "Assignment Rules",
+    "sla": "SLA Tracking",
+    "abTesting": "A/B Testing",
+    "integrations": "Integrations",
+    "chatbotTraining": "Chatbot Training",
+    "campaignAnalytics": "Campaign Analytics",
+    "workflowAnalytics": "Workflow Analytics",
     "logs": "Logs"
   },
   "chats": {

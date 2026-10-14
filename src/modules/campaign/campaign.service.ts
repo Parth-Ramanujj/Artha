@@ -460,9 +460,7 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
         }
       }
     } catch (err) {
-      this.logger.error(
-        `Error in processCampaignDelivery: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      this.logger.error(`Error in processCampaignDelivery: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -605,5 +603,57 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
 
     const consentedSet = new Set(consents.map(c => c.waContactId));
     return chatIds.filter(id => consentedSet.has(id));
+  }
+
+  // ── Analytics ──
+
+  async getAnalyticsSummary(businessId: string) {
+    const campaigns = await this.campaignRepo.find({ where: { businessId } });
+    const total = campaigns.length;
+    const completed = campaigns.filter(c => c.status === CampaignStatus.COMPLETED).length;
+    const active = campaigns.filter(
+      c => c.status === CampaignStatus.RUNNING || c.status === CampaignStatus.SCHEDULED,
+    ).length;
+    const failed = campaigns.filter(c => c.status === CampaignStatus.CANCELLED).length;
+
+    let totalSent = 0;
+    let totalDelivered = 0;
+    let totalFailed = 0;
+    for (const c of campaigns) {
+      totalSent += c.sentCount ?? 0;
+      totalDelivered += c.deliveredCount ?? 0;
+      totalFailed += c.failedCount ?? 0;
+    }
+
+    return {
+      totalCampaigns: total,
+      completed,
+      active,
+      failed,
+      totalSent,
+      totalDelivered,
+      totalFailed,
+      deliveryRate: totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0,
+    };
+  }
+
+  async getCampaignStats(campaignId: string, businessId: string) {
+    const campaign = await this.campaignRepo.findOne({ where: { id: campaignId, businessId } });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    const recipients = await this.recipientRepo.find({ where: { campaignId } });
+    const statusBreakdown: Record<string, number> = {};
+    for (const r of recipients) {
+      statusBreakdown[r.status] = (statusBreakdown[r.status] || 0) + 1;
+    }
+
+    return {
+      campaign: { id: campaign.id, name: campaign.name, status: campaign.status },
+      totalRecipients: recipients.length,
+      statusBreakdown,
+      sentCount: campaign.sentCount ?? 0,
+      deliveredCount: campaign.deliveredCount ?? 0,
+      failedCount: campaign.failedCount ?? 0,
+    };
   }
 }

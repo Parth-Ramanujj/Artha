@@ -1,4 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import {
   WorkflowDefinition,
   WorkflowCondition,
@@ -17,6 +19,11 @@ import { ConversationStatus } from '../conversation/entities/conversation.entity
 import { MessageService } from '../message/message.service';
 import { AiService } from '../ai/ai.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
+import { AgentService } from './agent.service';
+import { LeadService } from './lead.service';
+import { Agent } from './entities/agent.entity';
+import { Lead } from './entities/lead.entity';
+import { ScheduledMessage, ScheduledMessageStatus } from '../campaign/entities/scheduled-message.entity';
 import { createLogger } from '../../common/services/logger.service';
 
 export interface TriggerContext {
@@ -48,6 +55,13 @@ export class WorkflowExecutor {
     private readonly aiService?: AiService,
     @Optional()
     private readonly engineRegistry?: EngineRegistry,
+    @Optional()
+    private readonly agentService?: AgentService,
+    @Optional()
+    private readonly leadService?: LeadService,
+    @Optional()
+    @InjectRepository(ScheduledMessage, 'data')
+    private readonly scheduledMessageRepo?: Repository<ScheduledMessage>,
   ) {}
 
   async execute(workflow: WorkflowDefinition, run: WorkflowRun, ctx: TriggerContext): Promise<void> {
@@ -171,7 +185,10 @@ export class WorkflowExecutor {
       const raw = String(trigger.config?.['keyword'] ?? '').trim();
       if (!raw) return true;
       const body = (ctx.messageBody ?? '').toLowerCase().trim();
-      const keywords = raw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      const keywords = raw
+        .split(',')
+        .map(k => k.trim().toLowerCase())
+        .filter(Boolean);
       if (keywords.length > 0) {
         return keywords.some(k => body.includes(k));
       }
@@ -197,9 +214,14 @@ export class WorkflowExecutor {
         return ctx.sessionId === cond.config.sessionId;
 
       case ConditionType.KEYWORD_EXACT: {
-        const raw = String(cond.config['keyword'] ?? '').toLowerCase().trim();
+        const raw = String(cond.config['keyword'] ?? '')
+          .toLowerCase()
+          .trim();
         const body = (ctx.messageBody ?? '').toLowerCase().trim();
-        const keywords = raw.split(',').map(k => k.trim()).filter(Boolean);
+        const keywords = raw
+          .split(',')
+          .map(k => k.trim())
+          .filter(Boolean);
         if (keywords.length > 1) {
           return keywords.some(k => body === k);
         }
@@ -207,9 +229,14 @@ export class WorkflowExecutor {
       }
 
       case ConditionType.KEYWORD_CONTAINS: {
-        const raw = String(cond.config['keyword'] ?? '').toLowerCase().trim();
+        const raw = String(cond.config['keyword'] ?? '')
+          .toLowerCase()
+          .trim();
         const body = (ctx.messageBody ?? '').toLowerCase().trim();
-        const keywords = raw.split(',').map(k => k.trim()).filter(Boolean);
+        const keywords = raw
+          .split(',')
+          .map(k => k.trim())
+          .filter(Boolean);
         if (keywords.length > 0) {
           return keywords.some(k => body.includes(k));
         }
@@ -220,7 +247,9 @@ export class WorkflowExecutor {
         return ctx.conversationStatus === cond.config.status;
 
       case ConditionType.CONTACT_TAG: {
-        const tag = String(cond.config['tag'] ?? '').trim().toLowerCase();
+        const tag = String(cond.config['tag'] ?? '')
+          .trim()
+          .toLowerCase();
         if (!tag) return false;
         const tags = (ctx.contactTags ?? []).map(t => t.toLowerCase());
         return tags.includes(tag);
@@ -407,8 +436,17 @@ export class WorkflowExecutor {
       case ActionType.SEND_MEDIA:
         return this.actionSendMedia(action, ctx, run);
 
+      case ActionType.SEARCH_AGENTS:
+        return this.actionSearchAgents(action, ctx, run);
+
+      case ActionType.CREATE_LEAD:
+        return this.actionCreateLead(action, ctx, run);
+
+      case ActionType.VALIDATE_PINCODE:
+        return this.actionValidatePincode(action, ctx, run);
+
       case ActionType.SCHEDULE_FOLLOWUP:
-        return { status: 'not_implemented', actionType: action.type };
+        return this.actionScheduleFollowup(action, ctx, run);
 
       default:
         throw new Error(`Unknown action type: ${String(action.type)}`);
@@ -426,10 +464,7 @@ export class WorkflowExecutor {
     const sender = ctx.chatId ?? '';
     const phone = sender.replace(/@.*$/, '');
     const message = ctx.messageBody ?? '';
-    const contactName =
-      (ctx.metadata?.['contactName'] as string) ||
-      (ctx.metadata?.['name'] as string) ||
-      phone;
+    const contactName = (ctx.metadata?.['contactName'] as string) || (ctx.metadata?.['name'] as string) || phone;
 
     const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
     const stepOutputs = (run?.triggerData?.['stepOutputs'] as Record<string, unknown>) || {};
@@ -591,7 +626,9 @@ export class WorkflowExecutor {
       return { sent: true, messageId: res.messageId, chatId: ctx.chatId, text: message, length: message.length };
     }
 
-    this.logger.log(`Workflow send message (mocked): session=${ctx.sessionId} chat=${ctx.chatId} len=${message.length}`);
+    this.logger.log(
+      `Workflow send message (mocked): session=${ctx.sessionId} chat=${ctx.chatId} len=${message.length}`,
+    );
     return { sent: true, sessionId: ctx.sessionId, chatId: ctx.chatId, text: message, messageLength: message.length };
   }
 
@@ -617,7 +654,9 @@ export class WorkflowExecutor {
     }
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
-      this.logger.log(`Workflow send template (simulated dry-run): chat=${ctx.chatId} template=${templateName || templateId}`);
+      this.logger.log(
+        `Workflow send template (simulated dry-run): chat=${ctx.chatId} template=${templateName || templateId}`,
+      );
       return {
         sent: true,
         simulated: true,
@@ -636,7 +675,9 @@ export class WorkflowExecutor {
         templateId,
         vars,
       });
-      this.logger.log(`Workflow send template success: session=${ctx.sessionId} chat=${ctx.chatId} template=${templateName || templateId}`);
+      this.logger.log(
+        `Workflow send template success: session=${ctx.sessionId} chat=${ctx.chatId} template=${templateName || templateId}`,
+      );
       return { sent: true, messageId: res.messageId, chatId: ctx.chatId, template: templateName || templateId, vars };
     }
 
@@ -797,7 +838,8 @@ export class WorkflowExecutor {
 
     let sentVia = 'text_fallback';
 
-    if (mode !== 'text' && this.engineRegistry) {
+    if (mode === 'poll' && this.engineRegistry) {
+      // Only send a WhatsApp Poll if explicitly requested by config mode='poll'
       try {
         const engine = this.engineRegistry.get(ctx.sessionId);
         if (engine && typeof engine.sendPollMessage === 'function') {
@@ -809,23 +851,36 @@ export class WorkflowExecutor {
           sentVia = 'native_poll';
         }
       } catch (err) {
+        this.logger.warn(`Poll send failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } else if (mode !== 'text' && this.engineRegistry) {
+      // Auto / Buttons mode: Attempt real native interactive buttons first
+      try {
+        const engine = this.engineRegistry.get(ctx.sessionId);
+        if (engine && typeof (engine as any).sendInteractiveButtons === 'function') {
+          await (engine as any).sendInteractiveButtons(ctx.chatId, message, buttons);
+          sentVia = 'native_buttons';
+        }
+      } catch (err) {
         this.logger.warn(
-          `Native poll send failed, falling back to numbered text: ${err instanceof Error ? err.message : String(err)}`,
+          `Native buttons not supported on this engine session (${err instanceof Error ? err.message : String(err)}). Using structured interactive menu fallback.`,
         );
+        sentVia = 'text_fallback';
       }
     }
 
     if (sentVia === 'text_fallback' && this.messageService) {
       const lines = [message, ''];
       buttons.forEach((b, idx) => {
-        lines.push(`${idx + 1}️⃣ ${b.text}`);
+        lines.push(`${idx + 1}️⃣  *${b.text}*`);
       });
       lines.push('');
-      lines.push('👉 Reply with the number or option name');
+      lines.push('👉 *Reply with number (1, 2) or option name*');
       await this.messageService.sendText(ctx.sessionId, {
         chatId: ctx.chatId,
         text: lines.join('\n'),
       });
+      sentVia = 'formatted_text_menu';
     }
 
     if (run) {
@@ -859,7 +914,9 @@ export class WorkflowExecutor {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     if (!ctx.sessionId || !ctx.chatId) throw new Error('No session/chat context for question');
-    const rawPrompt = String(action.config['prompt'] || action.config['message'] || 'Please enter your response:');
+    const rawPrompt = String(
+      action.config['question'] || action.config['prompt'] || action.config['message'] || 'Please enter your response:',
+    );
     const prompt = this.interpolateVariables(rawPrompt, ctx, run);
     const slot = String(action.config['slot'] || 'response');
     const validation = String(action.config['validation'] || 'any');
@@ -902,7 +959,9 @@ export class WorkflowExecutor {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     const rawField = String(action.config['field'] || 'tag').trim();
-    const operator = String(action.config['operator'] || 'contains').toLowerCase().trim();
+    const operator = String(action.config['operator'] || 'contains')
+      .toLowerCase()
+      .trim();
     const rawTarget = String(action.config['value'] ?? '').trim();
     const targetValue = this.interpolateVariables(rawTarget, ctx, run);
 
@@ -1000,9 +1059,7 @@ export class WorkflowExecutor {
       return { status: 'ai_service_unavailable' };
     }
     const rawPrompt = action.config['prompt'] || action.config['message'];
-    const message = rawPrompt
-      ? this.interpolateVariables(String(rawPrompt), ctx, run)
-      : (ctx.messageBody || '');
+    const message = rawPrompt ? this.interpolateVariables(String(rawPrompt), ctx, run) : ctx.messageBody || '';
 
     const res = await this.aiService.chat({
       businessId: ctx.businessId,
@@ -1485,9 +1542,7 @@ export class WorkflowExecutor {
     if (obj === null || obj === undefined) return undefined;
 
     // Normalize bracket syntax: items[0].name -> items.0.name, items['title'] -> items.title
-    const normalized = path
-      .replace(/\[(\d+)\]/g, '.$1')
-      .replace(/\[['"](.+?)['"]\]/g, '.$1');
+    const normalized = path.replace(/\[(\d+)\]/g, '.$1').replace(/\[['"](.+?)['"]\]/g, '.$1');
 
     const parts = normalized.split('.').filter(Boolean);
     let curr: any = obj;
@@ -1545,6 +1600,8 @@ export class WorkflowExecutor {
         isValid = /^\+?[0-9]{7,15}$/.test(trimmed.replace(/[\s-]/g, ''));
       } else if (validation === 'number') {
         isValid = !isNaN(Number(trimmed));
+      } else if (validation === 'pincode') {
+        isValid = /^[1-9][0-9]{5}$/.test(trimmed.replace(/\s/g, ''));
       }
 
       if (!isValid) {
@@ -1703,7 +1760,11 @@ export class WorkflowExecutor {
     }
 
     if (!passed) {
-      return { passed: false, filtered: true, reason: `Filter condition '${rawField} ${operator} ${rawTarget}' not met` };
+      return {
+        passed: false,
+        filtered: true,
+        reason: `Filter condition '${rawField} ${operator} ${rawTarget}' not met`,
+      };
     }
 
     return { passed: true, filtered: false, value: resolvedFieldVal };
@@ -1739,7 +1800,13 @@ export class WorkflowExecutor {
     }
 
     if (!webhookUrl || ctx.metadata?.isTest || action.config['dryRun']) {
-      return { success: true, simulated: true, dryRun: true, appendedRow: columns, destination: webhookUrl || 'simulated_sheets' };
+      return {
+        success: true,
+        simulated: true,
+        dryRun: true,
+        appendedRow: columns,
+        destination: webhookUrl || 'simulated_sheets',
+      };
     }
 
     const result = await this.testWebhookCall({
@@ -1749,7 +1816,11 @@ export class WorkflowExecutor {
       body: JSON.stringify({ action: 'appendRow', row: columns }),
     });
 
-    return { success: result.statusCode >= 200 && result.statusCode < 300, statusCode: result.statusCode, appendedRow: columns };
+    return {
+      success: result.statusCode >= 200 && result.statusCode < 300,
+      statusCode: result.statusCode,
+      appendedRow: columns,
+    };
   }
 
   private async actionSendMedia(
@@ -1766,12 +1837,19 @@ export class WorkflowExecutor {
     const rawCaption = String(action.config['caption'] || '');
     const caption = this.interpolateVariables(rawCaption, ctx, run);
 
+    // Normalize recipient / chatId to valid WhatsApp JID
+    const rawRecipient = String(action.config['recipient'] || action.config['chatId'] || ctx.chatId || '');
+    const targetChat = this.interpolateVariables(rawRecipient, ctx, run).trim();
+    const cleanNumber = targetChat.replace(/[^0-9]/g, '');
+    const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
+
     if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
       return {
         sent: true,
         simulated: true,
         dryRun: true,
         messageId: `dry_run_media_${Date.now()}`,
+        chatId: normalizedChatId,
         mediaType,
         url,
         caption,
@@ -1779,16 +1857,264 @@ export class WorkflowExecutor {
     }
 
     if (this.messageService && url) {
-      const res = await this.messageService.sendImage(ctx.sessionId, {
-        chatId: ctx.chatId,
-        mimetype: mediaType === 'document' ? 'application/pdf' : 'image/jpeg',
-        caption,
-        url,
-      });
-      return { sent: true, messageId: res.messageId, mediaType, url, caption };
+      try {
+        let res: { messageId?: string } | undefined;
+        if (mediaType === 'video') {
+          res = await this.messageService.sendVideo(ctx.sessionId, {
+            chatId: normalizedChatId,
+            caption,
+            url,
+          });
+        } else if (mediaType === 'document') {
+          res = await this.messageService.sendDocument(ctx.sessionId, {
+            chatId: normalizedChatId,
+            caption,
+            url,
+            filename: String(action.config['filename'] || 'document.pdf'),
+            mimetype: 'application/pdf',
+          });
+        } else {
+          res = await this.messageService.sendImage(ctx.sessionId, {
+            chatId: normalizedChatId,
+            caption,
+            url,
+            mimetype: 'image/jpeg',
+          });
+        }
+        return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, mediaType, url, caption };
+      } catch (err: any) {
+        const errStr = String(err?.message || err);
+        if (errStr.includes('Data passed to getter must include an id property')) {
+          throw new Error(
+            `WhatsApp Web media engine memoization failure for recipient ${normalizedChatId}. ` +
+              `Ensure recipient number is a registered WhatsApp account and session is fully loaded. ` +
+              `(${errStr})`,
+          );
+        }
+        throw err;
+      }
     }
 
-    return { sent: true, simulated: true, mediaType, url, caption };
+    return { sent: true, simulated: true, chatId: normalizedChatId, mediaType, url, caption };
+  }
+
+  private async actionSearchAgents(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+
+    const rawPin =
+      action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || captured['pin'] || '';
+    const resolvedPin = this.interpolateVariables(String(rawPin), ctx, run)
+      .trim()
+      .replace(/[^0-9]/g, '');
+
+    const rawService = action.config['mainService'] || captured['mainService'] || captured['service'] || 'insurance';
+    const mainService = this.interpolateVariables(String(rawService), ctx, run).toLowerCase();
+
+    const rawCategory = action.config['productCategory'] || captured['productCategory'] || captured['category'] || '';
+    const productCategory = this.interpolateVariables(String(rawCategory), ctx, run);
+
+    const rawSubProduct = action.config['subProduct'] || captured['subProduct'] || '';
+    const subProduct = this.interpolateVariables(String(rawSubProduct), ctx, run);
+
+    const limit = Number(action.config['limit'] || action.config['maxResults'] || 3);
+    const sendDirectMessage = action.config['sendDirectMessage'] !== false;
+
+    let agents: Agent[] = [];
+    if (this.agentService) {
+      agents = await this.agentService.findMatchingAgents(ctx.businessId, {
+        pincode: resolvedPin,
+        mainService,
+        productCategory,
+        subProduct,
+        limit,
+      });
+    }
+
+    const formattedCards = this.agentService
+      ? this.agentService.formatAgentProfilesMessage(agents, resolvedPin || 'India')
+      : `Found ${agents.length} advisors for pincode ${resolvedPin}.`;
+
+    if (sendDirectMessage && ctx.sessionId && ctx.chatId) {
+      if (ctx.metadata?.isTest || action.config['dryRun']) {
+        this.logger.log(`Search agents (simulated dry-run): chat=${ctx.chatId} agents=${agents.length}`);
+      } else if (this.messageService) {
+        if (agents.length === 0) {
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: ctx.chatId,
+            text: formattedCards,
+          });
+        } else {
+          // 1. Send Header introduction
+          const header = `📍 *Found ${agents.length} Verified Advisor(s) serving Pincode ${resolvedPin || 'your area'} (via PadosiAgent):*`;
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: ctx.chatId,
+            text: header,
+          });
+
+          // 2. Send EACH advisor as a separate, beautifully structured card message
+          const cards = this.agentService
+            ? this.agentService.formatIndividualAgentCards(agents, resolvedPin || 'India')
+            : [formattedCards];
+
+          for (const card of cards) {
+            await new Promise(r => setTimeout(r, 350));
+            await this.messageService.sendText(ctx.sessionId, {
+              chatId: ctx.chatId,
+              text: card,
+            });
+          }
+
+          // 3. Send guidance footer
+          await new Promise(r => setTimeout(r, 250));
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: ctx.chatId,
+            text: `👉 *Tip:* Tap on any advisor's *Call* or *WhatsApp* link above to speak directly.`,
+          });
+        }
+      }
+    }
+
+    if (run?.triggerData) {
+      const td = run.triggerData as Record<string, any>;
+      if (!td.capturedVariables || typeof td.capturedVariables !== 'object') {
+        td.capturedVariables = {};
+      }
+      td.capturedVariables.matchedAgentId = agents[0]?.id;
+      td.capturedVariables.matchedAgentName = agents[0]?.name;
+      td.capturedVariables.matchedAgentPhone = agents[0]?.phone;
+    }
+
+    return {
+      agentsFound: agents.length > 0,
+      count: agents.length,
+      pincode: resolvedPin,
+      agents: agents.map(a => ({
+        id: a.id,
+        name: a.name,
+        phone: a.phone,
+        rating: a.rating,
+        serviceArea: a.serviceArea,
+        callLink: a.callLink,
+        whatsappLink: a.whatsappLink,
+      })),
+      formattedCards,
+      branch: agents.length > 0 ? 'agents_found' : 'no_agents_found',
+    };
+  }
+
+  private async actionCreateLead(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+
+    const rawPhone = action.config['customerPhone'] || ctx.chatId?.replace(/@.*$/, '') || '';
+    const customerPhone = this.interpolateVariables(String(rawPhone), ctx, run);
+
+    const rawMain = action.config['mainService'] || captured['mainService'] || 'insurance';
+    const mainService = this.interpolateVariables(String(rawMain), ctx, run);
+
+    const rawSelected = action.config['selectedService'] || captured['selectedService'] || 'General Enquiry';
+    const selectedService = this.interpolateVariables(String(rawSelected), ctx, run);
+
+    const rawCategory = action.config['productCategory'] || captured['productCategory'] || '';
+    const productCategory = this.interpolateVariables(String(rawCategory), ctx, run);
+
+    const rawSub = action.config['subProduct'] || captured['subProduct'] || '';
+    const subProduct = this.interpolateVariables(String(rawSub), ctx, run);
+
+    const rawClaimType = action.config['claimIssueType'] || captured['claimIssueType'] || '';
+    const claimIssueType = this.interpolateVariables(String(rawClaimType), ctx, run);
+
+    const rawCompany = action.config['insuranceCompany'] || captured['insuranceCompany'] || '';
+    const insuranceCompany = this.interpolateVariables(String(rawCompany), ctx, run);
+
+    const rawDesc = action.config['issueDescription'] || captured['issueDescription'] || '';
+    const issueDescription = this.interpolateVariables(String(rawDesc), ctx, run);
+
+    const rawPin = action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || '';
+    const pincode = this.interpolateVariables(String(rawPin), ctx, run)
+      .trim()
+      .replace(/[^0-9]/g, '');
+
+    let matchedAgent: Agent | undefined;
+    const agentId = action.config['matchedAgentId'] || captured['matchedAgentId'];
+    if (this.agentService && agentId) {
+      const agents = await this.agentService.listAgents(ctx.businessId);
+      matchedAgent = agents.find(a => a.id === agentId);
+    }
+
+    let lead: Lead | undefined;
+    if (this.leadService) {
+      lead = await this.leadService.createOrUpdateLead({
+        businessId: ctx.businessId,
+        sessionId: ctx.sessionId,
+        chatId: ctx.chatId || `${customerPhone}@c.us`,
+        customerPhone,
+        customerName: (ctx.metadata?.['contactName'] as string) || (ctx.metadata?.['name'] as string),
+        mainService,
+        selectedService,
+        productCategory: productCategory || undefined,
+        subProduct: subProduct || undefined,
+        claimIssueType: claimIssueType || undefined,
+        insuranceCompany: insuranceCompany || undefined,
+        issueDescription: issueDescription || undefined,
+        pincode,
+        matchedAgent,
+        workflowId: run?.workflowId,
+        conversationId: ctx.sessionId,
+        metadata: {
+          capturedVariables: captured,
+          source: 'whatsapp_automation_flow',
+        },
+      });
+    }
+
+    const leadNumber = lead?.leadNumber || `LD-INS-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    return {
+      leadCreated: true,
+      leadId: lead?.id || `sim_${Date.now()}`,
+      leadNumber,
+      status: lead?.status || 'assigned',
+      matchedAgentId: lead?.matchedAgentId || matchedAgent?.id,
+      matchedAgentName: lead?.matchedAgentName || matchedAgent?.name,
+      customerPhone,
+      branch: 'lead_created',
+    };
+  }
+
+  private async actionValidatePincode(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    const rawPin =
+      action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || ctx.messageBody || '';
+    const pincode = this.interpolateVariables(String(rawPin), ctx, run).trim().replace(/\s/g, '');
+
+    const isValid = /^[1-9][0-9]{5}$/.test(pincode);
+
+    if (isValid && run?.triggerData) {
+      const td = run.triggerData as Record<string, any>;
+      if (!td.capturedVariables || typeof td.capturedVariables !== 'object') {
+        td.capturedVariables = {};
+      }
+      td.capturedVariables.pincode = pincode;
+      td.capturedVariables.residence_pincode = pincode;
+    }
+
+    return {
+      isValid,
+      pincode,
+      branch: isValid ? 'pincode_valid' : 'invalid_pincode',
+    };
   }
 
   private async executeGraphFromNode(
@@ -1852,9 +2178,7 @@ export class WorkflowExecutor {
       }
 
       const nextHandle = step.output?.['branch'] as string | undefined;
-      let nextEdge = edges.find(
-        e => e.source === currentNode?.id && (!nextHandle || e.sourceHandle === nextHandle),
-      );
+      let nextEdge = edges.find(e => e.source === currentNode?.id && (!nextHandle || e.sourceHandle === nextHandle));
       if (!nextEdge && nextHandle) {
         nextEdge = edges.find(e => e.source === currentNode?.id);
       }
@@ -1863,6 +2187,46 @@ export class WorkflowExecutor {
     }
 
     await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, { steps });
+  }
+
+  private async actionScheduleFollowup(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!this.scheduledMessageRepo) {
+      return { status: 'error', error: 'Scheduled message repository not available' };
+    }
+
+    const delayMinutes = Number(action.config.delayMinutes ?? action.config.delay ?? 60);
+    const message = this.interpolateVariables(String(action.config.message ?? ''), ctx, run);
+    const chatId = this.interpolateVariables(String(action.config.chatId ?? ctx.chatId ?? ''), ctx, run);
+    const sessionId = this.interpolateVariables(String(action.config.sessionId ?? ctx.sessionId ?? ''), ctx, run);
+
+    if (!chatId || !sessionId || !message) {
+      return { status: 'error', error: 'chatId, sessionId, and message are required' };
+    }
+
+    const scheduledAt = new Date(Date.now() + delayMinutes * 60 * 1000);
+
+    const scheduled = this.scheduledMessageRepo.create({
+      businessId: ctx.businessId,
+      sessionId,
+      chatId,
+      content: message,
+      scheduledAt,
+      status: ScheduledMessageStatus.PENDING,
+    });
+
+    const saved = await this.scheduledMessageRepo.save(scheduled);
+    this.logger.log(`Scheduled follow-up message ${saved.id} for ${chatId} at ${scheduledAt.toISOString()}`);
+
+    return {
+      status: 'scheduled',
+      scheduledMessageId: saved.id,
+      scheduledAt: scheduledAt.toISOString(),
+      delayMinutes,
+    };
   }
 
   private delay(ms: number): Promise<void> {

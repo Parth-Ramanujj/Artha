@@ -194,6 +194,41 @@ const PALETTE_ITEMS: NodePaletteItem[] = [
       },
     },
   },
+  {
+    type: 'search_agents',
+    title: 'Match Advisors',
+    category: 'action',
+    description: 'Find certified advisors by Pincode & service with Call & WhatsApp links',
+    iconName: 'usercheck',
+    defaultConfig: {
+      pincode: '{{customer_pincode.value}}',
+      mainService: 'insurance',
+      limit: 3,
+      sendDirectMessage: true,
+    },
+  },
+  {
+    type: 'create_lead',
+    title: 'Create & Assign Lead',
+    category: 'action',
+    description: 'Create an insurance/investment lead and assign the matched advisor',
+    iconName: 'shield',
+    defaultConfig: {
+      customerPhone: '{{trigger.phone}}',
+      mainService: 'insurance',
+      selectedService: 'WhatsApp Interactive Flow',
+    },
+  },
+  {
+    type: 'validate_pincode',
+    title: 'Validate Pincode',
+    category: 'logic',
+    description: 'Verify 6-digit Indian PIN code and branch on validity',
+    iconName: 'map-pin',
+    defaultConfig: {
+      pincode: '{{last.answer}}',
+    },
+  },
 ];
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {

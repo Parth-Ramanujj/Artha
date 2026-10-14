@@ -19,6 +19,9 @@ import {
   HelpCircle,
   Bot,
   GitBranch,
+  UserCheck,
+  ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowRun } from '../../services/api';
@@ -68,6 +71,9 @@ function getNodeIcon(nodeType: string): ReactNode {
     case 'google_sheets': return <Table size={14} className="text-emerald-500" />;
     case 'webhook_call': return <Code size={14} className="text-sky-400" />;
     case 'ai_assistant': return <Bot size={14} className="text-fuchsia-400" />;
+    case 'search_agents': return <UserCheck size={14} className="text-emerald-400" />;
+    case 'create_lead': return <ShieldCheck size={14} className="text-indigo-400" />;
+    case 'validate_pincode': return <MapPin size={14} className="text-amber-400" />;
     default: return <Layers size={14} className="text-slate-400" />;
   }
 }
@@ -514,6 +520,114 @@ export function VariablePicker({
               type: 'string',
               description: 'Final interpolated text dispatched to recipient',
               example: 'Thank you for your inquiry!',
+            },
+          );
+          break;
+        }
+
+        case 'search_agents': {
+          items.push(
+            {
+              key: 'count',
+              token: `steps.${id}.count`,
+              label: 'Advisors Count',
+              friendlyPath: `${label} › Found Count`,
+              type: 'number',
+              description: 'Number of certified advisors matched for this location',
+              example: 3,
+            },
+            {
+              key: 'formattedCards',
+              token: `steps.${id}.formattedCards`,
+              label: 'Advisor Profile Cards Text',
+              friendlyPath: `${label} › Formatted Cards`,
+              type: 'string',
+              description: 'Rendered WhatsApp text with direct Call Now & WhatsApp links',
+              example: '✅ Found 3 verified advisors...',
+            },
+            {
+              key: 'pincode',
+              token: `steps.${id}.pincode`,
+              label: 'Searched Pincode',
+              friendlyPath: `${label} › Pincode`,
+              type: 'string',
+              description: 'Pincode searched for advisors',
+              example: '380015',
+            },
+          );
+          break;
+        }
+
+        case 'create_lead': {
+          items.push(
+            {
+              key: 'leadNumber',
+              token: `steps.${id}.leadNumber`,
+              label: 'Lead Reference Number',
+              friendlyPath: `${label} › Lead Number`,
+              type: 'string',
+              description: 'Unique reference identifier for customer query',
+              example: 'LD-INS-58291',
+            },
+            {
+              key: 'leadId',
+              token: `steps.${id}.leadId`,
+              label: 'Lead Database ID',
+              friendlyPath: `${label} › Lead ID`,
+              type: 'string',
+              description: 'Primary key UUID of the saved lead in database',
+              example: 'lead_uuid_123',
+            },
+            {
+              key: 'status',
+              token: `steps.${id}.status`,
+              label: 'Lead Status',
+              friendlyPath: `${label} › Status`,
+              type: 'string',
+              description: 'Current status of the lead: assigned / qualified',
+              example: 'assigned',
+            },
+            {
+              key: 'matchedAgentName',
+              token: `steps.${id}.matchedAgentName`,
+              label: 'Assigned Advisor Name',
+              friendlyPath: `${label} › Advisor Name`,
+              type: 'string',
+              description: 'Full name and accreditation of the assigned advisor',
+              example: 'Rajesh Sharma (IRDAI & AMFI)',
+            },
+            {
+              key: 'matchedAgentPhone',
+              token: `steps.${id}.matchedAgentPhone`,
+              label: 'Assigned Advisor Phone',
+              friendlyPath: `${label} › Advisor Phone`,
+              type: 'string',
+              description: 'Direct phone number of the assigned advisor',
+              example: '919876501001',
+            },
+          );
+          break;
+        }
+
+        case 'validate_pincode': {
+          items.push(
+            {
+              key: 'isValid',
+              token: `steps.${id}.isValid`,
+              label: 'Is Valid Pincode',
+              friendlyPath: `${label} › Is Valid`,
+              type: 'boolean',
+              description: 'Whether the submitted 6-digit Indian PIN code passed validation',
+              example: true,
+            },
+            {
+              key: 'pincode',
+              token: `steps.${id}.pincode`,
+              label: 'Cleaned Pincode',
+              friendlyPath: `${label} › Clean Pincode`,
+              type: 'string',
+              description: 'Sanitized 6-digit Pincode value',
+              example: '380015',
             },
           );
           break;

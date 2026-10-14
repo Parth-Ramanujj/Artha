@@ -2065,6 +2065,16 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     return this.toMessageResult(msg);
   }
 
+  async sendInteractiveButtons(
+    _chatId: string,
+    _body: string,
+    _buttons: Array<{ id?: string; text: string }>,
+    _title?: string,
+    _footer?: string,
+  ): Promise<MessageResult> {
+    throw new EngineNotSupportedError('sendInteractiveButtons');
+  }
+
   async replyToMessage(chatId: string, quotedMsgId: string, text: string): Promise<MessageResult> {
     this.ensureReady();
     try {
