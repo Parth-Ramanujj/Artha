@@ -36,6 +36,10 @@ import {
   GraduationCap,
   BarChart3,
   Activity,
+  BellRing,
+  Star,
+  RefreshCw,
+  UserSearch,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -75,6 +79,10 @@ const allNavItems = [
   { to: '/chatbot-training', icon: GraduationCap, key: 'chatbotTraining' as const, adminOnly: false },
   { to: '/campaign-analytics', icon: BarChart3, key: 'campaignAnalytics' as const, adminOnly: false },
   { to: '/workflow-analytics', icon: Activity, key: 'workflowAnalytics' as const, adminOnly: false },
+  { to: '/advisor-alerts', icon: BellRing, key: 'advisorAlerts' as const, adminOnly: false },
+  { to: '/feedback', icon: Star, key: 'feedback' as const, adminOnly: false },
+  { to: '/sync', icon: RefreshCw, key: 'sync' as const, adminOnly: true },
+  { to: '/followup', icon: UserSearch, key: 'followup' as const, adminOnly: false },
   { to: '/logs', icon: FileText, key: 'logs' as const, adminOnly: false },
 ];
 

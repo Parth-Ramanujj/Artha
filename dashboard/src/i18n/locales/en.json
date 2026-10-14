@@ -78,6 +78,10 @@
     "chatbotTraining": "Chatbot Training",
     "campaignAnalytics": "Campaign Analytics",
     "workflowAnalytics": "Workflow Analytics",
+    "advisorAlerts": "Advisor Alerts",
+    "feedback": "Feedback",
+    "sync": "Sync",
+    "followup": "Follow-up",
     "logs": "Logs"
   },
   "chats": {

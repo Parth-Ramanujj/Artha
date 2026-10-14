@@ -14,6 +14,7 @@ import it from './locales/it.json';
 import ptBR from './locales/pt-BR.json';
 import ko from './locales/ko.json';
 import gu from './locales/gu.json';
+import hi from './locales/hi.json';
 
 export const supportedLanguages = [
   'en',
@@ -29,6 +30,7 @@ export const supportedLanguages = [
   'pt-BR',
   'ko',
   'gu',
+  'hi',
 ] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
@@ -48,6 +50,7 @@ export const languageOptions: Array<{ value: SupportedLanguage; label: string; c
   { value: 'pt-BR', label: 'Português (Brasil)', compactLabel: 'PT' },
   { value: 'ko', label: '한국어', compactLabel: 'KO' },
   { value: 'gu', label: 'ગુજરાતી', compactLabel: 'GU' },
+  { value: 'hi', label: 'हिन्दी', compactLabel: 'HI' },
 ];
 
 export function resolveSupportedLanguage(lang?: string): SupportedLanguage {
@@ -84,6 +87,7 @@ void i18n
       'pt-BR': { translation: ptBR },
       ko: { translation: ko },
       gu: { translation: gu },
+      hi: { translation: hi },
     },
     fallbackLng: 'en',
     supportedLngs: supportedLanguages as unknown as string[],

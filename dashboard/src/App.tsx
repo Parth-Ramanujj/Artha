@@ -37,6 +37,10 @@ const IntegrationsPage = lazy(() => import('./pages/Integrations').then(m => ({ 
 const ChatbotTraining = lazy(() => import('./pages/ChatbotTraining').then(m => ({ default: m.ChatbotTraining })));
 const CampaignAnalytics = lazy(() => import('./pages/CampaignAnalytics').then(m => ({ default: m.CampaignAnalytics })));
 const WorkflowAnalytics = lazy(() => import('./pages/WorkflowAnalytics').then(m => ({ default: m.WorkflowAnalytics })));
+const AdvisorAlerts = lazy(() => import('./pages/AdvisorAlerts').then(m => ({ default: m.AdvisorAlerts })));
+const FeedbackPage = lazy(() => import('./pages/Feedback').then(m => ({ default: m.Feedback })));
+const SyncManager = lazy(() => import('./pages/SyncManager').then(m => ({ default: m.SyncManager })));
+const FollowupRecovery = lazy(() => import('./pages/FollowupRecovery').then(m => ({ default: m.FollowupRecovery })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -157,6 +161,10 @@ function AppContent() {
               <Route path="chatbot-training" element={<ChatbotTraining />} />
               <Route path="campaign-analytics" element={<CampaignAnalytics />} />
               <Route path="workflow-analytics" element={<WorkflowAnalytics />} />
+              <Route path="advisor-alerts" element={<AdvisorAlerts />} />
+              <Route path="feedback" element={<FeedbackPage />} />
+              {role === 'admin' && <Route path="sync" element={<SyncManager />} />}
+              <Route path="followup" element={<FollowupRecovery />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

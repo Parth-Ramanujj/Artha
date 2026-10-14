@@ -1915,6 +1915,87 @@ export const abTestApi = {
 // Integrations
 // =============================================================================
 
+// =============================================================================
+// Advisor Alerts
+// =============================================================================
+
+export const advisorAlertApi = {
+  list: () => request<Array<{ sessionId: string; advisorChatId: string; advisorName?: string }>>('/advisor-alerts'),
+  register: (data: { sessionId: string; advisorChatId: string; advisorName?: string }) =>
+    request<{ success: boolean }>('/advisor-alerts', { method: 'POST', body: data }),
+  unregister: (advisorChatId: string) =>
+    request<void>(`/advisor-alerts?advisorChatId=${advisorChatId}`, { method: 'DELETE' }),
+  test: () => request<{ success: boolean; advisorCount: number }>('/advisor-alerts/test', { method: 'POST' }),
+};
+
+// =============================================================================
+// Feedback
+// =============================================================================
+
+export const feedbackApi = {
+  list: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<unknown[]>(`/feedback${qs}`);
+  },
+  stats: () =>
+    request<{
+      total: number;
+      averageRating: number;
+      distribution: Record<number, number>;
+      agentStats?: Record<string, { total: number; avg: number }>;
+    }>('/feedback/stats'),
+  get: (id: string) => request<unknown>(`/feedback/${id}`),
+  create: (data: Record<string, unknown>) => request<unknown>('/feedback', { method: 'POST', body: data }),
+  requestViaWhatsApp: (data: { conversationId: string; sessionId: string; chatId: string }) =>
+    request<{ success: boolean; reason?: string }>('/feedback/request-via-whatsapp', { method: 'POST', body: data }),
+  delete: (id: string) => request<void>(`/feedback/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Sync
+// =============================================================================
+
+export const syncApi = {
+  providers: () =>
+    request<Array<{ provider: string; label: string; dataTypes: string[]; description: string }>>('/sync/providers'),
+  list: (provider?: string) => {
+    const qs = provider ? `?provider=${provider}` : '';
+    return request<unknown[]>(`/sync${qs}`);
+  },
+  get: (id: string) => request<unknown>(`/sync/${id}`),
+  create: (data: Record<string, unknown>) => request<unknown>('/sync', { method: 'POST', body: data }),
+  update: (id: string, data: Record<string, unknown>) => request<unknown>(`/sync/${id}`, { method: 'PUT', body: data }),
+  trigger: (id: string) => request<unknown>(`/sync/${id}/trigger`, { method: 'POST' }),
+  delete: (id: string) => request<void>(`/sync/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Follow-up & Dropped-user Recovery
+// =============================================================================
+
+export const followupApi = {
+  rules: () => request<unknown[]>('/followup/rules'),
+  getRule: (id: string) => request<unknown>(`/followup/rules/${id}`),
+  createRule: (data: Record<string, unknown>) => request<unknown>('/followup/rules', { method: 'POST', body: data }),
+  updateRule: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/followup/rules/${id}`, { method: 'PUT', body: data }),
+  deleteRule: (id: string) => request<void>(`/followup/rules/${id}`, { method: 'DELETE' }),
+  droppedUsers: (idleMinutes?: number) => {
+    const qs = idleMinutes ? `?idleMinutes=${idleMinutes}` : '';
+    return request<unknown[]>(`/followup/dropped-users${qs}`);
+  },
+  send: (data: { conversationId: string; sessionId: string; chatId: string; message: string }) =>
+    request<{ success: boolean; reason?: string }>('/followup/send', { method: 'POST', body: data }),
+  stats: () =>
+    request<{
+      totalRules: number;
+      activeRules: number;
+      totalSent: number;
+      totalRecovered: number;
+      recoveryRate: number;
+    }>('/followup/stats'),
+};
+
 export const integrationApi = {
   types: () =>
     request<Array<{ type: string; label: string; category: string; description: string }>>('/integrations/types'),
