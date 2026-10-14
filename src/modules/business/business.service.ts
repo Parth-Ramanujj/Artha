@@ -39,7 +39,12 @@ export class BusinessService implements OnModuleInit {
       );
     }
 
-    const business = this.businessRepo.create({ name: dto.name, slug });
+    const business = this.businessRepo.create({
+      name: dto.name,
+      slug,
+      plan: dto.plan ?? 'free',
+      settings: dto.settings ?? null,
+    });
     const saved = await this.businessRepo.save(business);
     this.logger.log('Business created', { businessId: saved.id, name: saved.name });
     return saved;
@@ -65,7 +70,10 @@ export class BusinessService implements OnModuleInit {
   async update(id: string, dto: UpdateBusinessDto): Promise<Business> {
     const business = await this.findOne(id);
     if (dto.name !== undefined) business.name = dto.name;
+    if (dto.slug !== undefined) business.slug = this.generateSlug(dto.slug);
+    if (dto.plan !== undefined) business.plan = dto.plan;
     if (dto.isActive !== undefined) business.isActive = dto.isActive;
+    if (dto.settings !== undefined) business.settings = dto.settings;
     return this.businessRepo.save(business);
   }
 

@@ -92,9 +92,10 @@ export function Workspaces() {
 
     try {
       setSubmitting(true);
+      const cleanSlug = formSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       await businessApi.create({
         name: formName.trim(),
-        slug: formSlug.trim() || undefined,
+        slug: cleanSlug || undefined,
         plan: formPlan,
         settings: { maxSessions: formMaxSessions },
       });
@@ -114,9 +115,10 @@ export function Workspaces() {
 
     try {
       setSubmitting(true);
+      const cleanSlug = formSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       await businessApi.update(selectedBusiness.id, {
         name: formName.trim(),
-        slug: formSlug.trim() || undefined,
+        slug: cleanSlug || undefined,
         plan: formPlan,
         settings: { ...selectedBusiness.settings, maxSessions: formMaxSessions },
       });
