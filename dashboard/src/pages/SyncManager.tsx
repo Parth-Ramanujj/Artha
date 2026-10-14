@@ -48,7 +48,7 @@ const statusBadge = (status: string) => {
 
 export function SyncManager() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [configs, setConfigs] = useState<SyncConfig[]>([]);
   const [providers, setProviders] = useState<SyncProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,7 @@ export function SyncManager() {
       setConfigs(c);
       setProviders(p);
     } catch {
-      addToast('Failed to load sync configs', 'error');
+      toast.error('Failed to load sync configs');
     } finally {
       setLoading(false);
     }
@@ -74,32 +74,32 @@ export function SyncManager() {
   const handleCreate = async () => {
     try {
       await syncApi.create(form);
-      addToast('Sync config created', 'success');
+      toast.success('Sync config created');
       setShowModal(false);
       setForm({ provider: '', name: '', direction: 'push', dataType: 'contacts' });
       await load();
     } catch {
-      addToast('Failed to create sync config', 'error');
+      toast.error('Failed to create sync config');
     }
   };
 
   const handleTrigger = async (id: string) => {
     try {
       await syncApi.trigger(id);
-      addToast('Sync triggered', 'success');
+      toast.success('Sync triggered');
       await load();
     } catch (e: unknown) {
-      addToast(`Sync failed: ${e instanceof Error ? e.message : 'Unknown error'}`, 'error');
+      toast.error(`Sync failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await syncApi.delete(id);
-      addToast('Sync config deleted', 'success');
+      toast.success('Sync config deleted');
       await load();
     } catch {
-      addToast('Failed to delete', 'error');
+      toast.error('Failed to delete');
     }
   };
 

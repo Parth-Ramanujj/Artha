@@ -45,7 +45,7 @@ const triggerLabels: Record<string, string> = {
 
 export function FollowupRecovery() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [rules, setRules] = useState<FollowupRule[]>([]);
   const [droppedUsers, setDroppedUsers] = useState<DroppedUser[]>([]);
   const [stats, setStats] = useState<FollowupStats | null>(null);
@@ -69,7 +69,7 @@ export function FollowupRecovery() {
       setDroppedUsers(d);
       setStats(s);
     } catch {
-      addToast('Failed to load follow-up data', 'error');
+      toast.error('Failed to load follow-up data');
     } finally {
       setLoading(false);
     }
@@ -118,25 +118,25 @@ export function FollowupRecovery() {
     try {
       if (editRule) {
         await followupApi.updateRule(editRule.id, data);
-        addToast('Rule updated', 'success');
+        toast.success('Rule updated');
       } else {
         await followupApi.createRule(data);
-        addToast('Rule created', 'success');
+        toast.success('Rule created');
       }
       setShowModal(false);
       await load();
     } catch {
-      addToast('Failed to save rule', 'error');
+      toast.error('Failed to save rule');
     }
   };
 
   const handleDeleteRule = async (id: string) => {
     try {
       await followupApi.deleteRule(id);
-      addToast('Rule deleted', 'success');
+      toast.success('Rule deleted');
       await load();
     } catch {
-      addToast('Failed to delete rule', 'error');
+      toast.error('Failed to delete rule');
     }
   };
 
@@ -151,12 +151,12 @@ export function FollowupRecovery() {
         message,
       });
       if (result.success) {
-        addToast('Follow-up sent', 'success');
+        toast.success('Follow-up sent');
       } else {
-        addToast(`Failed: ${result.reason}`, 'error');
+        toast.error(`Failed: ${result.reason}`);
       }
     } catch {
-      addToast('Failed to send follow-up', 'error');
+      toast.error('Failed to send follow-up');
     }
   };
 

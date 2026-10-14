@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
-import { request } from '../services/api';
+import { workflowAnalyticsApi } from '../services/api';
 
 interface WorkflowSummary {
   totalWorkflows: number;
@@ -21,9 +21,9 @@ export function WorkflowAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    request<WorkflowSummary>('/workflows/analytics/summary')
+    workflowAnalyticsApi.summary()
       .then(setSummary)
-      .catch(() => addToast(t('common.error'), 'error'))
+      .catch(() => addToast({ type: 'error', title: t('common.error') }))
       .finally(() => setLoading(false));
   }, []);
 

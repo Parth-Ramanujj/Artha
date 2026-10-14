@@ -35,7 +35,7 @@ interface SlaStats {
 
 export function SlaTracking() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [policies, setPolicies] = useState<SlaPolicy[]>([]);
   const [events, setEvents] = useState<SlaEvent[]>([]);
   const [stats, setStats] = useState<SlaStats | null>(null);
@@ -58,7 +58,7 @@ export function SlaTracking() {
       setEvents(e);
       setStats(s);
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
     setLoading(false);
   };
@@ -101,9 +101,9 @@ export function SlaTracking() {
       }
       setShowModal(false);
       load();
-      addToast(t('common.success'), 'success');
+      toast.success(t('common.success'));
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -113,7 +113,7 @@ export function SlaTracking() {
       await slaPolicyApi.delete(id);
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -122,7 +122,7 @@ export function SlaTracking() {
       await slaPolicyApi.update(p.id, { enabled: !p.enabled });
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 

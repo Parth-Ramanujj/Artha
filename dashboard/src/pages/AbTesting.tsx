@@ -28,7 +28,7 @@ interface AbTest {
 
 export function AbTesting() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [tests, setTests] = useState<AbTest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -48,7 +48,7 @@ export function AbTesting() {
       const data = await abTestApi.list();
       setTests(data);
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
     setLoading(false);
   };
@@ -86,9 +86,9 @@ export function AbTesting() {
       }
       setShowModal(false);
       load();
-      addToast(t('common.success'), 'success');
+      toast.success(t('common.success'));
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -96,9 +96,9 @@ export function AbTesting() {
     try {
       await abTestApi.start(id);
       load();
-      addToast('Test started', 'success');
+      toast.success('Test started');
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -106,9 +106,9 @@ export function AbTesting() {
     try {
       await abTestApi.complete(id);
       load();
-      addToast('Test completed', 'success');
+      toast.success('Test completed');
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -118,7 +118,7 @@ export function AbTesting() {
       await abTestApi.delete(id);
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 

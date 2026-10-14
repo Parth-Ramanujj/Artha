@@ -28,7 +28,7 @@ const starDisplay = (rating: number) => '★'.repeat(rating) + '☆'.repeat(5 - 
 
 export function Feedback() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export function Feedback() {
       setEntries(list);
       setStats(s);
     } catch {
-      addToast('Failed to load feedback', 'error');
+      toast.error('Failed to load feedback');
     } finally {
       setLoading(false);
     }
@@ -56,24 +56,24 @@ export function Feedback() {
     try {
       const result = await feedbackApi.requestViaWhatsApp(requestForm);
       if (result.success) {
-        addToast('Feedback request sent via WhatsApp', 'success');
+        toast.success('Feedback request sent via WhatsApp');
         setShowRequestModal(false);
         setRequestForm({ conversationId: '', sessionId: '', chatId: '' });
       } else {
-        addToast(`Failed: ${result.reason}`, 'error');
+        toast.error(`Failed: ${result.reason}`);
       }
     } catch {
-      addToast('Failed to send feedback request', 'error');
+      toast.error('Failed to send feedback request');
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await feedbackApi.delete(id);
-      addToast('Feedback deleted', 'success');
+      toast.success('Feedback deleted');
       await load();
     } catch {
-      addToast('Failed to delete', 'error');
+      toast.error('Failed to delete');
     }
   };
 

@@ -25,7 +25,7 @@ interface Integration {
 
 export function Integrations() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [types, setTypes] = useState<IntegrationType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,7 @@ export function Integrations() {
       setIntegrations(list);
       setTypes(t);
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
     setLoading(false);
   };
@@ -60,9 +60,9 @@ export function Integrations() {
       });
       setShowModal(false);
       load();
-      addToast(t('common.success'), 'success');
+      toast.success(t('common.success'));
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -70,9 +70,9 @@ export function Integrations() {
     try {
       await integrationApi.connect(id);
       load();
-      addToast('Connected', 'success');
+      toast.success('Connected');
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -81,7 +81,7 @@ export function Integrations() {
       await integrationApi.disconnect(id);
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 
@@ -91,7 +91,7 @@ export function Integrations() {
       await integrationApi.delete(id);
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      toast.error(t('common.error'));
     }
   };
 

@@ -1919,6 +1919,55 @@ export const abTestApi = {
 // Advisor Alerts
 // =============================================================================
 
+// =============================================================================
+// Campaign Analytics
+// =============================================================================
+
+export const campaignAnalyticsApi = {
+  summary: () =>
+    request<{
+      totalCampaigns: number;
+      completed: number;
+      active: number;
+      failed: number;
+      totalSent: number;
+      totalDelivered: number;
+      totalFailed: number;
+      deliveryRate: number;
+    }>('/campaigns/analytics/summary'),
+};
+
+// =============================================================================
+// Workflow Analytics
+// =============================================================================
+
+export const workflowAnalyticsApi = {
+  summary: () =>
+    request<{
+      totalWorkflows: number;
+      published: number;
+      draft: number;
+      totalRuns: number;
+      completedRuns: number;
+      failedRuns: number;
+      successRate: number;
+    }>('/workflows/analytics/summary'),
+};
+
+// =============================================================================
+// Chatbot Training (knowledge docs via AI endpoints)
+// =============================================================================
+
+export const chatbotApi = {
+  listDocs: () => request<unknown[]>('/ai/documents'),
+  getConfig: () => request<unknown>('/ai/config'),
+  createDoc: (data: Record<string, unknown>) => request<unknown>('/ai/documents', { method: 'POST', body: data }),
+  updateDoc: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/ai/documents/${id}`, { method: 'PUT', body: data }),
+  deleteDoc: (id: string) => request<void>(`/ai/documents/${id}`, { method: 'DELETE' }),
+  updateConfig: (data: Record<string, unknown>) => request<unknown>('/ai/config', { method: 'PUT', body: data }),
+};
+
 export const advisorAlertApi = {
   list: () => request<Array<{ sessionId: string; advisorChatId: string; advisorName?: string }>>('/advisor-alerts'),
   register: (data: { sessionId: string; advisorChatId: string; advisorName?: string }) =>

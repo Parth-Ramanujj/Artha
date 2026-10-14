@@ -13,7 +13,7 @@ interface Advisor {
 
 export function AdvisorAlerts() {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const toast = useToast();
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -24,7 +24,7 @@ export function AdvisorAlerts() {
       const data = await advisorAlertApi.list();
       setAdvisors(data);
     } catch {
-      addToast('Failed to load advisors', 'error');
+      toast.error('Failed to load advisors');
     } finally {
       setLoading(false);
     }
@@ -37,31 +37,31 @@ export function AdvisorAlerts() {
   const handleSubmit = async () => {
     try {
       await advisorAlertApi.register(form);
-      addToast('Advisor registered for alerts', 'success');
+      toast.success('Advisor registered for alerts');
       setShowModal(false);
       setForm({ sessionId: '', advisorChatId: '', advisorName: '' });
       await load();
     } catch {
-      addToast('Failed to register advisor', 'error');
+      toast.error('Failed to register advisor');
     }
   };
 
   const handleRemove = async (chatId: string) => {
     try {
       await advisorAlertApi.unregister(chatId);
-      addToast('Advisor removed', 'success');
+      toast.success('Advisor removed');
       await load();
     } catch {
-      addToast('Failed to remove advisor', 'error');
+      toast.error('Failed to remove advisor');
     }
   };
 
   const handleTest = async () => {
     try {
       const result = await advisorAlertApi.test();
-      addToast(`Test alert sent to ${result.advisorCount} advisors`, 'success');
+      toast.success(`Test alert sent to ${result.advisorCount} advisors`);
     } catch {
-      addToast('Failed to send test alert', 'error');
+      toast.error('Failed to send test alert');
     }
   };
 

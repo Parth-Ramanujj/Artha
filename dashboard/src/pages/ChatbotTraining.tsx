@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
-import { request } from '../services/api';
+import { chatbotApi } from '../services/api';
 
 interface KnowledgeDoc {
   id: string;
@@ -37,11 +37,11 @@ export function ChatbotTraining() {
 
   const load = async () => {
     try {
-      const [d, c] = await Promise.all([request<KnowledgeDoc[]>('/ai/documents'), request<AiConfig>('/ai/config')]);
-      setDocs(d);
-      setConfig(c);
+      const [d, c] = await Promise.all([chatbotApi.listDocs(), chatbotApi.getConfig()]);
+      setDocs(d as KnowledgeDoc[]);
+      setConfig(c as AiConfig);
     } catch {
-      addToast(t('common.error'), 'error');
+      addToast({ type: 'error', title: t('common.error') });
     }
     setLoading(false);
   };
@@ -65,35 +65,35 @@ export function ChatbotTraining() {
   const handleSave = async () => {
     try {
       if (editDoc) {
-        await request(`/ai/documents/${editDoc.id}`, { method: 'PUT', body: form });
+        await chatbotApi.updateDoc(editDoc.id, form);
       } else {
-        await request('/ai/documents', { method: 'POST', body: form });
+        await chatbotApi.createDoc(form);
       }
       setShowModal(false);
       load();
-      addToast(t('common.success'), 'success');
+      addToast({ type: 'success', title: t('common.success') });
     } catch {
-      addToast(t('common.error'), 'error');
+      addToast({ type: 'error', title: t('common.error') });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm(t('common.delete') + '?')) return;
     try {
-      await request(`/ai/documents/${id}`, { method: 'DELETE' });
+      await chatbotApi.deleteDoc(id);
       load();
     } catch {
-      addToast(t('common.error'), 'error');
+      addToast({ type: 'error', title: t('common.error') });
     }
   };
 
   const handleConfigSave = async () => {
     if (!config) return;
     try {
-      await request('/ai/config', { method: 'PUT', body: config });
-      addToast(t('common.success'), 'success');
+      await chatbotApi.updateConfig(config as Record<string, unknown>);
+      addToast({ type: 'success', title: t('common.success') });
     } catch {
-      addToast(t('common.error'), 'error');
+      addToast({ type: 'error', title: t('common.error') });
     }
   };
 

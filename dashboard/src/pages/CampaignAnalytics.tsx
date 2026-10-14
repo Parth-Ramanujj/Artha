@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
-import { request } from '../services/api';
+import { campaignAnalyticsApi } from '../services/api';
 
 interface AnalyticsSummary {
   totalCampaigns: number;
@@ -22,9 +22,9 @@ export function CampaignAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    request<AnalyticsSummary>('/campaigns/analytics/summary')
+    campaignAnalyticsApi.summary()
       .then(setSummary)
-      .catch(() => addToast(t('common.error'), 'error'))
+      .catch(() => addToast({ type: 'error', title: t('common.error') }))
       .finally(() => setLoading(false));
   }, []);
 
