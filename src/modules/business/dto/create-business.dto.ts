@@ -1,19 +1,24 @@
-import { IsString, IsOptional, MaxLength, MinLength, Matches, IsObject } from 'class-validator';
+import { IsString, IsOptional, MaxLength, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBusinessDto {
   @ApiProperty({ description: 'Business display name', example: 'Acme Corp' })
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(100)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   name: string;
 
   @ApiPropertyOptional({ description: 'URL-safe slug (auto-generated from name if omitted)', example: 'acme-corp' })
   @IsOptional()
   @IsString()
-  @MinLength(2)
   @MaxLength(100)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: 'slug must be lowercase alphanumeric with hyphens' })
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return undefined;
+    const clean = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return clean.length > 0 ? clean : undefined;
+  })
   slug?: string;
 
   @ApiPropertyOptional({ description: 'Subscription plan', example: 'growth' })
@@ -24,7 +29,5 @@ export class CreateBusinessDto {
 
   @ApiPropertyOptional({ description: 'Workspace settings' })
   @IsOptional()
-  @IsObject()
   settings?: Record<string, unknown>;
 }
-

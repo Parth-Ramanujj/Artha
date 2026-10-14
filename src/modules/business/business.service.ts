@@ -31,16 +31,25 @@ export class BusinessService implements OnModuleInit {
   }
 
   async create(dto: CreateBusinessDto): Promise<Business> {
-    const slug = dto.slug ?? this.generateSlug(dto.name);
-    const existing = await this.businessRepo.findOne({ where: [{ name: dto.name }, { slug }] });
+    const rawName = (dto.name || '').trim();
+    if (!rawName) {
+      throw new ConflictException('Business name is required');
+    }
+
+    let slug = dto.slug ? this.generateSlug(dto.slug) : this.generateSlug(rawName);
+    if (!slug) {
+      slug = `ws-${Date.now()}`;
+    }
+
+    const existing = await this.businessRepo.findOne({ where: [{ name: rawName }, { slug }] });
     if (existing) {
       throw new ConflictException(
-        existing.name === dto.name ? 'Business name already exists' : 'Business slug already exists',
+        existing.name === rawName ? 'Business name already exists' : 'Business slug already exists',
       );
     }
 
     const business = this.businessRepo.create({
-      name: dto.name,
+      name: rawName,
       slug,
       plan: dto.plan ?? 'free',
       settings: dto.settings ?? null,
@@ -69,8 +78,11 @@ export class BusinessService implements OnModuleInit {
 
   async update(id: string, dto: UpdateBusinessDto): Promise<Business> {
     const business = await this.findOne(id);
-    if (dto.name !== undefined) business.name = dto.name;
-    if (dto.slug !== undefined) business.slug = this.generateSlug(dto.slug);
+    if (dto.name !== undefined) business.name = dto.name.trim();
+    if (dto.slug !== undefined) {
+      const cleanSlug = this.generateSlug(dto.slug);
+      if (cleanSlug) business.slug = cleanSlug;
+    }
     if (dto.plan !== undefined) business.plan = dto.plan;
     if (dto.isActive !== undefined) business.isActive = dto.isActive;
     if (dto.settings !== undefined) business.settings = dto.settings;

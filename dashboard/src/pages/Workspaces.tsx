@@ -88,18 +88,19 @@ export function Workspaces() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) return;
+    const rawName = formName.trim();
+    if (!rawName) return;
 
     try {
       setSubmitting(true);
       const cleanSlug = formSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       await businessApi.create({
-        name: formName.trim(),
+        name: rawName,
         slug: cleanSlug || undefined,
         plan: formPlan,
         settings: { maxSessions: formMaxSessions },
       });
-      toast.success('Workspace created', `Workspace "${formName}" created successfully.`);
+      toast.success('Workspace created', `Workspace "${rawName}" created successfully.`);
       setCreateModalOpen(false);
       await fetchBusinesses();
     } catch (err) {
@@ -111,13 +112,15 @@ export function Workspaces() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBusiness || !formName.trim()) return;
+    if (!selectedBusiness) return;
+    const rawName = formName.trim();
+    if (!rawName) return;
 
     try {
       setSubmitting(true);
       const cleanSlug = formSlug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       await businessApi.update(selectedBusiness.id, {
-        name: formName.trim(),
+        name: rawName,
         slug: cleanSlug || undefined,
         plan: formPlan,
         settings: { ...selectedBusiness.settings, maxSessions: formMaxSessions },

@@ -593,7 +593,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     // SESSION_NAME_TEARDOWN_PENDING, …) drive specific recovery UI, and a reverse-proxy 502 that
     // never reached the gateway carries no code at all — that distinction is exactly what the unlink
     // classifier keys on instead of fragile message heuristics.
-    const err = new Error(error.message || `HTTP ${response.status}`) as Error & {
+    const rawMsg = Array.isArray(error.message)
+      ? error.message.join(', ')
+      : error.message || error.error || `HTTP ${response.status}`;
+    const err = new Error(rawMsg) as Error & {
       status?: number;
       code?: string;
     };
