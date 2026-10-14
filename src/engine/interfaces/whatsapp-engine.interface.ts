@@ -620,6 +620,12 @@ export interface IWhatsAppEngine {
   sendVideoMessage(chatId: string, media: MediaInput): Promise<MessageResult>;
   sendAudioMessage(chatId: string, media: MediaInput): Promise<MessageResult>;
   sendDocumentMessage(chatId: string, media: MediaInput): Promise<MessageResult>;
+  sendTemplateMessage?(
+    chatId: string,
+    templateName: string,
+    languageCode?: string,
+    components?: Array<Record<string, unknown>>,
+  ): Promise<MessageResult>;
 
   // Messaging - Extended (Phase 3)
   sendLocationMessage(chatId: string, location: LocationInput): Promise<MessageResult>;

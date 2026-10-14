@@ -45,4 +45,18 @@ export class SendTemplateMessageDto {
   @IsOptional()
   @IsObject()
   variables?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description: 'Language code for official Meta Cloud API templates (e.g. en_US)',
+    example: 'en_US',
+  })
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @ApiPropertyOptional({
+    description: 'Native Cloud API template components array',
+  })
+  @IsOptional()
+  components?: Array<Record<string, unknown>>;
 }

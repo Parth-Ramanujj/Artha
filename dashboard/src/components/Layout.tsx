@@ -25,6 +25,7 @@ import {
   GitBranch,
   Megaphone,
   Bot,
+  Building2,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -47,6 +48,7 @@ const allNavItems = [
   { to: '/workflows', icon: GitBranch, key: 'workflows' as const, adminOnly: false },
   { to: '/campaigns', icon: Megaphone, key: 'campaigns' as const, adminOnly: false },
   { to: '/ai', icon: Bot, key: 'ai' as const, adminOnly: false },
+  { to: '/workspaces', icon: Building2, key: 'workspaces' as const, adminOnly: true },
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).

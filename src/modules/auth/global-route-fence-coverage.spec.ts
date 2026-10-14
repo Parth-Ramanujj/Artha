@@ -53,6 +53,7 @@ const ALLOWLIST = new Map<string, string>([
   ['workflow.controller.ts :: findRun', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: cancelRun', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: testRun', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: testWebhook', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: getConfig', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: updateConfig', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: getModels', 'business-scoped via getBusinessId(apiKey)'],

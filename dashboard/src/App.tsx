@@ -26,6 +26,7 @@ const Conversations = lazy(() => import('./pages/Conversations').then(m => ({ de
 const Workflows = lazy(() => import('./pages/Workflows').then(m => ({ default: m.Workflows })));
 const Campaigns = lazy(() => import('./pages/Campaigns').then(m => ({ default: m.Campaigns })));
 const AiSettings = lazy(() => import('./pages/AiSettings').then(m => ({ default: m.AiSettings })));
+const Workspaces = lazy(() => import('./pages/Workspaces').then(m => ({ default: m.Workspaces })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -121,6 +122,7 @@ function AppContent() {
             <Route path="webhooks" element={<Webhooks />} />
             <Route path="templates" element={<Templates />} />
             {role === 'admin' && <Route path="api-keys" element={<ApiKeys />} />}
+            {role === 'admin' && <Route path="workspaces" element={<Workspaces />} />}
             <Route path="logs" element={<Logs />} />
             <Route path="message-tester" element={<MessageTester />} />
             <Route path="conversations" element={<Conversations />} />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { nextReconnectState } from '../utils/reconnectState';
@@ -227,6 +228,10 @@ export function Chats() {
   useDocumentTitle(t('nav.chats'));
   const { canWrite } = useRole();
   const { success: showSuccessToast, error: showErrorToast, warning: showWarningToast } = useToast();
+  const [searchParams] = useSearchParams();
+  const paramSessionId = searchParams.get('sessionId');
+  const paramChatId = searchParams.get('chatId');
+  const initialChatHandled = useRef(false);
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -541,7 +546,8 @@ export function Chats() {
         const readySessions = list.filter(s => s.status === 'ready');
         setSessions(readySessions);
         if (readySessions.length > 0) {
-          setSelectedSessionId(readySessions[0].id);
+          const matched = paramSessionId ? readySessions.find(s => s.id === paramSessionId) : null;
+          setSelectedSessionId(matched ? matched.id : readySessions[0].id);
         }
       } catch (err) {
         showErrorToast(t('chats.errors.loadSessions'), err instanceof Error ? err.message : undefined);
@@ -550,7 +556,7 @@ export function Chats() {
       }
     };
     void loadSessions();
-  }, [t, showErrorToast]);
+  }, [t, showErrorToast, paramSessionId]);
 
   // 2. Fetch chats when active session changes
   const loadChats = useCallback(
@@ -561,6 +567,13 @@ export function Chats() {
         const data = await sessionApi.getChats(sessionId);
         const sorted = [...data].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         setChats(sorted);
+        if (paramChatId && !initialChatHandled.current) {
+          const found = sorted.find(c => c.id === paramChatId);
+          if (found) {
+            setActiveChat(found);
+            initialChatHandled.current = true;
+          }
+        }
       } catch (err) {
         showErrorToast(t('chats.errors.loadChats'), err instanceof Error ? err.message : undefined);
         setChats([]);
@@ -568,19 +581,21 @@ export function Chats() {
         setLoadingChats(false);
       }
     },
-    [t, showErrorToast],
+    [t, showErrorToast, paramChatId],
   );
 
   useEffect(() => {
     if (selectedSessionId) {
       void loadChats(selectedSessionId);
-      setActiveChat(null);
+      if (!paramChatId || initialChatHandled.current) {
+        setActiveChat(null);
+      }
       setActiveChannel(null);
       setActiveStatusContactId(null);
       setAttachment(null);
       setPreviewUrl(null);
     }
-  }, [selectedSessionId, loadChats]);
+  }, [selectedSessionId, loadChats, paramChatId]);
 
   // Revoke the object URL created for an image-attachment preview once it is replaced, cleared, or
   // the page unmounts. The cleanup runs with the previous value on every change, so this single

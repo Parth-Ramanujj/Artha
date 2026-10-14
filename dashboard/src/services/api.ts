@@ -1666,3 +1666,38 @@ export const aiApi = {
   deleteDocument: (id: string) => request<void>(`/ai/knowledge/${id}`, { method: 'DELETE' }),
 };
 
+export interface Business {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  isActive: boolean;
+  settings?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessMembership {
+  id: string;
+  businessId: string;
+  apiKeyId: string;
+  businessRole: 'owner' | 'admin' | 'agent' | 'viewer';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const businessApi = {
+  list: () => request<Business[]>('/businesses'),
+  get: (id: string) => request<Business>(`/businesses/${id}`),
+  create: (data: { name: string; slug?: string; plan?: string; settings?: Record<string, unknown> }) =>
+    request<Business>('/businesses', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Business>) =>
+    request<Business>(`/businesses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/businesses/${id}`, { method: 'DELETE' }),
+  getMemberships: (businessId: string) => request<BusinessMembership[]>(`/businesses/${businessId}/memberships`),
+  addMembership: (businessId: string, data: { apiKeyId: string; role?: string }) =>
+    request<BusinessMembership>(`/businesses/${businessId}/memberships`, { method: 'POST', body: JSON.stringify(data) }),
+  removeMembership: (businessId: string, membershipId: string) =>
+    request<void>(`/businesses/${businessId}/memberships/${membershipId}`, { method: 'DELETE' }),
+};
+

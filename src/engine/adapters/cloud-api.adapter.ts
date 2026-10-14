@@ -1115,7 +1115,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
   async sendTemplateMessage(
     chatId: string,
     templateName: string,
-    languageCode: string,
+    languageCode = 'en_US',
     components?: Array<Record<string, unknown>>,
   ): Promise<MessageResult> {
     const to = this.toE164(chatId);

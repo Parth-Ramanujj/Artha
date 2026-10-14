@@ -156,6 +156,49 @@ export class MessageService {
    */
   async sendTemplate(sessionId: string, dto: SendTemplateMessageDto): Promise<MessageResponseDto> {
     dto.chatId = ensureNeutralJid(dto.chatId);
+    const engine = this.getEngine(sessionId);
+
+    // If engine natively supports template messages (e.g. Meta WhatsApp Cloud API), send natively!
+    if (typeof (engine as any).sendTemplateMessage === 'function') {
+      const template = await this.templateService
+        .resolve(sessionId, {
+          templateId: dto.templateId,
+          templateName: dto.templateName,
+        })
+        .catch(() => null);
+
+      const templateName = template?.name || dto.templateName || '';
+      if (templateName) {
+        const languageCode = dto.language || 'en_US';
+        const vars = dto.vars ?? dto.variables ?? {};
+        const components =
+          dto.components ||
+          (Object.keys(vars).length > 0
+            ? [
+                {
+                  type: 'body',
+                  parameters: Object.entries(vars).map(([, v]) => ({
+                    type: 'text',
+                    text: String(v),
+                  })),
+                },
+              ]
+            : undefined);
+
+        const result = await (engine as any).sendTemplateMessage(
+          dto.chatId,
+          templateName,
+          languageCode,
+          components,
+        );
+
+        return {
+          messageId: result.id,
+          timestamp: result.timestamp,
+        };
+      }
+    }
+
     const template = await this.templateService.resolve(sessionId, {
       templateId: dto.templateId,
       templateName: dto.templateName,
