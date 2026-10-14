@@ -29,7 +29,10 @@ import {
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
-import { workflowApi, type TestWebhookResult } from '../../services/api';
+import { workflowApi, type TestWebhookResult, type WorkflowRun } from '../../services/api';
+import { VariablePicker } from './VariablePicker';
+import { NodeOutputInspector } from './NodeOutputInspector';
+import { DynamicInput, DynamicTextarea } from './DynamicField';
 
 interface NodeOutputField {
   label: string;
@@ -162,6 +165,7 @@ interface NodeInspectorProps {
   selectedNode: { id: string; type: string; data: WorkflowNodeData } | null;
   upstreamNodes?: Node[];
   allNodes?: Node[];
+  lastRun?: WorkflowRun | null;
   onUpdateNode: (nodeId: string, updatedData: Partial<WorkflowNodeData>) => void;
   onDeleteNode: (nodeId: string) => void;
   onClose: () => void;
@@ -171,6 +175,7 @@ export function NodeInspector({
   selectedNode,
   upstreamNodes = [],
   allNodes: _allNodes = [],
+  lastRun = null,
   onUpdateNode,
   onDeleteNode,
   onClose,
@@ -181,13 +186,40 @@ export function NodeInspector({
   const [label, setLabel] = useState(data.label || '');
   const [config, setConfig] = useState<Record<string, any>>(data.config || {});
 
-  // Tab & Upstream Explorer state
-  const [activeTab, setActiveTab] = useState<'config' | 'upstream'>('config');
+  // Tab & Upstream Explorer state (config, outputs, upstream)
+  const [activeTab, setActiveTab] = useState<'config' | 'outputs' | 'upstream'>('config');
   const [searchQuery, setSearchQuery] = useState('');
   const [targetField, setTargetField] = useState<string>('message');
   const [insertedToast, setInsertedToast] = useState<string | null>(null);
   const [copiedVarToken, setCopiedVarToken] = useState<string | null>(null);
   const [customPaths, setCustomPaths] = useState<Record<string, string>>({});
+
+  // Activepieces Variable Picker popover state
+  const [isVariablePickerOpen, setIsVariablePickerOpen] = useState(false);
+  const [activePickerContext, setActivePickerContext] = useState<{
+    fieldName: string;
+    insertToken: (token: string) => void;
+  } | null>(null);
+
+  const handleOpenVariablePicker = (context: {
+    fieldName: string;
+    insertToken: (token: string) => void;
+  }) => {
+    setActivePickerContext(context);
+    setIsVariablePickerOpen(true);
+  };
+
+  const handleSelectFromPicker = (token: string, _friendlyLabel?: string) => {
+    if (activePickerContext?.insertToken) {
+      activePickerContext.insertToken(token);
+    } else {
+      insertVariable(token);
+    }
+    const clean = token.startsWith('{{') ? token : `{{${token}}}`;
+    setInsertedToast(`Inserted ${clean} into ${activePickerContext?.fieldName || targetField}!`);
+    setTimeout(() => setInsertedToast(null), 2400);
+    setIsVariablePickerOpen(false);
+  };
 
   // Webhook live testing state
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
@@ -540,6 +572,14 @@ export function NodeInspector({
           <Sliders size={13} />
           <span>Configuration</span>
         </button>
+        <button
+          type="button"
+          className={`wf-inspector-tab-btn ${activeTab === 'outputs' ? 'active' : ''}`}
+          onClick={() => setActiveTab('outputs')}
+        >
+          <Layers size={13} />
+          <span>Outputs & Data</span>
+        </button>
         {type !== 'trigger' && (
           <button
             type="button"
@@ -556,6 +596,19 @@ export function NodeInspector({
       </div>
 
       <div className="wf-inspector-body">
+        {/* DEDICATED OUTPUTS TAB */}
+        {activeTab === 'outputs' && (
+          <div className="wf-outputs-tab-content">
+            <NodeOutputInspector
+              node={{ id, type, data, position: { x: 0, y: 0 } } as Node}
+              lastRun={lastRun}
+              onCopyToken={handleCopyVar}
+              onTestNode={type === 'webhook_call' ? handleTestWebhook : undefined}
+              isTesting={isTestingWebhook}
+            />
+          </div>
+        )}
+
         {/* DEDICATED UPSTREAM DATA TAB */}
         {activeTab === 'upstream' && type !== 'trigger' ? (
           <div className="wf-upstream-tab-content">
@@ -838,98 +891,36 @@ export function NodeInspector({
         {/* SEND MESSAGE NODE */}
         {type === 'send_message' && (
           <div className="wf-inspector-section">
-            <div className="wf-field-header-row">
-              <label className="wf-field-label">Message Text</label>
-              {upstreamNodes.length > 0 && (
-                <button
-                  type="button"
-                  className="wf-btn-open-vars"
-                  onClick={() => {
-                    setTargetField('message');
-                    setActiveTab('upstream');
-                  }}
-                  title="Browse all upstream variables"
-                >
-                  <Sparkles size={11} /> Browse Variables ({upstreamNodes.length})
-                </button>
-              )}
-            </div>
-            <textarea
-              className="wf-field-textarea"
-              rows={4}
+            <DynamicTextarea
+              label="Message Text"
+              required
+              rows={5}
               placeholder="Enter message text... (Supports {{variables}})"
               value={config.message || ''}
-              onChange={e => updateConfig('message', e.target.value)}
+              onChange={val => updateConfig('message', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              quickTokens={[
+                { label: 'Phone', token: 'trigger.phone' },
+                { label: 'Name', token: 'trigger.contactName' },
+                { label: 'Incoming Msg', token: 'trigger.message' },
+              ]}
+              description="Compose rich WhatsApp messages with text formatting (*bold*, _italic_) and dynamic variables."
             />
-            <div className="wf-variable-shortcuts">
-              <span className="wf-var-hint">Quick Insert:</span>
-              <button
-                type="button"
-                className="wf-var-chip"
-                onClick={() => insertVariable('trigger.phone', 'message')}
-              >
-                + Phone
-              </button>
-              <button
-                type="button"
-                className="wf-var-chip"
-                onClick={() => insertVariable('trigger.contactName', 'message')}
-              >
-                + Name
-              </button>
-              {upstreamNodes.slice(0, 3).flatMap(up => getNodeOutputs(up).slice(0, 1)).map(out => (
-                <button
-                  key={out.token}
-                  type="button"
-                  className="wf-var-chip"
-                  onClick={() => insertVariable(out.token, 'message')}
-                  title={`Insert {{${out.token}}}`}
-                >
-                  + {out.label.split(' ')[0]}
-                </button>
-              ))}
-              {upstreamNodes.length > 0 && (
-                <button
-                  type="button"
-                  className="wf-var-chip"
-                  style={{ borderColor: '#38bdf8', color: '#38bdf8' }}
-                  onClick={() => {
-                    setTargetField('message');
-                    setActiveTab('upstream');
-                  }}
-                >
-                  + More...
-                </button>
-              )}
-            </div>
           </div>
         )}
 
         {/* INTERACTIVE BUTTONS NODE */}
         {type === 'interactive_buttons' && (
           <div className="wf-inspector-section">
-            <div className="wf-field-header-row">
-              <label className="wf-field-label">Question / Prompt Text</label>
-              {upstreamNodes.length > 0 && (
-                <button
-                  type="button"
-                  className="wf-btn-open-vars"
-                  onClick={() => {
-                    setTargetField('message');
-                    setActiveTab('upstream');
-                  }}
-                  title="Browse variables"
-                >
-                  <Sparkles size={11} /> Browse Variables
-                </button>
-              )}
-            </div>
-            <textarea
-              className="wf-field-textarea"
+            <DynamicTextarea
+              label="Question / Prompt Text"
+              required
               rows={3}
               placeholder="e.g. Please choose an option from the menu:"
               value={config.message || ''}
-              onChange={e => updateConfig('message', e.target.value)}
+              onChange={val => updateConfig('message', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="Message displayed above the interactive buttons."
             />
 
             <div className="wf-field-group">
@@ -999,43 +990,25 @@ export function NodeInspector({
         {/* ASK QUESTION (SLOT CAPTURE) NODE */}
         {type === 'ask_question' && (
           <div className="wf-inspector-section">
-            <div className="wf-field-header-row">
-              <label className="wf-field-label">Question Prompt</label>
-              {upstreamNodes.length > 0 && (
-                <button
-                  type="button"
-                  className="wf-btn-open-vars"
-                  onClick={() => {
-                    setTargetField('prompt');
-                    setActiveTab('upstream');
-                  }}
-                  title="Browse variables"
-                >
-                  <Sparkles size={11} /> Browse Variables
-                </button>
-              )}
-            </div>
-            <textarea
-              className="wf-field-textarea"
+            <DynamicTextarea
+              label="Question Prompt"
+              required
               rows={3}
               placeholder="e.g. Please reply with your business email address:"
               value={config.prompt || ''}
-              onChange={e => updateConfig('prompt', e.target.value)}
+              onChange={val => updateConfig('prompt', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="Message sent to the customer asking for input."
             />
 
-            <div className="wf-field-group">
-              <label className="wf-field-label">Capture Slot Variable</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="e.g. email, phone, city, budget"
-                value={config.slot || 'response'}
-                onChange={e => updateConfig('slot', e.target.value)}
-              />
-              <span className="wf-field-hint">
-                Value will be saved to variable <code>{`{{vars.${config.slot || 'response'}}}`}</code> and synced to contact profile
-              </span>
-            </div>
+            <DynamicInput
+              label="Capture Slot Variable"
+              required
+              placeholder="e.g. email, phone, city, budget"
+              value={config.slot || 'response'}
+              onChange={val => updateConfig('slot', val)}
+              description={`Captured reply is stored as {{vars.${config.slot || 'response'}}} and synced to contact.`}
+            />
 
             <div className="wf-field-group">
               <label className="wf-field-label">Expected Format Validation</label>
@@ -1051,16 +1024,13 @@ export function NodeInspector({
               </select>
             </div>
 
-            <div className="wf-field-group">
-              <label className="wf-field-label">Retry Prompt on Bad Format</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="e.g. Invalid email format, please try again:"
-                value={config.retryPrompt || ''}
-                onChange={e => updateConfig('retryPrompt', e.target.value)}
-              />
-            </div>
+            <DynamicInput
+              label="Retry Prompt on Bad Format"
+              placeholder="e.g. Invalid email format, please try again:"
+              value={config.retryPrompt || ''}
+              onChange={val => updateConfig('retryPrompt', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
 
             <div className="wf-field-group">
               <label className="wf-field-label">Max Validation Retries</label>
@@ -1132,19 +1102,16 @@ export function NodeInspector({
             {(!['tag', 'status', 'message', 'trigger.phone', 'vars.email', 'vars.lastChoice'].includes(config.field) &&
               !upstreamNodes?.some(up => getNodeOutputs(up).some(out => out.token === config.field))) ||
               config.field === 'custom' ? (
-              <div className="wf-field-group" style={{ marginTop: '0.4rem' }}>
-                <label className="wf-field-label">Custom Field / Variable Expression</label>
-                <input
-                  type="text"
-                  className="wf-field-input"
-                  placeholder="e.g. steps.api_call.data.total or vars.budget"
-                  value={config.customField || (config.field === 'custom' ? '' : config.field)}
-                  onChange={e => {
-                    updateConfig('customField', e.target.value);
-                    updateConfig('field', e.target.value);
-                  }}
-                />
-              </div>
+              <DynamicInput
+                label="Custom Field / Variable Expression"
+                placeholder="e.g. steps.api_call.data.total or vars.budget"
+                value={config.customField || (config.field === 'custom' ? '' : config.field)}
+                onChange={val => {
+                  updateConfig('customField', val);
+                  updateConfig('field', val);
+                }}
+                onOpenVariablePicker={handleOpenVariablePicker}
+              />
             ) : null}
 
             <div className="wf-field-group">
@@ -1170,34 +1137,14 @@ export function NodeInspector({
             </div>
 
             {!['is_empty', 'is_not_empty'].includes(config.operator) && (
-              <div className="wf-field-group">
-                <div className="wf-field-header-row">
-                  <label className="wf-field-label">Comparison Value</label>
-                  {upstreamNodes.length > 0 && (
-                    <button
-                      type="button"
-                      className="wf-btn-open-vars"
-                      onClick={() => {
-                        setTargetField('value');
-                        setActiveTab('upstream');
-                      }}
-                      title="Insert dynamic variable"
-                    >
-                      <Sparkles size={11} /> Variables
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  className="wf-field-input"
-                  placeholder="e.g. vip, pricing, 500, true"
-                  value={config.value || ''}
-                  onChange={e => updateConfig('value', e.target.value)}
-                />
-                <span className="wf-field-hint">
-                  Supports dynamic variables like <code>{`{{vars.expectedTotal}}`}</code> or literal values
-                </span>
-              </div>
+              <DynamicInput
+                label="Comparison Value"
+                placeholder="e.g. vip, pricing, 500, true"
+                value={config.value || ''}
+                onChange={val => updateConfig('value', val)}
+                onOpenVariablePicker={handleOpenVariablePicker}
+                description="Supports dynamic variables like {{vars.expectedTotal}} or literal values."
+              />
             )}
           </div>
         )}
@@ -1249,13 +1196,14 @@ export function NodeInspector({
         {/* AI ASSISTANT NODE */}
         {type === 'ai_assistant' && (
           <div className="wf-inspector-section">
-            <label className="wf-field-label">AI System Instructions</label>
-            <textarea
-              className="wf-field-textarea"
+            <DynamicTextarea
+              label="AI System Instructions"
               rows={4}
               placeholder="e.g. You are a helpful sales assistant..."
               value={config.systemPrompt || ''}
-              onChange={e => updateConfig('systemPrompt', e.target.value)}
+              onChange={val => updateConfig('systemPrompt', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="System prompt guiding the AI persona and instructions."
             />
 
             <div className="wf-checkbox-row">
@@ -1285,30 +1233,27 @@ export function NodeInspector({
         {/* HUMAN HANDOFF NODE */}
         {type === 'handoff_to_human' && (
           <div className="wf-inspector-section">
-            <label className="wf-field-label">Assign To Agent / Team</label>
-            <input
-              type="text"
-              className="wf-field-input"
+            <DynamicInput
+              label="Assign To Agent / Team"
               placeholder="e.g. Sales Team, Jane Doe"
               value={config.assignedName || ''}
-              onChange={e => updateConfig('assignedName', e.target.value)}
+              onChange={val => updateConfig('assignedName', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="This will update conversation status to Pending and alert agents in the Live Chat inbox."
             />
-            <span className="wf-field-hint">
-              This will update conversation status to <strong>Pending</strong> and alert agents in the Live Chat inbox.
-            </span>
           </div>
         )}
 
         {/* ADD TAG NODE */}
         {type === 'add_tag' && (
           <div className="wf-inspector-section">
-            <label className="wf-field-label">Contact Tag</label>
-            <input
-              type="text"
-              className="wf-field-input"
+            <DynamicInput
+              label="Contact Tag"
               placeholder="e.g. interested, hot-lead, vip"
               value={config.tag || ''}
-              onChange={e => updateConfig('tag', e.target.value)}
+              onChange={val => updateConfig('tag', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="Tag applied to customer profile in CRM."
             />
           </div>
         )}
@@ -1352,53 +1297,19 @@ export function NodeInspector({
                   ⚡ Use Local Test Endpoint
                 </button>
               </div>
-              <input
+              <DynamicInput
+                required
                 type="url"
-                className="wf-field-input"
                 placeholder="https://api.yourcrm.com/leads or http://localhost:2785/api/webhook-test/echo"
                 value={config.url || ''}
-                onChange={e => updateConfig('url', e.target.value)}
+                onChange={val => updateConfig('url', val)}
+                onOpenVariablePicker={handleOpenVariablePicker}
               />
               {config.url && config.url.includes('/api/webhook-test') && (
                 <span className="wf-field-hint" style={{ color: '#38bdf8', marginTop: '0.2rem' }}>
                   ✨ Connected to built-in OpenWA test endpoint! Requests are captured and echoed back.
                 </span>
               )}
-              <div className="wf-variable-shortcuts">
-                <span className="wf-var-hint">Insert:</span>
-                <button
-                  type="button"
-                  className="wf-var-chip"
-                  onClick={() => insertVariable('phone', 'url')}
-                  title="Insert recipient phone number"
-                >
-                  phone
-                </button>
-                <button
-                  type="button"
-                  className="wf-var-chip"
-                  onClick={() => insertVariable('name', 'url')}
-                  title="Insert contact name"
-                >
-                  name
-                </button>
-                <button
-                  type="button"
-                  className="wf-var-chip"
-                  onClick={() => insertVariable('message', 'url')}
-                  title="Insert message body"
-                >
-                  message
-                </button>
-                <button
-                  type="button"
-                  className="wf-var-chip"
-                  onClick={() => insertVariable('chatId', 'url')}
-                  title="Insert WhatsApp Chat ID"
-                >
-                  chatId
-                </button>
-              </div>
             </div>
 
             {/* Query Parameters Builder */}
@@ -1627,38 +1538,19 @@ export function NodeInspector({
                       </div>
                     </div>
 
-                    <textarea
-                      rows={5}
-                      className="wf-body-textarea"
+                    <DynamicTextarea
+                      rows={6}
                       placeholder='{ "phone": "{{phone}}", "text": "{{message}}" }'
                       value={config.body || ''}
-                      onChange={e => updateConfig('body', e.target.value)}
+                      onChange={val => updateConfig('body', val)}
+                      onOpenVariablePicker={handleOpenVariablePicker}
+                      quickTokens={[
+                        { label: 'phone', token: 'phone' },
+                        { label: 'name', token: 'name' },
+                        { label: 'message', token: 'message' },
+                      ]}
+                      description="Valid JSON payload. Variable tokens will be evaluated at runtime."
                     />
-
-                    <div className="wf-variable-shortcuts">
-                      <span className="wf-var-hint">Insert:</span>
-                      <button
-                        type="button"
-                        className="wf-var-chip"
-                        onClick={() => insertVariable('phone', 'body')}
-                      >
-                        phone
-                      </button>
-                      <button
-                        type="button"
-                        className="wf-var-chip"
-                        onClick={() => insertVariable('name', 'body')}
-                      >
-                        name
-                      </button>
-                      <button
-                        type="button"
-                        className="wf-var-chip"
-                        onClick={() => insertVariable('message', 'body')}
-                      >
-                        message
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1942,16 +1834,14 @@ export function NodeInspector({
         {/* FILTER NODE */}
         {type === 'filter' && (
           <div className="wf-inspector-section">
-            <div className="wf-field-group">
-              <label className="wf-field-label">Field to Check</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="trigger.message, trigger.phone, vars.leadScore"
-                value={config.field || 'trigger.message'}
-                onChange={e => updateConfig('field', e.target.value)}
-              />
-            </div>
+            <DynamicInput
+              label="Field to Check"
+              placeholder="trigger.message, trigger.phone, vars.leadScore"
+              value={config.field || 'trigger.message'}
+              onChange={val => updateConfig('field', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="Variable expression to test (e.g. trigger.message, vars.vip)."
+            />
             <div className="wf-field-group">
               <label className="wf-field-label">Operator</label>
               <select
@@ -1972,16 +1862,13 @@ export function NodeInspector({
               </select>
             </div>
             {config.operator !== 'empty' && config.operator !== 'not_empty' && (
-              <div className="wf-field-group">
-                <label className="wf-field-label">Target Comparison Value</label>
-                <input
-                  type="text"
-                  className="wf-field-input"
-                  placeholder="e.g. invoice, urgent, order"
-                  value={config.value || ''}
-                  onChange={e => updateConfig('value', e.target.value)}
-                />
-              </div>
+              <DynamicInput
+                label="Target Comparison Value"
+                placeholder="e.g. invoice, urgent, order"
+                value={config.value || ''}
+                onChange={val => updateConfig('value', val)}
+                onOpenVariablePicker={handleOpenVariablePicker}
+              />
             )}
             <span className="wf-field-hint">
               If the condition passes, workflow continues; otherwise, execution stops cleanly.
@@ -1992,56 +1879,53 @@ export function NodeInspector({
         {/* STOP WORKFLOW NODE */}
         {type === 'stop_workflow' && (
           <div className="wf-inspector-section">
-            <label className="wf-field-label">Termination Reason</label>
-            <input
-              type="text"
-              className="wf-field-input"
+            <DynamicInput
+              label="Termination Reason"
               placeholder="e.g. Ineligible customer or completed branch"
               value={config.reason || 'Workflow finished normally'}
-              onChange={e => updateConfig('reason', e.target.value)}
+              onChange={val => updateConfig('reason', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="This node terminates workflow execution cleanly. No further connected nodes will run."
             />
-            <span className="wf-field-hint">
-              This node terminates workflow execution cleanly. No further connected nodes will run.
-            </span>
           </div>
         )}
 
         {/* GOOGLE SHEETS NODE */}
         {type === 'google_sheets' && (
           <div className="wf-inspector-section">
-            <div className="wf-field-group">
-              <label className="wf-field-label">Google Sheets / Apps Script Webhook URL</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="https://script.google.com/macros/s/.../exec"
-                value={config.webhookUrl || config.url || ''}
-                onChange={e => {
-                  updateConfig('webhookUrl', e.target.value);
-                  updateConfig('url', e.target.value);
-                }}
-              />
-              <span className="wf-field-hint">
-                Deploy a Google Apps Script as Web App with <code>doPost(e)</code> to append spreadsheet rows.
-              </span>
-            </div>
-            <div className="wf-field-group">
-              <label className="wf-field-label">Row Data (JSON Columns)</label>
-              <textarea
-                className="wf-field-textarea"
-                rows={3}
-                placeholder='{"Phone": "{{trigger.phone}}", "Message": "{{trigger.message}}", "Date": "{{now}}"}'
-                value={typeof config.columns === 'object' ? JSON.stringify(config.columns, null, 2) : (config.columns || '')}
-                onChange={e => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    updateConfig('columns', parsed);
-                  } catch {
-                    updateConfig('columns', e.target.value);
-                  }
-                }}
-              />
-            </div>
+            <DynamicInput
+              label="Google Sheets / Apps Script Webhook URL"
+              placeholder="https://script.google.com/macros/s/.../exec"
+              value={config.webhookUrl || config.url || ''}
+              onChange={val => {
+                updateConfig('webhookUrl', val);
+                updateConfig('url', val);
+              }}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              description="Deploy a Google Apps Script as Web App with doPost(e) to append spreadsheet rows."
+            />
+            <DynamicTextarea
+              label="Row Data (JSON Columns)"
+              rows={4}
+              placeholder='{"Phone": "{{trigger.phone}}", "Message": "{{trigger.message}}", "Date": "{{now}}"}'
+              value={typeof config.columns === 'object' ? JSON.stringify(config.columns, null, 2) : (config.columns || '')}
+              onChange={val => {
+                try {
+                  const parsed = JSON.parse(val);
+                  updateConfig('columns', parsed);
+                } catch {
+                  updateConfig('columns', val);
+                }
+              }}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              quickTokens={[
+                { label: 'Phone', token: 'trigger.phone' },
+                { label: 'Message', token: 'trigger.message' },
+                { label: 'Name', token: 'trigger.contactName' },
+                { label: 'Date', token: 'date' },
+              ]}
+              description="JSON map of column names to values. Upstream variables are dynamically interpolated."
+            />
           </div>
         )}
 
@@ -2060,29 +1944,23 @@ export function NodeInspector({
                 <option value="audio">Audio / Voice Note</option>
               </select>
             </div>
-            <div className="wf-field-group">
-              <label className="wf-field-label">Media File URL</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="https://example.com/brochure.pdf"
-                value={config.url || config.mediaUrl || ''}
-                onChange={e => {
-                  updateConfig('url', e.target.value);
-                  updateConfig('mediaUrl', e.target.value);
-                }}
-              />
-            </div>
-            <div className="wf-field-group">
-              <label className="wf-field-label">Caption / Description</label>
-              <input
-                type="text"
-                className="wf-field-input"
-                placeholder="Here is your requested catalog, {{trigger.contactName}}!"
-                value={config.caption || ''}
-                onChange={e => updateConfig('caption', e.target.value)}
-              />
-            </div>
+            <DynamicInput
+              label="Media File URL"
+              placeholder="https://example.com/brochure.pdf"
+              value={config.url || config.mediaUrl || ''}
+              onChange={val => {
+                updateConfig('url', val);
+                updateConfig('mediaUrl', val);
+              }}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Caption / Description"
+              placeholder="Here is your requested catalog, {{trigger.contactName}}!"
+              value={config.caption || ''}
+              onChange={val => updateConfig('caption', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
           </div>
         )}
 
@@ -2101,6 +1979,16 @@ export function NodeInspector({
           </>
         )}
       </div>
+
+      {/* Activepieces-Style Variable Picker / Data Selector Popover */}
+      <VariablePicker
+        isOpen={isVariablePickerOpen}
+        onClose={() => setIsVariablePickerOpen(false)}
+        upstreamNodes={upstreamNodes}
+        lastRun={lastRun}
+        onSelectVariable={handleSelectFromPicker}
+        anchorFieldName={activePickerContext?.fieldName || targetField}
+      />
     </div>
   );
 }

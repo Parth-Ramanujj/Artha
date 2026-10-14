@@ -37,7 +37,7 @@ test('channels match on their own name and id', () => {
   ];
 
   assert.deepEqual(
-    filterChannels(channels, 'openwa').map(c => c.id),
+    filterChannels(channels, 'artha').map(c => c.id),
     ['111@newsletter'],
   );
   assert.deepEqual(

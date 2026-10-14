@@ -125,18 +125,18 @@
    Recipients Modal UI/UX
    ============================================================================= */
 
-.modal.recipients-modal-dialog {
+.campaigns-page .modal.recipients-modal-dialog {
   max-width: 740px;
   width: 95%;
 }
 
-.recipients-modal-body {
+.campaigns-page .recipients-modal-body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.recipients-overview-card {
+.campaigns-page .recipients-overview-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -147,19 +147,19 @@
   gap: 1rem;
 }
 
-.recipients-stats-grid {
+.campaigns-page .recipients-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.75rem;
 }
 
 @media (max-width: 640px) {
-  .recipients-stats-grid {
+  .campaigns-page .recipients-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-.stat-kpi-card {
+.campaigns-page .stat-kpi-card {
   background: var(--bg-light);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -170,12 +170,12 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.stat-kpi-card:hover {
+.campaigns-page .stat-kpi-card:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 
-.stat-kpi-icon {
+.campaigns-page .stat-kpi-icon {
   width: 36px;
   height: 36px;
   border-radius: 8px;
@@ -185,52 +185,52 @@
   flex-shrink: 0;
 }
 
-.stat-kpi-card.total .stat-kpi-icon {
+.campaigns-page .stat-kpi-card.total .stat-kpi-icon {
   background: rgba(59, 130, 246, 0.12);
   color: #3b82f6;
 }
 
-.stat-kpi-card.sent .stat-kpi-icon {
+.campaigns-page .stat-kpi-card.sent .stat-kpi-icon {
   background: rgba(34, 197, 94, 0.15);
   color: #16a34a;
 }
 
-.stat-kpi-card.pending .stat-kpi-icon {
+.campaigns-page .stat-kpi-card.pending .stat-kpi-icon {
   background: rgba(245, 158, 11, 0.15);
   color: #d97706;
 }
 
-.stat-kpi-card.failed .stat-kpi-icon {
+.campaigns-page .stat-kpi-card.failed .stat-kpi-icon {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
 
-.stat-kpi-info {
+.campaigns-page .stat-kpi-info {
   display: flex;
   flex-direction: column;
 }
 
-.stat-kpi-value {
+.campaigns-page .stat-kpi-value {
   font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.2;
   color: var(--text-primary);
 }
 
-.stat-kpi-label {
+.campaigns-page .stat-kpi-label {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-secondary);
 }
 
 /* Progress bar */
-.recipients-progress-section {
+.campaigns-page .recipients-progress-section {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.recipients-progress-header {
+.campaigns-page .recipients-progress-header {
   display: flex;
   justify-content: space-between;
   font-size: 0.8rem;
@@ -238,7 +238,7 @@
   color: var(--text-secondary);
 }
 
-.recipients-progress-track {
+.campaigns-page .recipients-progress-track {
   width: 100%;
   height: 8px;
   background: var(--bg-light);
@@ -247,7 +247,7 @@
   overflow: hidden;
 }
 
-.recipients-progress-fill {
+.campaigns-page .recipients-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #25d366, #10b981);
   border-radius: 9999px;
@@ -255,7 +255,7 @@
 }
 
 /* Add Recipients Box */
-.recipients-add-card {
+.campaigns-page .recipients-add-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -266,13 +266,13 @@
   gap: 0.75rem;
 }
 
-.recipients-add-header {
+.campaigns-page .recipients-add-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.recipients-add-title {
+.campaigns-page .recipients-add-title {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -281,7 +281,7 @@
   gap: 0.5rem;
 }
 
-.detected-badge {
+.campaigns-page .detected-badge {
   font-size: 0.75rem;
   font-weight: 600;
   padding: 0.2rem 0.65rem;
@@ -291,7 +291,7 @@
   border: 1px solid rgba(37, 211, 102, 0.3);
 }
 
-.recipients-textarea {
+.campaigns-page .recipients-textarea {
   width: 100%;
   padding: 0.75rem 0.9rem;
   border: 1px solid var(--border);
@@ -306,26 +306,26 @@
   box-sizing: border-box;
 }
 
-.recipients-textarea:focus {
+.campaigns-page .recipients-textarea:focus {
   outline: none;
   border-color: var(--primary);
   background: var(--bg-card);
   box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
 }
 
-.recipients-add-actions {
+.campaigns-page .recipients-add-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.recipients-helper-text {
+.campaigns-page .recipients-helper-text {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 /* List & Table Section */
-.recipients-list-section {
+.campaigns-page .recipients-list-section {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -336,7 +336,7 @@
   gap: 0.9rem;
 }
 
-.recipients-list-controls {
+.campaigns-page .recipients-list-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -344,13 +344,13 @@
   flex-wrap: wrap;
 }
 
-.recipients-search-wrapper {
+.campaigns-page .recipients-search-wrapper {
   position: relative;
   flex: 1;
   min-width: 200px;
 }
 
-.recipients-search-icon {
+.campaigns-page .recipients-search-icon {
   position: absolute;
   left: 0.75rem;
   top: 50%;
@@ -359,7 +359,7 @@
   pointer-events: none;
 }
 
-.recipients-search-input {
+.campaigns-page .recipients-search-input {
   width: 100%;
   padding: 0.45rem 0.75rem 0.45rem 2.2rem;
   border: 1px solid var(--border);
@@ -370,18 +370,18 @@
   box-sizing: border-box;
 }
 
-.recipients-search-input:focus {
+.campaigns-page .recipients-search-input:focus {
   outline: none;
   border-color: var(--primary);
   background: var(--bg-card);
 }
 
-.recipients-filter-pills {
+.campaigns-page .recipients-filter-pills {
   display: flex;
   gap: 0.35rem;
 }
 
-.filter-pill-btn {
+.campaigns-page .filter-pill-btn {
   padding: 0.35rem 0.65rem;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -393,19 +393,19 @@
   transition: all 0.15s ease;
 }
 
-.filter-pill-btn:hover {
+.campaigns-page .filter-pill-btn:hover {
   background: var(--bg-card);
   color: var(--text-primary);
   border-color: var(--primary);
 }
 
-.filter-pill-btn.active {
+.campaigns-page .filter-pill-btn.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #ffffff;
 }
 
-.recipients-table-scroll {
+.campaigns-page .recipients-table-scroll {
   max-height: 240px;
   overflow-y: auto;
   border: 1px solid var(--border);
@@ -413,13 +413,13 @@
   background: var(--bg-card);
 }
 
-.recipients-table {
+.campaigns-page .recipients-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
 
-.recipients-table th {
+.campaigns-page .recipients-table th {
   position: sticky;
   top: 0;
   background: var(--bg-light);
@@ -431,18 +431,18 @@
   z-index: 1;
 }
 
-.recipients-table td {
+.campaigns-page .recipients-table td {
   padding: 0.6rem 0.9rem;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   vertical-align: middle;
 }
 
-.recipients-table tr:last-child td {
+.campaigns-page .recipients-table tr:last-child td {
   border-bottom: none;
 }
 
-.recipients-phone-cell {
+.campaigns-page .recipients-phone-cell {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -450,7 +450,7 @@
   font-size: 0.85rem;
 }
 
-.recipient-status-badge {
+.campaigns-page .recipient-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -461,26 +461,26 @@
   text-transform: capitalize;
 }
 
-.recipient-status-badge.sent {
+.campaigns-page .recipient-status-badge.sent {
   background: rgba(34, 197, 94, 0.15);
   color: #16a34a;
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
-.recipient-status-badge.pending {
+.campaigns-page .recipient-status-badge.pending {
   background: rgba(59, 130, 246, 0.12);
   color: #2563eb;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.recipient-status-badge.failed {
+.campaigns-page .recipient-status-badge.failed {
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 /* Send Campaign Button in Footer */
-.btn-send-whatsapp {
+.campaigns-page .btn-send-whatsapp {
   background: #25d366;
   border: 1px solid #1ebe5d;
   color: #ffffff;
@@ -495,13 +495,13 @@
   box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25);
 }
 
-.btn-send-whatsapp:hover:not(:disabled) {
+.campaigns-page .btn-send-whatsapp:hover:not(:disabled) {
   background: #1da851;
   box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
   transform: translateY(-1px);
 }
 
-.btn-send-whatsapp:disabled {
+.campaigns-page .btn-send-whatsapp:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;

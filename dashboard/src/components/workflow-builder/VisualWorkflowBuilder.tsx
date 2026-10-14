@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,6 +21,14 @@ import {
   Sparkles,
   ChevronDown,
   Loader2,
+  Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { workflowApi, type WorkflowDefinition, type WorkflowRun } from '../../services/api';
 import { nodeTypes } from './nodes';
@@ -28,6 +36,7 @@ import { NodePalette } from './NodePalette';
 import { NodeInspector } from './NodeInspector';
 import { WORKFLOW_PRESETS, type WorkflowPreset } from './WorkflowPresets';
 import type { CanvasNodeType, WorkflowNodeData } from './types';
+import { computeUpstreamNodes } from './workflowBuilderUtils';
 import { useToast } from '../Toast';
 import { Modal } from '../Modal';
 import './VisualWorkflowBuilder.css';
@@ -91,7 +100,12 @@ function BuilderInnerCanvas({
   const [description, setDescription] = useState<string>(workflow?.description || '');
   const [status, setStatus] = useState<string>(workflow?.status || 'draft');
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving' | 'error'>('saved');
   const [presetsOpen, setPresetsOpen] = useState(false);
+
+  // Undo / Redo history stacks
+  const [historyPast, setHistoryPast] = useState<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
+  const [historyFuture, setHistoryFuture] = useState<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
 
   // Inspector active selection
   const [selectedNode, setSelectedNode] = useState<{
@@ -138,9 +152,120 @@ function BuilderInnerCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  // Undo / Redo operations
+  const recordHistorySnapshot = useCallback(() => {
+    setHistoryPast(prev => [...prev.slice(-30), { nodes, edges }]);
+    setHistoryFuture([]);
+    setSaveStatus('dirty');
+  }, [nodes, edges]);
+
+  const handleUndo = useCallback(() => {
+    if (historyPast.length === 0) return;
+    const previous = historyPast[historyPast.length - 1];
+    const newPast = historyPast.slice(0, -1);
+    setHistoryFuture(prev => [{ nodes, edges }, ...prev]);
+    setHistoryPast(newPast);
+    setNodes(previous.nodes);
+    setEdges(previous.edges);
+    setSaveStatus('dirty');
+  }, [historyPast, nodes, edges, setNodes, setEdges]);
+
+  const handleRedo = useCallback(() => {
+    if (historyFuture.length === 0) return;
+    const next = historyFuture[0];
+    const newFuture = historyFuture.slice(1);
+    setHistoryPast(prev => [...prev, { nodes, edges }]);
+    setHistoryFuture(newFuture);
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSaveStatus('dirty');
+  }, [historyFuture, nodes, edges, setNodes, setEdges]);
+
+  // Keyboard hotkeys for Undo / Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA'].includes(target?.tagName)) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Canvas zoom controls
+  const handleZoomIn = () => reactFlowInstance.zoomIn({ duration: 200 });
+  const handleZoomOut = () => reactFlowInstance.zoomOut({ duration: 200 });
+  const handleFitView = () => reactFlowInstance.fitView({ padding: 0.2, duration: 200 });
+
+  // Workflow Validation
+  const handleValidateWorkflow = useCallback(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const triggerNode = nodes.find(n => n.type === 'trigger');
+    if (!triggerNode) {
+      errors.push('No trigger node found in this workflow.');
+    }
+
+    nodes.forEach(n => {
+      const nodeLabel = (n.data as any)?.label || n.id;
+      const cfg = (n.data as any)?.config || {};
+
+      if (n.type === 'webhook_call' && !cfg.url) {
+        errors.push(`API / Webhook node "${nodeLabel}" is missing an endpoint URL.`);
+      }
+      if (n.type === 'send_message' && !cfg.message) {
+        warnings.push(`Message node "${nodeLabel}" has empty message text.`);
+      }
+      if (n.type === 'interactive_buttons' && (!cfg.buttons || cfg.buttons.length === 0)) {
+        errors.push(`Button node "${nodeLabel}" has no action buttons defined.`);
+      }
+      if (n.type === 'ask_question' && !cfg.prompt) {
+        warnings.push(`Question node "${nodeLabel}" has an empty prompt.`);
+      }
+
+      if (n.type !== 'trigger') {
+        const hasIncoming = edges.some(e => e.target === n.id);
+        if (!hasIncoming) {
+          warnings.push(`Node "${nodeLabel}" is not connected to any upstream trigger or action.`);
+        }
+      }
+    });
+
+    if (errors.length > 0) {
+      toast.error(
+        `Validation Failed (${errors.length} error${errors.length > 1 ? 's' : ''})`,
+        errors.slice(0, 2).join(' | '),
+      );
+    } else if (warnings.length > 0) {
+      toast.warning(
+        `Workflow Warning (${warnings.length})`,
+        warnings.slice(0, 2).join(' | '),
+      );
+    } else {
+      toast.success(
+        'Workflow Validated',
+        `All ${nodes.length} nodes and ${edges.length} connections are properly configured!`,
+      );
+    }
+  }, [nodes, edges, toast]);
+
   // Handle new edge connection
   const onConnect = useCallback(
     (params: Connection) => {
+      recordHistorySnapshot();
       const strokeColor =
         params.sourceHandle === 'false'
           ? '#ef4444'
@@ -159,7 +284,7 @@ function BuilderInnerCanvas({
         ),
       );
     },
-    [setEdges],
+    [setEdges, recordHistorySnapshot],
   );
 
   // Node selection for inspector
@@ -178,30 +303,13 @@ function BuilderInnerCanvas({
   // Compute upstream ancestor nodes for selectedNode (DAG reverse search)
   const upstreamNodes = useMemo(() => {
     if (!selectedNode) return [];
-    const visited = new Set<string>();
-    const queue = [selectedNode.id];
-    const result: Node[] = [];
-
-    while (queue.length > 0) {
-      const currId = queue.shift()!;
-      const incomingEdges = edges.filter(e => e.target === currId);
-      for (const edge of incomingEdges) {
-        if (!visited.has(edge.source)) {
-          visited.add(edge.source);
-          const sourceNode = nodes.find(n => n.id === edge.source);
-          if (sourceNode) {
-            result.push(sourceNode);
-            queue.push(sourceNode.id);
-          }
-        }
-      }
-    }
-    return result;
+    return computeUpstreamNodes(selectedNode.id, nodes, edges) as Node[];
   }, [selectedNode, nodes, edges]);
 
   // Update node config from inspector
   const handleUpdateNode = useCallback(
     (nodeId: string, updatedData: Partial<WorkflowNodeData>) => {
+      setSaveStatus('dirty');
       setNodes(nds =>
         nds.map(n => {
           if (n.id === nodeId) {
@@ -223,17 +331,20 @@ function BuilderInnerCanvas({
   // Delete node
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
+      recordHistorySnapshot();
       setNodes(nds => nds.filter(n => n.id !== nodeId));
       setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
       setSelectedNode(null);
+      setSaveStatus('dirty');
       toast.success('Node deleted', 'The node was removed from the flow');
     },
-    [setNodes, setEdges, toast],
+    [setNodes, setEdges, toast, recordHistorySnapshot],
   );
 
   // Add node via click
   const handleAddNode = useCallback(
     (type: CanvasNodeType, defaultConfig: Record<string, any>, title: string) => {
+      recordHistorySnapshot();
       const id = `node-${type}-${Date.now()}`;
       const centerPos = reactFlowInstance.screenToFlowPosition({
         x: window.innerWidth / 2 - 100,
@@ -257,8 +368,9 @@ function BuilderInnerCanvas({
         type,
         data: newNode.data as WorkflowNodeData,
       });
+      setSaveStatus('dirty');
     },
-    [reactFlowInstance, setNodes],
+    [reactFlowInstance, setNodes, recordHistorySnapshot],
   );
 
   // Drag and Drop from NodePalette
@@ -275,6 +387,8 @@ function BuilderInnerCanvas({
       const configRaw = event.dataTransfer.getData('application/reactflow/config');
 
       if (!type) return;
+
+      recordHistorySnapshot();
 
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
@@ -306,8 +420,9 @@ function BuilderInnerCanvas({
         type,
         data: newNode.data as WorkflowNodeData,
       });
+      setSaveStatus('dirty');
     },
-    [reactFlowInstance, setNodes],
+    [reactFlowInstance, setNodes, recordHistorySnapshot],
   );
 
   // Load preset template
@@ -319,6 +434,7 @@ function BuilderInnerCanvas({
       return;
     }
 
+    recordHistorySnapshot();
     setName(preset.name);
     setDescription(preset.description);
     setNodes(
@@ -338,6 +454,7 @@ function BuilderInnerCanvas({
       })),
     );
     setPresetsOpen(false);
+    setSaveStatus('dirty');
     toast.success('Preset Loaded', `Applied "${preset.name}" template`);
     setTimeout(() => {
       reactFlowInstance.fitView({ padding: 0.2 });
@@ -396,6 +513,7 @@ function BuilderInnerCanvas({
     }
 
     setSaving(true);
+    setSaveStatus('saving');
     try {
       const definition = constructDefinitionPayload();
       const payload: Partial<WorkflowDefinition> = {
@@ -421,8 +539,10 @@ function BuilderInnerCanvas({
         toast.success('Saved Successfully', `Workflow "${saved.name}" saved as draft.`);
       }
 
+      setSaveStatus('saved');
       onSaved(saved);
     } catch (err: any) {
+      setSaveStatus('error');
       toast.error('Save Failed', err?.message || 'Could not save workflow');
     } finally {
       setSaving(false);
@@ -487,9 +607,35 @@ function BuilderInnerCanvas({
               type="text"
               className="wf-toolbar-title-input"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => {
+                setName(e.target.value);
+                setSaveStatus('dirty');
+              }}
               placeholder="Flow Name..."
             />
+
+            {/* Save Status Indicator */}
+            {saveStatus === 'saved' && (
+              <span className="wf-save-status-indicator wf-save-status-saved" title="All edits saved to server">
+                <CheckCircle2 size={12} /> Saved
+              </span>
+            )}
+            {saveStatus === 'dirty' && (
+              <span className="wf-save-status-indicator wf-save-status-dirty" title="Unsaved changes present">
+                <Clock size={12} /> Unsaved Changes
+              </span>
+            )}
+            {saveStatus === 'saving' && (
+              <span className="wf-save-status-indicator wf-save-status-saving" title="Saving workflow to server...">
+                <Loader2 size={12} className="animate-spin" /> Saving...
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="wf-save-status-indicator wf-save-status-error" title="Failed to save workflow">
+                <AlertTriangle size={12} /> Save Error
+              </span>
+            )}
+
             <span className={`wf-toolbar-status-badge ${status}`}>
               {status}
             </span>
@@ -497,9 +643,70 @@ function BuilderInnerCanvas({
         </div>
 
         <div className="wf-toolbar-right">
+          {/* Undo / Redo */}
+          <div className="wf-toolbar-btn-group">
+            <button
+              type="button"
+              className="wf-btn-tool-icon"
+              onClick={handleUndo}
+              disabled={historyPast.length === 0}
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 size={15} />
+            </button>
+            <button
+              type="button"
+              className="wf-btn-tool-icon"
+              onClick={handleRedo}
+              disabled={historyFuture.length === 0}
+              title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+            >
+              <Redo2 size={15} />
+            </button>
+          </div>
+
+          {/* Zoom controls */}
+          <div className="wf-toolbar-btn-group">
+            <button
+              type="button"
+              className="wf-btn-tool-icon"
+              onClick={handleZoomIn}
+              title="Zoom In"
+            >
+              <ZoomIn size={15} />
+            </button>
+            <button
+              type="button"
+              className="wf-btn-tool-icon"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              <ZoomOut size={15} />
+            </button>
+            <button
+              type="button"
+              className="wf-btn-tool-icon"
+              onClick={handleFitView}
+              title="Fit View"
+            >
+              <Maximize2 size={15} />
+            </button>
+          </div>
+
+          {/* Flow Validation */}
+          <button
+            type="button"
+            className="wf-btn-tool secondary"
+            onClick={handleValidateWorkflow}
+            title="Validate workflow configuration"
+          >
+            <CheckCircle2 size={15} /> Validate
+          </button>
+
           {/* Templates Preset Dropdown */}
           <div className="wf-presets-dropdown">
             <button
+              type="button"
               className="wf-btn-tool secondary"
               onClick={() => setPresetsOpen(prev => !prev)}
             >
@@ -523,6 +730,7 @@ function BuilderInnerCanvas({
 
           {/* Test Simulation */}
           <button
+            type="button"
             className="wf-btn-tool secondary"
             onClick={() => setShowTestModal(true)}
             title="Test run with simulated incoming message"
@@ -532,6 +740,7 @@ function BuilderInnerCanvas({
 
           {/* Save Draft */}
           <button
+            type="button"
             className="wf-btn-tool secondary"
             onClick={() => void handleSave(false)}
             disabled={saving}
@@ -541,6 +750,7 @@ function BuilderInnerCanvas({
 
           {/* Save & Publish */}
           <button
+            type="button"
             className="wf-btn-tool primary"
             onClick={() => void handleSave(true)}
             disabled={saving}
@@ -595,6 +805,7 @@ function BuilderInnerCanvas({
             selectedNode={selectedNode}
             upstreamNodes={upstreamNodes}
             allNodes={nodes}
+            lastRun={testResult}
             onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
             onClose={() => setSelectedNode(null)}

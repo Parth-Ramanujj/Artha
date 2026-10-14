@@ -4,7 +4,7 @@
   box-sizing: border-box;
 }
 
-.workflows-tabs {
+.workflows-page .workflows-tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
@@ -12,7 +12,7 @@
   padding-bottom: 0.5rem;
 }
 
-.workflows-tabs .tab-btn {
+.workflows-page .workflows-tabs .tab-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -27,12 +27,12 @@
   transition: all 0.2s;
 }
 
-.workflows-tabs .tab-btn:hover {
+.workflows-page .workflows-tabs .tab-btn:hover {
   background: var(--bg-light);
   color: var(--text-primary);
 }
 
-.workflows-tabs .tab-btn.active {
+.workflows-page .workflows-tabs .tab-btn.active {
   background: rgba(37, 211, 102, 0.12);
   color: var(--primary);
   font-weight: 600;
@@ -205,7 +205,7 @@
 }
 
 /* Builder Form */
-.workflow-builder-form {
+.workflows-page .workflow-builder-form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -214,28 +214,28 @@
   padding-right: 0.5rem;
 }
 
-.workflow-builder-form .form-section {
+.workflows-page .workflow-builder-form .form-section {
   background: var(--bg-light);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1.25rem;
 }
 
-.workflow-builder-form .section-title {
+.workflows-page .workflow-builder-form .section-title {
   font-size: 0.95rem;
   font-weight: 600;
   margin: 0 0 0.85rem 0;
   color: var(--text-primary);
 }
 
-.action-steps-container {
+.workflows-page .action-steps-container {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
   margin-top: 0.85rem;
 }
 
-.action-step-card {
+.workflows-page .action-step-card {
   background: var(--bg-white);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -243,14 +243,14 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.action-step-card .step-header {
+.workflows-page .action-step-card .step-header {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.75rem;
 }
 
-.action-step-card .step-num-badge {
+.workflows-page .action-step-card .step-num-badge {
   background: rgba(37, 211, 102, 0.15);
   color: var(--primary);
   padding: 0.2rem 0.55rem;
@@ -259,32 +259,32 @@
   font-weight: 700;
 }
 
-.action-step-card .step-type-select {
+.workflows-page .action-step-card .step-type-select {
   flex: 1;
 }
 
-.step-order-btns {
+.workflows-page .step-order-btns {
   display: flex;
   gap: 0.15rem;
 }
 
-.btn-step-order {
+.workflows-page .btn-step-order {
   padding: 0.25rem !important;
   color: var(--text-secondary) !important;
   border-radius: 4px;
 }
 
-.btn-step-order:disabled {
+.workflows-page .btn-step-order:disabled {
   opacity: 0.25;
   cursor: not-allowed;
 }
 
-.btn-step-order:not(:disabled):hover {
+.workflows-page .btn-step-order:not(:disabled):hover {
   color: var(--text-primary) !important;
   background: var(--bg-light) !important;
 }
 
-.variable-chips {
+.workflows-page .variable-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -292,12 +292,12 @@
   margin-top: 0.4rem;
 }
 
-.variable-chips .chip-label {
+.workflows-page .variable-chips .chip-label {
   font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
-.variable-chips .chip {
+.workflows-page .variable-chips .chip {
   background: var(--bg-light);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -308,13 +308,13 @@
   transition: all 0.2s;
 }
 
-.variable-chips .chip:hover {
+.workflows-page .variable-chips .chip:hover {
   background: rgba(37, 211, 102, 0.15);
   border-color: var(--primary);
   color: var(--primary);
 }
 
-.checkbox-label {
+.workflows-page .checkbox-label {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -323,7 +323,7 @@
   cursor: pointer;
 }
 
-.field-hint {
+.workflows-page .field-hint {
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin-top: 0.25rem;
@@ -331,7 +331,7 @@
 }
 
 /* Test Modal Results */
-.test-results-box {
+.workflows-page .test-results-box {
   background: var(--bg-light);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -339,14 +339,14 @@
   margin-top: 0.5rem;
 }
 
-.test-results-header {
+.workflows-page .test-results-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.5rem;
 }
 
-.test-error-banner {
+.workflows-page .test-error-banner {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -358,35 +358,35 @@
   margin-bottom: 0.75rem;
 }
 
-.test-steps-list {
+.workflows-page .test-steps-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.test-step-item {
+.workflows-page .test-step-item {
   background: var(--bg-white);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.6rem 0.8rem;
 }
 
-.step-item-title {
+.workflows-page .step-item-title {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   font-size: 0.85rem;
 }
 
-.step-icon-success {
+.workflows-page .step-icon-success {
   color: #10b981;
 }
 
-.step-icon-error {
+.workflows-page .step-icon-error {
   color: #ef4444;
 }
 
-.step-output-json {
+.workflows-page .step-output-json {
   background: var(--bg-light);
   padding: 0.5rem;
   border-radius: 4px;
@@ -396,7 +396,7 @@
   overflow-y: auto;
 }
 
-.step-error-msg {
+.workflows-page .step-error-msg {
   color: #ef4444;
   font-size: 0.8rem;
   margin: 0.3rem 0 0 0;

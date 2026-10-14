@@ -677,7 +677,7 @@
 }
 
 /* Built-in Testing Endpoint Banner */
-.webhook-test-endpoint-banner {
+.webhooks-page .webhook-test-endpoint-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -690,13 +690,13 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.webhook-test-endpoint-info {
+.webhooks-page .webhook-test-endpoint-info {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.webhook-test-endpoint-badge {
+.webhooks-page .webhook-test-endpoint-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -707,12 +707,12 @@
   color: #38bdf8;
 }
 
-.webhook-test-endpoint-desc {
+.webhooks-page .webhook-test-endpoint-desc {
   font-size: 0.82rem;
   color: var(--text-secondary);
 }
 
-.webhook-test-endpoint-url {
+.webhooks-page .webhook-test-endpoint-url {
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.85rem;
   font-weight: 600;
@@ -724,14 +724,14 @@
   width: fit-content;
 }
 
-.webhook-test-actions {
+.webhooks-page .webhook-test-actions {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   flex-shrink: 0;
 }
 
-.btn-test-quick {
+.webhooks-page .btn-test-quick {
   font-size: 0.72rem;
   font-weight: 600;
   color: #38bdf8;
@@ -743,11 +743,11 @@
   transition: all 0.15s;
 }
 
-.btn-test-quick:hover {
+.webhooks-page .btn-test-quick:hover {
   background: rgba(56, 189, 248, 0.2);
 }
 
-.captured-logs-list {
+.webhooks-page .captured-logs-list {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -756,7 +756,7 @@
   padding-right: 0.35rem;
 }
 
-.captured-log-card {
+.webhooks-page .captured-log-card {
   background: #090d16;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -766,32 +766,32 @@
   gap: 0.5rem;
 }
 
-.captured-log-top {
+.webhooks-page .captured-log-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.captured-log-method {
+.webhooks-page .captured-log-method {
   font-size: 0.7rem;
   font-weight: 800;
   padding: 0.15rem 0.45rem;
   border-radius: 4px;
 }
 
-.captured-log-time {
+.webhooks-page .captured-log-time {
   font-size: 0.72rem;
   color: var(--text-muted);
 }
 
-.captured-log-url {
+.webhooks-page .captured-log-url {
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.75rem;
   color: #38bdf8;
   word-break: break-all;
 }
 
-.captured-log-body {
+.webhooks-page .captured-log-body {
   background: rgba(0, 0, 0, 0.35);
   padding: 0.5rem;
   border-radius: 6px;
