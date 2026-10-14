@@ -49,8 +49,8 @@ export class SessionController {
     type: SessionResponseDto,
   })
   @ApiResponse({ status: 409, description: 'Session name already exists' })
-  async create(@Body() dto: CreateSessionDto): Promise<SessionResponseDto> {
-    const session = await this.sessionService.create(dto);
+  async create(@Body() dto: CreateSessionDto, @CurrentApiKey() apiKey?: ApiKey): Promise<SessionResponseDto> {
+    const session = await this.sessionService.create(dto, apiKey?.businessId ?? undefined);
     await this.auditService.logInfo(AuditAction.SESSION_CREATED, {
       sessionId: session.id,
       sessionName: session.name,
@@ -74,10 +74,11 @@ export class SessionController {
   ): Promise<SessionResponseDto[]> {
     // Scope to the key's allowedSessions so a session-restricted key cannot enumerate every
     // session. A null/empty allowlist (e.g. ADMIN) still lists all.
-    const sessions = await this.sessionService.findAll(apiKey?.allowedSessions, {
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+    const sessions = await this.sessionService.findAll(
+      apiKey?.allowedSessions,
+      { limit: limit ? parseInt(limit, 10) : undefined, offset: offset ? parseInt(offset, 10) : undefined },
+      apiKey?.businessId,
+    );
     return sessions.map(s => this.transformSession(s));
   }
 
@@ -287,6 +288,25 @@ export class SessionController {
     return this.sessionService.requestPairingCode(id, dto.phoneNumber);
   }
 
+  @Post(':id/refresh-token')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update the Cloud API access token for a running session' })
+  @ApiParam({ name: 'id', description: 'Session ID' })
+  @ApiResponse({ status: 200, description: 'Token updated successfully' })
+  @ApiResponse({ status: 400, description: 'Session not started or not a Cloud API session' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  async refreshToken(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { accessToken: string },
+  ): Promise<{ success: boolean; message: string }> {
+    const result = await this.sessionService.updateAccessToken(id, body.accessToken);
+    await this.auditService.logInfo(AuditAction.SESSION_TOKEN_REFRESHED, {
+      sessionId: id,
+    });
+    return result;
+  }
+
   @Get(':id/groups')
   @ApiOperation({ summary: 'Get all groups for a session' })
   @ApiParam({ name: 'id', description: 'Session ID' })
@@ -406,6 +426,6 @@ export class SessionController {
   }> {
     // Scope aggregate stats to the key's allowedSessions so a session-restricted key cannot enumerate
     // global session counts/status (the route carries no :id for the guard to scope against).
-    return this.sessionService.getStats(apiKey?.allowedSessions);
+    return this.sessionService.getStats(apiKey?.allowedSessions, apiKey?.businessId);
   }
 }

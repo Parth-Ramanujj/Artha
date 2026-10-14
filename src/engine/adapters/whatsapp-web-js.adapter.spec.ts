@@ -4073,12 +4073,14 @@ describe('WhatsAppWebJsAdapter stale Singleton cleanup (pre-launch)', () => {
 
     // Same dir LocalAuth uses as userDataDir: <resolved dataPath>/session-<clientId>.
     const profileDir = path.join(path.resolve('./data/sessions'), `session-${SESSION_ID}`);
-    expect(rmSpy).toHaveBeenCalledTimes(3);
+    expect(rmSpy).toHaveBeenCalledTimes(5);
     expect(rmSpy).toHaveBeenCalledWith(path.join(profileDir, 'SingletonLock'), { force: true });
     expect(rmSpy).toHaveBeenCalledWith(path.join(profileDir, 'SingletonSocket'), { force: true });
     expect(rmSpy).toHaveBeenCalledWith(path.join(profileDir, 'SingletonCookie'), { force: true });
+    expect(rmSpy).toHaveBeenCalledWith(path.join(profileDir, 'lockfile'), { force: true });
+    expect(rmSpy).toHaveBeenCalledWith(path.join(profileDir, 'DevToolsActivePort'), { force: true });
     expect(clientInitSpy).toHaveBeenCalledTimes(1);
-    expect(order).toEqual(['rm', 'rm', 'rm', 'client.initialize']);
+    expect(order).toEqual(['rm', 'rm', 'rm', 'rm', 'rm', 'client.initialize']);
   });
 
   it('still initializes when the Singleton files cannot be removed (best-effort, never fails the start)', async () => {
@@ -4086,7 +4088,7 @@ describe('WhatsAppWebJsAdapter stale Singleton cleanup (pre-launch)', () => {
 
     await expect(newAdapter().initialize({})).resolves.toBeUndefined();
 
-    expect(rmSpy).toHaveBeenCalledTimes(3); // all three attempted even though each failed
+    expect(rmSpy).toHaveBeenCalledTimes(15); // all five attempted with up to 3 retries each
     expect(clientInitSpy).toHaveBeenCalledTimes(1);
   });
 });
@@ -4103,6 +4105,7 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
   let rmSpy: jest.SpyInstance;
   let clientInitSpy: jest.SpyInstance;
   let savedWebVersion: string | undefined;
+  let savedPlatform: PropertyDescriptor | undefined;
 
   // execFile is overloaded, so spy through a structural shape like the Client.prototype spies above.
   // The adapter invokes it as execFile('ps', args, opts, callback); the callback is always last.
@@ -4120,6 +4123,8 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
   };
 
   beforeEach(() => {
+    savedPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
     // Keep initialize() offline: 'off' skips the wa-version registry fetch in resolveWebVersionPin.
     savedWebVersion = process.env.WWEBJS_WEB_VERSION;
     process.env.WWEBJS_WEB_VERSION = 'off';
@@ -4139,6 +4144,9 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
   });
 
   afterEach(() => {
+    if (savedPlatform) {
+      Object.defineProperty(process, 'platform', savedPlatform);
+    }
     execFileSpy.mockRestore();
     killSpy.mockRestore();
     rmSpy.mockRestore();
@@ -4265,17 +4273,40 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
     expect(killSpy).toHaveBeenCalledWith(1803, 'SIGKILL');
   });
 
-  it('skips the sweep on platforms other than darwin/linux (no ps, no kill)', async () => {
-    const platform = Object.getOwnPropertyDescriptor(process, 'platform') as PropertyDescriptor;
-    Object.defineProperty(process, 'platform', { value: 'win32' });
-    try {
-      await newAdapter().initialize({});
-    } finally {
-      Object.defineProperty(process, 'platform', platform);
-    }
+  it('skips the sweep on unsupported platforms (no ps, no kill)', async () => {
+    Object.defineProperty(process, 'platform', { value: 'freebsd', configurable: true });
+    await newAdapter().initialize({});
 
     expect(execFileSpy).not.toHaveBeenCalled();
     expect(killSpy).not.toHaveBeenCalled();
+  });
+
+  it('performs the sweep on Windows using PowerShell and taskkill', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    execFileSpy.mockImplementation((file: string, args: string[], ...rest: unknown[]) => {
+      const cb = rest[rest.length - 1] as ExecFileCallback;
+      if (file === 'powershell.exe') {
+        cb(null, '1901\r\n', '');
+      } else if (file === 'taskkill') {
+        cb(null, '', '');
+      } else {
+        cb(null, '', '');
+      }
+    });
+
+    await newAdapter().initialize({});
+
+    expect(execFileSpy).toHaveBeenCalledWith(
+      'powershell.exe',
+      expect.arrayContaining(['-NoProfile', '-NonInteractive', '-Command']),
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(execFileSpy).toHaveBeenCalledWith(
+      'taskkill',
+      ['/pid', '1901', '/T', '/F'],
+      expect.any(Function),
+    );
   });
 
   it('still initializes when ps fails (best-effort, never fails the start)', async () => {
@@ -4312,7 +4343,7 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
 
     await newAdapter().initialize({});
 
-    expect(order).toEqual(['ps', 'kill', 'rm', 'rm', 'rm', 'client.initialize']);
+    expect(order).toEqual(['ps', 'kill', 'rm', 'rm', 'rm', 'rm', 'rm', 'client.initialize']);
   });
 });
 

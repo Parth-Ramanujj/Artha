@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, Copy, FileText, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
-import { type MessageTemplate, type TemplatePayload } from '../services/api';
+import { AlertTriangle, Check, Copy, FileText, Loader2, Plus, Search, Send, Trash2, X } from 'lucide-react';
+import { messageApi, type MessageTemplate, type TemplatePayload } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
 import {
@@ -63,6 +63,10 @@ export function Templates() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [previewValues, setPreviewValues] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [sendTarget, setSendTarget] = useState<MessageTemplate | null>(null);
+  const [sendRecipient, setSendRecipient] = useState('');
+  const [sendVars, setSendVars] = useState<Record<string, string>>({});
+  const [isSending, setIsSending] = useState(false);
 
   const { data: templates = [], isLoading: loadingTemplates } = useTemplatesQuery(selectedSessionId, !!selectedSessionId);
   const createMutation = useCreateTemplateMutation();
@@ -293,6 +297,21 @@ export function Templates() {
                 <p>{selectedSession ? t('templates.sessionHint', { name: selectedSession.name }) : ''}</p>
               </div>
               <div className="template-header-actions">
+                {editingTemplate && canWrite && (
+                  <button
+                    className="icon-btn"
+                    title="Send Template to Number"
+                    onClick={() => {
+                      setSendTarget(editingTemplate);
+                      setSendRecipient('');
+                      setSendVars({ ...previewValues });
+                    }}
+                    type="button"
+                    style={{ color: '#25d366' }}
+                  >
+                    <Send size={16} />
+                  </button>
+                )}
                 {editingTemplate && (
                   <button
                     className="icon-btn"
@@ -364,6 +383,21 @@ export function Templates() {
                 <button className="btn-secondary" onClick={resetForm} disabled={isSaving} type="button">
                   {t('common.cancel')}
                 </button>
+                {editingTemplate && (
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setSendTarget(editingTemplate);
+                      setSendRecipient('');
+                      setSendVars({ ...previewValues });
+                    }}
+                    disabled={isSaving}
+                    type="button"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <Send size={16} /> Send to Number
+                  </button>
+                )}
                 <button
                   className="btn-primary"
                   onClick={handleSave}
@@ -427,6 +461,126 @@ export function Templates() {
           }
         >
           <p>{t('templates.deleteConfirm', { name: deleteTarget.name })}</p>
+        </Modal>
+      )}
+
+      {sendTarget && (
+        <Modal
+          open
+          onClose={() => setSendTarget(null)}
+          title={`Send Template: ${sendTarget.name}`}
+          className="modal-md"
+          closeLabel={t('common.close')}
+          footer={
+            <>
+              <button className="btn-secondary" onClick={() => setSendTarget(null)}>
+                {t('common.cancel')}
+              </button>
+              <button
+                className="btn-primary"
+                onClick={async () => {
+                  if (!sendRecipient.trim()) return;
+                  setIsSending(true);
+                  try {
+                    const res = await messageApi.sendTemplate(selectedSessionId, {
+                      chatId: sendRecipient.trim(),
+                      templateId: sendTarget.id,
+                      templateName: sendTarget.name,
+                      vars: sendVars,
+                    });
+                    setToast({
+                      type: 'success',
+                      message: `Template sent successfully! Message ID: ${res.messageId || 'OK'}`,
+                    });
+                    setSendTarget(null);
+                  } catch (err) {
+                    setToast({
+                      type: 'error',
+                      message: err instanceof Error ? err.message : 'Failed to send template',
+                    });
+                  } finally {
+                    setIsSending(false);
+                  }
+                }}
+                disabled={isSending || !sendRecipient.trim()}
+              >
+                {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                Send Now
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
+                Recipient Phone Number
+              </label>
+              <input
+                type="text"
+                value={sendRecipient}
+                onChange={e => setSendRecipient(e.target.value)}
+                placeholder="e.g., 919876543210 or +91 98765 43210"
+                autoFocus
+                style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+                Enter any international phone number with country code. It will be delivered via WhatsApp.
+              </span>
+            </div>
+
+            {extractPlaceholders(sendTarget).length > 0 && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
+                  Variables ({extractPlaceholders(sendTarget).length})
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
+                  {extractPlaceholders(sendTarget).map(key => (
+                    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {`{{${key}}}`}
+                      </span>
+                      <input
+                        type="text"
+                        value={sendVars[key] || ''}
+                        onChange={e => setSendVars(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder={`Value for ${key}`}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>
+                Rendered Preview
+              </label>
+              <div
+                style={{
+                  background: 'var(--bg-secondary, #f8f9fa)',
+                  padding: '0.75rem',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  whiteSpace: 'pre-wrap',
+                  fontSize: '0.875rem',
+                  color: 'var(--text-primary)',
+                  maxHeight: '140px',
+                  overflowY: 'auto',
+                }}
+              >
+                {renderPreview(
+                  {
+                    name: sendTarget.name,
+                    header: sendTarget.header || '',
+                    body: sendTarget.body,
+                    footer: sendTarget.footer || '',
+                  },
+                  sendVars,
+                )}
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

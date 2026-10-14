@@ -40,6 +40,12 @@ import { PluginsApiModule } from './modules/plugins/plugins.module';
 import { AgentToolsModule } from './core/agent-tools/agent-tools.module';
 import { IntegrationModule } from './modules/integration/integration.module';
 import { SearchModule } from './modules/search/search.module';
+import { CloudApiWebhookModule } from './modules/cloud-api-webhook/cloud-api-webhook.module';
+import { BusinessModule } from './modules/business/business.module';
+import { ConversationModule } from './modules/conversation/conversation.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
+import { AiModule } from './modules/ai/ai.module';
+import { CampaignModule } from './modules/campaign/campaign.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -162,6 +168,11 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/engine/**/*.entity{.ts,.js}',
             __dirname + '/modules/integration/**/*.entity{.ts,.js}',
             __dirname + '/modules/status-store/**/*.entity{.ts,.js}',
+            __dirname + '/modules/business/**/*.entity{.ts,.js}',
+            __dirname + '/modules/conversation/**/*.entity{.ts,.js}',
+            __dirname + '/modules/workflow/**/*.entity{.ts,.js}',
+            __dirname + '/modules/ai/**/*.entity{.ts,.js}',
+            __dirname + '/modules/campaign/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -297,6 +308,12 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     PluginsApiModule, // Phase 5: Plugins API
     AgentToolsModule, // Agent-invocable tool registry (protocol-neutral)
     IntegrationModule, // Integration Fabric: @Public provider-webhook ingress + fast-ack pipeline
+    BusinessModule, // Multi-tenant business isolation
+    ConversationModule, // Phase 6: Shared inbox — conversations + contacts
+    WorkflowModule, // Phase 7: Deterministic workflow engine
+    AiModule, // Phase 8: AI chatbot and knowledge base
+    CampaignModule, // Phase 9: Scheduled messages, campaigns, consent
+    CloudApiWebhookModule, // Official WhatsApp Cloud API webhook receiver
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)

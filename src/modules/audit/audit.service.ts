@@ -91,11 +91,13 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
     const apiKeyId = context.apiKey?.id ?? actor?.apiKeyId;
     const apiKeyName = context.apiKey?.name ?? actor?.apiKeyName;
     const ipAddress = context.ipAddress ?? actor?.ipAddress;
+    const businessId = actor?.businessId;
     const metadata =
       context.metadata || requestId ? { ...(context.metadata ?? {}), ...(requestId ? { requestId } : {}) } : null;
     const auditLog = this.auditRepository.create({
       action,
       severity,
+      businessId: businessId || null,
       apiKeyId: apiKeyId || null,
       apiKeyName: apiKeyName || null,
       sessionId: context.sessionId || null,

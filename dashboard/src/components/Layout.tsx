@@ -21,6 +21,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Languages,
+  Inbox,
+  GitBranch,
+  Megaphone,
+  Bot,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -39,6 +43,10 @@ const allNavItems = [
   { to: '/chats', icon: MessageSquare, key: 'chats' as const, adminOnly: false },
   { to: '/webhooks', icon: Webhook, key: 'webhooks' as const, adminOnly: false },
   { to: '/templates', icon: ClipboardList, key: 'templates' as const, adminOnly: false },
+  { to: '/conversations', icon: Inbox, key: 'conversations' as const, adminOnly: false },
+  { to: '/workflows', icon: GitBranch, key: 'workflows' as const, adminOnly: false },
+  { to: '/campaigns', icon: Megaphone, key: 'campaigns' as const, adminOnly: false },
+  { to: '/ai', icon: Bot, key: 'ai' as const, adminOnly: false },
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).

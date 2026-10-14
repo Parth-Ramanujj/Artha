@@ -135,3 +135,17 @@ export function chatKind(jid: string): ChatKind {
       return 'unknown';
   }
 }
+
+/**
+ * Ensures an incoming target/chatId is properly formatted as a WhatsApp neutral JID.
+ * If raw digits or phone with '+' is provided (e.g. '+91 98765 43210' or '919876543210'),
+ * converts it to '<phone>@c.us'. If it already contains '@', applies toNeutralJid.
+ */
+export function ensureNeutralJid(chatId: string): string {
+  const trimmed = chatId.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.includes('@')) return toNeutralJid(trimmed);
+  const digits = trimmed.replace(/\D/g, '');
+  return digits ? `${digits}@c.us` : trimmed;
+}
+

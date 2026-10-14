@@ -22,6 +22,10 @@ const ApiKeys = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.Api
 const MessageTester = lazy(() => import('./pages/MessageTester').then(m => ({ default: m.MessageTester })));
 const Infrastructure = lazy(() => import('./pages/Infrastructure').then(m => ({ default: m.Infrastructure })));
 const Plugins = lazy(() => import('./pages/Plugins'));
+const Conversations = lazy(() => import('./pages/Conversations').then(m => ({ default: m.Conversations })));
+const Workflows = lazy(() => import('./pages/Workflows').then(m => ({ default: m.Workflows })));
+const Campaigns = lazy(() => import('./pages/Campaigns').then(m => ({ default: m.Campaigns })));
+const AiSettings = lazy(() => import('./pages/AiSettings').then(m => ({ default: m.AiSettings })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -119,6 +123,10 @@ function AppContent() {
             {role === 'admin' && <Route path="api-keys" element={<ApiKeys />} />}
             <Route path="logs" element={<Logs />} />
             <Route path="message-tester" element={<MessageTester />} />
+            <Route path="conversations" element={<Conversations />} />
+            <Route path="workflows" element={<Workflows />} />
+            <Route path="campaigns" element={<Campaigns />} />
+            {(role === 'admin' || role === 'operator') && <Route path="ai" element={<AiSettings />} />}
             {role === 'admin' && <Route path="infrastructure" element={<Infrastructure />} />}
             {role === 'admin' && <Route path="plugins" element={<Plugins />} />}
             <Route path="*" element={<Navigate to="/" replace />} />

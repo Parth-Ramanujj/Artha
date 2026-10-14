@@ -17,21 +17,61 @@ import type { LoggerService } from '../../common/services/logger.service';
  */
 
 /** Just enough of the logger to report; the adapter passes its own so spies keep observing it. */
-type HygieneLogger = Pick<LoggerService, 'debug' | 'log'>;
+export type HygieneLogger = Pick<LoggerService, 'debug' | 'log'>;
+
+/**
+ * Kill a process and its child processes across platforms.
+ * On Windows: uses `taskkill /pid <pid> /T /F` to terminate the entire process tree.
+ * On POSIX: sends SIGKILL.
+ */
+export async function killProcessTree(pid: number, logger: HygieneLogger): Promise<void> {
+  if (pid === process.pid || pid <= 0) return;
+  if (process.platform === 'win32') {
+    await new Promise<void>(resolve => {
+      execFile('taskkill', ['/pid', String(pid), '/T', '/F'], error => {
+        if (error) {
+          logger.debug(`taskkill on pid ${pid} returned`, { error: String(error) });
+        }
+        resolve();
+      });
+    });
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      /* best-effort */
+    }
+  } else {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+        logger.debug(`Could not SIGKILL pid ${pid}`, { error: String(error) });
+      }
+    }
+  }
+}
 
 /**
  * SIGKILL any Chromium orphaned by a previous lifetime of this process. When OpenWA dies hard
  * (kill -9, crash, host reboot) Puppeteer's exit hook never runs, so the browser survives as an
  * orphan — leaking memory and pinning the session profile dir. Orphans are identified by the
  * `--openwa-session=<id>` marker arg appended to the puppeteer args at launch (Chromium ignores
- * the unknown flag; it is purely a `ps` label). Best-effort: never throws — a `ps` failure only
- * logs at debug, so the sweep can never block an engine start.
+ * the unknown flag; it is purely a `ps` / command line label). Best-effort: never throws — a `ps`
+ * or powershell failure only logs at debug, so the sweep can never block an engine start.
  */
 export async function killOrphanedChromiumProcesses(sessionId: string, logger: HygieneLogger): Promise<void> {
+  if (process.platform === 'win32') {
+    await killOrphanedChromiumWindows(sessionId, logger);
+    return;
+  }
   if (process.platform !== 'darwin' && process.platform !== 'linux') {
     logger.debug(`Skipping orphaned Chromium sweep: unsupported platform ${process.platform}`);
     return;
   }
+  await killOrphanedChromiumPosix(sessionId, logger);
+}
+
+async function killOrphanedChromiumPosix(sessionId: string, logger: HygieneLogger): Promise<void> {
   try {
     // No shell: the args array is handed to ps verbatim, so nothing here is injectable.
     // maxBuffer is raised because `ps -eo args` prints full command lines, which on a busy host
@@ -80,12 +120,64 @@ export async function killOrphanedChromiumProcesses(sessionId: string, logger: H
   }
 }
 
+async function killOrphanedChromiumWindows(sessionId: string, logger: HygieneLogger): Promise<void> {
+  try {
+    const sanitized = sessionId.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!sanitized) return;
+    const marker = `--openwa-session=${sanitized}`;
+    const sessionDir = `session-${sanitized}`;
+    const psScript = `Get-CimInstance Win32_Process -Filter "name = 'chrome.exe' or name = 'chromium.exe'" | Where-Object { $_.CommandLine -like "*${marker}*" -or $_.CommandLine -like "*${sessionDir}*" } | Select-Object -ExpandProperty ProcessId`;
+
+    const pidsOutput = await new Promise<string>((resolve, reject) => {
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', psScript],
+        { timeout: 8000 },
+        (error, stdout) => {
+          if (error) reject(error instanceof Error ? error : new Error(error.message));
+          else resolve(stdout);
+        },
+      );
+    });
+
+    const pids = pidsOutput
+      .split(/\r?\n/)
+      .map(s => Number(s.trim()))
+      .filter(p => Number.isInteger(p) && p > 0 && p !== process.pid);
+
+    const killedPids: number[] = [];
+    for (const pid of pids) {
+      try {
+        await killProcessTree(pid, logger);
+        killedPids.push(pid);
+      } catch (error) {
+        logger.debug(`Could not kill orphaned Chromium pid ${pid} on Windows`, { error: String(error) });
+      }
+    }
+    if (killedPids.length > 0) {
+      logger.log(
+        `Killed ${killedPids.length} orphaned Chromium process(es) left over from a previous process lifetime`,
+        { sessionId, pids: killedPids },
+      );
+    }
+  } catch (error) {
+    logger.debug('Could not enumerate processes for the Windows orphaned Chromium sweep', { error: String(error) });
+  }
+}
+
+export const STALE_PROFILE_FILES = [
+  'SingletonLock',
+  'SingletonSocket',
+  'SingletonCookie',
+  'lockfile',
+  'DevToolsActivePort',
+] as const;
+
 /**
- * Remove Chromium's SingletonLock/SingletonSocket/SingletonCookie from the LocalAuth profile dir
- * (same dir clearLocalAuth removes) before the browser launches. A hard-killed Chromium
- * (SIGKILL/crash) leaves them behind, and on some setups (e.g. Docker PID reuse) the stale files
- * block the next launch unless they are cleared first. Best-effort: a removal
- * failure only logs at debug and never fails the start.
+ * Remove Chromium's SingletonLock/SingletonSocket/SingletonCookie on POSIX and lockfile/DevToolsActivePort on Windows
+ * from the LocalAuth profile dir before the browser launches. A hard-killed Chromium
+ * leaves them behind, and on Windows or Docker PID reuse the stale files block the next launch
+ * ("The browser is already running..."). Best-effort: a removal failure only logs at debug and never fails the start.
  */
 export async function removeStaleSingletonFiles(
   sessionId: string,
@@ -93,11 +185,19 @@ export async function removeStaleSingletonFiles(
   logger: HygieneLogger,
 ): Promise<void> {
   const profileDir = path.join(path.resolve(sessionDataPath), `session-${sessionId}`);
-  for (const name of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
-    try {
-      await fs.promises.rm(path.join(profileDir, name), { force: true });
-    } catch (error) {
-      logger.debug(`Could not remove stale ${name} from ${profileDir}`, { error: String(error) });
+  for (const name of STALE_PROFILE_FILES) {
+    const target = path.join(profileDir, name);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await fs.promises.rm(target, { force: true });
+        break;
+      } catch (error) {
+        if (attempt === 2) {
+          logger.debug(`Could not remove stale ${name} from ${profileDir}`, { error: String(error) });
+        } else {
+          await new Promise(r => setTimeout(r, 100));
+        }
+      }
     }
   }
 }

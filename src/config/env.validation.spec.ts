@@ -53,6 +53,19 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ENGINE_TYPE: 'bailys' })).toThrow(/ENGINE_TYPE/);
     expect(() => validateEnv({ ENGINE_TYPE: 'whatsapp-web.js' })).not.toThrow();
     expect(() => validateEnv({ ENGINE_TYPE: 'baileys' })).not.toThrow();
+    expect(() =>
+      validateEnv({ ENGINE_TYPE: 'cloud-api', CLOUD_API_ACCESS_TOKEN: 'tok', CLOUD_API_PHONE_NUMBER_ID: '123' }),
+    ).not.toThrow();
+  });
+
+  it('requires CLOUD_API_ACCESS_TOKEN and CLOUD_API_PHONE_NUMBER_ID when ENGINE_TYPE=cloud-api', () => {
+    expect(() => validateEnv({ ENGINE_TYPE: 'cloud-api' })).toThrow(/CLOUD_API_ACCESS_TOKEN/);
+    expect(() => validateEnv({ ENGINE_TYPE: 'cloud-api', CLOUD_API_ACCESS_TOKEN: 'tok' })).toThrow(
+      /CLOUD_API_PHONE_NUMBER_ID/,
+    );
+    expect(() =>
+      validateEnv({ ENGINE_TYPE: 'cloud-api', CLOUD_API_ACCESS_TOKEN: 'tok', CLOUD_API_PHONE_NUMBER_ID: '123' }),
+    ).not.toThrow();
   });
 
   it('rejects a STORAGE_TYPE typo instead of silently falling back to local', () => {

@@ -1,0 +1,122 @@
+.ai-settings-page {
+  padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-settings-page .ai-nav-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.ai-settings-page .ai-card {
+  background: var(--bg-white);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 1.5rem;
+}
+
+.ai-settings-page .ai-grid {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 680px;
+}
+
+.ai-settings-page .ai-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-settings-page .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ai-settings-page .form-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.ai-settings-page .form-input,
+.ai-settings-page .form-textarea,
+.ai-settings-page .form-select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-light);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.ai-settings-page .form-input:focus,
+.ai-settings-page .form-textarea:focus,
+.ai-settings-page .form-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--bg-white);
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+}
+
+.ai-settings-page .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-settings-page .checkbox-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ai-settings-page .test-chat-card {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.ai-settings-page .test-reply-box {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: var(--bg-white);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.ai-settings-page .model-pill {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-white);
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-right: 0.4rem;
+  margin-top: 0.4rem;
+  transition: all 0.2s;
+}
+
+.ai-settings-page .model-pill:hover,
+.ai-settings-page .model-pill.active {
+  border-color: var(--primary);
+  background: rgba(37, 211, 102, 0.08);
+  color: var(--primary);
+  font-weight: 600;
+}
+

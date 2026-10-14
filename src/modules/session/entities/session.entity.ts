@@ -34,6 +34,9 @@ export class Session {
   @Column({ type: 'varchar', length: 100, nullable: true })
   pushName: string | null;
 
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  businessId: string | null;
+
   @Column({ type: jsonColumnType(), default: '{}' })
   config: Record<string, unknown>;
 

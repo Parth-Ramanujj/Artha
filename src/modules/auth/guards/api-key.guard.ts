@@ -1,9 +1,12 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { AuthService } from '../auth.service';
 import { ApiKeyRole } from '../entities/api-key.entity';
+import { Session } from '../../session/entities/session.entity';
 import { REQUIRED_ROLE_KEY, PUBLIC_KEY, SESSION_SCOPED_KEY, UNSCOPED_KEY } from '../decorators/auth.decorators';
 import { resolveClientIp } from '../../../common/utils/ip';
 import { setRequestActor } from '../../../common/services/request-context';
@@ -17,6 +20,8 @@ export class ApiKeyGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
     private readonly auditService: AuditService,
+    @InjectRepository(Session, 'data')
+    private readonly sessionRepository: Repository<Session>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -92,6 +97,16 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException('Session-scoped API keys are not permitted on this route');
     }
 
+    if (sessionId && apiKey.businessId) {
+      const session = await this.sessionRepository.findOne({
+        where: { id: sessionId },
+        select: { id: true, businessId: true },
+      });
+      if (session && session.businessId && session.businessId !== apiKey.businessId) {
+        throw new ForbiddenException('API key not authorized for this business session');
+      }
+    }
+
     // Attach API key to request for use in controllers
     (request as Request & { apiKey: typeof apiKey }).apiKey = apiKey;
     // Expose the trusted-proxy-aware client IP so controllers (e.g. the audit trail on key lifecycle
@@ -102,7 +117,12 @@ export class ApiKeyGuard implements CanActivate {
     // which fire from services deep in the call stack without DI access to the key — can attribute
     // the action to this key + IP. Without this every audit row's apiKey/ipAddress column is blank
     // because call sites pass only { sessionId } etc.
-    setRequestActor({ apiKeyId: apiKey.id, apiKeyName: apiKey.name, ipAddress: clientIp });
+    setRequestActor({
+      apiKeyId: apiKey.id,
+      apiKeyName: apiKey.name,
+      ipAddress: clientIp,
+      businessId: apiKey.businessId ?? undefined,
+    });
 
     return true;
   }

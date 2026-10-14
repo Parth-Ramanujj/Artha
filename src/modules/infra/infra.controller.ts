@@ -332,7 +332,18 @@ interface SavedConfigResponse {
     s3Endpoint: string;
     s3CredentialsSet: boolean;
   };
-  engine: { type: string; headless: boolean; sessionDataPath: string; browserArgs: string };
+  engine: {
+    type: string;
+    headless: boolean;
+    sessionDataPath: string;
+    browserArgs: string;
+    cloudApiAccessTokenSet: boolean;
+    cloudApiPhoneNumberId: string;
+    cloudApiWabaId: string;
+    cloudApiAppSecretSet: boolean;
+    cloudApiVerifyToken: string;
+    cloudApiGraphVersion: string;
+  };
 }
 
 @ApiTags('infrastructure')
@@ -649,6 +660,12 @@ export class InfraController implements OnApplicationBootstrap {
         headless: saved.PUPPETEER_HEADLESS !== 'false',
         sessionDataPath: saved.SESSION_DATA_PATH || '',
         browserArgs: saved.PUPPETEER_ARGS || '',
+        cloudApiAccessTokenSet: Boolean(saved.CLOUD_API_ACCESS_TOKEN),
+        cloudApiPhoneNumberId: saved.CLOUD_API_PHONE_NUMBER_ID || '',
+        cloudApiWabaId: saved.CLOUD_API_WABA_ID || '',
+        cloudApiAppSecretSet: Boolean(saved.CLOUD_API_APP_SECRET),
+        cloudApiVerifyToken: saved.CLOUD_API_VERIFY_TOKEN || '',
+        cloudApiGraphVersion: saved.CLOUD_API_GRAPH_VERSION || 'v21.0',
       },
     };
   }
@@ -876,6 +893,24 @@ export class InfraController implements OnApplicationBootstrap {
           // --disable-dev-shm-usage (the Docker /dev/shm tab-crash guard) after any Infrastructure save.
           updates.PUPPETEER_ARGS =
             config.engine.browserArgs || '--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu';
+        }
+        if (config.engine.cloudApiAccessToken !== undefined) {
+          updates.CLOUD_API_ACCESS_TOKEN = config.engine.cloudApiAccessToken;
+        }
+        if (config.engine.cloudApiPhoneNumberId !== undefined) {
+          updates.CLOUD_API_PHONE_NUMBER_ID = config.engine.cloudApiPhoneNumberId;
+        }
+        if (config.engine.cloudApiWabaId !== undefined) {
+          updates.CLOUD_API_WABA_ID = config.engine.cloudApiWabaId;
+        }
+        if (config.engine.cloudApiAppSecret !== undefined) {
+          updates.CLOUD_API_APP_SECRET = config.engine.cloudApiAppSecret;
+        }
+        if (config.engine.cloudApiVerifyToken !== undefined) {
+          updates.CLOUD_API_VERIFY_TOKEN = config.engine.cloudApiVerifyToken;
+        }
+        if (config.engine.cloudApiGraphVersion !== undefined) {
+          updates.CLOUD_API_GRAPH_VERSION = config.engine.cloudApiGraphVersion || 'v21.0';
         }
       }
 

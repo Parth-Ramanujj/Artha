@@ -1,7 +1,7 @@
 /**
  * Committed engine capability matrix: for each `IWhatsAppEngine` method, the REAL availability on
  * each adapter — `wwjs` = whatsapp-web.js (the default engine), `baileys` = the browser-free
- * alternative.
+ * alternative, `cloudApi` = the official WhatsApp Cloud API (Meta Graph API).
  *
  * Two fields tell the story:
  *  - `status`: 'supported' (the capability genuinely works end-to-end) or 'not-available' (the method
@@ -50,242 +50,324 @@ export interface AdapterCapability {
 export interface MethodCapability {
   wwjs: AdapterCapability;
   baileys: AdapterCapability;
+  cloudApi: AdapterCapability;
   /** Cited library symbols (baileys; wwjs). Required when at least one adapter is not-available. */
   evidence?: string;
 }
 
+const NA: AdapterCapability = { status: 'not-available', rootCause: 'library-limitation' };
+
 export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
-  addLabelToChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  addLabelToChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   addParticipants: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.addParticipants → per-participant {code,message} object, or a reason STRING on batch refusal (index.d.ts:2184; GroupChat.js:78-264) — both mapped at the adapter; baileys groupParticipantsUpdate(jid,pids,'add') → per-jid [{status:'200'|error}] (Socket/groups.js:140-156); per-participant results surface on the HTTP `results` field, a total refusal throws",
   },
-  blockContact: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  checkNumberExists: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  createGroup: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  deleteChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  deleteMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  deleteStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  blockContact: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  checkNumberExists: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  createGroup: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  deleteChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  deleteMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  deleteStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   demoteParticipants: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.demoteParticipants → batch {status:200} only (index.d.ts:2195 ChangeParticipantsPermissions; GroupChat.js:343-374) — a non-200 now throws at the adapter; baileys groupParticipantsUpdate(jid,pids,'demote') → per-jid [{status}] (Socket/groups.js:140-156)",
   },
-  destroy: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  disconnect: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  destroy: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  disconnect: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   editMessage: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Message.edit(content,options?) (index.d.ts:1362; MessageEditOptions:1600); baileys Editable.edit?: WAMessageKey on the text content variant (Types/Message.d.ts:86, AnyRegularMessageContent:168) via sendMessage(jid,{text,edit:key})',
   },
-  forceDestroy: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  forwardMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  forceDestroy: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  forwardMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getCatalog: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },
+    cloudApi: NA,
     evidence:
       'baileys Socket/business.d.ts:7 getCatalog({jid,limit,cursor}) + getCollections (business.d.ts:11) — adapter unwired (returns Product[]+cursor, not Catalog metadata; medium-confidence shape synthesis); wwjs index.d.ts has NO Client.getCatalog (0 hits) — adapter throws EngineNotSupportedError (was a phantom null stub)',
   },
-  getChannelById: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  getChannelById: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getChannelMessages: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },
+    cloudApi: NA,
     evidence:
       'baileys Socket/newsletter.d.ts:19 newsletterFetchMessages(jid,count,since,after) returns RAW BinaryNode of <message_updates> (newsletter.js:149) — adapter unwired AND no exposed library parser (BinaryNode→ChannelMessage mapping is the work); wwjs Channel.fetchMessages (Channel.js:327)',
   },
   getChatHistory: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys only fetchMessageHistory(count,oldestKey,oldestTs) (Socket/business.d.ts:25) returns a sync-token string; messages arrive later via messaging-history.set event — no synchronous per-chat fetchMessages; wwjs Chat.fetchMessages (Chat.js)',
   },
   getChatLabels: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys no getChatLabels in lib/**/*.d.ts; Types/LabelAssociation.d.ts defines ChatLabelAssociation but no query fn (only addChatLabel/removeChatLabel writes @chats.d.ts:70-71); wwjs Client.getChatLabels (Client.js:2838)',
   },
-  getChats: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getContactById: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  getChats: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getContactById: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getContactStatus: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys fetchStatus (Socket/chats.d.ts:42 via USyncStatusProtocol) = about/profile text only, NOT 24h stories — no story getter in lib',
   },
   getContactStatuses: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence: 'baileys fetchStatus = about text only; no story enumerate in lib',
   },
-  getContacts: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getGroupInfo: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getGroupInviteCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getGroups: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  getContacts: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getGroupInfo: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getGroupInviteCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getGroups: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getLabelById: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys no getLabel/getLabelById in lib/**/*.d.ts (Types/Label.d.ts has only Label interface + LabelColor enum + LabelActionBody); derivable only from an app-state-sync label cache; wwjs Client.getLabelById (Client.js:2825)',
   },
   getLabels: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys no getLabel/fetchLabel in lib/**/*.d.ts; chats.d.ts:69-73 + business.d.ts:162-166 expose ONLY writes; derivable only from an app-state-sync event cache; wwjs Client.getLabels (Client.js:2747)',
   },
   getMessageReactions: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys no getReactions/fetchReactions; reactions exist only as event-augmented WAMessage.reactions (proto.IReaction @WAProto/index.d.ts:10623) via messages.reaction event; adapter does not persist them into its store; wwjs Message.getReactions (Message.js)',
   },
-  getNumberId: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getPhoneNumber: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  getNumberId: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getPhoneNumber: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
   getProduct: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },
+    cloudApi: NA,
     evidence:
       'baileys only getCatalog (Socket/business.d.ts:7); getProduct = getCatalog then find-by-id (compose-and-filter, loads whole page; medium-confidence); wwjs no Client.getProduct — only page-internal getProductMetadata (Utils.js:1253), not a public Client fn — adapter throws EngineNotSupportedError (was a phantom null stub)',
   },
   getProducts: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },
+    cloudApi: NA,
     evidence:
       'baileys Socket/business.d.ts:7 getCatalog({jid,limit,cursor}) → {products, nextPageCursor} — adapter unwired; wwjs no Client.getProducts in index.d.ts (0 hits) — adapter throws EngineNotSupportedError (was a phantom empty-list stub)',
   },
-  getProfilePicture: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getPushName: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getQRCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  getStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  getProfilePicture: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getPushName: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  getQRCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  getStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   getSubscribedChannels: {
     wwjs: { status: 'supported' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys no enumerate-newsletters fn; 18 of the 19 Socket/newsletter.d.ts newsletter members are per-jid (only newsletterCreate is not) (newsletterMetadata requires a key; newsletterSubscribers returns the count of ONE). Only the newsletter EVENT surfaces jids opportunistically (incremental, not list-all); wwjs Client.getChannels (Client.js:1680)',
   },
-  initialize: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  initialize: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   joinGroupViaInviteCode: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Client.acceptInvite(inviteCode) → res.gid._serialized (index.d.ts:23; Client.js:1836-1844); baileys groupAcceptInvite(code) → string|undefined (Socket/groups.d.ts:25) — undefined mapped to a thrown error',
   },
-  leaveGroup: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  logout: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  markUnread: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  postImageStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  postTextStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  postVideoStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  leaveGroup: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  logout: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  markUnread: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  postImageStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  postTextStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  postVideoStatus: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   promoteParticipants: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.promoteParticipants → batch {status:200} only (index.d.ts:2193 ChangeParticipantsPermissions; GroupChat.js:305-340) — a non-200 now throws at the adapter; baileys groupParticipantsUpdate(jid,pids,'promote') → per-jid [{status}] (Socket/groups.js:140-156)",
   },
-  reactToMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  removeLabelFromChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  reactToMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  removeLabelFromChat: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   removeParticipants: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.removeParticipants → batch {status:200} only (index.d.ts:2189; GroupChat.js:267-298) — a non-200 now throws at the adapter instead of being discarded; baileys groupParticipantsUpdate(jid,pids,'remove') → per-jid [{status}] (Socket/groups.js:140-156)",
   },
   rejectCall: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs Call.reject() (index.d.ts:2417) on the live Call cached from the client 'call' event (index.d.ts:643); baileys rejectCall(callId, callFrom) (Socket/messages-recv.d.ts:10) with the raw `from` JID cached from the 'offer' call event (Types/Call.d.ts)",
   },
-  replyToMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  requestPairingCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  resolveContactPhone: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  revokeGroupInviteCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendAudioMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  replyToMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  requestPairingCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  resolveContactPhone: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  revokeGroupInviteCode: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  sendAudioMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
   sendCatalog: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: NA,
     evidence:
       'baileys AnyMessageContent (Types/Message.d.ts:166-210) has no catalog key — only {product} single-product + product_catalog_edit/add/delete CRUD (Socket/business.js:294-362); wwjs no Client.sendCatalog in index.d.ts (0 hits)',
   },
-  sendChatState: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendContactMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendDocumentMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendImageMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendLocationMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendPollMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  sendChatState: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  sendContactMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendDocumentMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendImageMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendLocationMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendPollMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   sendProduct: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },
+    cloudApi: NA,
     evidence:
       'baileys AnyRegularMessageContent {product: WASendableProduct} (Types/Message.d.ts:203) built in messages.js:397 — adapter unwired (2-step: getCatalog lookup for image/title/price THEN sendMessage); wwjs no Client.sendProduct — Product/Order are inbound-only parsers',
   },
-  sendSeen: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendStickerMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendTextMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
-  sendVideoMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  sendSeen: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
+  sendStickerMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendTextMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
+  sendVideoMessage: {
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
+  },
   setGroupDescription: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs GroupChat.setDescription(description) → boolean (index.d.ts:1984; false → adapter throws EngineRefusedError); baileys groupUpdateDescription(jid, description?) (Socket/groups.d.ts:21)',
   },
   setGroupEphemeral: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs 1.34.7 exposes NO ephemeral setter — 0 hits for ephemeral in index.d.ts; only a create-time messageTimer option (Client.js:2371); adapter throws EngineNotSupportedError; baileys groupToggleEphemeral(jid, ephemeralExpiration) (Socket/groups.d.ts:40)',
   },
   setGroupInfoAdminsOnly: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.setInfoAdminsOnly(adminsOnly?) (index.d.ts:2216; sets groupMetadata.restrict, GroupChat.js:544); baileys groupSettingUpdate(jid, 'locked'|'unlocked') (Socket/groups.d.ts:41)",
   },
   setGroupMessagesAdminsOnly: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs GroupChat.setMessagesAdminsOnly(adminsOnly?) (index.d.ts:2210; sets groupMetadata.announce, GroupChat.js:513); baileys groupSettingUpdate(jid, 'announcement'|'not_announcement') (Socket/groups.d.ts:41)",
   },
   setGroupSubject: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs GroupChat.setSubject(newSubject) → boolean (index.d.ts:1982; false → adapter throws EngineRefusedError); baileys groupUpdateSubject(jid, subject) (Socket/groups.d.ts:20)',
   },
   setProfileName: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Client.setDisplayName(displayName) → boolean (index.d.ts:251; false → adapter throws); baileys updateProfileName(name) (Socket/chats.d.ts:50)',
   },
   setProfilePicture: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Client.setProfilePicture(MessageMedia) → boolean (index.d.ts:336; false → adapter throws); baileys updateProfilePicture(ownJid, WAMediaUpload) (Socket/chats.d.ts:44)',
   },
   setProfileStatus: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Client.setStatus(status) (index.d.ts:245); baileys updateProfileStatus(status) (Socket/chats.d.ts:49)',
   },
   subscribeToChannel: {
     wwjs: { status: 'not-available', rootCause: 'adapter-gap' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       "wwjs Client.subscribeToChannel(channelId) → boolean (index.d.ts:71; Client.js:2533) takes a CHANNEL id, not the interface's invite code, and getChannelByInviteCode(inviteCode) (index.d.ts:103; Client.js:1707) is the invite→channel bridge — the adapter used to pass the invite code straight in and fabricate a Channel from the returned boolean; now an honest EngineNotSupportedError pending a verified two-step wiring; baileys newsletterMetadata('invite', code) + newsletterFollow (Socket/newsletter.d.ts)",
   },
-  unblockContact: { wwjs: { status: 'supported' }, baileys: { status: 'supported' } },
+  unblockContact: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   unsubscribeFromChannel: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },
+    cloudApi: NA,
     evidence:
       'wwjs Client.unsubscribeFromChannel(channelId, options?) → boolean (index.d.ts:74; Client.js:2556; false → adapter throws EngineRefusedError); baileys newsletterUnfollow(jid) (Socket/newsletter.d.ts)',
   },

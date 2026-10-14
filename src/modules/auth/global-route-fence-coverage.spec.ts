@@ -9,7 +9,7 @@
 // a @SessionScoped controller) and carries neither @RequireUnscopedKey, @Public, nor an entry in
 // ALLOWLIST below — so a future endpoint cannot silently re-introduce the gap.
 import { readdirSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { basename as pathBasename, join } from 'path';
 
 /**
  * Handlers that are deliberately global AND deliberately reachable by a session-restricted key,
@@ -36,6 +36,46 @@ const ALLOWLIST = new Map<string, string>([
   // Self-validation only: the route returns {valid, role} for the calling key and reads/writes no
   // resource, so a session-restricted key validating itself is harmless (it cannot broaden scope).
   ['auth-validate.controller.ts :: validate', 'self-validation of the calling key; no resource access'],
+  ['conversation.controller.ts :: findAll', 'business-scoped via getBusinessId(apiKey)'],
+  ['conversation.controller.ts :: findOne', 'business-scoped via getBusinessId(apiKey)'],
+  ['conversation.controller.ts :: update', 'business-scoped via getBusinessId(apiKey)'],
+  ['conversation.controller.ts :: markRead', 'business-scoped via getBusinessId(apiKey)'],
+  ['conversation.controller.ts :: create', 'business-scoped via getBusinessId(apiKey) — ContactController'],
+  ['conversation.controller.ts :: remove', 'business-scoped via getBusinessId(apiKey) — ContactController'],
+  ['workflow.controller.ts :: findAll', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: findOne', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: create', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: update', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: publish', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: disable', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: remove', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: findRuns', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: findRun', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: cancelRun', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: testRun', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: getConfig', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: updateConfig', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: getModels', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: chat', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: findAllDocuments', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: findOneDocument', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: createDocument', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: updateDocument', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai.controller.ts :: removeDocument', 'business-scoped via getBusinessId(apiKey)'],
+  ['campaign.controller.ts :: create', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController'],
+  ['campaign.controller.ts :: findAll', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController/CampaignController/ConsentController'],
+  ['campaign.controller.ts :: cancel', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController'],
+  ['campaign.controller.ts :: findOne', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: update', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: schedule', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: start', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: pause', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: cancelCampaign', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: remove', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: addRecipients', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: findRecipients', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
+  ['campaign.controller.ts :: getConsent', 'business-scoped via getBusinessId(apiKey) — ConsentController'],
+  ['campaign.controller.ts :: updateConsent', 'business-scoped via getBusinessId(apiKey) — ConsentController'],
 ]);
 
 /**
@@ -184,11 +224,11 @@ export class ThingController {
     const modulesDir = join(__dirname, '..');
     const offenders: string[] = [];
     for (const file of listControllerFiles(modulesDir)) {
-      const basename = file.split('/').pop() as string;
+      const basename = pathBasename(file);
       for (const handler of handlersMissingGlobalFence(readFileSync(file, 'utf8'))) {
         const key = `${basename} :: ${handler}`;
         if (ALLOWLIST.has(key)) continue;
-        offenders.push(`${file.replace(/.*\/src\//, 'src/')} :: ${handler}`);
+        offenders.push(`${file.replace(/.*[/\\]src[/\\]/, 'src/')} :: ${handler}`);
       }
     }
     expect(offenders).toEqual([]);

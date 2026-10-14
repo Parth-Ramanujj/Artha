@@ -24,6 +24,7 @@ function createMockApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     role: ApiKeyRole.OPERATOR,
     allowedIps: null,
     allowedSessions: null,
+    businessId: null,
     isActive: true,
     expiresAt: null,
     lastUsedAt: null,

@@ -607,6 +607,7 @@ export interface IWhatsAppEngine {
    * cheap local check. Polled periodically by the session watchdog.
    */
   probeLiveness?(): Promise<boolean>;
+  updateAccessToken?(newToken: string): void;
   getQRCode(): string | null;
   /** Request an 8-char pairing code to link via phone number instead of scanning the QR. */
   requestPairingCode(phoneNumber: string): Promise<string>;

@@ -26,6 +26,7 @@ export enum AuditAction {
   SESSION_QR_GENERATED = 'session_qr_generated',
   SESSION_CONNECTED = 'session_connected',
   SESSION_DISCONNECTED = 'session_disconnected',
+  SESSION_TOKEN_REFRESHED = 'session_token_refreshed',
 
   // Message events
   MESSAGE_SENT = 'message_sent',
@@ -71,6 +72,10 @@ export class AuditLog {
 
   @Column({ type: 'varchar', length: 10, default: AuditSeverity.INFO })
   severity: AuditSeverity;
+
+  @Index()
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  businessId: string | null;
 
   @Index()
   @Column({ type: 'varchar', length: 36, nullable: true })

@@ -81,6 +81,7 @@ describe('exemptPublicOperations', () => {
 // requirement) rather than a PUBLIC_PATHS security: [] exemption.
 describe('PUBLIC_PATHS drift guard', () => {
   const EXPECTED_PUBLIC_CONTROLLERS = [
+    'src/modules/cloud-api-webhook/cloud-api-webhook.controller.ts',
     'src/modules/health/health.controller.ts',
     'src/modules/infra/infra.controller.ts',
     'src/modules/integration/ingress.controller.ts',

@@ -207,6 +207,17 @@ export default () => ({
     baileys: {
       authDir: process.env.BAILEYS_AUTH_DIR || './data/baileys',
     },
+    // Cloud API engine (used when ENGINE_TYPE=cloud-api). Official WhatsApp Business API via Meta.
+    cloudApi: {
+      accessToken: process.env.CLOUD_API_ACCESS_TOKEN || undefined,
+      phoneNumberId: process.env.CLOUD_API_PHONE_NUMBER_ID || undefined,
+      wabaId: process.env.CLOUD_API_WABA_ID || undefined,
+      verifyToken: process.env.CLOUD_API_VERIFY_TOKEN || undefined,
+      appSecret: process.env.CLOUD_API_APP_SECRET || undefined,
+      appId: process.env.CLOUD_API_APP_ID || undefined,
+      graphApiVersion: process.env.CLOUD_API_GRAPH_VERSION || 'v21.0',
+      dataDir: process.env.CLOUD_API_DATA_DIR || './data/cloud-api',
+    },
   },
 
   sessions: {

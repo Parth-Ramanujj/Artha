@@ -37,4 +37,12 @@ export class SendTemplateMessageDto {
   @IsOptional()
   @IsObject()
   vars?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description: 'Alias for vars',
+    example: { customer: 'Alice', orderId: '1234' },
+  })
+  @IsOptional()
+  @IsObject()
+  variables?: Record<string, string>;
 }

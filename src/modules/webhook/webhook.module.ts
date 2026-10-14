@@ -5,6 +5,7 @@ import { WebhookDeliveryFailure } from './entities/webhook-delivery-failure.enti
 import { WebhookService } from './webhook.service';
 import { WebhookController } from './webhook.controller';
 import { WebhooksListController } from './webhooks-list.controller';
+import { WebhookTestController } from './webhook-test.controller';
 import { EngineModule } from '../../engine/engine.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
@@ -19,7 +20,7 @@ if (process.env.QUEUE_ENABLED === 'true') {
 
 @Module({
   imports: [TypeOrmModule.forFeature([Webhook, WebhookDeliveryFailure], 'data'), EngineModule, ...queueModules],
-  controllers: [WebhookController, WebhooksListController],
+  controllers: [WebhookController, WebhooksListController, WebhookTestController],
   providers: [WebhookService],
   exports: [WebhookService],
 })

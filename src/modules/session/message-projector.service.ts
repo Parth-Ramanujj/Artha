@@ -25,6 +25,7 @@ import {
 import { createLogger } from '../../common/services/logger.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
+import { ConversationService } from '../conversation/conversation.service';
 import { HookManager } from '../../core/hooks';
 import {
   deliveryStatusToMessageStatus,
@@ -79,6 +80,8 @@ export class MessageProjector {
     private readonly lidResolver: SessionLidResolver,
     @Optional()
     private readonly configService?: ConfigService,
+    @Optional()
+    private readonly conversationService?: ConversationService,
   ) {}
 
   /** Engine callback body, lifted out of initializeEngine so the wiring table stays readable. */
@@ -249,6 +252,13 @@ export class MessageProjector {
             .catch(() => undefined);
         }
 
+        // Update shared-inbox conversation state (best-effort, never blocks the receive path).
+        if (this.conversationService) {
+          void this.projectConversation(id, incoming).catch(err =>
+            this.logger.error('projectConversation (inbound) failed', String(err)),
+          );
+        }
+
         // Dispatch to webhooks with potentially modified message
         void this.webhookService.dispatch(id, 'message.received', finalMessage);
         // Emit real-time event to WebSocket clients
@@ -353,6 +363,13 @@ export class MessageProjector {
               )
               .catch(() => undefined);
           }
+        }
+
+        // Update shared-inbox conversation state for outbound messages.
+        if (this.conversationService) {
+          void this.projectConversation(id, outgoing).catch(err =>
+            this.logger.error('projectConversation (outbound) failed', String(err)),
+          );
         }
 
         void this.webhookService.dispatch(id, 'message.sent', finalMessage);
@@ -663,6 +680,26 @@ export class MessageProjector {
    * whose `events` array includes `status.received`, so no extra gating is needed here. No media
    * bytes are included in the payload — consumers fetch media via the status media endpoint.
    */
+  private async projectConversation(sessionId: string, message: IncomingMessage): Promise<void> {
+    const session = await this.sessionRepository.findOne({
+      where: { id: sessionId },
+      select: { id: true, businessId: true },
+    });
+    if (!session) return;
+
+    const businessId = session.businessId ?? 'default';
+    const chatName = message.contact?.pushName ?? message.contact?.name ?? undefined;
+    await this.conversationService!.getOrCreateConversation(businessId, sessionId, message.chatId, chatName);
+
+    const preview = message.body?.substring(0, 200) ?? message.type ?? '';
+    const timestamp = message.timestamp ? new Date(message.timestamp * 1000) : new Date();
+    await this.conversationService!.updateLastMessage(sessionId, message.chatId, preview, timestamp);
+
+    if (!message.fromMe) {
+      await this.conversationService!.incrementUnread(sessionId, message.chatId);
+    }
+  }
+
   private dispatchStatusReceived(sessionId: string, row: StatusUpdate): void {
     const payload = {
       sessionId,

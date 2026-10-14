@@ -13,8 +13,17 @@ import {
   AlertTriangle,
   AlertCircle,
   Filter,
+  Copy,
+  RefreshCw,
 } from 'lucide-react';
-import { webhookApi, type Webhook, type WebhookFilters, type WebhookFilterCondition } from '../services/api';
+import {
+  webhookApi,
+  webhookTestApi,
+  type Webhook,
+  type WebhookFilters,
+  type WebhookFilterCondition,
+  type CapturedWebhookRequest,
+} from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
 import {
@@ -133,6 +142,34 @@ export function Webhooks() {
   }>({ url: '', events: ['message.received'], sessionId: '', filters: null });
   const [testingId, setTestingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Webhook Test Receiver Modal & Logs
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [capturedLogs, setCapturedLogs] = useState<CapturedWebhookRequest[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const loadCapturedLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const res = await webhookTestApi.getRequests();
+      setCapturedLogs(res.requests || []);
+      setShowLogsModal(true);
+    } catch {
+      setToast({ type: 'error', message: 'Failed to load captured webhook requests' });
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const clearCapturedLogs = async () => {
+    try {
+      await webhookTestApi.clearRequests();
+      setCapturedLogs([]);
+      setToast({ type: 'success', message: 'Cleared captured webhook test logs' });
+    } catch {
+      setToast({ type: 'error', message: 'Failed to clear logs' });
+    }
+  };
 
   // Single source for the contact/group autocomplete in whichever modal is open.
   const activeSessionId = showEditModal ? editWebhook?.sessionId ?? '' : newWebhook.sessionId;
@@ -304,6 +341,42 @@ export function Webhooks() {
         }
       />
 
+      {/* Built-in Webhook Testing Endpoint Banner */}
+      <div className="webhook-test-endpoint-banner">
+        <div className="webhook-test-endpoint-info">
+          <span className="webhook-test-endpoint-badge">
+            <WebhookIcon size={14} /> Built-in Webhook Testing Receiver
+          </span>
+          <span className="webhook-test-endpoint-desc">
+            Use this local endpoint to receive, test, and debug webhooks without needing external services like webhook.site:
+          </span>
+          <code className="webhook-test-endpoint-url">
+            http://localhost:2785/api/webhook-test/echo
+          </code>
+        </div>
+        <div className="webhook-test-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              navigator.clipboard.writeText('http://localhost:2785/api/webhook-test/echo');
+              setToast({ type: 'success', message: 'Test webhook URL copied to clipboard!' });
+            }}
+          >
+            <Copy size={14} /> Copy URL
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={loadCapturedLogs}
+            disabled={loadingLogs}
+          >
+            {loadingLogs ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
+            View Received Calls
+          </button>
+        </div>
+      </div>
+
       {webhooksError && (
         <div className="error-banner" role="alert">
           <AlertCircle size={20} />
@@ -340,10 +413,20 @@ export function Webhooks() {
               </option>
             ))}
           </select>
-          <label>{t('common.url')}</label>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+            <label style={{ margin: 0 }}>{t('common.url')}</label>
+            <button
+              type="button"
+              className="btn-test-quick"
+              onClick={() => setNewWebhook(prev => ({ ...prev, url: 'http://localhost:2785/api/webhook-test/echo' }))}
+            >
+              ⚡ Use Local Test Endpoint
+            </button>
+          </div>
           <input
             type="url"
-            placeholder="https://..."
+            placeholder="https://... or http://localhost:2785/api/webhook-test/echo"
             value={newWebhook.url}
             onChange={e => setNewWebhook({ ...newWebhook, url: e.target.value })}
           />
@@ -391,7 +474,16 @@ export function Webhooks() {
             </>
           }
         >
-          <label>{t('common.url')}</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+            <label style={{ margin: 0 }}>{t('common.url')}</label>
+            <button
+              type="button"
+              className="btn-test-quick"
+              onClick={() => setEditWebhook(prev => prev ? ({ ...prev, url: 'http://localhost:2785/api/webhook-test/echo' }) : null)}
+            >
+              ⚡ Use Local Test Endpoint
+            </button>
+          </div>
           <input
             type="url"
             value={editWebhook.url}
@@ -561,6 +653,59 @@ export function Webhooks() {
           </div>
         </div>
       </div>
+
+      {showLogsModal && (
+        <Modal
+          open
+          onClose={() => setShowLogsModal(false)}
+          title="Captured Test Webhooks"
+          closeLabel={t('common.close')}
+          footer={
+            <>
+              <button
+                className="btn-secondary"
+                onClick={clearCapturedLogs}
+                disabled={capturedLogs.length === 0}
+              >
+                <Trash2 size={14} /> Clear History
+              </button>
+              <button
+                className="btn-primary"
+                onClick={loadCapturedLogs}
+                disabled={loadingLogs}
+              >
+                <RefreshCw size={14} /> Refresh
+              </button>
+            </>
+          }
+        >
+          {capturedLogs.length === 0 ? (
+            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p>No webhook requests captured yet.</p>
+              <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                Send a webhook to <code>http://localhost:2785/api/webhook-test/echo</code> from your session, workflow, or curl to see it here!
+              </p>
+            </div>
+          ) : (
+            <div className="captured-logs-list">
+              {capturedLogs.map(log => (
+                <div key={log.id} className="captured-log-card">
+                  <div className="captured-log-top">
+                    <span className="captured-log-method method-post">{log.method}</span>
+                    <span className="captured-log-time">{new Date(log.receivedAt).toLocaleTimeString()}</span>
+                  </div>
+                  <div className="captured-log-url">{log.url}</div>
+                  <pre className="captured-log-body">
+                    {typeof log.body === 'object' && log.body !== null
+                      ? JSON.stringify(log.body, null, 2)
+                      : String(log.body || 'No payload')}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { WhatsAppWebJsAdapter } from './adapters/whatsapp-web-js.adapter';
 import { PluginLoaderService, PluginType, IEnginePlugin, PluginManifest } from '../core/plugins';
 import { WhatsAppWebJsPlugin } from '../plugins/engines/whatsapp-web-js';
 import { BaileysPlugin } from '../plugins/engines/baileys';
+import { CloudApiPlugin } from '../plugins/engines/cloud-api';
 import { createLogger } from '../common/services/logger.service';
 import { BaileysMessageStoreService } from './adapters/baileys-message-store.service';
 import { LidMappingStoreService } from './identity/lid-mapping-store.service';
@@ -77,6 +78,18 @@ export class EngineFactory implements OnModuleInit {
       new BaileysPlugin(this.baileysMessageStore, engineConfig, this.lidMappingStore),
       engineConfig,
     );
+
+    // Register Cloud API (official WhatsApp Business API) as a third built-in engine plugin.
+    const cloudApiManifest: PluginManifest = {
+      id: 'cloud-api',
+      name: 'WhatsApp Cloud API Engine',
+      version: '1.0.0',
+      type: PluginType.ENGINE,
+      description: 'Official WhatsApp Cloud API (Meta Graph API) engine adapter',
+      main: 'index.ts',
+      provides: ['whatsapp-engine'],
+    };
+    this.pluginLoader.registerBuiltInPlugin(cloudApiManifest, new CloudApiPlugin(engineConfig), engineConfig);
 
     // Auto-enable the configured engine
     try {
@@ -158,6 +171,7 @@ export class EngineFactory implements OnModuleInit {
     const dirs: Array<{ engine: string; dir: string }> = [
       { engine: 'whatsapp-web.js', dir: this.wwjsAuthDir(sessionName) },
       { engine: 'baileys', dir: this.baileysAuthDir(sessionName) },
+      { engine: 'cloud-api', dir: this.cloudApiDataDir(sessionName) },
     ];
     for (const { engine, dir } of dirs) {
       try {
@@ -192,6 +206,11 @@ export class EngineFactory implements OnModuleInit {
   private baileysAuthDir(sessionName: string): string {
     const authDir = this.configService.get<string>('engine.baileys.authDir') ?? './data/baileys';
     return path.join(authDir, sessionName);
+  }
+
+  private cloudApiDataDir(sessionName: string): string {
+    const dataDir = this.configService.get<string>('engine.cloudApi.dataDir') ?? './data/cloud-api';
+    return path.join(dataDir, sessionName);
   }
 
   private isEnginePlugin(instance: unknown): instance is IEnginePlugin {

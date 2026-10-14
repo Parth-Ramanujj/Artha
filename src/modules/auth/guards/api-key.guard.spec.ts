@@ -16,6 +16,7 @@ function createMockApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     role: ApiKeyRole.OPERATOR,
     allowedIps: null,
     allowedSessions: null,
+    businessId: null,
     isActive: true,
     expiresAt: null,
     lastUsedAt: null,
@@ -54,15 +55,19 @@ describe('ApiKeyGuard', () => {
   let configService: jest.Mocked<Partial<ConfigService>>;
   let auditService: jest.Mocked<Partial<AuditService>>;
 
+  let sessionRepository: { findOne: jest.Mock };
+
   function buildGuard(trustedProxies: string[] = []): ApiKeyGuard {
     configService = {
       get: jest.fn().mockReturnValue(trustedProxies),
     };
+    sessionRepository = { findOne: jest.fn().mockResolvedValue(null) };
     return new ApiKeyGuard(
       authService as AuthService,
       reflector,
       configService as ConfigService,
       auditService as AuditService,
+      sessionRepository as any,
     );
   }
 
@@ -344,5 +349,53 @@ describe('ApiKeyGuard', () => {
     await guard.canActivate(context);
 
     expect(authService.validateApiKey).toHaveBeenCalledWith('key', '203.0.113.50', undefined);
+  });
+
+  it('rejects when API key businessId does not match session businessId', async () => {
+    reflector.getAllAndOverride.mockReturnValueOnce(false).mockReturnValueOnce(undefined);
+
+    const apiKey = createMockApiKey({ businessId: 'biz-A' });
+    (authService.validateApiKey as jest.Mock).mockResolvedValue(apiKey);
+
+    sessionRepository.findOne.mockResolvedValue({ id: 'sess-1', businessId: 'biz-B' });
+
+    const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
+    await expect(guard.canActivate(context)).rejects.toThrow('API key not authorized for this business session');
+  });
+
+  it('allows when API key businessId matches session businessId', async () => {
+    reflector.getAllAndOverride.mockReturnValueOnce(false).mockReturnValueOnce(undefined);
+
+    const apiKey = createMockApiKey({ businessId: 'biz-A' });
+    (authService.validateApiKey as jest.Mock).mockResolvedValue(apiKey);
+
+    sessionRepository.findOne.mockResolvedValue({ id: 'sess-1', businessId: 'biz-A' });
+
+    const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('skips business check when API key has no businessId (platform admin)', async () => {
+    reflector.getAllAndOverride.mockReturnValueOnce(false).mockReturnValueOnce(undefined);
+
+    const apiKey = createMockApiKey({ businessId: null });
+    (authService.validateApiKey as jest.Mock).mockResolvedValue(apiKey);
+
+    const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+
+    expect(sessionRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('allows access to legacy sessions with no businessId', async () => {
+    reflector.getAllAndOverride.mockReturnValueOnce(false).mockReturnValueOnce(undefined);
+
+    const apiKey = createMockApiKey({ businessId: 'biz-A' });
+    (authService.validateApiKey as jest.Mock).mockResolvedValue(apiKey);
+
+    sessionRepository.findOne.mockResolvedValue({ id: 'sess-1', businessId: null });
+
+    const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 });

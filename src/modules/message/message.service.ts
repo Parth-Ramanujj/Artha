@@ -16,7 +16,7 @@ import { TemplateService } from '../template/template.service';
 import { renderTemplate } from '../../common/utils/template-render';
 import { createLogger } from '../../common/services/logger.service';
 import { SsrfBlockedError, SSRF_BLOCKED_CLIENT_MESSAGE } from '../../common/security/ssrf-guard';
-import { parseWaId } from '../../engine/identity/wa-id';
+import { parseWaId, ensureNeutralJid } from '../../engine/identity/wa-id';
 import { resolveFeatureFlags } from '../../config/feature-flags';
 import { LidMappingStoreService } from '../../engine/identity/lid-mapping-store.service';
 import { isUniqueConstraintError } from '../../common/utils/unique-constraint.util';
@@ -65,6 +65,7 @@ export class MessageService {
   ) {}
 
   async sendText(sessionId: string, dto: SendTextMessageDto): Promise<MessageResponseDto> {
+    dto.chatId = ensureNeutralJid(dto.chatId);
     const finalDto = await this.applySendingGate(sessionId, 'text', dto);
 
     const engine = this.getEngine(sessionId);
@@ -154,12 +155,13 @@ export class MessageService {
    * 400 naming the limit rather than truncated silently or pushed to the engine/DB as-is.
    */
   async sendTemplate(sessionId: string, dto: SendTemplateMessageDto): Promise<MessageResponseDto> {
+    dto.chatId = ensureNeutralJid(dto.chatId);
     const template = await this.templateService.resolve(sessionId, {
       templateId: dto.templateId,
       templateName: dto.templateName,
     });
 
-    const vars = dto.vars ?? {};
+    const vars = dto.vars ?? dto.variables ?? {};
     const segments = [template.header, template.body, template.footer]
       .filter((segment): segment is string => segment != null && segment.length > 0)
       .map(segment => renderTemplate(segment, vars));

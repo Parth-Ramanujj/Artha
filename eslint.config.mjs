@@ -29,7 +29,20 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+  {
+    // Engine adapters implement IWhatsAppEngine (~79 async methods). Adapters that don't
+    // support a capability throw synchronously, triggering require-await. This is inherent
+    // to the interface contract, not a code smell.
+    files: ['**/engine/adapters/*.adapter.ts'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
     },
   },
   {

@@ -1,0 +1,536 @@
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AiConfig, AiProvider } from './entities/ai-config.entity';
+import { KnowledgeDocument, DocumentStatus } from './entities/knowledge-document.entity';
+import { UpdateAiConfigDto, CreateKnowledgeDocumentDto, UpdateKnowledgeDocumentDto } from './dto/ai.dto';
+import { createLogger } from '../../common/services/logger.service';
+import { BusinessService } from '../business/business.service';
+import { HookManager } from '../../core/hooks';
+import { EngineRegistry } from '../../engine/engine-registry.service';
+import { Session } from '../session/entities/session.entity';
+import { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
+import { Message, MessageDirection } from '../message/entities/message.entity';
+
+const MAX_DOCUMENT_CONTENT_LENGTH = 500_000;
+const MAX_DOCUMENTS_PER_BUSINESS = 100;
+
+export interface AiChatRequest {
+  businessId: string;
+  sessionId: string;
+  chatId: string;
+  message: string;
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  handoff: boolean;
+  confidence: 'high' | 'medium' | 'low';
+  sourceDocs?: string[];
+  tokensUsed?: number;
+}
+
+@Injectable()
+export class AiService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = createLogger('AiService');
+  private readonly hookIds: string[] = [];
+  private groqKeyIndex = 0;
+
+  constructor(
+    @InjectRepository(AiConfig, 'data')
+    private readonly configRepo: Repository<AiConfig>,
+    @InjectRepository(KnowledgeDocument, 'data')
+    private readonly docRepo: Repository<KnowledgeDocument>,
+    @InjectRepository(Session, 'data')
+    private readonly sessionRepo: Repository<Session>,
+    @InjectRepository(Message, 'data')
+    private readonly messageRepo: Repository<Message>,
+    private readonly businessService: BusinessService,
+    private readonly hookManager: HookManager,
+    private readonly engines: EngineRegistry,
+  ) {}
+
+  onModuleInit(): void {
+    this.hookIds.push(
+      this.hookManager.register(
+        'ai-assistant-auto-reply',
+        'message:received',
+        hookCtx => {
+          const msg = hookCtx.data as IncomingMessage;
+          // Only auto-reply to incoming 1-to-1 direct messages (ignore self, status, group, and channels)
+          if (
+            !hookCtx.sessionId ||
+            msg.fromMe ||
+            msg.isStatusBroadcast ||
+            msg.isGroup ||
+            (msg.kind && msg.kind !== 'individual') ||
+            msg.chatId.includes('@newsletter') ||
+            msg.chatId.includes('@broadcast') ||
+            msg.chatId.includes('@g.us') ||
+            !msg.body?.trim()
+          ) {
+            return Promise.resolve({ continue: true });
+          }
+
+          void this.handleIncomingMessageAi(hookCtx.sessionId, msg).catch(err =>
+            this.logger.error(
+              `AI auto-reply error: session=${hookCtx.sessionId}`,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+          return Promise.resolve({ continue: true });
+        },
+        800,
+      ),
+    );
+
+    const keysCount = this.getGroqApiKeys().length;
+    this.logger.log(`AI Assistant initialized with ${keysCount} Groq API key(s) in pool`);
+  }
+
+  onModuleDestroy(): void {
+    for (const id of this.hookIds) {
+      this.hookManager.unregister(id);
+    }
+  }
+
+  private async handleIncomingMessageAi(sessionId: string, msg: IncomingMessage): Promise<void> {
+    const session = await this.sessionRepo.findOne({
+      where: { id: sessionId },
+      select: { id: true, businessId: true },
+    });
+    const businessId = session?.businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+
+    const config = await this.getConfig(businessId);
+    if (!config.enabled) return;
+
+    if (config.sessionScopes && config.sessionScopes.length > 0) {
+      if (!config.sessionScopes.includes(sessionId)) return;
+    }
+
+    // Retrieve previous conversation messages for multi-turn context
+    let conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> | undefined;
+    try {
+      const historyLimit = config.maxContextMessages ?? 10;
+      const recent = await this.messageRepo.find({
+        where: { sessionId, chatId: msg.chatId },
+        order: { createdAt: 'DESC' },
+        take: historyLimit,
+      });
+      if (recent && recent.length > 0) {
+        recent.reverse();
+        conversationHistory = recent
+          .filter(m => m.body && m.body.trim())
+          .map(m => ({
+            role: m.direction === MessageDirection.OUTGOING ? ('assistant' as const) : ('user' as const),
+            content: m.body.trim(),
+          }));
+      }
+    } catch {
+      // Non-critical: continue without history if query fails
+    }
+
+    const response = await this.chat({
+      businessId,
+      sessionId,
+      chatId: msg.chatId,
+      message: msg.body,
+      conversationHistory,
+    });
+
+    if (response.reply) {
+      const engine = this.engines.get(sessionId);
+      if (engine) {
+        await engine.sendTextMessage(msg.chatId, response.reply);
+        this.logger.log(`AI Assistant sent auto-reply to chat=${msg.chatId} session=${sessionId}`);
+      }
+    }
+  }
+
+  // ── Config ──
+
+  async getConfig(businessId: string | null): Promise<AiConfig> {
+    const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    let config = await this.configRepo.findOne({ where: { businessId: targetBusinessId } });
+    if (!config) {
+      config = this.configRepo.create({
+        businessId: targetBusinessId,
+        enabled: true,
+        provider: AiProvider.GROQ,
+        model: process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
+        systemPrompt: 'You are a helpful and polite WhatsApp customer support assistant. Answer concisely and accurately.',
+      });
+      config = await this.configRepo.save(config);
+    }
+    return config;
+  }
+
+  async updateConfig(businessId: string | null, dto: UpdateAiConfigDto, apiKeyId?: string): Promise<AiConfig> {
+    const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    const config = await this.getConfig(targetBusinessId);
+
+    if (dto.enabled !== undefined) config.enabled = dto.enabled;
+    if (dto.provider !== undefined) config.provider = dto.provider;
+    if (dto.model !== undefined) config.model = dto.model ?? null;
+    if (dto.apiEndpoint !== undefined) config.apiEndpoint = dto.apiEndpoint ?? null;
+    if (dto.systemPrompt !== undefined) config.systemPrompt = dto.systemPrompt ?? null;
+    if (dto.maxTokens !== undefined) config.maxTokens = dto.maxTokens;
+    if (dto.maxContextMessages !== undefined) config.maxContextMessages = dto.maxContextMessages;
+    if (dto.useKnowledgeBase !== undefined) config.useKnowledgeBase = dto.useKnowledgeBase;
+    if (dto.autoHandoff !== undefined) config.autoHandoff = dto.autoHandoff;
+    if (dto.handoffKeywords !== undefined) config.handoffKeywords = dto.handoffKeywords ?? null;
+    if (dto.fallbackMessage !== undefined) config.fallbackMessage = dto.fallbackMessage ?? null;
+    if (dto.sessionScopes !== undefined) config.sessionScopes = dto.sessionScopes ?? null;
+    config.updatedBy = apiKeyId ?? null;
+
+    return this.configRepo.save(config);
+  }
+
+  // ── Knowledge Documents ──
+
+  async findAllDocuments(
+    businessId: string | null,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<KnowledgeDocument[]> {
+    const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    const qb = this.docRepo.createQueryBuilder('d');
+    qb.where('d.businessId = :businessId', { businessId: targetBusinessId });
+    qb.orderBy('d.updatedAt', 'DESC').take(opts.limit ?? 50);
+    if (opts.offset) qb.skip(opts.offset);
+    return qb.getMany();
+  }
+
+  async findOneDocument(id: string, businessId: string | null): Promise<KnowledgeDocument> {
+    const doc = await this.docRepo.findOne({ where: { id } });
+    if (!doc) throw new NotFoundException('Knowledge document not found');
+    if (businessId && doc.businessId !== businessId) throw new ForbiddenException('Not authorized for this document');
+    return doc;
+  }
+
+  async createDocument(
+    businessId: string | null,
+    dto: CreateKnowledgeDocumentDto,
+    apiKeyId?: string,
+  ): Promise<KnowledgeDocument> {
+    const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    if (dto.content.length > MAX_DOCUMENT_CONTENT_LENGTH) {
+      throw new BadRequestException(
+        `Document content exceeds maximum length of ${String(MAX_DOCUMENT_CONTENT_LENGTH)} characters`,
+      );
+    }
+
+    const count = await this.docRepo.count({ where: { businessId: targetBusinessId } });
+    if (count >= MAX_DOCUMENTS_PER_BUSINESS) {
+      throw new BadRequestException(`Maximum of ${String(MAX_DOCUMENTS_PER_BUSINESS)} documents per business reached`);
+    }
+
+    const allowedTypes = ['text', 'markdown', 'faq', 'csv', 'json'];
+    if (!allowedTypes.includes(dto.fileType)) {
+      throw new BadRequestException(`File type "${dto.fileType}" not supported. Allowed: ${allowedTypes.join(', ')}`);
+    }
+
+    const doc = this.docRepo.create({
+      businessId: targetBusinessId,
+      title: dto.title,
+      fileType: dto.fileType,
+      content: dto.content,
+      status: DocumentStatus.READY,
+      uploadedBy: apiKeyId ?? null,
+    });
+    return this.docRepo.save(doc);
+  }
+
+  async updateDocument(
+    id: string,
+    businessId: string | null,
+    dto: UpdateKnowledgeDocumentDto,
+    apiKeyId?: string,
+  ): Promise<KnowledgeDocument> {
+    const doc = await this.findOneDocument(id, businessId);
+
+    if (dto.title !== undefined) doc.title = dto.title;
+    if (dto.content !== undefined) {
+      if (dto.content.length > MAX_DOCUMENT_CONTENT_LENGTH) {
+        throw new BadRequestException(
+          `Document content exceeds maximum length of ${String(MAX_DOCUMENT_CONTENT_LENGTH)} characters`,
+        );
+      }
+      doc.content = dto.content;
+    }
+    doc.uploadedBy = apiKeyId ?? null;
+
+    return this.docRepo.save(doc);
+  }
+
+  async deleteDocument(id: string, businessId: string | null): Promise<void> {
+    const doc = await this.findOneDocument(id, businessId);
+    await this.docRepo.remove(doc);
+  }
+
+  // ── Chat (provider-agnostic interface) ──
+
+  async chat(request: AiChatRequest): Promise<AiChatResponse> {
+    const targetBusinessId = request.businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+    const config = await this.getConfig(targetBusinessId);
+
+    if (!config.enabled) {
+      return {
+        reply: config.fallbackMessage ?? 'AI assistance is not enabled for this business.',
+        handoff: false,
+        confidence: 'low',
+      };
+    }
+
+    if (config.sessionScopes && config.sessionScopes.length > 0) {
+      if (!config.sessionScopes.includes(request.sessionId)) {
+        return {
+          reply: config.fallbackMessage ?? 'AI assistance is not available on this channel.',
+          handoff: false,
+          confidence: 'low',
+        };
+      }
+    }
+
+    if (this.shouldHandoff(request.message, config)) {
+      return {
+        reply: 'Connecting you with a human agent. Please wait.',
+        handoff: true,
+        confidence: 'high',
+      };
+    }
+
+    let knowledgeContext = '';
+    if (config.useKnowledgeBase) {
+      knowledgeContext = await this.retrieveRelevantKnowledge(targetBusinessId, request.message);
+    }
+
+
+    try {
+      const response = await this.callProvider(config, request, knowledgeContext);
+      return response;
+    } catch (err) {
+      this.logger.error(
+        `AI provider error for business=${request.businessId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return {
+        reply:
+          config.fallbackMessage ??
+          'I apologize, but I am unable to assist right now. Let me connect you with a human agent.',
+        handoff: config.autoHandoff,
+        confidence: 'low',
+      };
+    }
+  }
+
+  private shouldHandoff(message: string, config: AiConfig): boolean {
+    if (!config.handoffKeywords) return false;
+    const keywords = config.handoffKeywords.split(',').map(k => k.trim().toLowerCase());
+    const lower = message.toLowerCase();
+    return keywords.some(k => k && lower.includes(k));
+  }
+
+  async retrieveRelevantKnowledge(businessId: string, query: string): Promise<string> {
+    const docs = await this.docRepo.find({
+      where: { businessId, status: DocumentStatus.READY },
+      select: { id: true, title: true, content: true },
+    });
+
+    if (docs.length === 0) return '';
+
+    const queryLower = query.toLowerCase();
+    const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+
+    const scored = docs.map(doc => {
+      const contentLower = doc.content.toLowerCase();
+      const titleLower = doc.title.toLowerCase();
+      let score = 0;
+      for (const word of queryWords) {
+        if (titleLower.includes(word)) score += 3;
+        if (contentLower.includes(word)) score += 1;
+      }
+      return { doc, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    const relevant = scored.filter(s => s.score > 0).slice(0, 3);
+
+    if (relevant.length === 0) return '';
+
+    const chunks = relevant.map(r => {
+      const preview = r.doc.content.substring(0, 2000);
+      return `[${r.doc.title}]\n${preview}`;
+    });
+
+    return chunks.join('\n\n---\n\n');
+  }
+
+  private getGroqApiKeys(): string[] {
+    const rawKeys = [
+      process.env.GROQ_API_KEY,
+      process.env.GROQ_API_KEY_1,
+      process.env.GROQ_API_KEY_2,
+      process.env.GROQ_API_KEY_3,
+      process.env.GROQ_API_KEY_4,
+      process.env.GROQ_API_KEY_5,
+      process.env.GROQ_API_KEY_6,
+    ].filter((k): k is string => typeof k === 'string' && k.trim().length > 0);
+
+    return Array.from(new Set(rawKeys.map(k => k.trim())));
+  }
+
+  private async callGroq(
+    config: AiConfig,
+    request: AiChatRequest,
+    knowledgeContext: string,
+  ): Promise<AiChatResponse> {
+    const keys = this.getGroqApiKeys();
+    if (keys.length === 0) {
+      throw new Error('No Groq API keys configured. Set GROQ_API_KEY in .env or settings.');
+    }
+
+    const systemParts: string[] = [];
+    if (config.systemPrompt) systemParts.push(config.systemPrompt);
+    if (knowledgeContext) {
+      systemParts.push(
+        'Use the following knowledge base documents to answer. If the answer is not in the documents, say so honestly and offer to connect with a human agent.\n\n' +
+          knowledgeContext,
+      );
+    }
+
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+    if (systemParts.length > 0) {
+      messages.push({ role: 'system', content: systemParts.join('\n\n') });
+    }
+
+    if (request.conversationHistory && request.conversationHistory.length > 0) {
+      const historyLimit = config.maxContextMessages ?? 10;
+      messages.push(...request.conversationHistory.slice(-historyLimit));
+    }
+
+    messages.push({ role: 'user', content: request.message });
+
+    const model = config.model?.trim() || process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b';
+    const payload = {
+      model,
+      messages,
+      max_tokens: config.maxTokens || 1000,
+      temperature: 0.7,
+    };
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const keyIndex = (this.groqKeyIndex + attempt) % keys.length;
+      const key = keys[keyIndex];
+
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (response.status === 429) {
+          this.logger.warn(`Groq rate limited (429) on key [${keyIndex + 1}/${keys.length}]. Rotating to next key.`);
+          continue;
+        }
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Groq HTTP ${response.status}: ${errText}`);
+        }
+
+        const data = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+          usage?: { total_tokens?: number };
+        };
+
+        const reply = data.choices?.[0]?.message?.content?.trim();
+        if (!reply) throw new Error('Groq returned empty reply');
+
+        // Advance key index for round-robin distribution
+        this.groqKeyIndex = (keyIndex + 1) % keys.length;
+
+        return {
+          reply,
+          handoff: false,
+          confidence: 'high',
+          sourceDocs: knowledgeContext ? ['knowledge-base'] : undefined,
+          tokensUsed: data.usage?.total_tokens,
+        };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        this.logger.warn(`Groq attempt ${attempt + 1} with key index ${keyIndex} failed: ${lastError.message}`);
+      }
+    }
+
+    throw lastError ?? new Error('All Groq keys failed to process request');
+  }
+
+  private async callProvider(
+    config: AiConfig,
+    request: AiChatRequest,
+    knowledgeContext: string,
+  ): Promise<AiChatResponse> {
+    // Check if Groq provider or Groq keys available
+    if (
+      config.provider === AiProvider.GROQ ||
+      config.provider === AiProvider.OPENAI ||
+      this.getGroqApiKeys().length > 0
+    ) {
+      return this.callGroq(config, request, knowledgeContext);
+    }
+
+    if (config.provider === AiProvider.CUSTOM && config.apiEndpoint) {
+      const messages = [
+        ...(config.systemPrompt ? [{ role: 'system', content: config.systemPrompt }] : []),
+        { role: 'user', content: request.message },
+      ];
+      const res = await fetch(config.apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: config.model || 'default',
+          messages,
+          max_tokens: config.maxTokens || 1000,
+        }),
+      });
+      const data = (await res.json()) as any;
+      const reply = data.choices?.[0]?.message?.content || data.reply || data.message || 'No response';
+      return {
+        reply,
+        handoff: false,
+        confidence: 'medium',
+      };
+    }
+
+    return {
+      reply:
+        config.fallbackMessage ??
+        'AI provider integration requires configuration. Please set up your Groq API key in .env or settings.',
+      handoff: false,
+      confidence: 'low',
+    };
+  }
+
+  getAvailableModels() {
+    return [
+      { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B (Groq Fast & Powerful)', provider: 'groq' },
+      { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B (Groq Fast)', provider: 'groq' },
+      { id: 'openai/gpt-oss-20b', name: 'GPT-OSS 20B (Groq Ultra Fast)', provider: 'groq' },
+      { id: 'allam-2-7b', name: 'Allam 2 7B (Groq)', provider: 'groq' },
+      { id: 'canopylabs/orpheus-v1-english', name: 'Orpheus v1 English (Groq)', provider: 'groq' },
+    ];
+  }
+}

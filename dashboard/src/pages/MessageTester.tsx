@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Send, CheckCircle, XCircle, Loader2, Upload, X, Plus } from 'lucide-react';
 import {
@@ -11,7 +11,7 @@ import {
 } from '../services/api';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useRole } from '../hooks/useRole';
-import { useSessionsQuery, useSessionGroupsQuery } from '../hooks/queries';
+import { useSessionsQuery, useSessionGroupsQuery, useTemplatesQuery } from '../hooks/queries';
 import { parseBulkRecipients, BULK_MAX_RECIPIENTS } from '../utils/bulkRecipients';
 import { PageHeader } from '../components/PageHeader';
 import './MessageTester.css';
@@ -31,6 +31,7 @@ interface ApiResponse {
 
 const messageTypes = [
   'text',
+  'template',
   'image',
   'video',
   'audio',
@@ -49,6 +50,7 @@ const mediaMessageTypes: readonly string[] = ['image', 'video', 'audio', 'docume
 // Hint the native file picker at the right category (documents accept anything).
 const mediaAccept: Record<(typeof messageTypes)[number], string> = {
   text: '*/*',
+  template: '*/*',
   image: 'image/*',
   video: 'video/*',
   audio: 'audio/*',
@@ -65,6 +67,7 @@ const mediaAccept: Record<(typeof messageTypes)[number], string> = {
 // mimetype on every base64 send, so default by the selected message category.
 const fallbackMime: Record<(typeof messageTypes)[number], string> = {
   text: 'text/plain',
+  template: 'text/plain',
   image: 'image/jpeg',
   video: 'video/mp4',
   audio: 'audio/mpeg',
@@ -142,6 +145,25 @@ export function MessageTester() {
   // The session a running batch belongs to: the user may switch the selector mid-batch, and
   // poll/cancel must keep addressing the session the batch was created on.
   const batchSessionRef = useRef('');
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateVars, setTemplateVars] = useState<Record<string, string>>({});
+  const { data: templates = [], isLoading: loadingTemplates } = useTemplatesQuery(session, messageType === 'template' && !!session);
+
+  const activeTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
+  const templatePlaceholders = useMemo(() => {
+    if (!activeTemplate) return [];
+    const source = [activeTemplate.header, activeTemplate.body, activeTemplate.footer].filter(Boolean).join('\n');
+    return Array.from(new Set(Array.from(source.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g), m => m[1]))).sort();
+  }, [activeTemplate]);
+
+  const renderedTemplatePreview = useMemo(() => {
+    if (!activeTemplate) return '';
+    return [activeTemplate.header, activeTemplate.body, activeTemplate.footer]
+      .filter(Boolean)
+      .join('\n\n')
+      .replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_m, key: string) => templateVars[key] || `{{${key}}}`);
+  }, [activeTemplate, templateVars]);
 
   const { data: groups = [], isLoading: loadingGroups } = useSessionGroupsQuery(session, recipientType === 'group');
 
@@ -262,6 +284,8 @@ export function MessageTester() {
       bulkRecipientList.length > 0 &&
       bulkRecipientList.length <= BULK_MAX_RECIPIENTS &&
       (delayMs === undefined || (!Number.isNaN(delayMs) && delayMs >= 1000 && delayMs <= 60000));
+  } else if (messageType === 'template') {
+    formValid = !!activeTemplate;
   }
 
   const isSendDisabled =
@@ -325,6 +349,16 @@ export function MessageTester() {
         case 'text':
           result = await messageApi.sendText(session, chatId, content);
           break;
+        case 'template': {
+          if (!activeTemplate) throw new Error('No template selected');
+          result = await messageApi.sendTemplate(session, {
+            chatId,
+            templateId: activeTemplate.id,
+            templateName: activeTemplate.name,
+            vars: templateVars,
+          });
+          break;
+        }
         case 'image':
         case 'video':
         case 'audio':
@@ -544,6 +578,83 @@ export function MessageTester() {
                 rows={5}
               />
             </div>
+          )}
+
+          {messageType === 'template' && (
+            <>
+              <div className="form-group">
+                <label>{t('messageTester.types.template') || 'Template'}</label>
+                {loadingTemplates ? (
+                  <div className="hint" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                    <Loader2 className="animate-spin" size={16} /> Loading templates...
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="hint" style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                    No templates saved for this session. Please create one on the <a href="/templates" style={{ color: 'var(--primary)' }}>Templates</a> page first.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedTemplateId || (activeTemplate?.id ?? '')}
+                    onChange={e => {
+                      setSelectedTemplateId(e.target.value);
+                      setTemplateVars({});
+                    }}
+                  >
+                    {templates.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {activeTemplate && templatePlaceholders.length > 0 && (
+                <div className="form-group">
+                  <label>Template Variables ({templatePlaceholders.length})</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    {templatePlaceholders.map(placeholder => (
+                      <div key={placeholder} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          {`{{${placeholder}}}`}
+                        </span>
+                        <input
+                          type="text"
+                          value={templateVars[placeholder] || ''}
+                          onChange={e =>
+                            setTemplateVars(prev => ({
+                              ...prev,
+                              [placeholder]: e.target.value,
+                            }))
+                          }
+                          placeholder={`Value for ${placeholder}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTemplate && (
+                <div className="form-group">
+                  <label>Rendered Message Preview</label>
+                  <div
+                    style={{
+                      background: 'var(--bg-secondary, #f8f9fa)',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      whiteSpace: 'pre-wrap',
+                      fontSize: '0.9rem',
+                      color: 'var(--text-primary)',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {renderedTemplatePreview}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {isMediaMessageType && (

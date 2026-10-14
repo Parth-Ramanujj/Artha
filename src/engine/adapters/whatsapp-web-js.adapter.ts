@@ -50,7 +50,7 @@ import {
 } from '../interfaces/whatsapp-engine.interface';
 import { resolveWebVersionPin } from '../wa-web-version';
 import { resolveAuthTimeoutMs } from '../engine-init-timeout';
-import { killOrphanedChromiumProcesses, removeStaleSingletonFiles } from './chromium-profile-hygiene';
+import { killOrphanedChromiumProcesses, killProcessTree, removeStaleSingletonFiles } from './chromium-profile-hygiene';
 import { chatKind, isChannelJid, userPart } from '../identity/wa-id';
 import { LidMappingStore } from '../identity/lid-mapping-store.service';
 import { ChatLabelsUnsupportedError } from '../../common/errors/chat-labels-unsupported.error';
@@ -428,6 +428,7 @@ export function isNoLidForUserError(err: unknown): boolean {
 
 export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngine {
   private client: Client | null = null;
+  private browserPid: number | null = null;
   private status: EngineStatus = EngineStatus.DISCONNECTED;
   private qrCode: string | null = null;
   private phoneNumber: string | null = null;
@@ -677,6 +678,12 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       // the browser is alive, so it cannot pull the files out from under a running Chromium.
       await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger);
       await this.client.initialize();
+      const proc = (
+        this.client as unknown as { pupBrowser?: { process?: () => { pid?: number } | null } }
+      ).pupBrowser?.process?.();
+      if (proc?.pid) {
+        this.browserPid = proc.pid;
+      }
       // whatsapp-web.js 1.34.x never observes the Chromium process/page it drives, so a crashed
       // browser leaves the client looking READY forever ("silent death"). Attach death listeners
       // to the puppeteer handles so a dead browser surfaces as a normal disconnect → reconnect.
@@ -684,6 +691,9 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     } catch (error) {
       this.setStatus(EngineStatus.FAILED);
       const reason = error instanceof Error ? error.message : String(error);
+      // Clean up any surviving browser process or stale lockfiles on initialize failure so the next attempt starts clean
+      await killOrphanedChromiumProcesses(this.config.sessionId, this.logger).catch(() => undefined);
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger).catch(() => undefined);
       if (isExecutionContextDestroyedError(reason)) {
         // #708: Puppeteer's "Execution context was destroyed" during inject reads like a Puppeteer bug.
         // During initialize() its dominant cause is a browser profile left stale by an upgrade that
@@ -1160,9 +1170,13 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
   private attachPuppeteerLifecycleListeners(): void {
     if (!this.client) return;
     const { pupBrowser, pupPage } = this.client as unknown as {
-      pupBrowser?: { on: (event: 'disconnected', cb: () => void) => void };
+      pupBrowser?: { on: (event: 'disconnected', cb: () => void) => void; process?: () => { pid?: number } | null };
       pupPage?: { on: (event: 'error' | 'close', cb: () => void) => void };
     };
+    const proc = pupBrowser?.process?.();
+    if (proc?.pid) {
+      this.browserPid = proc.pid;
+    }
     pupBrowser?.on('disconnected', () => this.handlePuppeteerDeath('Browser process closed or crashed'));
     pupPage?.on('error', () => this.handlePuppeteerDeath('Page crashed'));
     pupPage?.on('close', () => this.handlePuppeteerDeath('Page closed'));
@@ -1549,14 +1563,27 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     const client = this.beginClientTeardown();
     if (!client) return;
 
+    const proc = (
+      client as unknown as { pupBrowser?: { process?: () => { pid?: number } | null } }
+    ).pupBrowser?.process?.();
+    const pid = proc?.pid ?? this.browserPid;
+
     try {
       // Use destroy instead of logout to preserve session data
       // This allows reconnecting without needing to scan QR again
       await client.destroy();
     } catch (error) {
       this.logger.warn('Destroy client failed:', { error: String(error) });
-      // Already destroyed or not initialized - ignore
+      if (pid) {
+        await killProcessTree(pid, this.logger);
+      }
+      await killOrphanedChromiumProcesses(this.config.sessionId, this.logger);
     } finally {
+      if (pid) {
+        await killProcessTree(pid, this.logger);
+      }
+      this.browserPid = null;
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger);
       this.finishClientTeardown(client);
     }
   }
@@ -1598,6 +1625,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       }
       throw error;
     } finally {
+      this.browserPid = null;
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger);
       this.finishClientTeardown(client);
     }
   }
@@ -1606,29 +1635,50 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     const client = this.beginClientTeardown();
     if (!client) return;
 
+    const proc = (
+      client as unknown as { pupBrowser?: { process?: () => { pid?: number } | null } }
+    ).pupBrowser?.process?.();
+    const pid = proc?.pid ?? this.browserPid;
+
     try {
       await client.destroy();
+    } catch (err) {
+      this.logger.warn('Destroy client failed, ensuring browser process is killed', { error: String(err) });
+      if (pid) {
+        await killProcessTree(pid, this.logger);
+      }
+      await killOrphanedChromiumProcesses(this.config.sessionId, this.logger);
     } finally {
+      if (pid) {
+        await killProcessTree(pid, this.logger);
+      }
+      this.browserPid = null;
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger);
       this.finishClientTeardown(client);
     }
   }
 
   /**
-   * Force-recover a wedged session: SIGKILL THIS client's own Chromium process directly (not a
-   * process-wide `pkill`, which would also kill other sessions), then best-effort `client.destroy()`
-   * for the rest of the cleanup. Both steps are wrapped so a missing process handle or a hung destroy
-   * can't prevent the engine from being torn down and the status reset.
+   * Force-recover a wedged session: terminate THIS client's own Chromium process tree directly,
+   * run the orphan sweep, and clean up lockfiles.
    */
   async forceDestroy(): Promise<void> {
     const client = this.beginClientTeardown();
     if (!client) return;
 
+    const proc = (
+      client as unknown as {
+        pupBrowser?: { process?: () => { pid?: number; kill?: (sig: string) => void } | null };
+      }
+    ).pupBrowser?.process?.();
+    const pid = proc?.pid ?? this.browserPid;
+
     try {
-      // pupBrowser is the Puppeteer Browser; .process() is the Chromium ChildProcess (null if already gone).
-      const proc = (
-        client as unknown as { pupBrowser?: { process?: () => { kill?: (sig: string) => void } | null } }
-      ).pupBrowser?.process?.();
       proc?.kill?.('SIGKILL');
+      if (pid) {
+        await killProcessTree(pid, this.logger);
+      }
+      await killOrphanedChromiumProcesses(this.config.sessionId, this.logger);
     } catch (err) {
       this.logger.warn('forceDestroy: failed to kill the browser process', { error: String(err) });
     }
@@ -1638,6 +1688,8 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     } catch (err) {
       this.logger.warn('forceDestroy: client.destroy() failed after the kill (continuing)', { error: String(err) });
     } finally {
+      this.browserPid = null;
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger);
       this.finishClientTeardown(client);
     }
   }
@@ -2472,7 +2524,6 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
   // success that never subscribed anything. A real wiring is the two-step
   // `getChannelByInviteCode(inviteCode)` (Client.js:1707) → `subscribeToChannel(channel.id)` flow;
   // until that is verified against a live session, an honest 501 beats a phantom success.
-  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
   async subscribeToChannel(_inviteCode: string): Promise<Channel> {
     this.ensureReady();
     throw new EngineNotSupportedError('subscribeToChannel');
@@ -2807,7 +2858,6 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   // whatsapp-web.js 1.34.7 exposes no disappearing-messages setter (no Client/GroupChat symbol in
   // index.d.ts; only a create-time messageTimer option, Client.js:2371) — an honest 501, not a no-op.
-  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
   async setGroupEphemeral(_groupId: string, _durationSec: number): Promise<void> {
     this.ensureReady();
     throw new EngineNotSupportedError('setGroupEphemeral');
@@ -2815,7 +2865,6 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
   // ========== Status/Stories (Phase 3) ==========
   // Note: These are stub implementations - whatsapp-web.js has limited Status API support
-  /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
 
   async getContactStatuses(): Promise<Status[]> {
     this.ensureReady();
@@ -3075,36 +3124,34 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     throw new EngineNotSupportedError('sendCatalog');
   }
 
-  /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
-
   async getChats(): Promise<ChatSummary[]> {
     this.ensureReady();
-    
+
     // Instead of transferring full Chat instances over CDP and parsing them (which causes timeouts
     // for massive accounts), we extract only the lightweight ChatSummary fields directly from the
     // browser's local store.
     const rawSummaries = await this.client!.pupPage!.evaluate(() => {
-        const chatModels = window.require('WAWebCollections').Chat.getModelsArray();
-        return chatModels.map((chat: any) => {
-            let lastMessageBody = undefined;
-            let lastMessageType = undefined;
-            
-            if (chat.msgs && chat.msgs.models && chat.msgs.models.length > 0) {
-                const lastMsg = chat.msgs.models[chat.msgs.models.length - 1];
-                lastMessageBody = lastMsg.body;
-                lastMessageType = lastMsg.type;
-            }
+      const chatModels = window.require('WAWebCollections').Chat.getModelsArray();
+      return chatModels.map((chat: any) => {
+        let lastMessageBody = undefined;
+        let lastMessageType = undefined;
 
-            return {
-                id: chat.id ? chat.id._serialized : undefined,
-                name: chat.formattedTitle || chat.name,
-                isGroup: Boolean(chat.isGroup),
-                unreadCount: chat.unreadCount || 0,
-                timestamp: chat.t || 0,
-                lastMessageType,
-                lastMessageBody
-            };
-        });
+        if (chat.msgs && chat.msgs.models && chat.msgs.models.length > 0) {
+          const lastMsg = chat.msgs.models[chat.msgs.models.length - 1];
+          lastMessageBody = lastMsg.body;
+          lastMessageType = lastMsg.type;
+        }
+
+        return {
+          id: chat.id ? chat.id._serialized : undefined,
+          name: chat.formattedTitle || chat.name,
+          isGroup: Boolean(chat.isGroup),
+          unreadCount: chat.unreadCount || 0,
+          timestamp: chat.t || 0,
+          lastMessageType,
+          lastMessageBody,
+        };
+      });
     });
 
     const summaries: ChatSummary[] = [];

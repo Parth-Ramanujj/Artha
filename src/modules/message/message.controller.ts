@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Param, Body, Query, Res, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Controller, Post, Get, Param, Body, Query, Res, HttpCode, HttpStatus, UseInterceptors } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { MessageService } from './message.service';
 import { BulkMessageService } from './bulk-message.service';
@@ -18,9 +18,16 @@ import {
 } from './dto/message-actions.dto';
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
+import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
 
 @ApiTags('messages')
 @Controller('sessions/:sessionId/messages')
+@UseInterceptors(IdempotencyInterceptor)
+@ApiHeader({
+  name: 'Idempotency-Key',
+  required: false,
+  description: 'Optional idempotency key to prevent duplicate sends. Cached for 24 hours per API key.',
+})
 export class MessageController {
   constructor(
     private readonly messageService: MessageService,

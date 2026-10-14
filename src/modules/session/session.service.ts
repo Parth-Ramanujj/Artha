@@ -487,10 +487,15 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
    */
   private evictAndForceDestroy(id: string, engine: IWhatsAppEngine): void {
     this.engines.delete(id);
-    void this.teardownEngineSafely(id, engine, e => e.forceDestroy(), 'force-destroy');
+    void this.teardownEngineSafely(
+      id,
+      engine,
+      e => (typeof e.forceDestroy === 'function' ? e.forceDestroy() : (typeof e.destroy === 'function' ? e.destroy() : Promise.resolve())),
+      'force-destroy',
+    );
   }
 
-  async create(dto: CreateSessionDto): Promise<Session> {
+  async create(dto: CreateSessionDto, businessId?: string): Promise<Session> {
     // Check if session with same name exists
     const existing = await this.sessionRepository.findOne({
       where: { name: dto.name },
@@ -502,6 +507,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
     const session = this.sessionRepository.create({
       name: dto.name,
+      businessId: businessId ?? null,
       config: dto.config || {},
       proxyUrl: dto.proxyUrl || null,
       proxyType: dto.proxyType || null,
@@ -536,15 +542,28 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     return saved;
   }
 
-  async findAll(allowedSessions?: string[] | null, opts: ListOptions = {}): Promise<Session[]> {
+  async findAll(
+    allowedSessions?: string[] | null,
+    opts: ListOptions = {},
+    businessId?: string | null,
+  ): Promise<Session[]> {
     // A session-restricted key only lists its own sessions; an unrestricted key (null/empty
     // allowlist) lists all — mirroring the ApiKeyGuard allowedSessions model so a scoped key
     // cannot enumerate every session through this aggregate route.
     const { limit, offset } = resolveListWindow(opts.limit, opts.offset);
-    const options: FindManyOptions<Session> = { order: { createdAt: 'DESC' }, take: limit, skip: offset };
+    const where: Record<string, unknown> = {};
     if (allowedSessions && allowedSessions.length > 0) {
-      options.where = { id: In(allowedSessions) };
+      where.id = In(allowedSessions);
     }
+    if (businessId) {
+      where.businessId = businessId;
+    }
+    const options: FindManyOptions<Session> = {
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+      ...(Object.keys(where).length > 0 ? { where } : {}),
+    };
     const sessions = await this.sessionRepository.find(options);
     return sessions.map(session => this.attachLastError(session));
   }
@@ -1566,7 +1585,11 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       // (after 10s on a hang), so reconnection proceeds either way.
       const oldEngine = this.engines.get(id);
       if (oldEngine) {
-        await this.teardownEngineSafely(id, oldEngine, e => e.destroy(), 'destroy');
+        const destroyed = await this.teardownEngineSafely(id, oldEngine, e => e.destroy(), 'destroy');
+        if (!destroyed && typeof oldEngine.forceDestroy === 'function') {
+          // A wedged Chromium must be forcefully reaped, not left running in the background holding profile locks
+          await this.teardownEngineSafely(id, oldEngine, e => e.forceDestroy(), 'force-destroy');
+        }
         this.engines.deleteIfLive(id, oldEngine);
       }
 
@@ -1831,6 +1854,22 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     return { pairingCode, status: session.status };
   }
 
+  async updateAccessToken(id: string, newToken: string): Promise<{ success: boolean; message: string }> {
+    await this.findOne(id);
+    const engine = this.engines.get(id);
+    if (!engine) {
+      throw new BadRequestException('Session is not started');
+    }
+    if (!engine.updateAccessToken) {
+      throw new BadRequestException('This engine does not support token updates (only Cloud API sessions do)');
+    }
+    engine.updateAccessToken(newToken);
+    return {
+      success: true,
+      message: 'Access token updated. The session will use the new token for all subsequent requests.',
+    };
+  }
+
   getEngine(id: string): IWhatsAppEngine | undefined {
     return this.engines.get(id);
   }
@@ -1933,7 +1972,10 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
   /**
    * Get overall session statistics for multi-session monitoring
    */
-  async getStats(allowedSessions?: string[] | null): Promise<{
+  async getStats(
+    allowedSessions?: string[] | null,
+    businessId?: string | null,
+  ): Promise<{
     total: number;
     active: number;
     ready: number;
@@ -1954,6 +1996,9 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       .addSelect('COUNT(session.id)', 'count');
     if (scope) {
       qb.where('session.id IN (:...scope)', { scope });
+    }
+    if (businessId) {
+      qb.andWhere('session.businessId = :businessId', { businessId });
     }
     const rows = await qb.groupBy('session.status').getRawMany<{ status: string; count: string }>();
 

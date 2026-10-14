@@ -175,6 +175,36 @@ export class EngineConfigDto {
   @IsOptional()
   @IsString()
   browserArgs?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiAccessToken?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiPhoneNumberId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiWabaId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiAppSecret?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiVerifyToken?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cloudApiGraphVersion?: string;
 }
 
 export class SaveConfigDto {

@@ -441,7 +441,18 @@ export interface SavedConfig {
     s3Endpoint: string;
     s3CredentialsSet: boolean;
   };
-  engine: { type: string; headless: boolean; sessionDataPath: string; browserArgs: string };
+  engine: {
+    type: string;
+    headless: boolean;
+    sessionDataPath: string;
+    browserArgs: string;
+    cloudApiAccessTokenSet: boolean;
+    cloudApiPhoneNumberId: string;
+    cloudApiWabaId: string;
+    cloudApiAppSecretSet: boolean;
+    cloudApiVerifyToken: string;
+    cloudApiGraphVersion: string;
+  };
 }
 
 export interface SaveConfigPayload {
@@ -483,6 +494,12 @@ export interface SaveConfigPayload {
     headless?: boolean;
     sessionDataPath?: string;
     browserArgs?: string;
+    cloudApiAccessToken?: string;
+    cloudApiPhoneNumberId?: string;
+    cloudApiWabaId?: string;
+    cloudApiAppSecret?: string;
+    cloudApiVerifyToken?: string;
+    cloudApiGraphVersion?: string;
   };
 }
 
@@ -950,12 +967,25 @@ export const messageApi = {
     }),
   sendTemplate: (
     sessionId: string,
-    data: { chatId: string; templateId?: string; templateName?: string; variables?: Record<string, string> },
-  ) =>
-    request<MessageResponse>(`/sessions/${sessionId}/messages/send-template`, {
+    data: {
+      chatId: string;
+      templateId?: string;
+      templateName?: string;
+      vars?: Record<string, string>;
+      variables?: Record<string, string>;
+    },
+  ) => {
+    const payload = {
+      chatId: data.chatId,
+      ...(data.templateId ? { templateId: data.templateId } : {}),
+      ...(data.templateName ? { templateName: data.templateName } : {}),
+      vars: data.vars ?? data.variables ?? {},
+    };
+    return request<MessageResponse>(`/sessions/${sessionId}/messages/send-template`, {
       method: 'POST',
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
   delete: (sessionId: string, data: { chatId: string; messageId: string; forEveryone?: boolean }) =>
     request<void>(`/sessions/${sessionId}/messages/delete`, {
       method: 'POST',
@@ -1277,3 +1307,362 @@ export const statsApi = {
   getOverview: () => request<OverviewStats>('/stats/overview'),
   getMessages: (period: StatsPeriod) => request<MessageStats>(`/stats/messages?period=${period}`),
 };
+
+// =============================================================================
+// Conversations (Shared Inbox)
+// =============================================================================
+
+export interface Conversation {
+  id: string;
+  businessId: string;
+  sessionId: string;
+  chatId: string;
+  chatName: string | null;
+  status: string;
+  assignedTo: string | null;
+  lastMessagePreview: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+  tags: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessContact {
+  id: string;
+  businessId: string;
+  waContactId: string;
+  phone: string | null;
+  name: string | null;
+  email: string | null;
+  notes: string | null;
+  tags: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const conversationApi = {
+  list: (params?: { status?: string; sessionId?: string; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.sessionId) query.set('sessionId', params.sessionId);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<Conversation[]>(`/conversations${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<Conversation>(`/conversations/${id}`),
+  update: (id: string, data: Partial<Conversation>) =>
+    request<Conversation>(`/conversations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  markRead: (id: string) => request<Conversation>(`/conversations/${id}/read`, { method: 'POST' }),
+};
+
+export const businessContactApi = {
+  list: (params?: { search?: string; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<BusinessContact[]>(`/contacts${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<BusinessContact>(`/contacts/${id}`),
+  create: (data: Partial<BusinessContact>) =>
+    request<BusinessContact>('/contacts', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<BusinessContact>) =>
+    request<BusinessContact>(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/contacts/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// Workflows
+// =============================================================================
+
+export interface WorkflowDefinition {
+  id: string;
+  businessId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  status: string;
+  version: number;
+  definition: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  businessId: string;
+  status: string;
+  failureReason?: string | null;
+  triggerData: Record<string, unknown> | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  steps: unknown[];
+  createdAt: string;
+}
+
+export const workflowApi = {
+  list: (params?: { limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<WorkflowDefinition[]>(`/workflows${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<WorkflowDefinition>(`/workflows/${id}`),
+  create: (data: Partial<WorkflowDefinition>) =>
+    request<WorkflowDefinition>('/workflows', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<WorkflowDefinition>) =>
+    request<WorkflowDefinition>(`/workflows/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  publish: (id: string) => request<WorkflowDefinition>(`/workflows/${id}/publish`, { method: 'POST' }),
+  disable: (id: string) => request<WorkflowDefinition>(`/workflows/${id}/disable`, { method: 'POST' }),
+  delete: (id: string) => request<void>(`/workflows/${id}`, { method: 'DELETE' }),
+  listRuns: (params?: { limit?: number; workflowId?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.workflowId) query.set('workflowId', params.workflowId);
+    const qs = query.toString();
+    return request<WorkflowRun[]>(`/workflows/runs/list${qs ? `?${qs}` : ''}`);
+  },
+  getRun: (id: string) => request<WorkflowRun>(`/workflows/runs/${id}`),
+  cancelRun: (id: string) => request<WorkflowRun>(`/workflows/runs/${id}/cancel`, { method: 'POST' }),
+  test: (id: string, data: { sessionId?: string; chatId?: string; messageBody?: string }) =>
+    request<WorkflowRun>(`/workflows/${id}/test`, { method: 'POST', body: JSON.stringify(data) }),
+  testWebhook: (data: {
+    url: string;
+    method?: string;
+    queryParams?: Array<{ key: string; value: string }> | Record<string, string>;
+    headers?: Array<{ key: string; value: string }> | Record<string, string>;
+    body?: string | Record<string, unknown>;
+    testVariables?: Record<string, string>;
+    timeoutMs?: number;
+  }) =>
+    request<{
+      success: boolean;
+      statusCode: number;
+      statusText: string;
+      durationMs: number;
+      resolvedUrl: string;
+      headers?: Record<string, string>;
+      data?: unknown;
+      error?: string;
+    }>('/workflows/test-webhook', { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export interface TestWebhookResult {
+  success: boolean;
+  statusCode: number;
+  statusText: string;
+  durationMs: number;
+  resolvedUrl: string;
+  headers?: Record<string, string>;
+  data?: unknown;
+  error?: string;
+}
+
+export interface CapturedWebhookRequest {
+  id: string;
+  method: string;
+  path: string;
+  url: string;
+  query: Record<string, unknown>;
+  headers: Record<string, string>;
+  body: unknown;
+  ip: string;
+  receivedAt: string;
+}
+
+export const webhookTestApi = {
+  getRequests: () =>
+    request<{ total: number; requests: CapturedWebhookRequest[] }>('/webhook-test/requests'),
+  getLatest: () =>
+    request<CapturedWebhookRequest>('/webhook-test/latest'),
+  clearRequests: () =>
+    request<{ success: boolean; message: string }>('/webhook-test/requests', { method: 'DELETE' }),
+};
+
+
+
+// =============================================================================
+// Campaigns & Consent
+// =============================================================================
+
+export interface Campaign {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string | null;
+  sessionId: string;
+  templateId: string | null;
+  messageContent: string | null;
+  status: string;
+  scheduledAt: string | null;
+  totalRecipients: number;
+  sentCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  ratePerMinute: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduledMessage {
+  id: string;
+  businessId: string;
+  sessionId: string;
+  chatId: string;
+  content: string;
+  scheduledAt: string;
+  status: string;
+  sentAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface ConsentRecord {
+  id: string;
+  businessId: string;
+  waContactId: string;
+  channel: string;
+  status: string;
+  consentedAt: string | null;
+  revokedAt: string | null;
+  source: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const campaignApi = {
+  list: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<Campaign[]>(`/campaigns${qs ? `?${qs}` : ''}`);
+  },
+  get: (id: string) => request<Campaign>(`/campaigns/${id}`),
+  create: (data: Partial<Campaign>) => request<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Campaign>) =>
+    request<Campaign>(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  schedule: (id: string, scheduledAt: string) =>
+    request<Campaign>(`/campaigns/${id}/schedule`, { method: 'POST', body: JSON.stringify({ scheduledAt }) }),
+  pause: (id: string) => request<Campaign>(`/campaigns/${id}/pause`, { method: 'POST' }),
+  start: (id: string) => request<Campaign>(`/campaigns/${id}/start`, { method: 'POST' }),
+  addRecipients: (id: string, chatIds: string[]) =>
+    request<{ added: number }>(`/campaigns/${id}/recipients`, { method: 'POST', body: JSON.stringify({ chatIds }) }),
+  getRecipients: (id: string, params?: { limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<Array<{ id: string; chatId: string; status: string; sentAt?: string; errorMessage?: string }>>(
+      `/campaigns/${id}/recipients${qs ? `?${qs}` : ''}`,
+    );
+  },
+  cancel: (id: string) => request<Campaign>(`/campaigns/${id}/cancel`, { method: 'POST' }),
+  delete: (id: string) => request<void>(`/campaigns/${id}`, { method: 'DELETE' }),
+};
+
+export const scheduledMessageApi = {
+  list: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<ScheduledMessage[]>(`/scheduled-messages${qs ? `?${qs}` : ''}`);
+  },
+  create: (data: { sessionId: string; chatId: string; content: string; scheduledAt: string }) =>
+    request<ScheduledMessage>('/scheduled-messages', { method: 'POST', body: JSON.stringify(data) }),
+  cancel: (id: string) => request<ScheduledMessage>(`/scheduled-messages/${id}/cancel`, { method: 'POST' }),
+};
+
+export const consentApi = {
+  list: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<ConsentRecord[]>(`/consent${qs ? `?${qs}` : ''}`);
+  },
+  get: (waContactId: string) => request<ConsentRecord>(`/consent/${encodeURIComponent(waContactId)}`),
+  update: (waContactId: string, data: { status: string; source?: string }) =>
+    request<ConsentRecord>(`/consent/${encodeURIComponent(waContactId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+};
+
+// =============================================================================
+// AI
+// =============================================================================
+
+export interface AiConfig {
+  id: string;
+  businessId: string;
+  enabled: boolean;
+  provider: string;
+  model: string | null;
+  apiEndpoint: string | null;
+  systemPrompt: string | null;
+  maxTokens: number;
+  maxContextMessages: number;
+  useKnowledgeBase: boolean;
+  autoHandoff: boolean;
+  handoffKeywords: string | null;
+  fallbackMessage: string | null;
+  updatedAt: string;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  businessId: string;
+  title: string;
+  fileType: string;
+  content: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiModel {
+  id: string;
+  name: string;
+  provider: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+  handoff: boolean;
+  confidence: string;
+  sourceDocs?: string[];
+  tokensUsed?: number;
+}
+
+export const aiApi = {
+  getConfig: () => request<AiConfig>('/ai/config'),
+  updateConfig: (data: Partial<AiConfig>) =>
+    request<AiConfig>('/ai/config', { method: 'PUT', body: JSON.stringify(data) }),
+  getModels: () => request<AiModel[]>('/ai/models'),
+  chat: (data: { message: string; sessionId?: string; conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) =>
+    request<AiChatResponse>('/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
+  listDocuments: (params?: { limit?: number; offset?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    const qs = query.toString();
+    return request<KnowledgeDocument[]>(`/ai/knowledge${qs ? `?${qs}` : ''}`);
+  },
+  getDocument: (id: string) => request<KnowledgeDocument>(`/ai/knowledge/${id}`),
+  createDocument: (data: { title: string; fileType: string; content: string }) =>
+    request<KnowledgeDocument>('/ai/knowledge', { method: 'POST', body: JSON.stringify(data) }),
+  updateDocument: (id: string, data: { title?: string; content?: string }) =>
+    request<KnowledgeDocument>(`/ai/knowledge/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDocument: (id: string) => request<void>(`/ai/knowledge/${id}`, { method: 'DELETE' }),
+};
+

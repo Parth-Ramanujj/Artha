@@ -68,8 +68,16 @@ export function validateEnv(config: EnvConfig): EnvConfig {
       errors.push(`${key} must be one of ${allowed.map(v => `"${v}"`).join(', ')} (got "${value}")`);
     }
   };
-  checkEnum('ENGINE_TYPE', ['whatsapp-web.js', 'baileys']);
+  checkEnum('ENGINE_TYPE', ['whatsapp-web.js', 'baileys', 'cloud-api']);
   checkEnum('STORAGE_TYPE', ['local', 's3']);
+
+  if (str('ENGINE_TYPE') === 'cloud-api') {
+    for (const key of ['CLOUD_API_ACCESS_TOKEN', 'CLOUD_API_PHONE_NUMBER_ID']) {
+      if (!str(key)) {
+        errors.push(`${key} is required when ENGINE_TYPE=cloud-api`);
+      }
+    }
+  }
 
   if (dbType === 'postgres') {
     for (const key of ['DATABASE_HOST', 'DATABASE_USERNAME', 'DATABASE_PASSWORD']) {

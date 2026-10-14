@@ -66,6 +66,12 @@ interface EngineConfig {
   headless: boolean;
   sessionDataPath: string;
   browserArgs: string;
+  cloudApiAccessToken: string;
+  cloudApiPhoneNumberId: string;
+  cloudApiWabaId: string;
+  cloudApiAppSecret: string;
+  cloudApiVerifyToken: string;
+  cloudApiGraphVersion: string;
 }
 
 interface QueueStats {
@@ -130,6 +136,12 @@ export function Infrastructure() {
     headless: true,
     sessionDataPath: './data/sessions',
     browserArgs: '--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu',
+    cloudApiAccessToken: '',
+    cloudApiPhoneNumberId: '',
+    cloudApiWabaId: '',
+    cloudApiAppSecret: '',
+    cloudApiVerifyToken: '',
+    cloudApiGraphVersion: 'v21.0',
   });
 
   const [redisEnabled, setRedisEnabled] = useState(false);
@@ -234,6 +246,10 @@ export function Infrastructure() {
       headless: savedConfig.engine.headless,
       sessionDataPath: savedConfig.engine.sessionDataPath || prev.sessionDataPath,
       browserArgs: savedConfig.engine.browserArgs || prev.browserArgs,
+      cloudApiPhoneNumberId: savedConfig.engine.cloudApiPhoneNumberId || prev.cloudApiPhoneNumberId,
+      cloudApiWabaId: savedConfig.engine.cloudApiWabaId || prev.cloudApiWabaId,
+      cloudApiVerifyToken: savedConfig.engine.cloudApiVerifyToken || prev.cloudApiVerifyToken,
+      cloudApiGraphVersion: savedConfig.engine.cloudApiGraphVersion || prev.cloudApiGraphVersion,
     }));
   }, [savedConfig]);
 
@@ -310,7 +326,18 @@ export function Infrastructure() {
         // or the operator picked one. If /engines/current never resolved (endpoint down), engineConfig.type
         // still holds its useState default, and sending that would persist ENGINE_TYPE and silently flip
         // the engine on the next restart. The backend treats an absent `type` as "leave ENGINE_TYPE alone".
-        engine: engineTypeKnown() ? { ...engineConfig } : { ...engineConfig, type: undefined },
+        engine: engineTypeKnown()
+          ? {
+              ...engineConfig,
+              cloudApiAccessToken: engineConfig.cloudApiAccessToken || undefined,
+              cloudApiAppSecret: engineConfig.cloudApiAppSecret || undefined,
+            }
+          : {
+              ...engineConfig,
+              type: undefined,
+              cloudApiAccessToken: engineConfig.cloudApiAccessToken || undefined,
+              cloudApiAppSecret: engineConfig.cloudApiAppSecret || undefined,
+            },
       };
 
       const result = await infraApi.saveConfig(payload);
@@ -795,6 +822,70 @@ export function Infrastructure() {
                   onChange={e => updateEngineConfig('browserArgs', e.target.value)}
                   placeholder="--no-sandbox --disable-gpu"
                 />
+              </div>
+            </div>
+          ) : engineConfig.type === 'cloud-api' ? (
+            <div className="config-form">
+              <p className="muted-hint" style={{ marginBottom: '1rem' }}>{t('infrastructure.engine.cloudApiDesc')}</p>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiAccessToken')}</label>
+                <input
+                  type="password"
+                  value={engineConfig.cloudApiAccessToken}
+                  onChange={e => updateEngineConfig('cloudApiAccessToken', e.target.value)}
+                  placeholder={savedConfig?.engine.cloudApiAccessTokenSet ? '••••••••••• (saved)' : 'EAAxxxxxxx...'}
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiAccessTokenDesc')}</small>
+              </div>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiPhoneNumberId')}</label>
+                <input
+                  type="text"
+                  value={engineConfig.cloudApiPhoneNumberId}
+                  onChange={e => updateEngineConfig('cloudApiPhoneNumberId', e.target.value)}
+                  placeholder="123456789012345"
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiPhoneNumberIdDesc')}</small>
+              </div>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiWabaId')}</label>
+                <input
+                  type="text"
+                  value={engineConfig.cloudApiWabaId}
+                  onChange={e => updateEngineConfig('cloudApiWabaId', e.target.value)}
+                  placeholder="109876543210"
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiWabaIdDesc')}</small>
+              </div>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiAppSecret')}</label>
+                <input
+                  type="password"
+                  value={engineConfig.cloudApiAppSecret}
+                  onChange={e => updateEngineConfig('cloudApiAppSecret', e.target.value)}
+                  placeholder={savedConfig?.engine.cloudApiAppSecretSet ? '••••••••••• (saved)' : 'abcdef1234567890...'}
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiAppSecretDesc')}</small>
+              </div>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiVerifyToken')}</label>
+                <input
+                  type="text"
+                  value={engineConfig.cloudApiVerifyToken}
+                  onChange={e => updateEngineConfig('cloudApiVerifyToken', e.target.value)}
+                  placeholder="my-secret-verify-token"
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiVerifyTokenDesc')}</small>
+              </div>
+              <div className="form-group">
+                <label>{t('infrastructure.engine.cloudApiGraphVersion')}</label>
+                <input
+                  type="text"
+                  value={engineConfig.cloudApiGraphVersion}
+                  onChange={e => updateEngineConfig('cloudApiGraphVersion', e.target.value)}
+                  placeholder="v21.0"
+                />
+                <small className="form-hint">{t('infrastructure.engine.cloudApiGraphVersionDesc')}</small>
               </div>
             </div>
           ) : (
