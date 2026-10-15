@@ -66,9 +66,15 @@ export class CreateKnowledgeDocumentDto {
   @MaxLength(200)
   title: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  fileType: string;
+  fileType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  type?: string;
 
   @IsString()
   content: string;
@@ -79,6 +85,16 @@ export class UpdateKnowledgeDocumentDto {
   @IsString()
   @MaxLength(200)
   title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  fileType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  type?: string;
 
   @IsOptional()
   @IsString()

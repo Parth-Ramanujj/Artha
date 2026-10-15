@@ -1882,9 +1882,10 @@ export const settingsApi = {
 export const slaPolicyApi = {
   list: () => request<unknown[]>('/sla/policies'),
   get: (id: string) => request<unknown>(`/sla/policies/${id}`),
-  create: (data: Record<string, unknown>) => request<unknown>('/sla/policies', { method: 'POST', body: data }),
+  create: (data: Record<string, unknown>) =>
+    request<unknown>('/sla/policies', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/sla/policies/${id}`, { method: 'PUT', body: data }),
+    request<unknown>(`/sla/policies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/sla/policies/${id}`, { method: 'DELETE' }),
 };
 
@@ -1903,9 +1904,10 @@ export const slaEventApi = {
 export const abTestApi = {
   list: () => request<unknown[]>('/ab-tests'),
   get: (id: string) => request<unknown>(`/ab-tests/${id}`),
-  create: (data: Record<string, unknown>) => request<unknown>('/ab-tests', { method: 'POST', body: data }),
+  create: (data: Record<string, unknown>) =>
+    request<unknown>('/ab-tests', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/ab-tests/${id}`, { method: 'PUT', body: data }),
+    request<unknown>(`/ab-tests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   start: (id: string) => request<unknown>(`/ab-tests/${id}/start`, { method: 'POST' }),
   complete: (id: string) => request<unknown>(`/ab-tests/${id}/complete`, { method: 'POST' }),
   delete: (id: string) => request<void>(`/ab-tests/${id}`, { method: 'DELETE' }),
@@ -1959,19 +1961,54 @@ export const workflowAnalyticsApi = {
 // =============================================================================
 
 export const chatbotApi = {
-  listDocs: () => request<unknown[]>('/ai/documents'),
+  listDocs: () => request<unknown[]>('/ai/knowledge'),
   getConfig: () => request<unknown>('/ai/config'),
-  createDoc: (data: Record<string, unknown>) => request<unknown>('/ai/documents', { method: 'POST', body: data }),
+  createDoc: (data: Record<string, unknown>) =>
+    request<unknown>('/ai/knowledge', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: data.title,
+        content: data.content,
+        fileType: data.fileType || data.type || 'faq',
+        type: data.type || data.fileType || 'faq',
+      }),
+    }),
   updateDoc: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/ai/documents/${id}`, { method: 'PUT', body: data }),
-  deleteDoc: (id: string) => request<void>(`/ai/documents/${id}`, { method: 'DELETE' }),
-  updateConfig: (data: Record<string, unknown>) => request<unknown>('/ai/config', { method: 'PUT', body: data }),
+    request<unknown>(`/ai/knowledge/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: data.title,
+        content: data.content,
+        fileType: data.fileType || data.type,
+        type: data.type || data.fileType,
+      }),
+    }),
+  deleteDoc: (id: string) => request<void>(`/ai/knowledge/${id}`, { method: 'DELETE' }),
+  updateConfig: (data: Record<string, unknown>) => {
+    const payload: Record<string, unknown> = {};
+    if (data.enabled !== undefined) payload.enabled = Boolean(data.enabled);
+    if (data.provider !== undefined) payload.provider = data.provider;
+    if (data.model !== undefined) payload.model = data.model;
+    if (data.apiEndpoint !== undefined) payload.apiEndpoint = data.apiEndpoint;
+    if (data.systemPrompt !== undefined) payload.systemPrompt = data.systemPrompt;
+    if (data.maxTokens !== undefined) payload.maxTokens = Number(data.maxTokens);
+    if (data.maxContextMessages !== undefined) payload.maxContextMessages = Number(data.maxContextMessages);
+    if (data.useKnowledgeBase !== undefined) payload.useKnowledgeBase = Boolean(data.useKnowledgeBase);
+    if (data.autoHandoff !== undefined) payload.autoHandoff = Boolean(data.autoHandoff);
+    if (data.handoffKeywords !== undefined) payload.handoffKeywords = data.handoffKeywords;
+    if (data.fallbackMessage !== undefined) payload.fallbackMessage = data.fallbackMessage;
+    if (data.sessionScopes !== undefined) payload.sessionScopes = data.sessionScopes;
+    return request<unknown>('/ai/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 export const advisorAlertApi = {
   list: () => request<Array<{ sessionId: string; advisorChatId: string; advisorName?: string }>>('/advisor-alerts'),
   register: (data: { sessionId: string; advisorChatId: string; advisorName?: string }) =>
-    request<{ success: boolean }>('/advisor-alerts', { method: 'POST', body: data }),
+    request<{ success: boolean }>('/advisor-alerts', { method: 'POST', body: JSON.stringify(data) }),
   unregister: (advisorChatId: string) =>
     request<void>(`/advisor-alerts?advisorChatId=${advisorChatId}`, { method: 'DELETE' }),
   test: () => request<{ success: boolean; advisorCount: number }>('/advisor-alerts/test', { method: 'POST' }),
@@ -1994,9 +2031,13 @@ export const feedbackApi = {
       agentStats?: Record<string, { total: number; avg: number }>;
     }>('/feedback/stats'),
   get: (id: string) => request<unknown>(`/feedback/${id}`),
-  create: (data: Record<string, unknown>) => request<unknown>('/feedback', { method: 'POST', body: data }),
+  create: (data: Record<string, unknown>) =>
+    request<unknown>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
   requestViaWhatsApp: (data: { conversationId: string; sessionId: string; chatId: string }) =>
-    request<{ success: boolean; reason?: string }>('/feedback/request-via-whatsapp', { method: 'POST', body: data }),
+    request<{ success: boolean; reason?: string }>('/feedback/request-via-whatsapp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   delete: (id: string) => request<void>(`/feedback/${id}`, { method: 'DELETE' }),
 };
 
@@ -2012,9 +2053,13 @@ export const syncApi = {
     return request<unknown[]>(`/sync${qs}`);
   },
   get: (id: string) => request<unknown>(`/sync/${id}`),
-  create: (data: Record<string, unknown>) => request<unknown>('/sync', { method: 'POST', body: data }),
-  update: (id: string, data: Record<string, unknown>) => request<unknown>(`/sync/${id}`, { method: 'PUT', body: data }),
-  trigger: (id: string) => request<unknown>(`/sync/${id}/trigger`, { method: 'POST' }),
+  create: (data: Record<string, unknown>) =>
+    request<unknown>('/sync', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/sync/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  trigger: (id: string) => request<{ success: boolean; recordsSynced: number; destination: string }>(`/sync/${id}/trigger`, { method: 'POST' }),
+  exportData: (id: string, format: 'json' | 'csv' = 'json') =>
+    request<{ data: unknown; mimeType: string; filename: string }>(`/sync/${id}/export?format=${format}`),
   delete: (id: string) => request<void>(`/sync/${id}`, { method: 'DELETE' }),
 };
 
@@ -2025,16 +2070,20 @@ export const syncApi = {
 export const followupApi = {
   rules: () => request<unknown[]>('/followup/rules'),
   getRule: (id: string) => request<unknown>(`/followup/rules/${id}`),
-  createRule: (data: Record<string, unknown>) => request<unknown>('/followup/rules', { method: 'POST', body: data }),
+  createRule: (data: Record<string, unknown>) =>
+    request<unknown>('/followup/rules', { method: 'POST', body: JSON.stringify(data) }),
   updateRule: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/followup/rules/${id}`, { method: 'PUT', body: data }),
+    request<unknown>(`/followup/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteRule: (id: string) => request<void>(`/followup/rules/${id}`, { method: 'DELETE' }),
   droppedUsers: (idleMinutes?: number) => {
     const qs = idleMinutes ? `?idleMinutes=${idleMinutes}` : '';
     return request<unknown[]>(`/followup/dropped-users${qs}`);
   },
   send: (data: { conversationId: string; sessionId: string; chatId: string; message: string }) =>
-    request<{ success: boolean; reason?: string }>('/followup/send', { method: 'POST', body: data }),
+    request<{ success: boolean; reason?: string }>('/followup/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
   stats: () =>
     request<{
       totalRules: number;
@@ -2053,10 +2102,89 @@ export const integrationApi = {
     return request<unknown[]>(`/integrations${qs}`);
   },
   get: (id: string) => request<unknown>(`/integrations/${id}`),
-  create: (data: Record<string, unknown>) => request<unknown>('/integrations', { method: 'POST', body: data }),
+  create: (data: Record<string, unknown>) =>
+    request<unknown>('/integrations', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/integrations/${id}`, { method: 'PUT', body: data }),
+    request<unknown>(`/integrations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   connect: (id: string) => request<unknown>(`/integrations/${id}/connect`, { method: 'POST' }),
+  test: (id: string) =>
+    request<{ success: boolean; statusCode?: number; latencyMs?: number; message: string }>(
+      `/integrations/${id}/test`,
+      { method: 'POST' },
+    ),
   disconnect: (id: string) => request<unknown>(`/integrations/${id}/disconnect`, { method: 'POST' }),
   delete: (id: string) => request<void>(`/integrations/${id}`, { method: 'DELETE' }),
 };
+
+// =============================================================================
+// Sales Pipeline CRM Deals
+// =============================================================================
+
+export interface DealRecord {
+  id: string;
+  businessId?: string;
+  title: string;
+  contactName: string;
+  contactPhone: string;
+  amount: number;
+  stage: 'lead' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+  priority: 'low' | 'medium' | 'high';
+  assignedTo: string;
+  notes?: string | null;
+  tags?: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PipelineMetrics {
+  totalValue: number;
+  activeCount: number;
+  wonCount: number;
+  lostCount: number;
+  winRate: number;
+  byStage: Record<string, { count: number; totalAmount: number }>;
+}
+
+export const dealsApi = {
+  list: (params?: { stage?: string; priority?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.stage) q.set('stage', params.stage);
+    if (params?.priority) q.set('priority', params.priority);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<DealRecord[]>(`/deals${qs}`);
+  },
+  get: (id: string) => request<DealRecord>(`/deals/${id}`),
+  metrics: () => request<PipelineMetrics>('/deals/metrics'),
+  create: (data: Partial<DealRecord>) =>
+    request<DealRecord>('/deals', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<DealRecord>) =>
+    request<DealRecord>(`/deals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/deals/${id}`, { method: 'DELETE' }),
+};
+
+// =============================================================================
+// AI Assistant & Copilot API
+// =============================================================================
+
+export const aiAssistantApi = {
+  chat: (data: {
+    message: string;
+    conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    sessionId?: string;
+    chatId?: string;
+  }) =>
+    request<{ reply: string; handoff: boolean; confidence: 'high' | 'medium' | 'low'; sourceDocs?: string[]; tokensUsed?: number }>(
+      '/ai/chat',
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+  getConfig: () => request<unknown>('/ai/config'),
+  updateConfig: (data: Record<string, unknown>) =>
+    request<unknown>('/ai/config', { method: 'PUT', body: JSON.stringify(data) }),
+  getModels: () => request<Array<{ id: string; name: string; provider: string }>>('/ai/models'),
+  listDocuments: () => request<unknown[]>('/ai/documents'),
+  createDocument: (data: Record<string, unknown>) =>
+    request<unknown>('/ai/documents', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDocument: (id: string) => request<void>(`/ai/documents/${id}`, { method: 'DELETE' }),
+};
+

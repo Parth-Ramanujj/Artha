@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import { nextReconnectState } from '../utils/reconnectState';
@@ -23,7 +23,9 @@ import {
   Trash2,
   ChevronDown,
   Plus,
+  Sparkles,
 } from 'lucide-react';
+import { AiCopilot } from '../components/chats/AiCopilot';
 import { useProfilePicture } from '../hooks/useProfilePicture';
 import { useProfilePictures } from '../hooks/useProfilePictures';
 import { useResolvedPhone } from '../hooks/useResolvedPhone';
@@ -232,6 +234,8 @@ export function Chats() {
   const paramSessionId = searchParams.get('sessionId');
   const paramChatId = searchParams.get('chatId');
   const initialChatHandled = useRef(false);
+  const navigate = useNavigate();
+  const [showAiCopilot, setShowAiCopilot] = useState(false);
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -1501,7 +1505,8 @@ export function Chats() {
           {/* RIGHT VIEW: active chat room */}
           <main className="chats-room">
             {activeChat ? (
-              <div className="room-container">
+              <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
+                <div className="room-container">
                 {/* Room header */}
                 <header className="room-header">
                   <button className="room-back" onClick={() => setActiveChat(null)} aria-label={t('common.back')}>
@@ -1535,6 +1540,17 @@ export function Chats() {
                     <span className="room-contact-jid" title={activeChat.id}>
                       {activeChat.id}
                     </span>
+                  </div>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      className={`copilot-toggle-btn ${showAiCopilot ? 'active' : ''}`}
+                      onClick={() => setShowAiCopilot(prev => !prev)}
+                      title="Toggle AI Copilot"
+                    >
+                      <Sparkles size={15} />
+                      <span>AI Copilot</span>
+                    </button>
                   </div>
                 </header>
 
@@ -1913,7 +1929,20 @@ export function Chats() {
                   </form>
                 </footer>
               </div>
-            ) : activeChannel ? (
+              {showAiCopilot && (
+                <AiCopilot
+                  activeChat={activeChat}
+                  messages={messages}
+                  currentDraft={messageInput}
+                  onInsertReply={text => setMessageInput(text)}
+                  onClose={() => setShowAiCopilot(false)}
+                  onNavigateToPipeline={(contactName, phone) => {
+                    navigate(`/sales-pipeline?newDealContact=${encodeURIComponent(contactName)}&phone=${encodeURIComponent(phone)}`);
+                  }}
+                />
+              )}
+            </div>
+          ) : activeChannel ? (
               // Read-only channel pane: no send footer, reactions, delete, reply, or markChatRead —
               // subscribed channels are a broadcast feed, not a two-way conversation.
               <div key={activeChannel.id} className="channel-room">

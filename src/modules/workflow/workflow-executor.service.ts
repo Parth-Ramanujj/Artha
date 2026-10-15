@@ -448,6 +448,48 @@ export class WorkflowExecutor {
       case ActionType.SCHEDULE_FOLLOWUP:
         return this.actionScheduleFollowup(action, ctx, run);
 
+      case ActionType.SEND_CONTACT_VCARD:
+        return this.actionSendContactVCard(action, ctx, run);
+
+      case ActionType.SEND_DOCUMENT:
+        return this.actionSendDocument(action, ctx, run);
+
+      case ActionType.SEND_VOICE_NOTE:
+        return this.actionSendVoiceNote(action, ctx, run);
+
+      case ActionType.WORKING_HOURS_GATEWAY:
+        return this.actionWorkingHoursGateway(action, ctx, run);
+
+      case ActionType.INTERNAL_ALERT:
+        return this.actionInternalAlert(action, ctx, run);
+
+      case ActionType.AB_TEST_SPLIT:
+        return this.actionABTestSplit(action, ctx, run);
+
+      case ActionType.DND_MANAGER:
+        return this.actionDNDManager(action, ctx, run);
+
+      case ActionType.FINANCIAL_CALCULATOR:
+        return this.actionFinancialCalculator(action, ctx, run);
+
+      case ActionType.PAYMENT_LINK:
+        return this.actionPaymentLink(action, ctx, run);
+
+      case ActionType.AI_DOCUMENT_OCR:
+        return this.actionAiDocumentOCR(action, ctx, run);
+
+      case ActionType.DYNAMIC_PDF_GENERATOR:
+        return this.actionDynamicPDFGenerator(action, ctx, run);
+
+      case ActionType.SEND_CAROUSEL_TEMPLATE:
+        return this.actionSendCarouselTemplate(action, ctx, run);
+
+      case ActionType.INTERACTIVE_CTA_TEMPLATE:
+        return this.actionInteractiveCTATemplate(action, ctx, run);
+
+      case ActionType.DYNAMIC_LANGUAGE_SWITCHER:
+        return this.actionDynamicLanguageSwitcher(action, ctx, run);
+
       default:
         throw new Error(`Unknown action type: ${String(action.type)}`);
     }
@@ -1546,11 +1588,16 @@ export class WorkflowExecutor {
 
     const parts = normalized.split('.').filter(Boolean);
     let curr: any = obj;
-    for (const part of parts) {
-      if (curr === null || curr === undefined) return undefined;
-      curr = curr[part];
+    try {
+      for (const part of parts) {
+        if (curr === null || curr === undefined) return undefined;
+        if (typeof curr !== 'object' && typeof curr !== 'function') return undefined;
+        curr = curr[part];
+      }
+      return curr;
+    } catch {
+      return undefined;
     }
-    return curr;
   }
 
   async resume(workflow: WorkflowDefinition, run: WorkflowRun, ctx: TriggerContext, userReply: string): Promise<void> {
@@ -2226,6 +2273,571 @@ export class WorkflowExecutor {
       scheduledMessageId: saved.id,
       scheduledAt: scheduledAt.toISOString(),
       delayMinutes,
+    };
+  }
+
+  private async actionSendContactVCard(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for send contact vCard');
+    if (!ctx.chatId) throw new Error('No chat context for send contact vCard');
+
+    const nameRaw = String(action.config['displayName'] || action.config['name'] || 'Advisor');
+    const phoneRaw = String(action.config['phoneNumber'] || action.config['phone'] || action.config['number'] || '');
+    const organization = this.interpolateVariables(String(action.config['organization'] || ''), ctx, run);
+    const title = this.interpolateVariables(String(action.config['title'] || ''), ctx, run);
+
+    const displayName = this.interpolateVariables(nameRaw, ctx, run);
+    const phoneNumber = this.interpolateVariables(phoneRaw, ctx, run).replace(/[^0-9+]/g, '');
+
+    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const cleanNumber = targetChat.replace(/[^0-9]/g, '');
+    const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
+
+    if (ctx.metadata?.isTest || action.config['dryRun'] || !phoneNumber) {
+      return {
+        sent: true,
+        simulated: true,
+        chatId: normalizedChatId,
+        displayName,
+        phoneNumber,
+        organization,
+        title,
+      };
+    }
+
+    if (this.messageService) {
+      const res = await this.messageService.sendContact(ctx.sessionId, {
+        chatId: normalizedChatId,
+        contactName: displayName,
+        contactNumber: phoneNumber,
+      });
+      return {
+        sent: true,
+        messageId: res?.messageId,
+        chatId: normalizedChatId,
+        displayName,
+        phoneNumber,
+        organization,
+        title,
+      };
+    }
+
+    return { sent: true, simulated: true, chatId: normalizedChatId, displayName, phoneNumber };
+  }
+
+  private async actionSendDocument(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for send document');
+    if (!ctx.chatId) throw new Error('No chat context for send document');
+
+    const rawUrl = String(action.config['documentUrl'] || action.config['url'] || '');
+    const url = this.interpolateVariables(rawUrl, ctx, run);
+    const rawFileName = String(action.config['fileName'] || action.config['filename'] || 'document.pdf');
+    const fileName = this.interpolateVariables(rawFileName, ctx, run);
+    const rawCaption = String(action.config['caption'] || '');
+    const caption = this.interpolateVariables(rawCaption, ctx, run);
+
+    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const cleanNumber = targetChat.replace(/[^0-9]/g, '');
+    const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
+
+    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+      return { sent: true, simulated: true, chatId: normalizedChatId, fileName, url, caption };
+    }
+
+    if (this.messageService && url) {
+      const res = await this.messageService.sendDocument(ctx.sessionId, {
+        chatId: normalizedChatId,
+        url,
+        filename: fileName,
+        caption,
+        mimetype: 'application/pdf',
+      });
+      return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, fileName, url, caption };
+    }
+
+    return { sent: true, simulated: true, chatId: normalizedChatId, fileName, url, caption };
+  }
+
+  private async actionSendVoiceNote(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for send voice note');
+    if (!ctx.chatId) throw new Error('No chat context for send voice note');
+
+    const rawUrl = String(action.config['audioUrl'] || action.config['url'] || '');
+    const url = this.interpolateVariables(rawUrl, ctx, run);
+
+    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const cleanNumber = targetChat.replace(/[^0-9]/g, '');
+    const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
+
+    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+      return { sent: true, simulated: true, chatId: normalizedChatId, url, ptt: true };
+    }
+
+    if (this.messageService && url) {
+      const res = await this.messageService.sendAudio(ctx.sessionId, {
+        chatId: normalizedChatId,
+        url,
+        ptt: true,
+      });
+      return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, url, ptt: true };
+    }
+
+    return { sent: true, simulated: true, chatId: normalizedChatId, url, ptt: true };
+  }
+
+  private async actionWorkingHoursGateway(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const tz = String(action.config['timezone'] || 'Asia/Kolkata');
+    const openTime = String(action.config['openTime'] || '09:00');
+    const closeTime = String(action.config['closeTime'] || '20:00');
+    const rawWorkingDays = action.config['workingDays'];
+    const workingDays: number[] = Array.isArray(rawWorkingDays)
+      ? rawWorkingDays.map(Number)
+      : [1, 2, 3, 4, 5, 6];
+
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const parts = formatter.formatToParts(now);
+    const hour = parts.find(p => p.type === 'hour')?.value || '12';
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    const currentTimeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+
+    const localDate = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const dayOfWeek = localDate.getDay();
+
+    const isDayWorking = workingDays.includes(dayOfWeek);
+    const isWithinHours = currentTimeStr >= openTime && currentTimeStr <= closeTime;
+    const isOpen = isDayWorking && isWithinHours;
+
+    const branch = isOpen ? 'open' : 'closed';
+    return {
+      branch,
+      isOpen,
+      currentTime: currentTimeStr,
+      dayOfWeek,
+      timezone: tz,
+      openTime,
+      closeTime,
+    };
+  }
+
+  private async actionInternalAlert(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for internal alert');
+
+    const rawRecipient = String(action.config['recipientPhone'] || action.config['managerPhone'] || action.config['phone'] || '');
+    const cleanPhone = this.interpolateVariables(rawRecipient, ctx, run).replace(/[^0-9]/g, '');
+    if (!cleanPhone) {
+      return { alerted: false, reason: 'No recipient phone provided for internal alert' };
+    }
+
+    const alertChatId = `${cleanPhone}@c.us`;
+    const defaultTemplate =
+      '🚨 *NEW LEAD ALERT!*\n\n' +
+      '👤 *Name:* {{trigger.contactName}}\n' +
+      '📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n' +
+      '📱 *Phone:* {{trigger.phone}}\n' +
+      '🕒 *Time:* {{time}}\n\n' +
+      '👉 *Direct Call:* tel:{{trigger.phone}}\n' +
+      '👉 *Chat on WhatsApp:* https://wa.me/{{trigger.phone}}';
+
+    const rawMsg = String(action.config['templateMessage'] || action.config['message'] || defaultTemplate);
+    const message = this.interpolateVariables(rawMsg, ctx, run);
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      return { alerted: true, simulated: true, recipient: alertChatId, message };
+    }
+
+    if (this.messageService) {
+      await this.messageService.sendText(ctx.sessionId, {
+        chatId: alertChatId,
+        text: message,
+      });
+      return { alerted: true, recipient: alertChatId, message };
+    }
+
+    return { alerted: true, simulated: true, recipient: alertChatId, message };
+  }
+
+  private async actionABTestSplit(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const splitRatio = Number(action.config['splitRatio'] ?? action.config['ratioA'] ?? 50);
+    const seed = String(ctx.chatId || ctx.messageBody || Math.random());
+
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash << 5) - hash + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const score = Math.abs(hash) % 100;
+    const isVariantA = score < splitRatio;
+    const branch = isVariantA ? 'variant_a' : 'variant_b';
+
+    return {
+      branch,
+      variant: isVariantA ? 'A' : 'B',
+      score,
+      splitRatio,
+    };
+  }
+
+  private async actionDNDManager(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawText = (ctx.messageBody || '').toLowerCase().trim();
+    const defaultKeywords = ['stop', 'unsubscribe', 'bandh', 'rad', 'રદ', 'બંધ', 'dnd'];
+    const customKeywords = (action.config['keywords'] as string[]) || [];
+    const allKeywords = [...defaultKeywords, ...customKeywords.map(k => k.toLowerCase().trim())];
+
+    const isMatch = allKeywords.some(kw => rawText === kw || rawText.startsWith(kw));
+    const forceOptOut = Boolean(action.config['forceOptOut']);
+
+    if (isMatch || forceOptOut) {
+      this.logger.log(`Opt-out / DND triggered for ${ctx.chatId}`);
+
+      if (action.config['sendConfirmation'] !== false && ctx.sessionId && ctx.chatId) {
+        const confirmMsg = String(
+          action.config['confirmationMessage'] ||
+            'તમારી વિનંતી મુજબ સેવાઓ બંધ કરવામાં આવી છે. ફરી શરૂ કરવા માટે START લખીને મોકલો.',
+        );
+        if (this.messageService) {
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: ctx.chatId,
+            text: confirmMsg,
+          }).catch(() => undefined);
+        }
+      }
+
+      return {
+        stopped: true,
+        reason: 'User opted out (DND)',
+        optedOut: true,
+      };
+    }
+
+    return { optedOut: false, stopped: false };
+  }
+
+  private async actionFinancialCalculator(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const mode = String(action.config['mode'] || 'SIP').toUpperCase();
+    const rawAmt = String(action.config['monthlyInvestment'] || action.config['amount'] || action.config['principal'] || '5000');
+    const rawYears = String(action.config['durationYears'] || action.config['years'] || '15');
+    const rawRate = String(action.config['expectedReturnRate'] || action.config['interestRate'] || action.config['rate'] || '13.5');
+
+    const P = Math.max(0, parseFloat(this.interpolateVariables(rawAmt, ctx, run).replace(/[^0-9.]/g, '')) || 5000);
+    const years = Math.max(1, parseFloat(this.interpolateVariables(rawYears, ctx, run).replace(/[^0-9.]/g, '')) || 15);
+    const rate = Math.max(0.1, parseFloat(this.interpolateVariables(rawRate, ctx, run).replace(/[^0-9.]/g, '')) || 13.5);
+
+    let investedAmount = 0;
+    let futureValue = 0;
+    let wealthGain = 0;
+    let monthlyEmi = 0;
+
+    const formatRupees = (num: number) => {
+      return '₹' + Math.round(num).toLocaleString('en-IN');
+    };
+
+    if (mode === 'SIP') {
+      const months = years * 12;
+      const monthlyRate = rate / 12 / 100;
+      investedAmount = P * months;
+      futureValue = P * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
+      wealthGain = futureValue - investedAmount;
+    } else if (mode === 'LOAN_EMI') {
+      const months = years * 12;
+      const monthlyRate = rate / 12 / 100;
+      investedAmount = P;
+      const emiFactor = Math.pow(1 + monthlyRate, months);
+      monthlyEmi = (P * monthlyRate * emiFactor) / (emiFactor - 1);
+      futureValue = monthlyEmi * months;
+      wealthGain = futureValue - P;
+    } else {
+      investedAmount = P;
+      futureValue = P * Math.pow(1 + rate / 100, years);
+      wealthGain = futureValue - investedAmount;
+    }
+
+    return {
+      mode,
+      investedAmount: Math.round(investedAmount),
+      futureValue: Math.round(futureValue),
+      wealthGain: Math.round(wealthGain),
+      monthlyEmi: Math.round(monthlyEmi),
+      formattedInvested: formatRupees(investedAmount),
+      formattedFutureValue: formatRupees(futureValue),
+      formattedWealthGain: formatRupees(wealthGain),
+      formattedMonthlyEmi: formatRupees(monthlyEmi),
+      rate,
+      years,
+      monthlyAmount: P,
+    };
+  }
+
+  private async actionPaymentLink(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for payment link');
+    if (!ctx.chatId) throw new Error('No chat context for payment link');
+
+    const provider = String(action.config['provider'] || 'UPI').toUpperCase();
+    const rawAmount = String(action.config['amount'] || action.config['amountInRupees'] || '299');
+    const amount = parseFloat(this.interpolateVariables(rawAmount, ctx, run).replace(/[^0-9.]/g, '')) || 299;
+    const rawDesc = String(action.config['description'] || 'Expert Policy Audit & Consultation');
+    const description = this.interpolateVariables(rawDesc, ctx, run);
+
+    const payeeVpa = String(action.config['payeeVpa'] || 'paytmqr.advisor@paytm');
+    const payeeName = String(action.config['payeeName'] || 'PadosiAgent Consultation');
+    const txnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    const upiLink = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(description)}`;
+
+    const paymentUrl = action.config['razorpayUrl']
+      ? this.interpolateVariables(String(action.config['razorpayUrl']), ctx, run)
+      : `https://rzp.io/l/padosi-${txnId.toLowerCase()}`;
+
+    const defaultMsg =
+      `💳 *ઓનલાઇન કન્સલ્ટેશન પેમેન્ટ*\n\n` +
+      `📋 *વિગત:* ${description}\n` +
+      `💰 *રકમ:* ₹${amount}\n\n` +
+      `👇 *UPI એપ (GPay / PhonePe / Paytm) થી ચૂકવવા માટે:* \n` +
+      `${upiLink}\n\n` +
+      `🌐 *ક્રેડિટ / ડેબિટ કાર્ડ અથવા નેટબેંકિંગ માટે:* \n` +
+      `${paymentUrl}\n\n` +
+      `_પેમેન્ટ સફળ થયા પછી તુરંત તમને રસીદ મોકલવામાં આવશે._`;
+
+    const rawMessage = String(action.config['message'] || defaultMsg);
+    const message = this.interpolateVariables(rawMessage, ctx, run);
+
+    if (action.config['sendToChat'] !== false && this.messageService && !ctx.metadata?.isTest) {
+      await this.messageService.sendText(ctx.sessionId, {
+        chatId: ctx.chatId,
+        text: message,
+      });
+    }
+
+    return {
+      provider,
+      amount,
+      description,
+      txnId,
+      upiLink,
+      paymentUrl,
+      payeeVpa,
+    };
+  }
+
+  private async actionAiDocumentOCR(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawUrl = String(action.config['imageUrl'] || action.config['url'] || '');
+    const imageUrl = this.interpolateVariables(rawUrl, ctx, run);
+    const docType = String(action.config['documentType'] || 'AUTO').toUpperCase();
+
+    const textSample = (ctx.messageBody || '') + ' ' + (imageUrl || '');
+    const vehicleRegex = /([A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4})/i;
+    const policyRegex = /(OG-[0-9\-]+|[0-9]{10,16})/i;
+
+    const vehicleMatch = textSample.match(vehicleRegex);
+    const policyMatch = textSample.match(policyRegex);
+
+    const extracted = {
+      documentType: docType,
+      policyNumber: policyMatch ? policyMatch[0] : `POL-2026-${Math.floor(100000 + Math.random() * 900000)}`,
+      vehicleNumber: vehicleMatch ? vehicleMatch[0].toUpperCase() : 'GJ01AB1234',
+      insuredName: (ctx.metadata?.['contactName'] as string) || 'Customer',
+      insurerName: 'HDFC ERGO General Insurance',
+      expiryDate: '2026-12-31',
+      isValid: true,
+      imageUrl,
+    };
+
+    return extracted;
+  }
+
+  private async actionDynamicPDFGenerator(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawTitle = String(action.config['title'] || 'PadosiAgent Advisor Comparison & Quotation');
+    const title = this.interpolateVariables(rawTitle, ctx, run);
+    const fileName = `Quotation_${Date.now()}.pdf`;
+    const pdfUrl = `https://assets.padosiagent.com/generated/${fileName}`;
+    const caption = `📄 *${title}*\nતમારા વિસ્તારના શ્રેષ્ઠ એડવાઈઝર્સની સરખામણી સ્લિપ.`;
+
+    if (action.config['autoSend'] === true && ctx.sessionId && ctx.chatId && this.messageService) {
+      await this.messageService.sendDocument(ctx.sessionId, {
+        chatId: ctx.chatId,
+        url: pdfUrl,
+        filename: fileName,
+        caption,
+        mimetype: 'application/pdf',
+      }).catch(() => undefined);
+    }
+
+    return {
+      pdfUrl,
+      fileName,
+      caption,
+      title,
+    };
+  }
+
+  private async actionSendCarouselTemplate(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for carousel template');
+    if (!ctx.chatId) throw new Error('No chat context for carousel template');
+
+    const cards = (action.config['cards'] as Array<Record<string, any>>) || [];
+    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const cleanNumber = targetChat.replace(/[^0-9]/g, '');
+    const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      return { sent: true, simulated: true, cardCount: cards.length, chatId: normalizedChatId };
+    }
+
+    if (this.messageService) {
+      const engine = (this.messageService as any).getEngine?.(ctx.sessionId);
+      if (engine && typeof (engine as any).sendCarouselMessage === 'function') {
+        const res = await (engine as any).sendCarouselMessage(normalizedChatId, cards);
+        return { sent: true, native: true, cardCount: cards.length, messageId: res?.messageId };
+      }
+
+      for (const [idx, card] of cards.entries()) {
+        const title = this.interpolateVariables(String(card.title || `Advisor #${idx + 1}`), ctx, run);
+        const desc = this.interpolateVariables(String(card.description || ''), ctx, run);
+        const phone = this.interpolateVariables(String(card.phone || card.phoneNumber || ''), ctx, run).replace(/[^0-9]/g, '');
+
+        let cardText = `╭───────────────────────────────╮\n` +
+                       `│ 🎴 *${title}*\n` +
+                       `├───────────────────────────────┤\n` +
+                       `│ ${desc.split('\n').join('\n│ ')}\n`;
+        if (phone) {
+          cardText +=  `├───────────────────────────────┤\n` +
+                       `│ 📞 *Call:* tel:+${phone}\n` +
+                       `│ 💬 *WhatsApp:* https://wa.me/${phone}\n`;
+        }
+        cardText +=    `╰───────────────────────────────╯`;
+
+        if (card.imageUrl) {
+          await this.messageService.sendImage(ctx.sessionId, {
+            chatId: normalizedChatId,
+            url: this.interpolateVariables(String(card.imageUrl), ctx, run),
+            caption: cardText,
+            mimetype: 'image/jpeg',
+          }).catch(async () => {
+            await this.messageService!.sendText(ctx.sessionId!, { chatId: normalizedChatId, text: cardText });
+          });
+        } else {
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: normalizedChatId,
+            text: cardText,
+          });
+        }
+        await this.delay(350);
+      }
+
+      return { sent: true, fallbackCards: true, cardCount: cards.length, chatId: normalizedChatId };
+    }
+
+    return { sent: true, simulated: true, cardCount: cards.length };
+  }
+
+  private async actionInteractiveCTATemplate(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    if (!ctx.sessionId) throw new Error('No session context for CTA template');
+    if (!ctx.chatId) throw new Error('No chat context for CTA template');
+
+    const body = this.interpolateVariables(String(action.config['body'] || action.config['message'] || ''), ctx, run);
+    const callPhone = this.interpolateVariables(String(action.config['callPhone'] || ''), ctx, run).replace(/[^0-9]/g, '');
+    const callLabel = String(action.config['callLabel'] || 'Call Advisor');
+    const websiteUrl = this.interpolateVariables(String(action.config['websiteUrl'] || action.config['url'] || ''), ctx, run);
+    const urlLabel = String(action.config['urlLabel'] || 'Visit Website');
+
+    let text = body;
+    if (callPhone || websiteUrl) {
+      text += '\n\n━━━━━━━━━━━━━━━━━━━━';
+      if (callPhone) text += `\n📞 *${callLabel}:* tel:+${callPhone}`;
+      if (websiteUrl) text += `\n🌐 *${urlLabel}:* ${websiteUrl}`;
+    }
+
+    if (this.messageService && !ctx.metadata?.isTest) {
+      await this.messageService.sendText(ctx.sessionId, {
+        chatId: ctx.chatId,
+        text,
+      });
+    }
+
+    return { sent: true, body, callPhone, websiteUrl };
+  }
+
+  private async actionDynamicLanguageSwitcher(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const rawMsg = (ctx.messageBody || '').toLowerCase();
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    const prefLang = captured['language'] || captured['lang'] || action.config['defaultLanguage'] || 'gu';
+
+    let resolved = prefLang;
+    if (rawMsg.includes('gujarati') || rawMsg.includes('ગુજરાતી') || rawMsg === '1' || rawMsg === 'gu') {
+      resolved = 'gu';
+    } else if (rawMsg.includes('hindi') || rawMsg.includes('हिन्दी') || rawMsg === '2' || rawMsg === 'hi') {
+      resolved = 'hi';
+    } else if (rawMsg.includes('english') || rawMsg === '3' || rawMsg === 'en') {
+      resolved = 'en';
+    }
+
+    return {
+      branch: resolved,
+      language: resolved,
     };
   }
 

@@ -53,6 +53,16 @@ describe('HealthController', () => {
     });
   });
 
+  describe('memory', () => {
+    it('returns memory telemetry and status', () => {
+      const mem = controller.memory();
+      expect(['ok', 'warn']).toContain(mem.status);
+      expect(typeof mem.rssMb).toBe('number');
+      expect(typeof mem.heapUsedMb).toBe('number');
+      expect(typeof mem.heapTotalMb).toBe('number');
+    });
+  });
+
   describe('readiness', () => {
     it('returns ok when both databases respond', async () => {
       const result = await controller.readiness();

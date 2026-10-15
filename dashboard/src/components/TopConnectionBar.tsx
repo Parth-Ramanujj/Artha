@@ -10,13 +10,30 @@ import {
   RefreshCw,
   QrCode,
   Zap,
+  Sparkles,
+  Coins,
 } from 'lucide-react';
 import { sessionApi, type Session } from '../services/api';
+import { aiCreditsService } from '../services/aiCredits';
 import './TopConnectionBar.css';
 
 export function TopConnectionBar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // AI Credits State
+  const [credits, setCredits] = useState<number>(aiCreditsService.getBalance());
+  const [isCreditsOpen, setIsCreditsOpen] = useState(false);
+  const creditsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleCreditsUpdate = (e: Event) => {
+      const custom = e as CustomEvent<{ balance: number }>;
+      setCredits(custom.detail?.balance ?? aiCreditsService.getBalance());
+    };
+    window.addEventListener('ai-credits-updated', handleCreditsUpdate);
+    return () => window.removeEventListener('ai-credits-updated', handleCreditsUpdate);
+  }, []);
 
   // Poll sessions list every 8 seconds to keep status in sync
   const { data: sessions, isLoading, isFetching, refetch } = useQuery<Session[]>({
@@ -37,6 +54,9 @@ export function TopConnectionBar() {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (creditsDropdownRef.current && !creditsDropdownRef.current.contains(e.target as Node)) {
+        setIsCreditsOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -185,7 +205,63 @@ export function TopConnectionBar() {
         </div>
       </div>
 
-      <div className="top-bar-right">
+      <div className="top-bar-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Wati AI Credits Pill */}
+        <div className="ai-credits-pill-wrapper" ref={creditsDropdownRef}>
+          <button
+            type="button"
+            className="ai-credits-topbar-pill"
+            onClick={() => setIsCreditsOpen(prev => !prev)}
+            title="Wati AI Credits Wallet"
+          >
+            <Sparkles size={13} style={{ color: '#a855f7' }} />
+            <span style={{ fontWeight: 700 }}>{credits.toLocaleString()}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>AI Credits</span>
+          </button>
+
+          {isCreditsOpen && (
+            <div className="ai-credits-topbar-dropdown">
+              <div className="dropdown-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Coins size={15} style={{ color: '#eab308' }} />
+                  <strong>Wati AI Enterprise Wallet</strong>
+                </div>
+                <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>Active Tier</span>
+              </div>
+              <div className="dropdown-body" style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Remaining Balance:</span>
+                  <strong style={{ color: '#6366f1' }}>{credits.toLocaleString()} / 20,000</strong>
+                </div>
+                <div style={{ width: '100%', height: 6, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, Math.round((credits / 20000) * 100))}%`,
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+                      borderRadius: 3,
+                    }}
+                  />
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
+                  Used across AI Copilot in inbox, Astra autonomous bot replies, and Voice AI speech synthesis.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '6px', fontSize: 12, justifyContent: 'center', marginTop: 4 }}
+                  onClick={() => {
+                    aiCreditsService.topUp(5000, 'Purchased 5,000 Extra AI Credits');
+                    setCredits(aiCreditsService.getBalance());
+                  }}
+                >
+                  + Top-Up 5,000 Credits
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {isConnected ? (
           <div className="live-status-pill online">
             <span className="live-dot" />

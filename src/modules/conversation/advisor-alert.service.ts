@@ -1,5 +1,8 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { NotificationType } from './entities/notification.entity';
+import { AdvisorAlertConfig } from './entities/advisor-alert-config.entity';
 import { NotificationService } from './notification.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 
@@ -12,29 +15,40 @@ export interface AlertConfig {
 @Injectable()
 export class AdvisorAlertService {
   private readonly logger = new Logger(AdvisorAlertService.name);
-  private readonly alertConfigs = new Map<string, AlertConfig[]>();
 
   constructor(
+    @InjectRepository(AdvisorAlertConfig, 'data')
+    private readonly configRepo: Repository<AdvisorAlertConfig>,
     private readonly notificationService: NotificationService,
     @Optional() private readonly engineRegistry?: EngineRegistry,
   ) {}
 
-  registerAdvisor(businessId: string, config: AlertConfig) {
-    const configs = this.alertConfigs.get(businessId) || [];
-    const exists = configs.find(c => c.advisorChatId === config.advisorChatId && c.sessionId === config.sessionId);
-    if (!exists) {
-      configs.push(config);
-      this.alertConfigs.set(businessId, configs);
-    }
+  async registerAdvisor(businessId: string, config: AlertConfig) {
+    const exists = await this.configRepo.findOne({
+      where: { businessId, sessionId: config.sessionId, advisorChatId: config.advisorChatId },
+    });
+    if (exists) return;
+    await this.configRepo.save(
+      this.configRepo.create({
+        businessId,
+        sessionId: config.sessionId,
+        advisorChatId: config.advisorChatId,
+        advisorName: config.advisorName ?? null,
+      }),
+    );
   }
 
-  unregisterAdvisor(businessId: string, advisorChatId: string) {
-    const configs = (this.alertConfigs.get(businessId) || []).filter(c => c.advisorChatId !== advisorChatId);
-    this.alertConfigs.set(businessId, configs);
+  async unregisterAdvisor(businessId: string, advisorChatId: string) {
+    await this.configRepo.delete({ businessId, advisorChatId });
   }
 
-  getAdvisors(businessId: string): AlertConfig[] {
-    return this.alertConfigs.get(businessId) || [];
+  async getAdvisors(businessId: string): Promise<AlertConfig[]> {
+    const rows = await this.configRepo.find({ where: { businessId } });
+    return rows.map(r => ({
+      sessionId: r.sessionId,
+      advisorChatId: r.advisorChatId,
+      advisorName: r.advisorName ?? undefined,
+    }));
   }
 
   async sendAlert(
@@ -46,7 +60,7 @@ export class AdvisorAlertService {
   ) {
     await this.notificationService.notify(businessId, type, title, message, data);
 
-    const advisors = this.alertConfigs.get(businessId) || [];
+    const advisors = await this.getAdvisors(businessId);
     for (const advisor of advisors) {
       try {
         const engine = this.engineRegistry?.get(advisor.sessionId);

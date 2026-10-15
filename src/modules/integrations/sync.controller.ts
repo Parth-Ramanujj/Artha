@@ -56,6 +56,16 @@ export class SyncController {
     return this.syncService.triggerSync(id, this.getBusinessId(apiKey));
   }
 
+  @Get(':id/export')
+  @ApiOperation({ summary: 'Export synced records as CSV or JSON' })
+  async export(
+    @CurrentApiKey() apiKey: { businessId?: string },
+    @Param('id') id: string,
+    @Query('format') format?: 'json' | 'csv',
+  ) {
+    return this.syncService.exportData(id, this.getBusinessId(apiKey), format || 'json');
+  }
+
   @Delete(':id')
   @RequireRole(ApiKeyRole.ADMIN)
   @HttpCode(204)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Languages,
   Inbox,
   GitBranch,
@@ -40,6 +41,10 @@ import {
   Star,
   RefreshCw,
   UserSearch,
+  TrendingUp,
+  Sparkles,
+  ShoppingBag,
+  ShieldAlert,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -83,8 +88,41 @@ const allNavItems = [
   { to: '/feedback', icon: Star, key: 'feedback' as const, adminOnly: false },
   { to: '/sync', icon: RefreshCw, key: 'sync' as const, adminOnly: true },
   { to: '/followup', icon: UserSearch, key: 'followup' as const, adminOnly: false },
+  { to: '/sales-pipeline', icon: TrendingUp, key: 'salesPipeline' as const, adminOnly: false },
+  { to: '/ai-agents', icon: Sparkles, key: 'aiAgents' as const, adminOnly: false },
+  { to: '/commerce', icon: ShoppingBag, key: 'commerce' as const, adminOnly: false },
+  { to: '/roles', icon: ShieldAlert, key: 'roles' as const, adminOnly: true },
   { to: '/logs', icon: FileText, key: 'logs' as const, adminOnly: false },
 ];
+
+type NavItemDef = (typeof allNavItems)[number];
+
+const navSections: { id: string; paths: string[] }[] = [
+  { id: 'core', paths: ['/', '/sessions'] },
+  {
+    id: 'messaging',
+    paths: [
+      '/chats',
+      '/sales-pipeline',
+      '/conversations',
+      '/canned-responses',
+      '/templates',
+      '/message-tester',
+      '/notifications',
+      '/contact-segments',
+    ],
+  },
+  {
+    id: 'automation',
+    paths: ['/workflows', '/campaigns', '/ai', '/ai-agents', '/chatbot-training', '/assignment-rules', '/followup', '/ab-testing'],
+  },
+  { id: 'support', paths: ['/sla', '/advisor-alerts', '/feedback'] },
+  { id: 'analytics', paths: ['/campaign-analytics', '/workflow-analytics'] },
+  { id: 'integrations', paths: ['/webhooks', '/integrations', '/commerce', '/sync'] },
+  { id: 'admin', paths: ['/workspaces', '/api-keys', '/roles', '/plugins', '/infrastructure', '/logs'] },
+];
+
+const OPEN_SECTIONS_KEY = 'sidebar-open-sections';
 
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
 
@@ -94,7 +132,38 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
   const ThemeIcon = themeIcons[theme];
   const themeLabel = t(`theme.${theme}`);
 
-  const navItems = allNavItems.filter(item => !item.adminOnly || userRole === 'admin');
+  const location = useLocation();
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(OPEN_SECTIONS_KEY) ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const isActivePath = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+  const activeSectionId = navSections.find(s => s.paths.some(isActivePath))?.id;
+  const isSectionOpen = (id: string) => openSections[id] ?? id === activeSectionId;
+
+  const toggleSection = (id: string) => {
+    const next = { ...openSections, [id]: !isSectionOpen(id) };
+    setOpenSections(next);
+    try {
+      localStorage.setItem(OPEN_SECTIONS_KEY, JSON.stringify(next));
+    } catch {
+      // storage unavailable (private mode): section state simply isn't remembered
+    }
+  };
+
+  const navGroups = navSections
+    .map(section => ({
+      ...section,
+      items: section.paths
+        .map(path => allNavItems.find(item => item.to === path))
+        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin')),
+    }))
+    .filter(group => group.items.length > 0);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -224,20 +293,41 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
         )}
 
         <nav className="sidebar-nav">
-          {navItems.map(({ to, icon: Icon, key }) => {
-            const label = t(`nav.${key}`);
+          {navGroups.map(group => {
+            const isCore = group.id === 'core';
+            const open = isCollapsed || isSectionOpen(group.id);
             return (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                end={to === '/'}
-                onClick={handleNavClick}
-                title={isCollapsed ? label : undefined}
-              >
-                <Icon size={20} />
-                {!isCollapsed && <span>{label}</span>}
-              </NavLink>
+              <div key={group.id} className="nav-section">
+                {!isCore && !isCollapsed && (
+                  <button
+                    type="button"
+                    className="nav-section-header"
+                    onClick={() => toggleSection(group.id)}
+                    aria-expanded={open}
+                  >
+                    <span>{t(`nav.sections.${group.id}`)}</span>
+                    <ChevronDown size={14} className={`nav-section-chevron${open ? ' open' : ''}`} />
+                  </button>
+                )}
+                {!isCore && isCollapsed && <div className="nav-section-divider" />}
+                {open &&
+                  group.items.map(({ to, icon: Icon, key }) => {
+                    const label = t(`nav.${key}`);
+                    return (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                        end={to === '/'}
+                        onClick={handleNavClick}
+                        title={isCollapsed ? label : undefined}
+                      >
+                        <Icon size={20} />
+                        {!isCollapsed && <span>{label}</span>}
+                      </NavLink>
+                    );
+                  })}
+              </div>
             );
           })}
         </nav>

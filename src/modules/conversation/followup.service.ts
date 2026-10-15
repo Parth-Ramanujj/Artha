@@ -1,20 +1,135 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, In, IsNull } from 'typeorm';
 import { FollowupRule, FollowupTrigger } from './entities/followup-rule.entity';
-import { Conversation } from './entities/conversation.entity';
+import { FollowupAttempt } from './entities/followup-attempt.entity';
+import { Conversation, ConversationStatus } from './entities/conversation.entity';
 import { CreateFollowupRuleDto, UpdateFollowupRuleDto } from './dto/followup-rule.dto';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 
+const SCHEDULER_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_SENDS_PER_TICK = 50;
+const CANDIDATE_BATCH = 200;
+const SCHEDULABLE_TRIGGERS: string[] = [FollowupTrigger.NO_REPLY, FollowupTrigger.CONVERSATION_IDLE];
+
 @Injectable()
-export class FollowupService {
+export class FollowupService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FollowupService.name);
+  private timer?: NodeJS.Timeout;
+  private running = false;
 
   constructor(
     @InjectRepository(FollowupRule, 'data') private readonly ruleRepo: Repository<FollowupRule>,
+    @InjectRepository(FollowupAttempt, 'data') private readonly attemptRepo: Repository<FollowupAttempt>,
     @InjectRepository(Conversation, 'data') private readonly convoRepo: Repository<Conversation>,
     @Optional() private readonly engineRegistry?: EngineRegistry,
   ) {}
+
+  onModuleInit() {
+    this.timer = setInterval(() => void this.runScheduler(), SCHEDULER_INTERVAL_MS);
+    this.timer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  async runScheduler(now = new Date()): Promise<number> {
+    if (this.running) return 0;
+    this.running = true;
+    let sent = 0;
+    try {
+      const rules = await this.ruleRepo.find({ where: { enabled: true } });
+      for (const rule of rules) {
+        if (sent >= MAX_SENDS_PER_TICK) break;
+        if (!SCHEDULABLE_TRIGGERS.includes(rule.trigger)) continue;
+        await this.markRecoveries(rule);
+        sent += await this.sendDueFollowups(rule, now, MAX_SENDS_PER_TICK - sent);
+      }
+    } catch (error) {
+      this.logger.error(`Follow-up scheduler failed: ${error}`);
+    } finally {
+      this.running = false;
+    }
+    return sent;
+  }
+
+  private async markRecoveries(rule: FollowupRule): Promise<void> {
+    const unrecovered = await this.attemptRepo.find({
+      where: { ruleId: rule.id, recoveredAt: IsNull() },
+      take: CANDIDATE_BATCH,
+    });
+    if (unrecovered.length === 0) return;
+
+    const conversations = await this.convoRepo.find({
+      where: { id: In(unrecovered.map(a => a.conversationId)) },
+    });
+    const byId = new Map(conversations.map(c => [c.id, c]));
+
+    let recovered = 0;
+    for (const attempt of unrecovered) {
+      const convo = byId.get(attempt.conversationId);
+      if (convo?.lastInboundAt && new Date(convo.lastInboundAt) > new Date(attempt.sentAt)) {
+        attempt.recoveredAt = new Date(convo.lastInboundAt);
+        await this.attemptRepo.save(attempt);
+        recovered++;
+      }
+    }
+    if (recovered > 0) await this.ruleRepo.increment({ id: rule.id }, 'totalRecovered', recovered);
+  }
+
+  private async sendDueFollowups(rule: FollowupRule, now: Date, budget: number): Promise<number> {
+    const idleCutoff = new Date(now.getTime() - rule.delayMinutes * 60 * 1000);
+    const qb = this.convoRepo
+      .createQueryBuilder('c')
+      .where('c.businessId = :businessId', { businessId: rule.businessId })
+      .andWhere('c.status = :status', { status: ConversationStatus.OPEN })
+      .andWhere('c.lastMessageAt < :idleCutoff', { idleCutoff });
+    if (rule.sessionId) qb.andWhere('c.sessionId = :sessionId', { sessionId: rule.sessionId });
+    const candidates = await qb.orderBy('c.lastMessageAt', 'ASC').take(CANDIDATE_BATCH).getMany();
+
+    let sent = 0;
+    for (const convo of candidates) {
+      if (sent >= budget) break;
+
+      const lastInbound = convo.lastInboundAt ? new Date(convo.lastInboundAt).getTime() : 0;
+      const attempts = await this.attemptRepo.find({
+        where: { ruleId: rule.id, conversationId: convo.id },
+        order: { sentAt: 'DESC' },
+      });
+      const sequence = attempts.filter(a => new Date(a.sentAt).getTime() > lastInbound);
+      if (sequence.length >= rule.maxAttempts) continue;
+      const lastAttempt = sequence[0];
+      if (lastAttempt && now.getTime() - new Date(lastAttempt.sentAt).getTime() < rule.cooldownMinutes * 60 * 1000) {
+        continue;
+      }
+
+      const engine = this.engineRegistry?.get(convo.sessionId);
+      if (!engine) continue;
+
+      const attempt = await this.attemptRepo.save(
+        this.attemptRepo.create({
+          businessId: rule.businessId,
+          ruleId: rule.id,
+          conversationId: convo.id,
+          sessionId: convo.sessionId,
+          chatId: convo.chatId,
+          sentAt: now,
+          recoveredAt: null,
+        }),
+      );
+
+      try {
+        await engine.sendTextMessage(convo.chatId, rule.message.replace(/\{\{name\}\}/g, convo.chatName || 'there'));
+        await this.ruleRepo.increment({ id: rule.id }, 'totalSent', 1);
+        sent++;
+      } catch (error) {
+        await this.attemptRepo.delete(attempt.id);
+        this.logger.warn(`Follow-up to ${convo.chatId} failed: ${error}`);
+      }
+    }
+    return sent;
+  }
 
   async findAllRules(businessId: string) {
     return this.ruleRepo.find({ where: { businessId }, order: { createdAt: 'DESC' } });

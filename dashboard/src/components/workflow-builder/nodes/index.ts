@@ -16,6 +16,14 @@ import { MediaNode } from './MediaNode';
 import { SearchAgentsNode } from './SearchAgentsNode';
 import { CreateLeadNode } from './CreateLeadNode';
 import { ValidatePincodeNode } from './ValidatePincodeNode';
+import { ContactVCardNode } from './ContactVCardNode';
+import { WorkingHoursNode } from './WorkingHoursNode';
+import { InternalAlertNode } from './InternalAlertNode';
+import { ABTestNode } from './ABTestNode';
+import { FinancialCalcNode } from './FinancialCalcNode';
+import { PaymentLinkNode } from './PaymentLinkNode';
+import { AiOcrNode } from './AiOcrNode';
+import { CarouselTemplateNode } from './CarouselTemplateNode';
 
 export const nodeTypes = {
   trigger: TriggerNode,
@@ -36,6 +44,20 @@ export const nodeTypes = {
   search_agents: SearchAgentsNode,
   create_lead: CreateLeadNode,
   validate_pincode: ValidatePincodeNode,
+  send_contact_vcard: ContactVCardNode,
+  send_document: MediaNode,
+  send_voice_note: MediaNode,
+  working_hours_gateway: WorkingHoursNode,
+  internal_alert: InternalAlertNode,
+  ab_test_split: ABTestNode,
+  dnd_manager: StopNode,
+  financial_calculator: FinancialCalcNode,
+  payment_link: PaymentLinkNode,
+  ai_document_ocr: AiOcrNode,
+  dynamic_pdf_generator: MediaNode,
+  send_carousel_template: CarouselTemplateNode,
+  interactive_cta_template: ButtonsNode,
+  dynamic_language_switcher: BranchNode,
 };
 
 export {
@@ -57,4 +79,12 @@ export {
   SearchAgentsNode,
   CreateLeadNode,
   ValidatePincodeNode,
+  ContactVCardNode,
+  WorkingHoursNode,
+  InternalAlertNode,
+  ABTestNode,
+  FinancialCalcNode,
+  PaymentLinkNode,
+  AiOcrNode,
+  CarouselTemplateNode,
 };

@@ -626,18 +626,6 @@ export class PluginLoaderService implements OnModuleInit, OnApplicationBootstrap
       return; // Already enabled
     }
 
-    // Engines are mutually exclusive and pinned to the deployment's engine.type config (the factory
-    // reads that, not plugin status). Enabling a second engine at runtime would show two "active"
-    // engines and desync the factory, so reject anything but the configured active engine.
-    if (plugin.manifest.type === PluginType.ENGINE) {
-      const activeEngine = this.configService.get<string>('engine.type') ?? 'whatsapp-web.js';
-      if (pluginId !== activeEngine) {
-        throw new Error(
-          `Engine "${pluginId}" is not the active engine ("${activeEngine}"). Set engine.type and restart to switch engines.`,
-        );
-      }
-    }
-
     // Concurrency guard: status flips to ENABLED only AFTER the awaits below, so two concurrent enable
     // calls would both pass the check above, both run onEnable, and both register the plugin's hooks
     // (duplicate side effects). Claim the enable synchronously here so a racing caller is rejected

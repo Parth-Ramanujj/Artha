@@ -1,0 +1,232 @@
+/* =============================================================================
+   Shopify Commerce & Volume Discounts Styles
+   ============================================================================= */
+
+.commerce-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.commerce-page .commerce-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  padding-bottom: 0.5rem;
+}
+
+[data-theme='dark'] .commerce-page .commerce-tabs {
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.commerce-page .commerce-tab-btn {
+  padding: 0.625rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.commerce-page .commerce-tab-btn:hover {
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+
+.commerce-page .commerce-tab-btn.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.1) 100%);
+  color: #10b981;
+  border-bottom: 2px solid #10b981;
+}
+
+[data-theme='dark'] .commerce-page .commerce-tab-btn.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+/* Store Status Card */
+.commerce-page .store-status-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .commerce-page .store-status-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.commerce-page .store-info-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.commerce-page .shopify-bag-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.commerce-page .store-metrics-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.commerce-page .metric-pill {
+  display: flex;
+  flex-direction: column;
+}
+
+.commerce-page .metric-pill-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.commerce-page .metric-pill-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .commerce-page .metric-pill-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+/* Recovery Grid */
+.commerce-page .recovery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .commerce-page .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.commerce-page .recovery-config-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .commerce-page .recovery-config-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+/* Volume Discounts Tiers */
+.commerce-page .pricing-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.commerce-page .tier-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.commerce-page .tier-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.commerce-page .tier-card.featured {
+  border-color: #6366f1;
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.15);
+}
+
+[data-theme='dark'] .commerce-page .tier-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+[data-theme='dark'] .commerce-page .tier-card.featured {
+  border-color: #818cf8;
+}
+
+.commerce-page .featured-ribbon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  color: #ffffff;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+}
+
+.commerce-page .tier-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+}
+
+[data-theme='dark'] .commerce-page .tier-name {
+  color: var(--text-primary, #f8fafc);
+}
+
+.commerce-page .tier-rate {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #10b981;
+}
+
+.commerce-page .tier-rate span {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary, #64748b);
+}
+
+.commerce-page .tier-volume {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #64748b);
+  font-weight: 600;
+}

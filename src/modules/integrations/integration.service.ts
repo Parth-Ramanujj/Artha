@@ -9,13 +9,27 @@ export class IntegrationService {
   constructor(@InjectRepository(Integration, 'data') private readonly repo: Repository<Integration>) {}
 
   async findAll(businessId: string, type?: string) {
-    const where: Record<string, unknown> = { businessId };
-    if (type) where.type = type;
+    const effectiveBusinessId = businessId || 'default';
+    const where: any = [
+      { businessId: effectiveBusinessId },
+      { businessId: 'default' },
+      { businessId: '' },
+    ];
+    if (type) {
+      where.forEach((w: any) => (w.type = type));
+    }
     return this.repo.find({ where, order: { createdAt: 'DESC' } });
   }
 
   async findOne(id: string, businessId: string) {
-    const integration = await this.repo.findOne({ where: { id, businessId } });
+    const effectiveBusinessId = businessId || 'default';
+    const integration = await this.repo.findOne({
+      where: [
+        { id, businessId: effectiveBusinessId },
+        { id, businessId: 'default' },
+        { id, businessId: '' },
+      ],
+    });
     if (!integration) throw new NotFoundException('Integration not found');
     return integration;
   }
@@ -39,11 +53,95 @@ export class IntegrationService {
     return this.repo.save(integration);
   }
 
-  async connect(id: string, businessId: string) {
+  async testConnection(id: string, businessId: string) {
     const integration = await this.findOne(id, businessId);
+    const targetUrl =
+      integration.config?.webhookUrl ||
+      integration.config?.url ||
+      integration.config?.apiUrl ||
+      integration.config?.endpoint;
+
+    if (!targetUrl && !integration.config?.apiKey) {
+      return {
+        success: false,
+        message: 'No Webhook URL or API Key configured for this integration',
+      };
+    }
+
+    if (targetUrl) {
+      const startTime = Date.now();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+
+      try {
+        const res = await fetch(String(targetUrl), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'OpenWA-Integration-Probe/1.0',
+            ...(integration.config?.apiKey ? { Authorization: `Bearer ${integration.config.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            event: 'integration.verify',
+            integrationId: integration.id,
+            type: integration.type,
+            name: integration.name,
+            timestamp: new Date().toISOString(),
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const latencyMs = Date.now() - startTime;
+
+        if (res.ok || res.status === 200 || res.status === 201 || res.status === 204) {
+          integration.status = IntegrationStatus.CONNECTED;
+          integration.lastError = null;
+          await this.repo.save(integration);
+          return {
+            success: true,
+            statusCode: res.status,
+            latencyMs,
+            message: `Connected successfully (${latencyMs}ms)`,
+          };
+        } else {
+          integration.status = IntegrationStatus.ERROR;
+          integration.lastError = `Target returned HTTP ${res.status}: ${res.statusText}`;
+          await this.repo.save(integration);
+          return {
+            success: false,
+            statusCode: res.status,
+            latencyMs,
+            message: integration.lastError,
+          };
+        }
+      } catch (err: any) {
+        clearTimeout(timeout);
+        integration.status = IntegrationStatus.ERROR;
+        integration.lastError = `Connection failed: ${err.message}`;
+        await this.repo.save(integration);
+        return {
+          success: false,
+          latencyMs: Date.now() - startTime,
+          message: integration.lastError,
+        };
+      }
+    }
+
     integration.status = IntegrationStatus.CONNECTED;
     integration.lastError = null;
-    return this.repo.save(integration);
+    await this.repo.save(integration);
+    return {
+      success: true,
+      message: 'Credentials saved and integration connected',
+    };
+  }
+
+  async connect(id: string, businessId: string) {
+    const res = await this.testConnection(id, businessId);
+    if (!res.success && res.message.includes('HTTP')) {
+      throw new BadRequestException(res.message);
+    }
+    return this.findOne(id, businessId);
   }
 
   async disconnect(id: string, businessId: string) {

@@ -9,6 +9,8 @@
     "appName": "Artha",
     "loading": "Loading...",
     "cancel": "Cancel",
+    "error": "Something went wrong",
+    "success": "Done",
     "delete": "Delete",
     "create": "Create",
     "close": "Close",
@@ -82,7 +84,20 @@
     "feedback": "Feedback",
     "sync": "Sync",
     "followup": "Follow-up",
-    "logs": "Logs"
+    "salesPipeline": "Sales Pipeline",
+    "aiAgents": "AI Agents & Voice",
+    "commerce": "Shopify Commerce",
+    "roles": "Roles & RBAC",
+    "logs": "Logs",
+    "sections": {
+      "core": "Overview",
+      "messaging": "Messaging",
+      "automation": "Automation",
+      "support": "Support & Quality",
+      "analytics": "Analytics",
+      "integrations": "Integrations",
+      "admin": "Administration"
+    }
   },
   "chats": {
     "media": {

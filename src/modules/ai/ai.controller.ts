@@ -54,7 +54,7 @@ export class AiController {
   }
 
 
-  @Get('knowledge')
+  @Get(['knowledge', 'documents'])
   @ApiOperation({ summary: 'List knowledge documents' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
@@ -69,14 +69,14 @@ export class AiController {
     });
   }
 
-  @Get('knowledge/:id')
+  @Get(['knowledge/:id', 'documents/:id'])
   @ApiOperation({ summary: 'Get a knowledge document' })
   @ApiParam({ name: 'id' })
   async findOneDocument(@Param('id') id: string, @CurrentApiKey() apiKey: ApiKey) {
     return this.aiService.findOneDocument(id, this.getBusinessId(apiKey));
   }
 
-  @Post('knowledge')
+  @Post(['knowledge', 'documents'])
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Upload a knowledge document' })
   @ApiResponse({ status: 201, description: 'Document created' })
@@ -84,7 +84,7 @@ export class AiController {
     return this.aiService.createDocument(this.getBusinessId(apiKey), dto, apiKey?.id);
   }
 
-  @Put('knowledge/:id')
+  @Put(['knowledge/:id', 'documents/:id'])
   @RequireRole(ApiKeyRole.OPERATOR)
   @ApiOperation({ summary: 'Update a knowledge document' })
   @ApiParam({ name: 'id' })
@@ -96,7 +96,7 @@ export class AiController {
     return this.aiService.updateDocument(id, this.getBusinessId(apiKey), dto, apiKey?.id);
   }
 
-  @Delete('knowledge/:id')
+  @Delete(['knowledge/:id', 'documents/:id'])
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Delete a knowledge document' })
   @ApiParam({ name: 'id' })

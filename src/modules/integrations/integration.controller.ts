@@ -49,6 +49,13 @@ export class IntegrationController {
     return this.service.update(id, this.getBusinessId(apiKey), dto);
   }
 
+  @Post(':id/test')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Test integration connectivity' })
+  test(@CurrentApiKey() apiKey: { businessId?: string }, @Param('id') id: string) {
+    return this.service.testConnection(id, this.getBusinessId(apiKey));
+  }
+
   @Post(':id/connect')
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Connect integration' })

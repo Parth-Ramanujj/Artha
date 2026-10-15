@@ -54,6 +54,30 @@ export class HealthController {
     return { status: 'ok' };
   }
 
+  @Get('memory')
+  @ApiOperation({ summary: 'Memory telemetry check' })
+  @ApiResponse({ status: 200, description: 'Process memory usage telemetry' })
+  memory(): {
+    status: 'ok' | 'warn';
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+  } {
+    const mem = process.memoryUsage();
+    const rssMb = Math.round((mem.rss / 1024 / 1024) * 100) / 100;
+    const heapUsedMb = Math.round((mem.heapUsed / 1024 / 1024) * 100) / 100;
+    const heapTotalMb = Math.round((mem.heapTotal / 1024 / 1024) * 100) / 100;
+    const externalMb = Math.round((mem.external / 1024 / 1024) * 100) / 100;
+    return {
+      status: rssMb > 350 ? 'warn' : 'ok',
+      rssMb,
+      heapUsedMb,
+      heapTotalMb,
+      externalMb,
+    };
+  }
+
   @Get('ready')
   @ApiOperation({ summary: 'Readiness probe — verifies the auth/audit + data databases respond' })
   @ApiResponse({ status: 200, description: 'Application is ready to accept traffic' })

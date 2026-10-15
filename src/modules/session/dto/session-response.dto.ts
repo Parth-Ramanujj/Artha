@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { Session } from '../entities/session.entity';
-import { SessionStatus } from '../entities/session.entity';
+import { SessionStatus, EngineType } from '../entities/session.entity';
 
 export class SessionResponseDto {
   @ApiProperty({ example: 'sess_123e4567-e89b-12d3-a456-426614174000' })
@@ -11,6 +11,14 @@ export class SessionResponseDto {
 
   @ApiProperty({ enum: SessionStatus, example: SessionStatus.READY })
   status: SessionStatus;
+
+  @ApiPropertyOptional({
+    enum: EngineType,
+    description: 'WhatsApp engine used by this session. Null means the global ENGINE_TYPE default.',
+    example: 'baileys',
+    nullable: true,
+  })
+  engineType?: EngineType | null;
 
   @ApiPropertyOptional({ type: String, example: '628123456789', nullable: true })
   phone?: string | null;
@@ -67,6 +75,7 @@ export class SessionResponseDto {
       id: session.id,
       name: session.name,
       status: session.status,
+      engineType: session.engineType ?? null,
       phone: session.phone,
       pushName: session.pushName,
       connectedAt: session.connectedAt,

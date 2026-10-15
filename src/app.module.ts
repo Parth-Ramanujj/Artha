@@ -210,7 +210,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             synchronize: configService.get<boolean>('dataDatabase.synchronize', false),
             migrationsRun: true,
             retryAttempts: 10,
-            retryDelay: 3000,
+            retryDelay: Math.floor(3000 + Math.random() * 2000),
             extra: {
               max: configService.get<number>('dataDatabase.poolSize', 10),
               // Runtime query/pool timeouts so a stuck query or saturated pool fails fast instead of

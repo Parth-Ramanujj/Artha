@@ -31,6 +31,13 @@ import {
   UserCheck,
   ShieldCheck,
   MapPin,
+  Contact,
+  BellRing,
+  GitFork,
+  Calculator,
+  CreditCard,
+  ScanText,
+  LayoutGrid,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
@@ -64,6 +71,14 @@ function getNodeIcon(nodeType: string) {
     case 'search_agents': return <UserCheck size={13} />;
     case 'create_lead': return <ShieldCheck size={13} />;
     case 'validate_pincode': return <MapPin size={13} />;
+    case 'send_contact_vcard': return <Contact size={13} />;
+    case 'working_hours_gateway': return <Clock size={13} />;
+    case 'internal_alert': return <BellRing size={13} />;
+    case 'ab_test_split': return <GitFork size={13} />;
+    case 'financial_calculator': return <Calculator size={13} />;
+    case 'payment_link': return <CreditCard size={13} />;
+    case 'ai_document_ocr': return <ScanText size={13} />;
+    case 'send_carousel_template': return <LayoutGrid size={13} />;
     default: return <Layers size={13} />;
   }
 }
@@ -181,6 +196,55 @@ function getNodeOutputs(node: Node): NodeOutputField[] {
       return [
         { label: 'Is Valid', token: `steps.${id}.isValid`, type: 'boolean', description: 'Whether the PIN code is a valid 6-digit Indian Pincode', example: 'true' },
         { label: 'Cleaned Pincode', token: `steps.${id}.pincode`, type: 'string', description: 'Sanitized 6-digit numeric Pincode', example: '380015' },
+      ];
+    case 'send_contact_vcard':
+      return [
+        { label: 'Sent Success', token: `steps.${id}.sent`, type: 'boolean', description: 'Whether vCard was sent', example: 'true' },
+        { label: 'Advisor Name', token: `steps.${id}.displayName`, type: 'string', description: 'Advisor contact name', example: 'Alpeshkumar Patel' },
+        { label: 'Advisor Phone', token: `steps.${id}.phoneNumber`, type: 'string', description: 'Advisor contact number', example: '+919426378401' },
+      ];
+    case 'working_hours_gateway':
+      return [
+        { label: 'Is Business Open', token: `steps.${id}.isOpen`, type: 'boolean', description: 'True if inside working hours', example: 'true' },
+        { label: 'Evaluated Branch', token: `steps.${id}.branch`, type: 'string', description: '"open" or "closed"', example: 'open' },
+        { label: 'Current Local Time', token: `steps.${id}.currentTime`, type: 'string', description: 'HH:mm in target timezone', example: '14:30' },
+      ];
+    case 'internal_alert':
+      return [
+        { label: 'Alert Sent', token: `steps.${id}.alerted`, type: 'boolean', description: 'Whether manager was notified', example: 'true' },
+        { label: 'Manager Recipient', token: `steps.${id}.recipient`, type: 'string', description: 'Manager WhatsApp JID', example: '919876543210@c.us' },
+      ];
+    case 'ab_test_split':
+      return [
+        { label: 'Assigned Variant', token: `steps.${id}.variant`, type: 'string', description: '"A" or "B"', example: 'A' },
+        { label: 'Target Branch', token: `steps.${id}.branch`, type: 'string', description: '"variant_a" or "variant_b"', example: 'variant_a' },
+      ];
+    case 'financial_calculator':
+      return [
+        { label: 'Future Value', token: `steps.${id}.futureValue`, type: 'number', description: 'Calculated maturity amount', example: '5200000' },
+        { label: 'Formatted Future Value', token: `steps.${id}.formattedFutureValue`, type: 'string', description: 'Future Value with ₹ symbol and commas', example: '₹52,00,000' },
+        { label: 'Invested Amount', token: `steps.${id}.investedAmount`, type: 'number', description: 'Total amount deposited', example: '900000' },
+        { label: 'Wealth Gain', token: `steps.${id}.wealthGain`, type: 'number', description: 'Total returns earned', example: '4300000' },
+        { label: 'Formatted Wealth Gain', token: `steps.${id}.formattedWealthGain`, type: 'string', description: 'Formatted wealth gain', example: '₹43,00,000' },
+        { label: 'Monthly EMI', token: `steps.${id}.formattedMonthlyEmi`, type: 'string', description: 'Calculated loan EMI', example: '₹14,500' },
+      ];
+    case 'payment_link':
+      return [
+        { label: 'UPI Deep Link', token: `steps.${id}.upiLink`, type: 'string', description: 'upi:// deep link for GPay/PhonePe', example: 'upi://pay?pa=...' },
+        { label: 'Payment Checkout URL', token: `steps.${id}.paymentUrl`, type: 'string', description: 'Razorpay / Web checkout link', example: 'https://rzp.io/l/...' },
+        { label: 'Transaction ID', token: `steps.${id}.txnId`, type: 'string', description: 'Generated payment reference', example: 'TXN_17290123' },
+      ];
+    case 'ai_document_ocr':
+      return [
+        { label: 'Extracted Policy Number', token: `steps.${id}.policyNumber`, type: 'string', description: 'Read policy number', example: 'OG-24-1102-1801' },
+        { label: 'Extracted Vehicle Number', token: `steps.${id}.vehicleNumber`, type: 'string', description: 'Read vehicle reg number', example: 'GJ02BT8921' },
+        { label: 'Insured Name', token: `steps.${id}.insuredName`, type: 'string', description: 'Policyholder name', example: 'Rajesh Patel' },
+        { label: 'Policy Expiry Date', token: `steps.${id}.expiryDate`, type: 'string', description: 'Expiry date YYYY-MM-DD', example: '2026-12-31' },
+      ];
+    case 'send_carousel_template':
+      return [
+        { label: 'Sent Success', token: `steps.${id}.sent`, type: 'boolean', description: 'Whether carousel cards were sent', example: 'true' },
+        { label: 'Cards Dispatched Count', token: `steps.${id}.cardCount`, type: 'number', description: 'Number of cards delivered', example: '3' },
       ];
     default:
       return [
@@ -2305,6 +2369,269 @@ export function NodeInspector({
               Validates against Indian PIN code standard regex: <code className="text-amber-400 font-mono">^[1-9][0-9]&#123;5&#125;$</code>.
               Branches to <code className="text-emerald-400">pincode_valid</code> or <code className="text-red-400">invalid_pincode</code>.
             </p>
+          </div>
+        )}
+
+        {/* SEND CONTACT VCARD NODE */}
+        {type === 'send_contact_vcard' && (
+          <div className="wf-inspector-section">
+            <DynamicInput
+              label="Advisor Full Name"
+              placeholder="{{steps.search_agents.primaryAgent.name}} or Alpeshkumar Patel"
+              value={config.displayName || ''}
+              onChange={val => updateConfig('displayName', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Contact Phone Number"
+              placeholder="{{steps.search_agents.primaryAgent.phone}} or +919426378401"
+              value={config.phoneNumber || ''}
+              onChange={val => updateConfig('phoneNumber', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Company / Agency Name"
+              placeholder="LIC / HDFC Life / PadosiAgent"
+              value={config.organization || ''}
+              onChange={val => updateConfig('organization', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Advisor Designation"
+              placeholder="Senior Certified Financial Advisor"
+              value={config.title || ''}
+              onChange={val => updateConfig('title', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <p className="text-xs text-emerald-400 mt-2">
+              💡 Sends a native WhatsApp Contact Card with 1-click "Save Contact" button on the customer's phone.
+            </p>
+          </div>
+        )}
+
+        {/* WORKING HOURS GATEWAY NODE */}
+        {type === 'working_hours_gateway' && (
+          <div className="wf-inspector-section">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="wf-field-group">
+                <label className="wf-field-label">Opening Time</label>
+                <input
+                  type="time"
+                  className="wf-field-input"
+                  value={config.openTime || '09:00'}
+                  onChange={e => updateConfig('openTime', e.target.value)}
+                />
+              </div>
+              <div className="wf-field-group">
+                <label className="wf-field-label">Closing Time</label>
+                <input
+                  type="time"
+                  className="wf-field-input"
+                  value={config.closeTime || '20:00'}
+                  onChange={e => updateConfig('closeTime', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="wf-field-group mt-2">
+              <label className="wf-field-label">Office Timezone</label>
+              <select
+                className="wf-field-select"
+                value={config.timezone || 'Asia/Kolkata'}
+                onChange={e => updateConfig('timezone', e.target.value)}
+              >
+                <option value="Asia/Kolkata">Asia/Kolkata (IST - India)</option>
+                <option value="Asia/Dubai">Asia/Dubai (GST - UAE)</option>
+                <option value="UTC">UTC (Universal)</option>
+              </select>
+            </div>
+            <p className="text-xs text-amber-400 mt-2">
+              ⚡ Connect the right port for <strong>OPEN</strong> hours and bottom port for <strong>CLOSED</strong> hours.
+            </p>
+          </div>
+        )}
+
+        {/* INTERNAL ALERT NODE */}
+        {type === 'internal_alert' && (
+          <div className="wf-inspector-section">
+            <DynamicInput
+              label="Manager / Advisor Phone Number"
+              placeholder="919876543210 (without +)"
+              value={config.recipientPhone || ''}
+              onChange={val => updateConfig('recipientPhone', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicTextarea
+              label="Alert Notification Message"
+              placeholder="🚨 *NEW LEAD!* Name: {{trigger.contactName}}..."
+              value={config.templateMessage || ''}
+              onChange={val => updateConfig('templateMessage', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+              rows={5}
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              Dispatches an immediate alert to your internal team WhatsApp without interrupting the customer's chat.
+            </p>
+          </div>
+        )}
+
+        {/* A/B TEST SPLIT NODE */}
+        {type === 'ab_test_split' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Variant A Percentage ({config.splitRatio || 50}%)</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                className="w-full"
+                value={config.splitRatio || 50}
+                onChange={e => updateConfig('splitRatio', parseInt(e.target.value, 10))}
+              />
+              <div className="flex justify-between text-xs text-slate-400 mt-1">
+                <span>Branch A: {config.splitRatio || 50}%</span>
+                <span>Branch B: {100 - (config.splitRatio || 50)}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FINANCIAL CALCULATOR NODE */}
+        {type === 'financial_calculator' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Calculation Mode</label>
+              <select
+                className="wf-field-select"
+                value={config.mode || 'SIP'}
+                onChange={e => updateConfig('mode', e.target.value)}
+              >
+                <option value="SIP">Monthly SIP (Wealth Accumulator)</option>
+                <option value="LOAN_EMI">Loan / Policy EMI</option>
+                <option value="LUMPSUM">Lump-sum Investment</option>
+              </select>
+            </div>
+            <DynamicInput
+              label="Investment / Loan Amount (₹)"
+              placeholder="{{steps.amount.value}} or 5000"
+              value={config.monthlyInvestment || config.amount || ''}
+              onChange={val => updateConfig('monthlyInvestment', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <DynamicInput
+                label="Duration (Years)"
+                placeholder="15"
+                value={config.durationYears || '15'}
+                onChange={val => updateConfig('durationYears', val)}
+                onOpenVariablePicker={handleOpenVariablePicker}
+              />
+              <DynamicInput
+                label="Expected Return / Interest Rate (%)"
+                placeholder="13.5"
+                value={config.expectedReturnRate || '13.5'}
+                onChange={val => updateConfig('expectedReturnRate', val)}
+                onOpenVariablePicker={handleOpenVariablePicker}
+              />
+            </div>
+            <p className="text-xs text-cyan-400 mt-2">
+              📊 Outputs: <code className="text-white">steps.{'{id}'}.formattedFutureValue</code>, <code className="text-white">steps.{'{id}'}.formattedWealthGain</code>.
+            </p>
+          </div>
+        )}
+
+        {/* PAYMENT LINK NODE */}
+        {type === 'payment_link' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Payment Gateway / Method</label>
+              <select
+                className="wf-field-select"
+                value={config.provider || 'UPI'}
+                onChange={e => updateConfig('provider', e.target.value)}
+              >
+                <option value="UPI">UPI Deep Link (GPay / PhonePe / Paytm)</option>
+                <option value="RAZORPAY">Razorpay Payment Link</option>
+              </select>
+            </div>
+            <DynamicInput
+              label="Amount to Charge (₹)"
+              placeholder="299"
+              value={config.amount || ''}
+              onChange={val => updateConfig('amount', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Payment Description / Purpose"
+              placeholder="Advisor Consultation & Policy Audit"
+              value={config.description || ''}
+              onChange={val => updateConfig('description', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Business UPI VPA / ID"
+              placeholder="paytmqr.advisor@paytm"
+              value={config.payeeVpa || ''}
+              onChange={val => updateConfig('payeeVpa', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+          </div>
+        )}
+
+        {/* AI DOCUMENT OCR NODE */}
+        {type === 'ai_document_ocr' && (
+          <div className="wf-inspector-section">
+            <div className="wf-field-group">
+              <label className="wf-field-label">Target Document Type</label>
+              <select
+                className="wf-field-select"
+                value={config.documentType || 'POLICY'}
+                onChange={e => updateConfig('documentType', e.target.value)}
+              >
+                <option value="POLICY">Insurance Policy Schedule / Certificate</option>
+                <option value="RC_BOOK">Vehicle Registration RC Book</option>
+                <option value="AADHAAR">Identity / Aadhaar Card</option>
+                <option value="AUTO">Auto Detect</option>
+              </select>
+            </div>
+            <DynamicInput
+              label="Image URL to Parse (Optional)"
+              placeholder="{{trigger.mediaUrl}} or latest image"
+              value={config.imageUrl || ''}
+              onChange={val => updateConfig('imageUrl', val)}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+          </div>
+        )}
+
+        {/* SEND CAROUSEL TEMPLATE NODE */}
+        {type === 'send_carousel_template' && (
+          <div className="wf-inspector-section">
+            <p className="text-xs text-slate-300 mb-2">
+              Displays interactive swipeable cards on Meta Cloud API, or separate Unicode-framed advisor cards on WhatsApp Web.
+            </p>
+            <DynamicInput
+              label="Card 1 Title"
+              placeholder="Alpeshkumar Patel (20+ Yrs Exp)"
+              value={config.cards?.[0]?.title || ''}
+              onChange={val => {
+                const cards = [...(config.cards || [{ title: '', description: '' }])];
+                cards[0] = { ...cards[0], title: val };
+                updateConfig('cards', cards);
+              }}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
+            <DynamicInput
+              label="Card 1 Phone (For Direct Call/Chat)"
+              placeholder="919426378401"
+              value={config.cards?.[0]?.phone || ''}
+              onChange={val => {
+                const cards = [...(config.cards || [{ title: '', description: '' }])];
+                cards[0] = { ...cards[0], phone: val };
+                updateConfig('cards', cards);
+              }}
+              onOpenVariablePicker={handleOpenVariablePicker}
+            />
           </div>
         )}
 

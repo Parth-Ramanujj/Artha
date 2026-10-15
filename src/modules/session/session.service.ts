@@ -14,7 +14,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, DataSource, FindManyOptions } from 'typeorm';
-import { Session, SessionStatus } from './entities/session.entity';
+import { Session, SessionStatus, EngineType } from './entities/session.entity';
 import { Message } from '../message/entities/message.entity';
 import { MessageBatch } from '../message/entities/message-batch.entity';
 import { Webhook } from '../webhook/entities/webhook.entity';
@@ -490,7 +490,12 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     void this.teardownEngineSafely(
       id,
       engine,
-      e => (typeof e.forceDestroy === 'function' ? e.forceDestroy() : (typeof e.destroy === 'function' ? e.destroy() : Promise.resolve())),
+      e =>
+        typeof e.forceDestroy === 'function'
+          ? e.forceDestroy()
+          : typeof e.destroy === 'function'
+            ? e.destroy()
+            : Promise.resolve(),
       'force-destroy',
     );
   }
@@ -505,9 +510,22 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       throw new ConflictException(`Session with name '${dto.name}' already exists`);
     }
 
+    // When per-session engine type is cloud-api, validate that the required tokens are configured.
+    const resolvedEngine = dto.engineType ?? this.configService?.get<string>('engine.type') ?? 'whatsapp-web.js';
+    if (resolvedEngine === 'cloud-api') {
+      const token = this.configService?.get<string>('engine.cloudApi.accessToken');
+      const phoneId = this.configService?.get<string>('engine.cloudApi.phoneNumberId');
+      if (!token || !phoneId) {
+        throw new BadRequestException(
+          'Cloud API sessions require CLOUD_API_ACCESS_TOKEN and CLOUD_API_PHONE_NUMBER_ID environment variables',
+        );
+      }
+    }
+
     const session = this.sessionRepository.create({
       name: dto.name,
       businessId: businessId ?? null,
+      engineType: (dto.engineType as EngineType) || null,
       config: dto.config || {},
       proxyUrl: dto.proxyUrl || null,
       proxyType: dto.proxyType || null,
@@ -929,12 +947,14 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     this.logger.log(`Initializing engine for session: ${session.name}`, {
       sessionId: id,
       action: 'engine_init',
+      engineType: session.engineType ?? 'default',
       proxyEnabled: !!session.proxyUrl,
     });
 
     const engine = this.engineFactory.create({
       sessionId: session.name,
       dbSessionId: id,
+      engineType: session.engineType || undefined,
       proxyUrl: session.proxyUrl || undefined,
       proxyType: session.proxyType || undefined,
     });

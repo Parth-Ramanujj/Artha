@@ -60,6 +60,20 @@ export enum ActionType {
   SEARCH_AGENTS = 'search_agents',
   CREATE_LEAD = 'create_lead',
   VALIDATE_PINCODE = 'validate_pincode',
+  SEND_CONTACT_VCARD = 'send_contact_vcard',
+  SEND_DOCUMENT = 'send_document',
+  SEND_VOICE_NOTE = 'send_voice_note',
+  WORKING_HOURS_GATEWAY = 'working_hours_gateway',
+  INTERNAL_ALERT = 'internal_alert',
+  AB_TEST_SPLIT = 'ab_test_split',
+  DND_MANAGER = 'dnd_manager',
+  FINANCIAL_CALCULATOR = 'financial_calculator',
+  PAYMENT_LINK = 'payment_link',
+  AI_DOCUMENT_OCR = 'ai_document_ocr',
+  DYNAMIC_PDF_GENERATOR = 'dynamic_pdf_generator',
+  SEND_CAROUSEL_TEMPLATE = 'send_carousel_template',
+  INTERACTIVE_CTA_TEMPLATE = 'interactive_cta_template',
+  DYNAMIC_LANGUAGE_SWITCHER = 'dynamic_language_switcher',
 }
 
 export interface WorkflowTrigger {

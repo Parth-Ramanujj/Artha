@@ -13,6 +13,12 @@ export enum SessionStatus {
   FAILED = 'failed',
 }
 
+export enum EngineType {
+  WHATSAPP_WEB_JS = 'whatsapp-web.js',
+  BAILEYS = 'baileys',
+  CLOUD_API = 'cloud-api',
+}
+
 @Entity('sessions')
 export class Session {
   @PrimaryGeneratedColumn('uuid')
@@ -36,6 +42,9 @@ export class Session {
 
   @Column({ type: 'varchar', length: 36, nullable: true })
   businessId: string | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  engineType: EngineType | null;
 
   @Column({ type: jsonColumnType(), default: '{}' })
   config: Record<string, unknown>;

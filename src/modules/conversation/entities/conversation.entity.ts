@@ -46,6 +46,9 @@ export class Conversation {
   @Column({ type: dateColumnType(), nullable: true, transformer: DateTransformer })
   lastMessageAt: Date | null;
 
+  @Column({ type: dateColumnType(), nullable: true, transformer: DateTransformer })
+  lastInboundAt: Date | null;
+
   @Column({ type: 'text', nullable: true })
   lastMessagePreview: string | null;
 

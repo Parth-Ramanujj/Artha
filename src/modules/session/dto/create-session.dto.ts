@@ -17,6 +17,15 @@ export class CreateSessionDto {
   name: string;
 
   @ApiPropertyOptional({
+    description: 'WhatsApp engine to use for this session. When omitted, falls back to the global ENGINE_TYPE setting.',
+    enum: ['whatsapp-web.js', 'baileys', 'cloud-api'],
+    example: 'baileys',
+  })
+  @IsOptional()
+  @IsIn(['whatsapp-web.js', 'baileys', 'cloud-api'])
+  engineType?: 'whatsapp-web.js' | 'baileys' | 'cloud-api';
+
+  @ApiPropertyOptional({
     description:
       'Session configuration options. Set autoRejectCalls (boolean, default false) to ' +
       'automatically reject incoming calls — the call.received event is still emitted.',

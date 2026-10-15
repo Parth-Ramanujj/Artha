@@ -1,0 +1,124 @@
+/* =============================================================================
+   Role-Based Access Control (RBAC) Styles
+   ============================================================================= */
+
+.roles-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.roles-page .roles-tabs{
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  padding-bottom: 0.5rem;
+}
+
+[data-theme='dark'] .roles-page .roles-tabs {
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.roles-page .roles-tab-btn{
+  padding: 0.625rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #64748b);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.roles-page .roles-tab-btn:hover{
+  background: var(--bg-hover, #f1f5f9);
+  color: var(--text-primary, #0f172a);
+}
+
+.roles-page .roles-tab-btn.active{
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.1) 100%);
+  color: #6366f1;
+  border-bottom: 2px solid #6366f1;
+}
+
+[data-theme='dark'] .roles-page .roles-tab-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  color: #a5b4fc;
+}
+
+.roles-page /* Permissions Matrix Table */
+.matrix-table-container{
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .roles-page .matrix-table-container {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.roles-page .matrix-table{
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.roles-page .matrix-table th{
+  background: var(--bg-subtle, #f8fafc);
+  padding: 0.875rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary, #64748b);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  letter-spacing: 0.5px;
+}
+
+[data-theme='dark'] .roles-page .matrix-table th {
+  background: var(--bg-subtle, #0f172a);
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.roles-page .matrix-table td{
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .roles-page .matrix-table td {
+  border-bottom-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.roles-page .matrix-table tr:last-child td{
+  border-bottom: none;
+}
+
+.roles-page .permission-category-row{
+  background: var(--bg-subtle, #f8fafc);
+  font-weight: 700;
+  color: #6366f1 !important;
+}
+
+[data-theme='dark'] .roles-page .permission-category-row {
+  background: var(--bg-subtle, #0f172a);
+  color: #a5b4fc !important;
+}
+
+.roles-page .matrix-checkbox{
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}

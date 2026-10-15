@@ -56,6 +56,7 @@ function createMockSession(overrides: Partial<Session> = {}): Session {
     phone: null,
     pushName: null,
     businessId: null,
+    engineType: null,
     config: {},
     proxyUrl: null,
     proxyType: null,

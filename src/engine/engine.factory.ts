@@ -18,6 +18,8 @@ export interface EngineCreateOptions {
   sessionId: string;
   /** Session UUID (Session.id) — the DB-row key for FK-bound stores (e.g. baileys_stored_messages). */
   dbSessionId: string;
+  /** Per-session engine override. When set, the factory uses this engine instead of the global default. */
+  engineType?: string;
   proxyUrl?: string;
   proxyType?: 'http' | 'https' | 'socks4' | 'socks5';
 }
@@ -91,19 +93,21 @@ export class EngineFactory implements OnModuleInit {
     };
     this.pluginLoader.registerBuiltInPlugin(cloudApiManifest, new CloudApiPlugin(engineConfig), engineConfig);
 
-    // Auto-enable the configured engine
-    try {
-      await this.pluginLoader.enablePlugin(this.engineType);
-      this.logger.log(`Engine plugin enabled: ${this.engineType}`, {
-        action: 'engine_enabled',
-        engineType: this.engineType,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to enable engine plugin: ${this.engineType}`,
-        error instanceof Error ? error.message : String(error),
-        { action: 'engine_enable_failed' },
-      );
+    // Enable all registered engine plugins so per-session engine selection works.
+    const engineIds = ['whatsapp-web.js', 'baileys', 'cloud-api'];
+    for (const engineId of engineIds) {
+      try {
+        await this.pluginLoader.enablePlugin(engineId);
+        this.logger.log(`Engine plugin enabled: ${engineId}`, {
+          action: 'engine_enabled',
+          engineType: engineId,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Engine plugin ${engineId} not available (will be skipped for per-session selection): ${error instanceof Error ? error.message : String(error)}`,
+          { action: 'engine_enable_skipped', engineId },
+        );
+      }
     }
   }
 
@@ -116,13 +120,12 @@ export class EngineFactory implements OnModuleInit {
       throw new Error(`Refusing to create an engine for an unsafe session name: ${JSON.stringify(options.sessionId)}`);
     }
 
+    const resolvedEngine = options.engineType ?? this.engineType;
+
     // Try to get engine from plugin system
-    const enginePlugin = this.pluginLoader.getPlugin(this.engineType);
+    const enginePlugin = this.pluginLoader.getPlugin(resolvedEngine);
 
     if (enginePlugin?.instance && this.isEnginePlugin(enginePlugin.instance)) {
-      // Engine-neutral per-call config only. Engine-specific config (e.g. Puppeteer for
-      // whatsapp-web.js) is supplied to the plugin as an opaque blob via context.config at
-      // registration, so the factory never assembles browser-shaped fields.
       return enginePlugin.instance.createEngine({
         sessionId: options.sessionId,
         dbSessionId: options.dbSessionId,
@@ -132,8 +135,9 @@ export class EngineFactory implements OnModuleInit {
     }
 
     // Fallback to direct adapter creation (legacy support)
-    this.logger.warn(`Engine plugin ${this.engineType} not available, using fallback`, {
+    this.logger.warn(`Engine plugin ${resolvedEngine} not available, using fallback`, {
       action: 'engine_fallback',
+      requestedEngine: resolvedEngine,
     });
 
     return this.createFallbackEngine(options);

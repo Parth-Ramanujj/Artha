@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import { bindModalA11y } from '../utils/modalA11y.ts';
 
 export interface ModalProps {
-  /** Whether the dialog is shown. When false, renders nothing. */
-  open: boolean;
+  /** Whether the dialog is shown. When false, renders nothing. Defaults to true. */
+  open?: boolean;
   /** Called on Escape, overlay click, and the header close button. */
   onClose: () => void;
   /** Dialog title — rendered in the pinned header and referenced by aria-labelledby. */
@@ -35,7 +35,7 @@ export interface ModalProps {
  * must use this component, and existing ones are being migrated to it.
  */
 export function Modal({
-  open,
+  open = true,
   onClose,
   title,
   children,

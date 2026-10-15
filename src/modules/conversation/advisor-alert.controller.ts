@@ -37,8 +37,8 @@ export class AdvisorAlertController {
   @Post()
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Register an advisor for live WhatsApp alerts' })
-  register(@CurrentApiKey() apiKey: { businessId?: string }, @Body() dto: RegisterAdvisorDto) {
-    this.alertService.registerAdvisor(this.getBusinessId(apiKey), dto);
+  async register(@CurrentApiKey() apiKey: { businessId?: string }, @Body() dto: RegisterAdvisorDto) {
+    await this.alertService.registerAdvisor(this.getBusinessId(apiKey), dto);
     return { success: true };
   }
 
@@ -46,8 +46,8 @@ export class AdvisorAlertController {
   @RequireRole(ApiKeyRole.ADMIN)
   @HttpCode(204)
   @ApiOperation({ summary: 'Unregister an advisor from alerts' })
-  unregister(@CurrentApiKey() apiKey: { businessId?: string }, @Query('advisorChatId') advisorChatId: string) {
-    this.alertService.unregisterAdvisor(this.getBusinessId(apiKey), advisorChatId);
+  async unregister(@CurrentApiKey() apiKey: { businessId?: string }, @Query('advisorChatId') advisorChatId: string) {
+    await this.alertService.unregisterAdvisor(this.getBusinessId(apiKey), advisorChatId);
   }
 
   @Post('test')
@@ -61,6 +61,7 @@ export class AdvisorAlertController {
       'Test Alert',
       'This is a test alert from the Artha system.',
     );
-    return { success: true, advisorCount: this.alertService.getAdvisors(businessId).length };
+    const advisors = await this.alertService.getAdvisors(businessId);
+    return { success: true, advisorCount: advisors.length };
   }
 }

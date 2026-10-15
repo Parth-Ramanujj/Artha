@@ -232,15 +232,16 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException(`Maximum of ${String(MAX_DOCUMENTS_PER_BUSINESS)} documents per business reached`);
     }
 
-    const allowedTypes = ['text', 'markdown', 'faq', 'csv', 'json'];
-    if (!allowedTypes.includes(dto.fileType)) {
-      throw new BadRequestException(`File type "${dto.fileType}" not supported. Allowed: ${allowedTypes.join(', ')}`);
+    const allowedTypes = ['text', 'markdown', 'faq', 'csv', 'json', 'product', 'guideline', 'custom'];
+    const resolvedFileType = dto.fileType || dto.type || 'faq';
+    if (!allowedTypes.includes(resolvedFileType)) {
+      throw new BadRequestException(`File type "${resolvedFileType}" not supported. Allowed: ${allowedTypes.join(', ')}`);
     }
 
     const doc = this.docRepo.create({
       businessId: targetBusinessId,
       title: dto.title,
-      fileType: dto.fileType,
+      fileType: resolvedFileType,
       content: dto.content,
       status: DocumentStatus.READY,
       uploadedBy: apiKeyId ?? null,
@@ -257,6 +258,8 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
     const doc = await this.findOneDocument(id, businessId);
 
     if (dto.title !== undefined) doc.title = dto.title;
+    const resolvedFileType = dto.fileType || dto.type;
+    if (resolvedFileType !== undefined) doc.fileType = resolvedFileType;
     if (dto.content !== undefined) {
       if (dto.content.length > MAX_DOCUMENT_CONTENT_LENGTH) {
         throw new BadRequestException(
@@ -412,7 +415,14 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
 
     if (request.conversationHistory && request.conversationHistory.length > 0) {
       const historyLimit = config.maxContextMessages ?? 10;
-      messages.push(...request.conversationHistory.slice(-historyLimit));
+      const validHistory = request.conversationHistory
+        .slice(-historyLimit)
+        .filter(m => m && typeof m.content === 'string' && m.content.trim())
+        .map(m => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content.trim(),
+        }));
+      messages.push(...validHistory);
     }
 
     messages.push({ role: 'user', content: request.message });

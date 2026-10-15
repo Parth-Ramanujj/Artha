@@ -7,6 +7,7 @@ export enum SyncProvider {
   ZOHO_CRM = 'zoho_crm',
   HUBSPOT = 'hubspot',
   SALESFORCE = 'salesforce',
+  WEBHOOK = 'webhook',
 }
 
 export enum SyncDirection {

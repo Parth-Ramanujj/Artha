@@ -693,7 +693,7 @@ export class MessageProjector {
 
     const preview = message.body?.substring(0, 200) ?? message.type ?? '';
     const timestamp = message.timestamp ? new Date(message.timestamp * 1000) : new Date();
-    await this.conversationService!.updateLastMessage(sessionId, message.chatId, preview, timestamp);
+    await this.conversationService!.updateLastMessage(sessionId, message.chatId, preview, timestamp, !!message.fromMe);
 
     if (!message.fromMe) {
       await this.conversationService!.incrementUnread(sessionId, message.chatId);

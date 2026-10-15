@@ -1,19 +1,25 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Conversation, ConversationStatus } from './entities/conversation.entity';
 import { Contact } from './entities/contact.entity';
 import { UpdateConversationDto, CreateContactDto, UpdateContactDto } from './dto/conversation.dto';
 import { BusinessService } from '../business/business.service';
+import { AdvisorAlertService } from './advisor-alert.service';
+import { FeedbackService } from './feedback.service';
 
 @Injectable()
 export class ConversationService {
+  private readonly logger = new Logger(ConversationService.name);
+
   constructor(
     @InjectRepository(Conversation, 'data')
     private readonly conversationRepo: Repository<Conversation>,
     @InjectRepository(Contact, 'data')
     private readonly contactRepo: Repository<Contact>,
     private readonly businessService: BusinessService,
+    private readonly advisorAlerts: AdvisorAlertService,
+    private readonly feedbackService: FeedbackService,
   ) {}
 
   async findAllConversations(
@@ -76,22 +82,58 @@ export class ConversationService {
 
   async updateConversation(id: string, businessId: string | null, dto: UpdateConversationDto): Promise<Conversation> {
     const conv = await this.findOneConversation(id, businessId);
+    const previousAssignee = conv.assignedTo;
+    const wasClosed = conv.status === ConversationStatus.CLOSED;
 
     if (dto.status !== undefined) conv.status = dto.status;
     if (dto.assignedTo !== undefined) conv.assignedTo = dto.assignedTo;
     if (dto.assignedName !== undefined) conv.assignedName = dto.assignedName;
     if (dto.tags !== undefined) conv.tags = dto.tags;
 
-    return this.conversationRepo.save(conv);
+    const saved = await this.conversationRepo.save(conv);
+    this.runPostUpdateHooks(saved, previousAssignee, wasClosed);
+    return saved;
   }
 
-  async updateLastMessage(sessionId: string, chatId: string, preview: string, timestamp: Date): Promise<void> {
+  private runPostUpdateHooks(conv: Conversation, previousAssignee: string | null, wasClosed: boolean) {
+    if (!conv.businessId) return;
+
+    if (conv.assignedTo && conv.assignedTo !== previousAssignee) {
+      this.advisorAlerts
+        .alertConversationAssigned(
+          conv.businessId,
+          conv.id,
+          conv.chatName || conv.chatId,
+          conv.assignedName || conv.assignedTo,
+        )
+        .catch(err => this.logger.warn(`Advisor assignment alert failed: ${err}`));
+    }
+
+    if (conv.status === ConversationStatus.CLOSED && !wasClosed) {
+      this.feedbackService
+        .requestFeedbackViaWhatsApp(conv.businessId, {
+          conversationId: conv.id,
+          sessionId: conv.sessionId,
+          chatId: conv.chatId,
+        })
+        .catch(err => this.logger.warn(`Feedback request failed: ${err}`));
+    }
+  }
+
+  async updateLastMessage(
+    sessionId: string,
+    chatId: string,
+    preview: string,
+    timestamp: Date,
+    fromMe: boolean,
+  ): Promise<void> {
     await this.conversationRepo
       .createQueryBuilder()
       .update(Conversation)
       .set({
         lastMessageAt: timestamp,
         lastMessagePreview: preview?.substring(0, 200) ?? null,
+        ...(fromMe ? {} : { lastInboundAt: timestamp }),
       })
       .where('sessionId = :sessionId AND chatId = :chatId', { sessionId, chatId })
       .execute();

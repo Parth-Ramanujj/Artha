@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   MessageSquare,
-  Layers,
   HelpCircle,
   Split,
   Clock,
@@ -15,6 +14,15 @@ import {
   Sliders,
   StopCircle,
   Table,
+  Contact,
+  BellRing,
+  GitFork,
+  Calculator,
+  CreditCard,
+  ScanText,
+  LayoutGrid,
+  Shield,
+  MapPin,
 } from 'lucide-react';
 import type { CanvasNodeType, NodePaletteItem } from './types';
 
@@ -229,6 +237,104 @@ const PALETTE_ITEMS: NodePaletteItem[] = [
       pincode: '{{last.answer}}',
     },
   },
+  {
+    type: 'send_contact_vcard',
+    title: 'Send Contact vCard',
+    category: 'message',
+    description: 'Send native WhatsApp Contact Card (.vcf) with 1-click Save button',
+    iconName: 'vcard',
+    defaultConfig: {
+      displayName: '{{steps.search_agents.primaryAgent.name}}',
+      phoneNumber: '{{steps.search_agents.primaryAgent.phone}}',
+      organization: 'PadosiAgent Advisor Network',
+      title: 'Senior Certified Advisor',
+    },
+  },
+  {
+    type: 'working_hours_gateway',
+    title: 'Working Hours Gateway',
+    category: 'logic',
+    description: 'Evaluate timezone and branch into OPEN vs CLOSED office hours',
+    iconName: 'schedule',
+    defaultConfig: {
+      timezone: 'Asia/Kolkata',
+      openTime: '09:00',
+      closeTime: '20:00',
+      workingDays: [1, 2, 3, 4, 5, 6],
+    },
+  },
+  {
+    type: 'internal_alert',
+    title: 'Notify Team (WhatsApp)',
+    category: 'action',
+    description: 'Instant lead alert message sent to sales manager or advisor phone',
+    iconName: 'bell',
+    defaultConfig: {
+      recipientPhone: '',
+      templateMessage: '🚨 *NEW LEAD ALERT!*\n\n👤 *Name:* {{trigger.contactName}}\n📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n📱 *Phone:* {{trigger.phone}}\n\n👉 *Call:* tel:{{trigger.phone}}\n👉 *Chat:* https://wa.me/{{trigger.phone}}',
+    },
+  },
+  {
+    type: 'ab_test_split',
+    title: 'A/B Split Testing',
+    category: 'logic',
+    description: 'Hash-based split (50/50) across Variant A and Variant B branches',
+    iconName: 'gitfork',
+    defaultConfig: {
+      splitRatio: 50,
+    },
+  },
+  {
+    type: 'financial_calculator',
+    title: 'Financial Calculator',
+    category: 'action',
+    description: 'Live in-chat SIP, Loan EMI, or Lumpsum maturity calculation',
+    iconName: 'calculator',
+    defaultConfig: {
+      mode: 'SIP',
+      monthlyInvestment: '5000',
+      durationYears: '15',
+      expectedReturnRate: '13.5',
+    },
+  },
+  {
+    type: 'payment_link',
+    title: 'UPI / Payment Link',
+    category: 'action',
+    description: 'Send UPI Deep Link / QR or Razorpay Payment checkout to chat',
+    iconName: 'creditcard',
+    defaultConfig: {
+      provider: 'UPI',
+      amount: '299',
+      description: 'Expert Policy Audit & Consultation',
+      payeeVpa: 'paytmqr.advisor@paytm',
+      payeeName: 'PadosiAgent Consultation',
+    },
+  },
+  {
+    type: 'ai_document_ocr',
+    title: 'AI Document OCR',
+    category: 'ai',
+    description: 'Extract policy number, vehicle number, and dates from image/PDF',
+    iconName: 'ocr',
+    defaultConfig: {
+      documentType: 'POLICY',
+      imageUrl: '',
+    },
+  },
+  {
+    type: 'send_carousel_template',
+    title: 'Carousel Cards Slider',
+    category: 'message',
+    description: 'Send horizontal swipe cards (Cloud API) or sequential cards (WWJS)',
+    iconName: 'carousel',
+    defaultConfig: {
+      cards: [
+        { title: 'Advisor 1', description: '20+ Yrs Exp | LIC & Health', phone: '919876543210' },
+        { title: 'Advisor 2', description: '15+ Yrs Exp | Term & Mutual Funds', phone: '919876543211' },
+      ],
+    },
+  },
 ];
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
@@ -250,21 +356,35 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
       case 'paperclip':
         return <Paperclip size={16} className="text-primary" />;
       case 'layers':
-        return <Layers size={16} className="text-info" />;
+      case 'carousel':
+        return <LayoutGrid size={16} className="text-info" />;
       case 'help':
         return <HelpCircle size={16} className="text-warning" />;
       case 'split':
         return <Split size={16} className="text-purple" />;
+      case 'gitfork':
+        return <GitFork size={16} className="text-purple" />;
       case 'filter':
         return <Filter size={16} className="text-purple" />;
       case 'stop':
         return <StopCircle size={16} className="text-danger" />;
       case 'clock':
+      case 'schedule':
         return <Clock size={16} className="text-orange" />;
       case 'bot':
         return <Bot size={16} className="text-emerald" />;
+      case 'ocr':
+        return <ScanText size={16} className="text-emerald" />;
       case 'usercheck':
         return <UserCheck size={16} className="text-blue" />;
+      case 'vcard':
+        return <Contact size={16} className="text-emerald" />;
+      case 'bell':
+        return <BellRing size={16} className="text-danger" />;
+      case 'calculator':
+        return <Calculator size={16} className="text-cyan" />;
+      case 'creditcard':
+        return <CreditCard size={16} className="text-purple" />;
       case 'tag':
         return <Tag size={16} className="text-amber" />;
       case 'sliders':
@@ -273,6 +393,10 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
         return <Globe size={16} className="text-cyan" />;
       case 'table':
         return <Table size={16} className="text-emerald" />;
+      case 'shield':
+        return <Shield size={16} className="text-blue" />;
+      case 'map-pin':
+        return <MapPin size={16} className="text-red" />;
       default:
         return <MessageSquare size={16} />;
     }

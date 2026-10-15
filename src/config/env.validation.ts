@@ -71,6 +71,9 @@ export function validateEnv(config: EnvConfig): EnvConfig {
   checkEnum('ENGINE_TYPE', ['whatsapp-web.js', 'baileys', 'cloud-api']);
   checkEnum('STORAGE_TYPE', ['local', 's3']);
 
+  // Cloud API tokens are validated at session-creation time rather than at boot, so a deployment
+  // using an unofficial default engine can still create Cloud API sessions when the tokens are
+  // provided. Only warn (don't error) if ENGINE_TYPE=cloud-api and tokens are missing.
   if (str('ENGINE_TYPE') === 'cloud-api') {
     for (const key of ['CLOUD_API_ACCESS_TOKEN', 'CLOUD_API_PHONE_NUMBER_ID']) {
       if (!str(key)) {

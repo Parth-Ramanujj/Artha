@@ -1,0 +1,439 @@
+/* =============================================================================
+   Sales Pipeline Management (Kanban CRM) Styles
+   ============================================================================= */
+
+.sales-pipeline-page {
+  padding: 1.5rem;
+  max-width: 1600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* KPI Cards Grid */
+.sales-pipeline-page .pipeline-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.sales-pipeline-page .pipeline-kpi-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sales-pipeline-page .pipeline-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] .sales-pipeline-page .pipeline-kpi-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .kpi-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.sales-pipeline-page .kpi-icon-box.purple {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+.sales-pipeline-page .kpi-icon-box.green {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.sales-pipeline-page .kpi-icon-box.blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+}
+
+.sales-pipeline-page .kpi-icon-box.orange {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+}
+
+.sales-pipeline-page .kpi-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.sales-pipeline-page .kpi-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sales-pipeline-page .kpi-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin-top: 0.25rem;
+}
+
+[data-theme='dark'] .sales-pipeline-page .kpi-value {
+  color: var(--text-primary, #f8fafc);
+}
+
+.sales-pipeline-page .kpi-subtitle {
+  font-size: 0.75rem;
+  color: #16a34a;
+  font-weight: 600;
+  margin-top: 0.125rem;
+}
+
+/* Pipeline Controls */
+.sales-pipeline-page .pipeline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 0.875rem 1.25rem;
+}
+
+[data-theme='dark'] .sales-pipeline-page .pipeline-controls {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .pipeline-filters-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.sales-pipeline-page .search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
+  min-width: 260px;
+}
+
+[data-theme='dark'] .sales-pipeline-page .search-input-box {
+  background: var(--bg-subtle, #0f172a);
+  border-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .search-input-box input {
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #0f172a);
+  outline: none;
+  font-size: 0.875rem;
+  width: 100%;
+}
+
+.sales-pipeline-page .pipeline-select {
+  padding: 0.5rem 0.875rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-primary, #0f172a);
+  font-size: 0.875rem;
+  outline: none;
+}
+
+[data-theme='dark'] .sales-pipeline-page .pipeline-select {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.sales-pipeline-page .pipeline-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Kanban Board Layout */
+.sales-pipeline-page .kanban-board-container {
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.sales-pipeline-page .kanban-board {
+  display: flex;
+  gap: 1.25rem;
+  min-width: 1200px;
+  align-items: flex-start;
+}
+
+.sales-pipeline-page .kanban-column {
+  flex: 1;
+  min-width: 280px;
+  max-width: 340px;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 300px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme='dark'] .sales-pipeline-page .kanban-column {
+  background: var(--bg-subtle, #0f172a);
+  border-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .kanban-column-header {
+  padding: 1rem 1.125rem;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+[data-theme='dark'] .sales-pipeline-page .kanban-column-header {
+  border-bottom-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .column-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .sales-pipeline-page .column-header-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.sales-pipeline-page .column-count-badge {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #cbd5e1);
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary, #64748b);
+}
+
+[data-theme='dark'] .sales-pipeline-page .column-count-badge {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #475569);
+  color: var(--text-secondary, #94a3b8);
+}
+
+.sales-pipeline-page .column-total-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+}
+
+.sales-pipeline-page .kanban-cards-list {
+  padding: 0.875rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  min-height: 120px;
+}
+
+/* Kanban Deal Card */
+.sales-pipeline-page .deal-card {
+  background: var(--bg-surface, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: grab;
+}
+
+.sales-pipeline-page .deal-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #6366f1;
+}
+
+[data-theme='dark'] .sales-pipeline-page .deal-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .deal-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sales-pipeline-page .deal-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+}
+
+[data-theme='dark'] .sales-pipeline-page .deal-title {
+  color: var(--text-primary, #f8fafc);
+}
+
+.sales-pipeline-page .deal-priority-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.125rem 0.5rem;
+  border-radius: 6px;
+  letter-spacing: 0.4px;
+}
+
+.sales-pipeline-page .deal-priority-badge.high {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.sales-pipeline-page .deal-priority-badge.medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.sales-pipeline-page .deal-priority-badge.low {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+}
+
+.sales-pipeline-page .deal-contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.sales-pipeline-page .deal-contact-info {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.sales-pipeline-page .deal-whatsapp-btn {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sales-pipeline-page .deal-whatsapp-btn:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.sales-pipeline-page .deal-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border-color, #e2e8f0);
+}
+
+[data-theme='dark'] .sales-pipeline-page .deal-value-row {
+  border-top-color: var(--border-color, #334155);
+}
+
+.sales-pipeline-page .deal-amount {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.sales-pipeline-page .deal-assignee {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.sales-pipeline-page .assignee-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.sales-pipeline-page .deal-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sales-pipeline-page .deal-move-select {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-primary, #0f172a);
+}
+
+[data-theme='dark'] .sales-pipeline-page .deal-move-select {
+  background: var(--bg-surface, #1e293b);
+  border-color: var(--border-color, #334155);
+  color: var(--text-primary, #f8fafc);
+}
+
+.sales-pipeline-page .deal-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #64748b);
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.sales-pipeline-page .deal-delete-btn:hover {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}

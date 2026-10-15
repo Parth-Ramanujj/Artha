@@ -24,7 +24,21 @@ export type CanvasNodeType =
   | 'send_media'
   | 'search_agents'
   | 'create_lead'
-  | 'validate_pincode';
+  | 'validate_pincode'
+  | 'send_contact_vcard'
+  | 'send_document'
+  | 'send_voice_note'
+  | 'working_hours_gateway'
+  | 'internal_alert'
+  | 'ab_test_split'
+  | 'dnd_manager'
+  | 'financial_calculator'
+  | 'payment_link'
+  | 'ai_document_ocr'
+  | 'dynamic_pdf_generator'
+  | 'send_carousel_template'
+  | 'interactive_cta_template'
+  | 'dynamic_language_switcher';
 
 export interface ButtonItem {
   id: string;

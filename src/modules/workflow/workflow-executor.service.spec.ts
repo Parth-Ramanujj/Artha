@@ -520,6 +520,10 @@ describe('WorkflowExecutor', () => {
       expect(executor.extractJsonPath(data, 'orders[0].items[1].title')).toBe('Pants');
       expect(executor.extractJsonPath(data, 'orders[1].total')).toBe(899);
       expect(executor.extractJsonPath(data, 'orders[99].id')).toBeUndefined();
+      expect(executor.extractJsonPath(data, 'user.name.first.invalid')).toBeUndefined();
+      expect(executor.extractJsonPath(null, 'user.name')).toBeUndefined();
+      expect(executor.extractJsonPath(undefined, 'user.name')).toBeUndefined();
+      expect(executor.extractJsonPath('primitive_string', 'user.name')).toBeUndefined();
     });
 
     it('interpolates node output variables: {{steps.<nodeId>.<path>}} and {{steps.last.<path>}}', () => {
@@ -923,6 +927,256 @@ describe('WorkflowExecutor', () => {
       const sheetsStep = runState.steps.find(s => s.actionId === 'step_sheets');
       expect(sheetsStep?.output?.['simulated']).toBe(true);
       expect(sheetsStep?.output?.['dryRun']).toBe(true);
+    });
+
+    it('executes SEND_CONTACT_VCARD in dry-run mode and formats phone/name', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-vcard',
+        businessId: 'biz-1',
+        name: 'VCard Test',
+        description: null,
+        status: WorkflowStatus.ACTIVE,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_vcard',
+              type: ActionType.SEND_CONTACT_VCARD,
+              config: {
+                displayName: 'Alpeshkumar Patel',
+                phoneNumber: '+919426378401',
+                organization: 'LIC India',
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 5,
+        maxExecutionSeconds: 10,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'vcard request',
+        metadata: { isTest: true },
+      };
+
+      await executor.execute(wf, runState, ctx);
+      const step = runState.steps.find(s => s.actionId === 'step_vcard');
+      expect(step?.status).toBe('success');
+      expect(step?.output?.['sent']).toBe(true);
+      expect(step?.output?.['displayName']).toBe('Alpeshkumar Patel');
+      expect(step?.output?.['phoneNumber']).toBe('+919426378401');
+    });
+
+    it('evaluates WORKING_HOURS_GATEWAY branching', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-hours',
+        businessId: 'biz-1',
+        name: 'Working Hours Test',
+        description: null,
+        status: WorkflowStatus.ACTIVE,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_hours',
+              type: ActionType.WORKING_HOURS_GATEWAY,
+              config: {
+                timezone: 'Asia/Kolkata',
+                openTime: '00:00',
+                closeTime: '23:59',
+                workingDays: [0, 1, 2, 3, 4, 5, 6],
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 5,
+        maxExecutionSeconds: 10,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'hours check',
+      };
+
+      await executor.execute(wf, runState, ctx);
+      const step = runState.steps.find(s => s.actionId === 'step_hours');
+      expect(step?.status).toBe('success');
+      expect(step?.output?.['branch']).toBe('open');
+      expect(step?.output?.['isOpen']).toBe(true);
+    });
+
+    it('computes FINANCIAL_CALCULATOR SIP maturity accurately', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-calc',
+        businessId: 'biz-1',
+        name: 'SIP Calc Test',
+        description: null,
+        status: WorkflowStatus.ACTIVE,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_calc',
+              type: ActionType.FINANCIAL_CALCULATOR,
+              config: {
+                mode: 'SIP',
+                monthlyInvestment: '5000',
+                durationYears: '15',
+                expectedReturnRate: '12',
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 5,
+        maxExecutionSeconds: 10,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'calc sip',
+      };
+
+      await executor.execute(wf, runState, ctx);
+      const step = runState.steps.find(s => s.actionId === 'step_calc');
+      expect(step?.status).toBe('success');
+      expect(step?.output?.['investedAmount']).toBe(900000); // 5000 * 180 months
+      expect(Number(step?.output?.['futureValue'])).toBeGreaterThan(2000000);
+      expect(String(step?.output?.['formattedInvested'])).toContain('9,00,000');
+    });
+
+    it('generates valid UPI Deep Link in PAYMENT_LINK node', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-pay',
+        businessId: 'biz-1',
+        name: 'Payment Test',
+        description: null,
+        status: WorkflowStatus.ACTIVE,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_pay',
+              type: ActionType.PAYMENT_LINK,
+              config: {
+                provider: 'UPI',
+                amount: '499',
+                description: 'Policy Consultation',
+                payeeVpa: 'consultant@upi',
+                sendToChat: false,
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 5,
+        maxExecutionSeconds: 10,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'payment please',
+      };
+
+      await executor.execute(wf, runState, ctx);
+      const step = runState.steps.find(s => s.actionId === 'step_pay');
+      expect(step?.status).toBe('success');
+      expect(step?.output?.['upiLink']).toContain('upi://pay?pa=consultant%40upi');
+      expect(step?.output?.['amount']).toBe(499);
+    });
+
+    it('halts workflow when user requests STOP via DND_MANAGER', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-dnd',
+        businessId: 'biz-1',
+        name: 'DND Test',
+        description: null,
+        status: WorkflowStatus.ACTIVE,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'step_dnd',
+              type: ActionType.DND_MANAGER,
+              config: {
+                sendConfirmation: false,
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 5,
+        maxExecutionSeconds: 10,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const runState: WorkflowRun = { ...mockRun, steps: [] };
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        messageBody: 'STOP',
+      };
+
+      await executor.execute(wf, runState, ctx);
+      const step = runState.steps.find(s => s.actionId === 'step_dnd');
+      expect(step?.status).toBe('success');
+      expect(step?.output?.['optedOut']).toBe(true);
+      expect(step?.output?.['stopped']).toBe(true);
     });
   });
 });

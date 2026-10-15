@@ -18,7 +18,15 @@ export class CloudApiWebhookService {
   }
 
   validateSignature(rawBody: Buffer, signature: string | undefined): boolean {
-    if (!this.appSecret) return true;
+    if (!this.appSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(
+          'CRITICAL: engine.cloudApi.appSecret is not configured in production mode. Rejecting unverified webhook.',
+        );
+        return false;
+      }
+      return true;
+    }
     if (!signature) return false;
 
     const expectedSignature = 'sha256=' + crypto.createHmac('sha256', this.appSecret).update(rawBody).digest('hex');
