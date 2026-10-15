@@ -905,9 +905,25 @@ export class WorkflowExecutor {
         }
       } catch (err) {
         this.logger.warn(
-          `Native buttons not supported on this engine session (${err instanceof Error ? err.message : String(err)}). Using structured interactive menu fallback.`,
+          `Native buttons not supported (${err instanceof Error ? err.message : String(err)}). Trying poll fallback.`,
         );
-        sentVia = 'text_fallback';
+        // Fallback to WhatsApp Poll — interactive and clickable on all engines
+        try {
+          const engine = this.engineRegistry.get(ctx.sessionId);
+          if (engine && typeof engine.sendPollMessage === 'function') {
+            await engine.sendPollMessage(ctx.chatId, {
+              name: message,
+              options: buttons.map(b => b.text),
+              allowMultipleAnswers: false,
+            });
+            sentVia = 'native_poll';
+          }
+        } catch (pollErr) {
+          this.logger.warn(
+            `Poll fallback also failed: ${pollErr instanceof Error ? pollErr.message : String(pollErr)}`,
+          );
+          sentVia = 'text_fallback';
+        }
       }
     }
 
@@ -1616,7 +1632,17 @@ export class WorkflowExecutor {
       const normalized = userReply.toLowerCase().trim();
       const matchedChoiceId = choiceMap[normalized] || choiceMap[userReply.trim()];
 
-      const selectedId = matchedChoiceId || Object.values(choiceMap)[0];
+      if (!matchedChoiceId) {
+        if (this.messageService && ctx.sessionId && ctx.chatId) {
+          await this.messageService.sendText(ctx.sessionId, {
+            chatId: ctx.chatId,
+            text: `❌ Invalid choice. Please select a valid option or reply with the correct number.`,
+          });
+        }
+        return;
+      }
+
+      const selectedId = matchedChoiceId;
       nextHandle = selectedId;
       triggerData.waitingForInput = false;
       triggerData.capturedVariables = {
@@ -2405,9 +2431,7 @@ export class WorkflowExecutor {
     const openTime = String(action.config['openTime'] || '09:00');
     const closeTime = String(action.config['closeTime'] || '20:00');
     const rawWorkingDays = action.config['workingDays'];
-    const workingDays: number[] = Array.isArray(rawWorkingDays)
-      ? rawWorkingDays.map(Number)
-      : [1, 2, 3, 4, 5, 6];
+    const workingDays: number[] = Array.isArray(rawWorkingDays) ? rawWorkingDays.map(Number) : [1, 2, 3, 4, 5, 6];
 
     const now = new Date();
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -2451,7 +2475,9 @@ export class WorkflowExecutor {
   ): Promise<Record<string, unknown>> {
     if (!ctx.sessionId) throw new Error('No session context for internal alert');
 
-    const rawRecipient = String(action.config['recipientPhone'] || action.config['managerPhone'] || action.config['phone'] || '');
+    const rawRecipient = String(
+      action.config['recipientPhone'] || action.config['managerPhone'] || action.config['phone'] || '',
+    );
     const cleanPhone = this.interpolateVariables(rawRecipient, ctx, run).replace(/[^0-9]/g, '');
     if (!cleanPhone) {
       return { alerted: false, reason: 'No recipient phone provided for internal alert' };
@@ -2532,10 +2558,12 @@ export class WorkflowExecutor {
             'તમારી વિનંતી મુજબ સેવાઓ બંધ કરવામાં આવી છે. ફરી શરૂ કરવા માટે START લખીને મોકલો.',
         );
         if (this.messageService) {
-          await this.messageService.sendText(ctx.sessionId, {
-            chatId: ctx.chatId,
-            text: confirmMsg,
-          }).catch(() => undefined);
+          await this.messageService
+            .sendText(ctx.sessionId, {
+              chatId: ctx.chatId,
+              text: confirmMsg,
+            })
+            .catch(() => undefined);
         }
       }
 
@@ -2555,13 +2583,20 @@ export class WorkflowExecutor {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     const mode = String(action.config['mode'] || 'SIP').toUpperCase();
-    const rawAmt = String(action.config['monthlyInvestment'] || action.config['amount'] || action.config['principal'] || '5000');
+    const rawAmt = String(
+      action.config['monthlyInvestment'] || action.config['amount'] || action.config['principal'] || '5000',
+    );
     const rawYears = String(action.config['durationYears'] || action.config['years'] || '15');
-    const rawRate = String(action.config['expectedReturnRate'] || action.config['interestRate'] || action.config['rate'] || '13.5');
+    const rawRate = String(
+      action.config['expectedReturnRate'] || action.config['interestRate'] || action.config['rate'] || '13.5',
+    );
 
     const P = Math.max(0, parseFloat(this.interpolateVariables(rawAmt, ctx, run).replace(/[^0-9.]/g, '')) || 5000);
     const years = Math.max(1, parseFloat(this.interpolateVariables(rawYears, ctx, run).replace(/[^0-9.]/g, '')) || 15);
-    const rate = Math.max(0.1, parseFloat(this.interpolateVariables(rawRate, ctx, run).replace(/[^0-9.]/g, '')) || 13.5);
+    const rate = Math.max(
+      0.1,
+      parseFloat(this.interpolateVariables(rawRate, ctx, run).replace(/[^0-9.]/g, '')) || 13.5,
+    );
 
     let investedAmount = 0;
     let futureValue = 0;
@@ -2705,13 +2740,15 @@ export class WorkflowExecutor {
     const caption = `📄 *${title}*\nતમારા વિસ્તારના શ્રેષ્ઠ એડવાઈઝર્સની સરખામણી સ્લિપ.`;
 
     if (action.config['autoSend'] === true && ctx.sessionId && ctx.chatId && this.messageService) {
-      await this.messageService.sendDocument(ctx.sessionId, {
-        chatId: ctx.chatId,
-        url: pdfUrl,
-        filename: fileName,
-        caption,
-        mimetype: 'application/pdf',
-      }).catch(() => undefined);
+      await this.messageService
+        .sendDocument(ctx.sessionId, {
+          chatId: ctx.chatId,
+          url: pdfUrl,
+          filename: fileName,
+          caption,
+          mimetype: 'application/pdf',
+        })
+        .catch(() => undefined);
     }
 
     return {
@@ -2749,28 +2786,35 @@ export class WorkflowExecutor {
       for (const [idx, card] of cards.entries()) {
         const title = this.interpolateVariables(String(card.title || `Advisor #${idx + 1}`), ctx, run);
         const desc = this.interpolateVariables(String(card.description || ''), ctx, run);
-        const phone = this.interpolateVariables(String(card.phone || card.phoneNumber || ''), ctx, run).replace(/[^0-9]/g, '');
+        const phone = this.interpolateVariables(String(card.phone || card.phoneNumber || ''), ctx, run).replace(
+          /[^0-9]/g,
+          '',
+        );
 
-        let cardText = `╭───────────────────────────────╮\n` +
-                       `│ 🎴 *${title}*\n` +
-                       `├───────────────────────────────┤\n` +
-                       `│ ${desc.split('\n').join('\n│ ')}\n`;
+        let cardText =
+          `╭───────────────────────────────╮\n` +
+          `│ 🎴 *${title}*\n` +
+          `├───────────────────────────────┤\n` +
+          `│ ${desc.split('\n').join('\n│ ')}\n`;
         if (phone) {
-          cardText +=  `├───────────────────────────────┤\n` +
-                       `│ 📞 *Call:* tel:+${phone}\n` +
-                       `│ 💬 *WhatsApp:* https://wa.me/${phone}\n`;
+          cardText +=
+            `├───────────────────────────────┤\n` +
+            `│ 📞 *Call:* tel:+${phone}\n` +
+            `│ 💬 *WhatsApp:* https://wa.me/${phone}\n`;
         }
-        cardText +=    `╰───────────────────────────────╯`;
+        cardText += `╰───────────────────────────────╯`;
 
         if (card.imageUrl) {
-          await this.messageService.sendImage(ctx.sessionId, {
-            chatId: normalizedChatId,
-            url: this.interpolateVariables(String(card.imageUrl), ctx, run),
-            caption: cardText,
-            mimetype: 'image/jpeg',
-          }).catch(async () => {
-            await this.messageService!.sendText(ctx.sessionId!, { chatId: normalizedChatId, text: cardText });
-          });
+          await this.messageService
+            .sendImage(ctx.sessionId, {
+              chatId: normalizedChatId,
+              url: this.interpolateVariables(String(card.imageUrl), ctx, run),
+              caption: cardText,
+              mimetype: 'image/jpeg',
+            })
+            .catch(async () => {
+              await this.messageService!.sendText(ctx.sessionId!, { chatId: normalizedChatId, text: cardText });
+            });
         } else {
           await this.messageService.sendText(ctx.sessionId, {
             chatId: normalizedChatId,
@@ -2795,9 +2839,16 @@ export class WorkflowExecutor {
     if (!ctx.chatId) throw new Error('No chat context for CTA template');
 
     const body = this.interpolateVariables(String(action.config['body'] || action.config['message'] || ''), ctx, run);
-    const callPhone = this.interpolateVariables(String(action.config['callPhone'] || ''), ctx, run).replace(/[^0-9]/g, '');
+    const callPhone = this.interpolateVariables(String(action.config['callPhone'] || ''), ctx, run).replace(
+      /[^0-9]/g,
+      '',
+    );
     const callLabel = String(action.config['callLabel'] || 'Call Advisor');
-    const websiteUrl = this.interpolateVariables(String(action.config['websiteUrl'] || action.config['url'] || ''), ctx, run);
+    const websiteUrl = this.interpolateVariables(
+      String(action.config['websiteUrl'] || action.config['url'] || ''),
+      ctx,
+      run,
+    );
     const urlLabel = String(action.config['urlLabel'] || 'Visit Website');
 
     let text = body;

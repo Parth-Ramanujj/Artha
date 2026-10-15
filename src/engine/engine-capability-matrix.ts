@@ -277,6 +277,13 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
     cloudApi: { status: 'supported' },
   },
   sendPollMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  sendInteractiveButtons: {
+    wwjs: { status: 'not-available', rootCause: 'library-limitation' },
+    baileys: { status: 'not-available', rootCause: 'library-limitation' },
+    cloudApi: { status: 'supported' },
+    evidence:
+      'WhatsApp removed legacy interactive buttons for non-Business API. Only Cloud API supports reply buttons and list messages. wwebjs/baileys fall back to polls.',
+  },
   sendProduct: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
     baileys: { status: 'not-available', rootCause: 'adapter-gap' },

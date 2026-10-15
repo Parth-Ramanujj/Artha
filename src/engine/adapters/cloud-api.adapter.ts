@@ -528,10 +528,12 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
         const interactiveType = interactive?.type as string;
         if (interactiveType === 'button_reply') {
           const buttonReply = interactive?.button_reply as Record<string, unknown>;
-          base.body = (buttonReply?.title as string) ?? '';
+          const btnId = (buttonReply?.id as string) ?? '';
+          base.body = (btnId || (buttonReply?.title as string)) ?? '';
         } else if (interactiveType === 'list_reply') {
           const listReply = interactive?.list_reply as Record<string, unknown>;
-          base.body = (listReply?.title as string) ?? '';
+          const listId = (listReply?.id as string) ?? '';
+          base.body = (listId || (listReply?.title as string)) ?? '';
         }
         break;
       }
