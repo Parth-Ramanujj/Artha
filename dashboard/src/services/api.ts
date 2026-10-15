@@ -676,10 +676,20 @@ async function requestBlob(endpoint: string): Promise<Blob> {
 export const sessionApi = {
   list: () => request<Session[]>('/sessions'),
   get: (id: string) => request<Session>(`/sessions/${id}`),
-  create: (name: string, engineType?: string) =>
+  create: (
+    name: string,
+    engineType?: string,
+    cloudApiConfig?: { accessToken?: string; phoneNumberId?: string; wabaId?: string },
+  ) =>
     request<Session>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ name, ...(engineType ? { engineType } : {}) }),
+      body: JSON.stringify({
+        name,
+        ...(engineType ? { engineType } : {}),
+        ...(cloudApiConfig?.accessToken || cloudApiConfig?.phoneNumberId
+          ? { config: { cloudApi: cloudApiConfig } }
+          : {}),
+      }),
     }),
   delete: (id: string) => request<void>(`/sessions/${id}`, { method: 'DELETE' }),
   start: (id: string) => request<Session>(`/sessions/${id}/start`, { method: 'POST' }),

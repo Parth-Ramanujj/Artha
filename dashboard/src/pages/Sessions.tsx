@@ -49,6 +49,9 @@ export function Sessions() {
   const [newSessionName, setNewSessionName] = useState('');
   const [creating, setCreating] = useState(false);
   const [selectedEngine, setSelectedEngine] = useState('');
+  const [cloudApiToken, setCloudApiToken] = useState('');
+  const [cloudApiPhoneId, setCloudApiPhoneId] = useState('');
+  const [cloudApiWabaId, setCloudApiWabaId] = useState('');
   const engines = useEnginesQuery();
   const [qrData, setQrData] = useState<{ sessionId: string; sessionName: string; qrCode: string } | null>(null);
   const [pairingMode, setPairingMode] = useState(false);
@@ -309,13 +312,24 @@ export function Sessions() {
     if (!newSessionName.trim()) return;
     try {
       setCreating(true);
-      const newSession = await sessionApi.create(newSessionName, selectedEngine || undefined);
+      const cloudApiConfig =
+        selectedEngine === 'cloud-api' && (cloudApiToken || cloudApiPhoneId)
+          ? {
+              accessToken: cloudApiToken || undefined,
+              phoneNumberId: cloudApiPhoneId || undefined,
+              wabaId: cloudApiWabaId || undefined,
+            }
+          : undefined;
+      const newSession = await sessionApi.create(newSessionName, selectedEngine || undefined, cloudApiConfig);
       // Functional append: never capture a stale `sessions` (a WS or fetch between the await and the
       // setState would otherwise drop a row). Then invalidate the prefix so stats/groups/chats refresh.
       setSessions(current => [...current, newSession]);
       await invalidateSessionQueries(queryClient, queryKeys.sessions);
       setNewSessionName('');
       setSelectedEngine('');
+      setCloudApiToken('');
+      setCloudApiPhoneId('');
+      setCloudApiWabaId('');
       setShowCreateModal(false);
       toast.success(t('sessions.create.successTitle'), t('sessions.create.successDesc', { name: newSession.name }));
     } catch (err) {
@@ -637,6 +651,31 @@ export function Sessions() {
               ))}
           </div>
           <p className="input-hint">{t('sessions.create.engineHint')}</p>
+
+          {selectedEngine === 'cloud-api' && (
+            <div className="cloud-api-fields">
+              <label style={{ marginTop: 16 }}>{t('sessions.create.cloudApiTitle')}</label>
+              <p className="input-hint">{t('sessions.create.cloudApiHint')}</p>
+              <input
+                type="password"
+                placeholder={t('sessions.create.cloudApiTokenPlaceholder')}
+                value={cloudApiToken}
+                onChange={e => setCloudApiToken(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder={t('sessions.create.cloudApiPhoneIdPlaceholder')}
+                value={cloudApiPhoneId}
+                onChange={e => setCloudApiPhoneId(e.target.value)}
+              />
+              <input
+                type="text"
+                placeholder={t('sessions.create.cloudApiWabaIdPlaceholder')}
+                value={cloudApiWabaId}
+                onChange={e => setCloudApiWabaId(e.target.value)}
+              />
+            </div>
+          )}
         </Modal>
       )}
 

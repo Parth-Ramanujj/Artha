@@ -510,14 +510,16 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       throw new ConflictException(`Session with name '${dto.name}' already exists`);
     }
 
-    // When per-session engine type is cloud-api, validate that the required tokens are configured.
+    // When per-session engine type is cloud-api, validate that credentials are available
+    // (either per-session in config.cloudApi or globally via env vars).
     const resolvedEngine = dto.engineType ?? this.configService?.get<string>('engine.type') ?? 'whatsapp-web.js';
     if (resolvedEngine === 'cloud-api') {
-      const token = this.configService?.get<string>('engine.cloudApi.accessToken');
-      const phoneId = this.configService?.get<string>('engine.cloudApi.phoneNumberId');
+      const perSession = (dto.config as Record<string, unknown>)?.cloudApi as Record<string, string> | undefined;
+      const token = perSession?.accessToken || this.configService?.get<string>('engine.cloudApi.accessToken');
+      const phoneId = perSession?.phoneNumberId || this.configService?.get<string>('engine.cloudApi.phoneNumberId');
       if (!token || !phoneId) {
         throw new BadRequestException(
-          'Cloud API sessions require CLOUD_API_ACCESS_TOKEN and CLOUD_API_PHONE_NUMBER_ID environment variables',
+          'Cloud API sessions require accessToken and phoneNumberId — set them globally (CLOUD_API_ACCESS_TOKEN, CLOUD_API_PHONE_NUMBER_ID) or per-session in config.cloudApi',
         );
       }
     }
@@ -526,7 +528,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       name: dto.name,
       businessId: businessId ?? null,
       engineType: (dto.engineType as EngineType) || null,
-      config: dto.config || {},
+      config: (dto.config as Record<string, unknown>) || {},
       proxyUrl: dto.proxyUrl || null,
       proxyType: dto.proxyType || null,
       status: SessionStatus.CREATED,
@@ -951,10 +953,12 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       proxyEnabled: !!session.proxyUrl,
     });
 
+    const cloudApiConfig = (session.config as Record<string, unknown>)?.cloudApi as Record<string, string> | undefined;
     const engine = this.engineFactory.create({
       sessionId: session.name,
       dbSessionId: id,
       engineType: session.engineType || undefined,
+      cloudApiConfig: cloudApiConfig || undefined,
       proxyUrl: session.proxyUrl || undefined,
       proxyType: session.proxyType || undefined,
     });

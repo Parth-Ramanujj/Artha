@@ -847,3 +847,21 @@
   background: var(--warning-bg, rgba(234, 179, 8, 0.12));
   color: var(--warning, #ca8a04);
 }
+
+/* ── Cloud API Credential Fields (create modal) ────────────── */
+
+.cloud-api-fields {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-hover, rgba(99, 102, 241, 0.04));
+}
+
+.cloud-api-fields input {
+  margin-top: 0.5rem;
+}
+
+.cloud-api-fields label {
+  margin-top: 0;
+}

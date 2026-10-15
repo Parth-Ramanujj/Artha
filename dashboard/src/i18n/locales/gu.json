@@ -312,7 +312,12 @@
       "engineBaileys": "અનઓફિશિયલ (Baileys)",
       "engineBaileysDesc": "WebSocket-આધારિત, બ્રાઉઝર જરૂરી નથી, હળવું",
       "engineWwebjs": "અનઓફિશિયલ (Web.js)",
-      "engineWwebjsDesc": "Puppeteer-આધારિત, પૂર્ણ WhatsApp Web ફીચર પેરિટી"
+      "engineWwebjsDesc": "Puppeteer-આધારિત, પૂર્ણ WhatsApp Web ફીચર પેરિટી",
+      "cloudApiTitle": "Cloud API ક્રેડેન્શિયલ્સ",
+      "cloudApiHint": "વૈકલ્પિક — સર્વરના ગ્લોબલ Cloud API ટોકન્સ વાપરવા ખાલી રાખો",
+      "cloudApiTokenPlaceholder": "Access Token (EAAx...)",
+      "cloudApiPhoneIdPlaceholder": "Phone Number ID",
+      "cloudApiWabaIdPlaceholder": "WABA ID (વૈકલ્પિક)"
     },
     "delete": {
       "title": "ડિલીટ કન્ફર્મ કરો",

@@ -13,6 +13,16 @@ import { BaileysMessageStoreService } from './adapters/baileys-message-store.ser
 import { LidMappingStoreService } from './identity/lid-mapping-store.service';
 import { isSafeSessionName } from '../common/utils/path-safety';
 
+export interface CloudApiSessionConfig {
+  accessToken?: string;
+  phoneNumberId?: string;
+  wabaId?: string;
+  verifyToken?: string;
+  appSecret?: string;
+  appId?: string;
+  graphApiVersion?: string;
+}
+
 export interface EngineCreateOptions {
   /** Session NAME — the on-disk auth-directory key (matches the dirs purgeSessionData removes). */
   sessionId: string;
@@ -20,6 +30,8 @@ export interface EngineCreateOptions {
   dbSessionId: string;
   /** Per-session engine override. When set, the factory uses this engine instead of the global default. */
   engineType?: string;
+  /** Per-session Cloud API credentials. Merged over the global config when the resolved engine is cloud-api. */
+  cloudApiConfig?: CloudApiSessionConfig;
   proxyUrl?: string;
   proxyType?: 'http' | 'https' | 'socks4' | 'socks5';
 }
@@ -131,6 +143,7 @@ export class EngineFactory implements OnModuleInit {
         dbSessionId: options.dbSessionId,
         proxyUrl: options.proxyUrl,
         proxyType: options.proxyType,
+        ...(options.cloudApiConfig ? { cloudApi: options.cloudApiConfig } : {}),
       }) as IWhatsAppEngine;
     }
 

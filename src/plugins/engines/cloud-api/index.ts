@@ -31,7 +31,7 @@ export class CloudApiPlugin implements IEnginePlugin {
 
   createEngine(config: Record<string, unknown>): IWhatsAppEngine {
     const sessionId = config.sessionId as string;
-    const engineConfig = (this.context?.config ?? this.registeredConfig ?? {}) as {
+    const globalConfig = (this.context?.config ?? this.registeredConfig ?? {}) as {
       cloudApi?: {
         accessToken?: string;
         phoneNumberId?: string;
@@ -42,24 +42,40 @@ export class CloudApiPlugin implements IEnginePlugin {
         graphApiVersion?: string;
       };
     };
-    const cloudApiConfig = engineConfig.cloudApi ?? {};
+    const globalCloudApi = globalConfig.cloudApi ?? {};
 
-    if (!cloudApiConfig.accessToken) {
-      throw new Error('CLOUD_API_ACCESS_TOKEN is required for the Cloud API engine');
+    // Per-session Cloud API credentials override the global defaults.
+    const perSession = (config.cloudApi ?? {}) as Record<string, string | undefined>;
+    const merged = {
+      accessToken: perSession.accessToken || globalCloudApi.accessToken,
+      phoneNumberId: perSession.phoneNumberId || globalCloudApi.phoneNumberId,
+      wabaId: perSession.wabaId || globalCloudApi.wabaId,
+      verifyToken: perSession.verifyToken || globalCloudApi.verifyToken,
+      appSecret: perSession.appSecret || globalCloudApi.appSecret,
+      appId: perSession.appId || globalCloudApi.appId,
+      graphApiVersion: perSession.graphApiVersion || globalCloudApi.graphApiVersion,
+    };
+
+    if (!merged.accessToken) {
+      throw new Error(
+        'Cloud API engine requires an access token (set CLOUD_API_ACCESS_TOKEN globally or provide per-session cloudApi.accessToken)',
+      );
     }
-    if (!cloudApiConfig.phoneNumberId) {
-      throw new Error('CLOUD_API_PHONE_NUMBER_ID is required for the Cloud API engine');
+    if (!merged.phoneNumberId) {
+      throw new Error(
+        'Cloud API engine requires a phone number ID (set CLOUD_API_PHONE_NUMBER_ID globally or provide per-session cloudApi.phoneNumberId)',
+      );
     }
 
     return new CloudApiAdapter({
       sessionId,
-      accessToken: cloudApiConfig.accessToken,
-      phoneNumberId: cloudApiConfig.phoneNumberId,
-      wabaId: cloudApiConfig.wabaId,
-      verifyToken: cloudApiConfig.verifyToken,
-      appSecret: cloudApiConfig.appSecret,
-      appId: cloudApiConfig.appId,
-      graphApiVersion: cloudApiConfig.graphApiVersion,
+      accessToken: merged.accessToken,
+      phoneNumberId: merged.phoneNumberId,
+      wabaId: merged.wabaId,
+      verifyToken: merged.verifyToken,
+      appSecret: merged.appSecret,
+      appId: merged.appId,
+      graphApiVersion: merged.graphApiVersion,
     });
   }
 

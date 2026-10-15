@@ -1,5 +1,61 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, MinLength, Matches, IsIn, IsUrl } from 'class-validator';
+import { IsString, IsOptional, MaxLength, MinLength, Matches, IsIn, IsUrl, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CloudApiConfigDto {
+  @ApiPropertyOptional({ description: 'Meta Graph API access token for this session', example: 'EAAx...' })
+  @IsOptional()
+  @IsString()
+  accessToken?: string;
+
+  @ApiPropertyOptional({
+    description: 'WhatsApp phone number ID from Meta Business Manager',
+    example: '123456789012345',
+  })
+  @IsOptional()
+  @IsString()
+  phoneNumberId?: string;
+
+  @ApiPropertyOptional({ description: 'WhatsApp Business Account ID', example: '987654321098765' })
+  @IsOptional()
+  @IsString()
+  wabaId?: string;
+
+  @ApiPropertyOptional({ description: 'Webhook verify token for this session' })
+  @IsOptional()
+  @IsString()
+  verifyToken?: string;
+
+  @ApiPropertyOptional({ description: 'Meta App Secret for webhook signature verification' })
+  @IsOptional()
+  @IsString()
+  appSecret?: string;
+
+  @ApiPropertyOptional({ description: 'Meta App ID for token exchange' })
+  @IsOptional()
+  @IsString()
+  appId?: string;
+
+  @ApiPropertyOptional({ description: 'Graph API version', example: 'v21.0', default: 'v21.0' })
+  @IsOptional()
+  @IsString()
+  graphApiVersion?: string;
+}
+
+export class SessionConfigDto {
+  @ApiPropertyOptional({
+    description: 'Per-session Cloud API credentials (overrides global env vars)',
+    type: CloudApiConfigDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CloudApiConfigDto)
+  cloudApi?: CloudApiConfigDto;
+
+  @ApiPropertyOptional({ description: 'Auto-reject incoming calls', default: false })
+  @IsOptional()
+  autoRejectCalls?: boolean;
+}
 
 export class CreateSessionDto {
   @ApiProperty({
@@ -27,12 +83,15 @@ export class CreateSessionDto {
 
   @ApiPropertyOptional({
     description:
-      'Session configuration options. Set autoRejectCalls (boolean, default false) to ' +
-      'automatically reject incoming calls — the call.received event is still emitted.',
-    example: { autoReconnect: true },
+      'Session configuration. Includes per-session Cloud API credentials (config.cloudApi) ' +
+      'that override global env vars, and autoRejectCalls (boolean, default false).',
+    example: { cloudApi: { accessToken: 'EAAx...', phoneNumberId: '123456789012345' } },
+    type: SessionConfigDto,
   })
   @IsOptional()
-  config?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => SessionConfigDto)
+  config?: SessionConfigDto;
 
   // Phase 3: Proxy per session
   @ApiPropertyOptional({
