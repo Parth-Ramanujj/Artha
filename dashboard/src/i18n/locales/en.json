@@ -292,7 +292,16 @@
       "successTitle": "Session Created",
       "successDesc": "Session \"{{name}}\" created successfully",
       "errorTitle": "Create Failed",
-      "errorDefault": "Failed to create session"
+      "errorDefault": "Failed to create session",
+      "engineLabel": "WhatsApp Engine",
+      "engineHint": "Choose how this session connects to WhatsApp",
+      "engineDefault": "Server Default",
+      "engineOfficial": "Official (Cloud API)",
+      "engineOfficialDesc": "Meta Business API — no phone required, template messages, verified sender",
+      "engineBaileys": "Unofficial (Baileys)",
+      "engineBaileysDesc": "WebSocket-based, no browser needed, lightweight",
+      "engineWwebjs": "Unofficial (Web.js)",
+      "engineWwebjsDesc": "Puppeteer-based, full WhatsApp Web feature parity"
     },
     "delete": {
       "title": "Confirm Delete",
@@ -351,6 +360,7 @@
     },
     "card": {
       "phone": "Phone",
+      "engine": "Engine",
       "sessionId": "Session ID",
       "lastActive": "Last Active",
       "error": "Error"

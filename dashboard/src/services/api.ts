@@ -41,6 +41,7 @@ export interface Session {
    * Optional only because a dashboard can be served by a gateway that predates the field.
    */
   engineLoaded?: boolean;
+  engineType?: 'whatsapp-web.js' | 'baileys' | 'cloud-api' | null;
   phone?: string | null;
   pushName?: string | null;
   lastActive?: string | null;
@@ -675,10 +676,10 @@ async function requestBlob(endpoint: string): Promise<Blob> {
 export const sessionApi = {
   list: () => request<Session[]>('/sessions'),
   get: (id: string) => request<Session>(`/sessions/${id}`),
-  create: (name: string) =>
+  create: (name: string, engineType?: string) =>
     request<Session>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(engineType ? { engineType } : {}) }),
     }),
   delete: (id: string) => request<void>(`/sessions/${id}`, { method: 'DELETE' }),
   start: (id: string) => request<Session>(`/sessions/${id}/start`, { method: 'POST' }),
@@ -2053,11 +2054,13 @@ export const syncApi = {
     return request<unknown[]>(`/sync${qs}`);
   },
   get: (id: string) => request<unknown>(`/sync/${id}`),
-  create: (data: Record<string, unknown>) =>
-    request<unknown>('/sync', { method: 'POST', body: JSON.stringify(data) }),
+  create: (data: Record<string, unknown>) => request<unknown>('/sync', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/sync/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  trigger: (id: string) => request<{ success: boolean; recordsSynced: number; destination: string }>(`/sync/${id}/trigger`, { method: 'POST' }),
+  trigger: (id: string) =>
+    request<{ success: boolean; recordsSynced: number; destination: string }>(`/sync/${id}/trigger`, {
+      method: 'POST',
+    }),
   exportData: (id: string, format: 'json' | 'csv' = 'json') =>
     request<{ data: unknown; mimeType: string; filename: string }>(`/sync/${id}/export?format=${format}`),
   delete: (id: string) => request<void>(`/sync/${id}`, { method: 'DELETE' }),
@@ -2156,8 +2159,7 @@ export const dealsApi = {
   },
   get: (id: string) => request<DealRecord>(`/deals/${id}`),
   metrics: () => request<PipelineMetrics>('/deals/metrics'),
-  create: (data: Partial<DealRecord>) =>
-    request<DealRecord>('/deals', { method: 'POST', body: JSON.stringify(data) }),
+  create: (data: Partial<DealRecord>) => request<DealRecord>('/deals', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<DealRecord>) =>
     request<DealRecord>(`/deals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/deals/${id}`, { method: 'DELETE' }),
@@ -2174,10 +2176,13 @@ export const aiAssistantApi = {
     sessionId?: string;
     chatId?: string;
   }) =>
-    request<{ reply: string; handoff: boolean; confidence: 'high' | 'medium' | 'low'; sourceDocs?: string[]; tokensUsed?: number }>(
-      '/ai/chat',
-      { method: 'POST', body: JSON.stringify(data) },
-    ),
+    request<{
+      reply: string;
+      handoff: boolean;
+      confidence: 'high' | 'medium' | 'low';
+      sourceDocs?: string[];
+      tokensUsed?: number;
+    }>('/ai/chat', { method: 'POST', body: JSON.stringify(data) }),
   getConfig: () => request<unknown>('/ai/config'),
   updateConfig: (data: Record<string, unknown>) =>
     request<unknown>('/ai/config', { method: 'PUT', body: JSON.stringify(data) }),
@@ -2187,4 +2192,3 @@ export const aiAssistantApi = {
     request<unknown>('/ai/documents', { method: 'POST', body: JSON.stringify(data) }),
   deleteDocument: (id: string) => request<void>(`/ai/documents/${id}`, { method: 'DELETE' }),
 };
-

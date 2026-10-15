@@ -16,7 +16,7 @@ import {
   Unlink,
 } from 'lucide-react';
 import { sessionApi, type Session } from '../services/api';
-import { queryKeys } from '../hooks/queries';
+import { queryKeys, useEnginesQuery } from '../hooks/queries';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   canForceKillSession,
@@ -30,11 +30,7 @@ import { canCreateSession, filterSessions, isValidPairingPhone, sessionNameIssue
 import { useToast } from '../components/Toast';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useRole } from '../hooks/useRole';
-import {
-  createSessionFeedState,
-  noteSessionFeedError,
-  subscribeSessionFeed,
-} from '../utils/sessionFeedSubscription';
+import { createSessionFeedState, noteSessionFeedError, subscribeSessionFeed } from '../utils/sessionFeedSubscription';
 import { PageHeader } from '../components/PageHeader';
 import { CustomSelect } from '../components/CustomSelect';
 import { Modal } from '../components/Modal';
@@ -52,6 +48,8 @@ export function Sessions() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [selectedEngine, setSelectedEngine] = useState('');
+  const engines = useEnginesQuery();
   const [qrData, setQrData] = useState<{ sessionId: string; sessionName: string; qrCode: string } | null>(null);
   const [pairingMode, setPairingMode] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -143,9 +141,7 @@ export function Sessions() {
         // authoritative response arrives — and for `disconnected`, where that fallback is knowingly
         // wrong, the branch below refetches.
         sessionsRef.current = sessionsRef.current.map(s =>
-          s.id === event.sessionId
-            ? { ...s, status: event.status as Session['status'], engineLoaded: undefined }
-            : s,
+          s.id === event.sessionId ? { ...s, status: event.status as Session['status'], engineLoaded: undefined } : s,
         );
         setSessions(sessionsRef.current);
         // Mark the shared session queries stale so sibling views refetch — but ONLY on a real
@@ -185,14 +181,22 @@ export function Sessions() {
   useEffect(() => {
     if (!feedErrorFrame) return;
     if (noteSessionFeedError(feedStateRef.current, feedErrorFrame.code)) {
-      subscribeSessionFeed({ subscribe }, feedStateRef.current, sessionsRef.current.map(s => s.id));
+      subscribeSessionFeed(
+        { subscribe },
+        feedStateRef.current,
+        sessionsRef.current.map(s => s.id),
+      );
     }
   }, [feedErrorFrame, subscribe]);
 
   // Join the live session feed (wildcard attempt, or per-session rooms after a scope fallback).
   useEffect(() => {
     if (isConnected) {
-      subscribeSessionFeed({ subscribe }, feedStateRef.current, sessionsRef.current.map(s => s.id));
+      subscribeSessionFeed(
+        { subscribe },
+        feedStateRef.current,
+        sessionsRef.current.map(s => s.id),
+      );
     }
   }, [isConnected, subscribe]);
 
@@ -206,7 +210,11 @@ export function Sessions() {
   // In per-session mode, sessions loaded/created after the fallback still need their rooms.
   useEffect(() => {
     if (isConnected && feedStateRef.current.scope === 'per-session') {
-      subscribeSessionFeed({ subscribe }, feedStateRef.current, sessions.map(s => s.id));
+      subscribeSessionFeed(
+        { subscribe },
+        feedStateRef.current,
+        sessions.map(s => s.id),
+      );
     }
   }, [isConnected, sessions, subscribe]);
 
@@ -246,8 +254,7 @@ export function Sessions() {
         // the modal (and the pairing-code panel mounted in it) survives the brief post-link handshake
         // instead of being torn down mid-pairing — it closes on the real 'ready'/'failed' transition.
         const updated = await sessionApi.get(sessionId).catch(() => null);
-        const stillInitializing =
-          updated && ['initializing', 'qr_ready', 'authenticating'].includes(updated.status);
+        const stillInitializing = updated && ['initializing', 'qr_ready', 'authenticating'].includes(updated.status);
         if (!stillInitializing) {
           setQrData(null);
           currentSessionName.current = '';
@@ -302,12 +309,13 @@ export function Sessions() {
     if (!newSessionName.trim()) return;
     try {
       setCreating(true);
-      const newSession = await sessionApi.create(newSessionName);
+      const newSession = await sessionApi.create(newSessionName, selectedEngine || undefined);
       // Functional append: never capture a stale `sessions` (a WS or fetch between the await and the
       // setState would otherwise drop a row). Then invalidate the prefix so stats/groups/chats refresh.
       setSessions(current => [...current, newSession]);
       await invalidateSessionQueries(queryClient, queryKeys.sessions);
       setNewSessionName('');
+      setSelectedEngine('');
       setShowCreateModal(false);
       toast.success(t('sessions.create.successTitle'), t('sessions.create.successDesc', { name: newSession.name }));
     } catch (err) {
@@ -583,6 +591,52 @@ export function Sessions() {
             <p className="input-error">{t('sessions.create.tooLong', { length: newSessionName.length })}</p>
           )}
           {nameIssues.includes('duplicate') && <p className="input-error">{t('sessions.create.duplicate')}</p>}
+
+          <label style={{ marginTop: 16 }}>{t('sessions.create.engineLabel')}</label>
+          <div className="engine-selector">
+            <label className={`engine-option${selectedEngine === '' ? ' selected' : ''}`}>
+              <input
+                type="radio"
+                name="engine"
+                value=""
+                checked={selectedEngine === ''}
+                onChange={() => setSelectedEngine('')}
+              />
+              <div className="engine-option-content">
+                <span className="engine-option-name">{t('sessions.create.engineDefault')}</span>
+              </div>
+            </label>
+            {(engines.data ?? [])
+              .filter(e => e.enabled)
+              .map(engine => (
+                <label key={engine.id} className={`engine-option${selectedEngine === engine.id ? ' selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="engine"
+                    value={engine.id}
+                    checked={selectedEngine === engine.id}
+                    onChange={() => setSelectedEngine(engine.id)}
+                  />
+                  <div className="engine-option-content">
+                    <span className="engine-option-name">
+                      {engine.id === 'cloud-api'
+                        ? t('sessions.create.engineOfficial')
+                        : engine.id === 'baileys'
+                          ? t('sessions.create.engineBaileys')
+                          : t('sessions.create.engineWwebjs')}
+                    </span>
+                    <span className="engine-option-desc">
+                      {engine.id === 'cloud-api'
+                        ? t('sessions.create.engineOfficialDesc')
+                        : engine.id === 'baileys'
+                          ? t('sessions.create.engineBaileysDesc')
+                          : t('sessions.create.engineWwebjsDesc')}
+                    </span>
+                  </div>
+                </label>
+              ))}
+          </div>
+          <p className="input-hint">{t('sessions.create.engineHint')}</p>
         </Modal>
       )}
 
@@ -909,6 +963,22 @@ export function Sessions() {
                     <span className="info-label">{t('sessions.card.phone')}</span>
                     <span className="info-value">{session.phone || '—'}</span>
                   </div>
+                  {session.engineType && (
+                    <div className="info-row">
+                      <span className="info-label">{t('sessions.card.engine')}</span>
+                      <span className="info-value">
+                        <span
+                          className={`engine-badge ${session.engineType === 'cloud-api' ? 'official' : 'unofficial'}`}
+                        >
+                          {session.engineType === 'cloud-api'
+                            ? 'Cloud API'
+                            : session.engineType === 'baileys'
+                              ? 'Baileys'
+                              : 'Web.js'}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                   <div className="info-row">
                     <span className="info-label">{t('sessions.card.sessionId')}</span>
                     <span className="info-value mono">{session.id.substring(0, 12)}</span>
@@ -938,8 +1008,7 @@ export function Sessions() {
                     <Square size={16} />
                     {t('sessions.actions.stop')}
                   </button>
-                ) : canWrite &&
-                  (session.status === 'created' || session.status === 'disconnected') ? (
+                ) : canWrite && (session.status === 'created' || session.status === 'disconnected') ? (
                   <button className="btn-action" onClick={() => handleStart(session.id)}>
                     <Play size={16} />
                     {t('sessions.actions.start')}

@@ -303,7 +303,16 @@
       "successTitle": "Session Created",
       "successDesc": "Session \"{{name}}\" created successfully",
       "errorTitle": "Create Failed",
-      "errorDefault": "Failed to create session"
+      "errorDefault": "Failed to create session",
+      "engineLabel": "WhatsApp इंजन",
+      "engineHint": "यह सत्र WhatsApp से कैसे कनेक्ट होगा चुनें",
+      "engineDefault": "सर्वर डिफ़ॉल्ट",
+      "engineOfficial": "आधिकारिक (Cloud API)",
+      "engineOfficialDesc": "Meta Business API — फ़ोन ज़रूरी नहीं, टेम्पलेट संदेश, वेरिफ़ाइड सेंडर",
+      "engineBaileys": "अनाधिकारिक (Baileys)",
+      "engineBaileysDesc": "WebSocket-आधारित, ब्राउज़र ज़रूरी नहीं, हल्का",
+      "engineWwebjs": "अनाधिकारिक (Web.js)",
+      "engineWwebjsDesc": "Puppeteer-आधारित, पूर्ण WhatsApp Web फ़ीचर पैरिटी"
     },
     "delete": {
       "title": "Confirm Delete",
@@ -361,10 +370,11 @@
       "failedDesc": "The WhatsApp session failed to start. Open the session to see the reason."
     },
     "card": {
-      "phone": "Phone",
-      "sessionId": "Session ID",
-      "lastActive": "Last Active",
-      "error": "Error"
+      "phone": "फ़ोन",
+      "engine": "इंजन",
+      "sessionId": "सत्र ID",
+      "lastActive": "अंतिम सक्रिय",
+      "error": "त्रुटि"
     },
     "forceKill": {
       "title": "Kill Stuck Session",

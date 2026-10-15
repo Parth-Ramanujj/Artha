@@ -303,10 +303,19 @@
       "successTitle": "Session Created",
       "successDesc": "Session \"{{name}}\" created successfully",
       "errorTitle": "Create Failed",
-      "errorDefault": "Failed to create session"
+      "errorDefault": "Failed to create session",
+      "engineLabel": "WhatsApp એન્જિન",
+      "engineHint": "આ સત્ર WhatsApp સાથે કેવી રીતે કનેક્ટ થશે તે પસંદ કરો",
+      "engineDefault": "સર્વર ડિફૉલ્ટ",
+      "engineOfficial": "ઓફિશિયલ (Cloud API)",
+      "engineOfficialDesc": "Meta Business API — ફોન જરૂરી નથી, ટેમ્પ્લેટ સંદેશા, વેરિફાઇડ સેન્ડર",
+      "engineBaileys": "અનઓફિશિયલ (Baileys)",
+      "engineBaileysDesc": "WebSocket-આધારિત, બ્રાઉઝર જરૂરી નથી, હળવું",
+      "engineWwebjs": "અનઓફિશિયલ (Web.js)",
+      "engineWwebjsDesc": "Puppeteer-આધારિત, પૂર્ણ WhatsApp Web ફીચર પેરિટી"
     },
     "delete": {
-      "title": "Confirm Delete",
+      "title": "ડિલીટ કન્ફર્મ કરો",
       "message": "Are you sure you want to delete session <strong>\"{{name}}\"</strong>?",
       "warning": "This action cannot be undone.",
       "successTitle": "Session Deleted",
@@ -361,10 +370,11 @@
       "failedDesc": "The WhatsApp session failed to start. Open the session to see the reason."
     },
     "card": {
-      "phone": "Phone",
-      "sessionId": "Session ID",
-      "lastActive": "Last Active",
-      "error": "Error"
+      "phone": "ફોન",
+      "engine": "એન્જિન",
+      "sessionId": "સત્ર ID",
+      "lastActive": "છેલ્લે સક્રિય",
+      "error": "ભૂલ"
     },
     "forceKill": {
       "title": "Kill Stuck Session",
