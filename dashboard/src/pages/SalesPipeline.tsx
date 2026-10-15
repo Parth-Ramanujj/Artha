@@ -1,20 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import {
-  TrendingUp,
-  DollarSign,
-  Plus,
-  Search,
-  Users,
-  Download,
-  Phone,
-  Trash2,
-  BarChart2,
-} from 'lucide-react';
+import { TrendingUp, DollarSign, Plus, Search, Users, Download, Phone, Trash2, BarChart2 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
-import { dealsApi } from '../services/api';
+import { dealsApi, crmContactApi, type CrmContact } from '../services/api';
 import './SalesPipeline.css';
 
 export interface Deal {
@@ -22,6 +12,7 @@ export interface Deal {
   title: string;
   contactName: string;
   phone: string;
+  contactId?: string | null;
   company?: string;
   amount: number;
   stage: 'lead' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
@@ -154,6 +145,7 @@ export function SalesPipeline() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [crmContacts, setCrmContacts] = useState<CrmContact[]>([]);
   const [newDeal, setNewDeal] = useState<Partial<Deal>>({
     title: '',
     contactName: '',
@@ -170,28 +162,44 @@ export function SalesPipeline() {
   // Load from backend dealsApi on mount, falling back to localStorage
   useEffect(() => {
     let isMounted = true;
-    dealsApi.list().then(serverDeals => {
-      if (isMounted && serverDeals && serverDeals.length > 0) {
-        setDeals(serverDeals.map(d => ({
-          id: d.id,
-          title: d.title,
-          contactName: d.contactName,
-          phone: d.contactPhone,
-          company: '',
-          amount: d.amount,
-          stage: d.stage as Deal['stage'],
-          priority: d.priority as Deal['priority'],
-          assignee: d.assignedTo,
-          expectedClose: new Date().toISOString().split('T')[0],
-          notes: d.notes || '',
-          createdAt: d.createdAt,
-        })));
-      }
-    }).catch(() => {
-      // offline / fallback
-    });
-    return () => { isMounted = false; };
+    dealsApi
+      .list()
+      .then(serverDeals => {
+        if (isMounted && serverDeals && serverDeals.length > 0) {
+          setDeals(
+            serverDeals.map(d => ({
+              id: d.id,
+              title: d.title,
+              contactName: d.contactName,
+              phone: d.contactPhone,
+              contactId: d.contactId ?? null,
+              company: '',
+              amount: d.amount,
+              stage: d.stage as Deal['stage'],
+              priority: d.priority as Deal['priority'],
+              assignee: d.assignedTo,
+              expectedClose: new Date().toISOString().split('T')[0],
+              notes: d.notes || '',
+              createdAt: d.createdAt,
+            })),
+          );
+        }
+      })
+      .catch(() => {
+        // offline / fallback
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    crmContactApi
+      .list()
+      .then(setCrmContacts)
+      .catch(() => setCrmContacts([]));
+  }, [isModalOpen]);
 
   // Save to localStorage as backup
   useEffect(() => {
@@ -258,9 +266,7 @@ export function SalesPipeline() {
 
   // Move deal to new stage
   const handleMoveStage = (dealId: string, newStage: Deal['stage']) => {
-    setDeals(prev =>
-      prev.map(deal => (deal.id === dealId ? { ...deal, stage: newStage } : deal))
-    );
+    setDeals(prev => prev.map(deal => (deal.id === dealId ? { ...deal, stage: newStage } : deal)));
     dealsApi.update(dealId, { stage: newStage }).catch(() => {
       // synced locally
     });
@@ -288,6 +294,7 @@ export function SalesPipeline() {
 
     const payload = {
       title: newDeal.title!,
+      contactId: newDeal.contactId || undefined,
       contactName: newDeal.contactName!,
       contactPhone: newDeal.phone || '',
       amount: Number(newDeal.amount) || 0,
@@ -310,6 +317,7 @@ export function SalesPipeline() {
       title: newDeal.title!,
       contactName: newDeal.contactName!,
       phone: newDeal.phone || '',
+      contactId: newDeal.contactId || null,
       company: newDeal.company || '',
       amount: Number(newDeal.amount) || 0,
       stage: newDeal.stage || 'lead',
@@ -330,7 +338,7 @@ export function SalesPipeline() {
     const headers = ['ID,Title,Contact,Phone,Company,Amount,Stage,Priority,Assignee,ExpectedClose'];
     const rows = deals.map(
       d =>
-        `"${d.id}","${d.title}","${d.contactName}","${d.phone}","${d.company || ''}",${d.amount},"${d.stage}","${d.priority}","${d.assignee}","${d.expectedClose}"`
+        `"${d.id}","${d.title}","${d.contactName}","${d.phone}","${d.company || ''}",${d.amount},"${d.stage}","${d.priority}","${d.assignee}","${d.expectedClose}"`,
     );
     const blob = new Blob([[headers, ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -411,22 +419,14 @@ export function SalesPipeline() {
             />
           </div>
 
-          <select
-            className="pipeline-select"
-            value={assigneeFilter}
-            onChange={e => setAssigneeFilter(e.target.value)}
-          >
+          <select className="pipeline-select" value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
             <option value="all">All Sales Agents</option>
             <option value="Amit Shah">Amit Shah</option>
             <option value="Pooja Verma">Pooja Verma</option>
             <option value="Sneha Roy">Sneha Roy</option>
           </select>
 
-          <select
-            className="pipeline-select"
-            value={priorityFilter}
-            onChange={e => setPriorityFilter(e.target.value)}
-          >
+          <select className="pipeline-select" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)}>
             <option value="all">All Priorities</option>
             <option value="high">High Priority</option>
             <option value="medium">Medium Priority</option>
@@ -478,9 +478,7 @@ export function SalesPipeline() {
                     <div key={deal.id} className="deal-card">
                       <div className="deal-card-top">
                         <h4 className="deal-title">{deal.title}</h4>
-                        <span className={`deal-priority-badge ${deal.priority}`}>
-                          {deal.priority}
-                        </span>
+                        <span className={`deal-priority-badge ${deal.priority}`}>{deal.priority}</span>
                       </div>
 
                       <div className="deal-contact-row">
@@ -488,6 +486,11 @@ export function SalesPipeline() {
                           <Users size={13} />
                           <span>{deal.contactName}</span>
                           {deal.company && <small>({deal.company})</small>}
+                          {deal.contactId && (
+                            <small title="Linked CRM contact" style={{ color: 'var(--accent-color, #22c55e)' }}>
+                              ● linked
+                            </small>
+                          )}
                         </div>
                         {deal.phone && (
                           <button
@@ -535,7 +538,14 @@ export function SalesPipeline() {
                   ))}
 
                   {stageDeals.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+                    <div
+                      style={{
+                        textAlign: 'center',
+                        padding: '2rem 1rem',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.8125rem',
+                      }}
+                    >
                       No deals in this stage
                     </div>
                   )}
@@ -565,9 +575,7 @@ export function SalesPipeline() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                Deal Title *
-              </label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Deal Title *</label>
               <input
                 type="text"
                 placeholder="e.g. Enterprise WhatsApp Annual Subscription"
@@ -575,6 +583,32 @@ export function SalesPipeline() {
                 onChange={e => setNewDeal(prev => ({ ...prev, title: e.target.value }))}
                 style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
               />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Link CRM Contact (optional)
+              </label>
+              <select
+                value={newDeal.contactId || ''}
+                onChange={e => {
+                  const picked = crmContacts.find(c => c.id === e.target.value);
+                  setNewDeal(prev => ({
+                    ...prev,
+                    contactId: picked?.id,
+                    contactName: picked ? picked.name || prev.contactName : prev.contactName,
+                    phone: picked ? picked.phone || prev.phone : prev.phone,
+                  }));
+                }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+              >
+                <option value="">— Not linked —</option>
+                {crmContacts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name || c.phone || c.waContactId}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -587,7 +621,12 @@ export function SalesPipeline() {
                   placeholder="e.g. Rajesh Patel"
                   value={newDeal.contactName || ''}
                   onChange={e => setNewDeal(prev => ({ ...prev, contactName: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 />
               </div>
 
@@ -600,22 +639,30 @@ export function SalesPipeline() {
                   placeholder="e.g. 919876543210"
                   value={newDeal.phone || ''}
                   onChange={e => setNewDeal(prev => ({ ...prev, phone: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                  Company Name
-                </label>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Company Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Acme Corp"
                   value={newDeal.company || ''}
                   onChange={e => setNewDeal(prev => ({ ...prev, company: e.target.value }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 />
               </div>
 
@@ -628,7 +675,12 @@ export function SalesPipeline() {
                   placeholder="50000"
                   value={newDeal.amount || 0}
                   onChange={e => setNewDeal(prev => ({ ...prev, amount: Number(e.target.value) }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 />
               </div>
             </div>
@@ -641,7 +693,12 @@ export function SalesPipeline() {
                 <select
                   value={newDeal.stage || 'lead'}
                   onChange={e => setNewDeal(prev => ({ ...prev, stage: e.target.value as Deal['stage'] }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 >
                   {STAGES.map(s => (
                     <option key={s.id} value={s.id}>
@@ -652,13 +709,16 @@ export function SalesPipeline() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                  Priority
-                </label>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Priority</label>
                 <select
                   value={newDeal.priority || 'medium'}
                   onChange={e => setNewDeal(prev => ({ ...prev, priority: e.target.value as Deal['priority'] }))}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                  }}
                 >
                   <option value="high">High Priority</option>
                   <option value="medium">Medium Priority</option>

@@ -45,6 +45,14 @@ export class Deal {
   @Column({ type: 'varchar', length: 20, default: DealPriority.MEDIUM })
   priority: DealPriority;
 
+  @Index()
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  contactId: string | null;
+
+  @Index()
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  conversationId: string | null;
+
   @Column({ type: 'varchar', length: 100, default: 'Unassigned' })
   assignedTo: string;
 

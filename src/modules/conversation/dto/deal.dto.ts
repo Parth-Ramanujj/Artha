@@ -8,15 +8,25 @@ export class CreateDealDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ description: 'Contact person name' })
+  @ApiPropertyOptional({ description: 'Linked CRM contact ID (fills name/phone when omitted)' })
   @IsString()
-  @IsNotEmpty()
-  contactName: string;
+  @IsOptional()
+  contactId?: string;
 
-  @ApiProperty({ description: 'WhatsApp contact phone' })
+  @ApiPropertyOptional({ description: 'Linked conversation ID' })
   @IsString()
-  @IsNotEmpty()
-  contactPhone: string;
+  @IsOptional()
+  conversationId?: string;
+
+  @ApiPropertyOptional({ description: 'Contact person name' })
+  @IsString()
+  @IsOptional()
+  contactName?: string;
+
+  @ApiPropertyOptional({ description: 'WhatsApp contact phone' })
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
 
   @ApiPropertyOptional({ description: 'Estimated deal value in INR / USD' })
   @IsNumber()
@@ -54,6 +64,16 @@ export class UpdateDealDto {
   @IsString()
   @IsOptional()
   title?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  contactId?: string | null;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  conversationId?: string | null;
 
   @ApiPropertyOptional()
   @IsString()

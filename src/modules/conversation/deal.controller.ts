@@ -22,13 +22,15 @@ export class DealController {
   @ApiQuery({ name: 'stage', required: false })
   @ApiQuery({ name: 'priority', required: false })
   @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'contactId', required: false })
   findAll(
     @CurrentApiKey() apiKey: ApiKey,
     @Query('stage') stage?: string,
     @Query('priority') priority?: string,
     @Query('search') search?: string,
+    @Query('contactId') contactId?: string,
   ) {
-    return this.dealService.findAll(this.getBusinessId(apiKey), { stage, priority, search });
+    return this.dealService.findAll(this.getBusinessId(apiKey), { stage, priority, search, contactId });
   }
 
   @Get('metrics')

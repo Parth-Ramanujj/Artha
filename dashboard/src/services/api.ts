@@ -2139,6 +2139,8 @@ export interface DealRecord {
   title: string;
   contactName: string;
   contactPhone: string;
+  contactId?: string | null;
+  conversationId?: string | null;
   amount: number;
   stage: 'lead' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
   priority: 'low' | 'medium' | 'high';
@@ -2148,6 +2150,20 @@ export interface DealRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CrmContact {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  waContactId: string;
+}
+
+export const crmContactApi = {
+  list: (search?: string) => {
+    const qs = search ? `?search=${encodeURIComponent(search)}&limit=200` : '?limit=200';
+    return request<CrmContact[]>(`/contacts${qs}`);
+  },
+};
 
 export interface PipelineMetrics {
   totalValue: number;
