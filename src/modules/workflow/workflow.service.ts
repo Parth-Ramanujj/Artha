@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, LessThan, MoreThan, Repository } from 'typeorm';
 import {
   WorkflowDefinition,
   WorkflowStatus,
@@ -16,13 +18,20 @@ import {
   ConditionType,
 } from './entities/workflow-definition.entity';
 import { WorkflowRun, RunStatus } from './entities/workflow-run.entity';
+import { parseKeywords } from './keyword-match';
 import { CreateWorkflowDto, UpdateWorkflowDto } from './dto/workflow.dto';
 import { createLogger } from '../../common/services/logger.service';
 import { BusinessService } from '../business/business.service';
 
+// Longer than any legitimate pass (actions plus WAIT nodes) between two writes to the run row.
+const STALE_RUN_MS = 30 * 60 * 1000;
+const STUCK_RUN_SWEEP_MS = 5 * 60 * 1000;
+const MAX_STORED_STEPS = 200;
+
 @Injectable()
-export class WorkflowService {
+export class WorkflowService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('WorkflowService');
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(WorkflowDefinition, 'data')
@@ -31,6 +40,20 @@ export class WorkflowService {
     private readonly runRepo: Repository<WorkflowRun>,
     private readonly businessService: BusinessService,
   ) {}
+
+  onModuleInit(): void {
+    const sweep = () =>
+      void this.failStuckRuns().catch(err =>
+        this.logger.warn(`Stuck run sweep failed: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    sweep();
+    this.sweepTimer = setInterval(sweep, STUCK_RUN_SWEEP_MS);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+  }
 
   // ── Definition CRUD ──
 
@@ -91,6 +114,12 @@ export class WorkflowService {
   ): Promise<WorkflowDefinition> {
     const wf = await this.findOne(id, businessId);
 
+    // Publishing and disabling are admin-only actions with their own validation; an operator edit
+    // must not be a side door to either.
+    if (dto.status !== undefined && dto.status !== wf.status) {
+      throw new BadRequestException('Change a workflow status with the publish or disable action');
+    }
+
     const isPublished = wf.status === WorkflowStatus.PUBLISHED;
     if (dto.definition) this.validateDefinition(dto.definition, isPublished);
 
@@ -101,7 +130,6 @@ export class WorkflowService {
     if (dto.maxExecutionSeconds !== undefined) wf.maxExecutionSeconds = dto.maxExecutionSeconds;
     if (dto.maxRetries !== undefined) wf.maxRetries = dto.maxRetries;
     if (dto.maxConcurrentRuns !== undefined) wf.maxConcurrentRuns = dto.maxConcurrentRuns;
-    if (dto.status !== undefined) wf.status = dto.status;
 
     if (isPublished) {
       wf.version += 1;
@@ -206,6 +234,7 @@ export class WorkflowService {
     triggerData: Record<string, unknown>,
     sessionId?: string,
     idempotencyKey?: string,
+    chatId?: string,
   ): Promise<WorkflowRun | null> {
     if (idempotencyKey) {
       const existing = await this.runRepo.findOne({
@@ -214,10 +243,12 @@ export class WorkflowService {
       if (existing) return null;
     }
 
+    // Only runs that are still making progress count; a crashed run must not block new customers.
+    const activeSince = MoreThan(new Date(Date.now() - STALE_RUN_MS));
     const activeRuns = await this.runRepo.count({
       where: [
-        { workflowId: workflow.id, status: RunStatus.RUNNING },
-        { workflowId: workflow.id, status: RunStatus.PENDING },
+        { workflowId: workflow.id, status: RunStatus.RUNNING, updatedAt: activeSince },
+        { workflowId: workflow.id, status: RunStatus.PENDING, updatedAt: activeSince },
       ],
     });
     if (activeRuns >= workflow.maxConcurrentRuns) {
@@ -233,6 +264,7 @@ export class WorkflowService {
       workflowId: workflow.id,
       businessId: workflow.businessId,
       sessionId: sessionId ?? null,
+      chatId: chatId ?? null,
       workflowVersion: workflow.version,
       triggerData,
       idempotencyKey: idempotencyKey ?? null,
@@ -252,24 +284,66 @@ export class WorkflowService {
       update.completedAt = new Date();
     }
     if (extra.failureReason) update.failureReason = extra.failureReason;
-    if (extra.steps) update.steps = extra.steps;
+    // A long-lived run (many resumes) would otherwise grow its row without bound; keep the latest.
+    if (extra.steps) update.steps = extra.steps.slice(-MAX_STORED_STEPS);
     if (extra.actionCount !== undefined) update.actionCount = extra.actionCount;
 
     await this.runRepo.update(runId, update);
   }
 
-  async findActivePausedRun(businessId: string, chatId: string): Promise<WorkflowRun | null> {
+  /**
+   * The run waiting for this customer's answer on this WhatsApp number. Expired waits are closed as
+   * TIMED_OUT, and older waits in the same chat are cancelled so they cannot swallow later messages.
+   */
+  async findActivePausedRun(
+    businessId: string,
+    sessionId: string,
+    chatId: string,
+    now = new Date(),
+  ): Promise<WorkflowRun | null> {
     const pausedRuns = await this.runRepo.find({
-      where: { businessId, status: RunStatus.PAUSED },
+      where: { businessId, sessionId, chatId, status: RunStatus.PAUSED },
       order: { updatedAt: 'DESC' },
-      take: 50,
+      take: 20,
     });
+    let active: WorkflowRun | null = null;
     for (const r of pausedRuns) {
-      if (r.triggerData?.['chatId'] === chatId && r.triggerData?.['waitingForInput']) {
-        return r;
+      const rawTimeout = r.triggerData?.['timeoutAt'];
+      const timeoutAt = typeof rawTimeout === 'string' ? Date.parse(rawTimeout) : NaN;
+      const expired = Number.isFinite(timeoutAt) && timeoutAt < now.getTime();
+      if (!active && !expired && r.triggerData?.['waitingForInput']) {
+        active = r;
+        continue;
       }
+      await this.updateRunStatus(r.id, expired ? RunStatus.TIMED_OUT : RunStatus.CANCELLED, {
+        failureReason: expired ? 'Customer did not answer in time' : 'Replaced by a newer run in the same chat',
+      });
     }
-    return null;
+    return active;
+  }
+
+  /** Atomically moves a waiting run to RUNNING; false when another message already took it. */
+  async claimPausedRun(runId: string): Promise<boolean> {
+    const result = await this.runRepo.update({ id: runId, status: RunStatus.PAUSED }, { status: RunStatus.RUNNING });
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** Runs left RUNNING/PENDING by a crash or restart never finish on their own; close them. */
+  async failStuckRuns(now = new Date()): Promise<number> {
+    const result = await this.runRepo.update(
+      {
+        status: In([RunStatus.RUNNING, RunStatus.PENDING]),
+        updatedAt: LessThan(new Date(now.getTime() - STALE_RUN_MS)),
+      },
+      {
+        status: RunStatus.FAILED,
+        failureReason: 'Run stopped making progress (server restart or crash)',
+        completedAt: now,
+      },
+    );
+    const failed = result.affected ?? 0;
+    if (failed > 0) this.logger.warn(`Marked ${failed} stuck workflow run(s) as failed`);
+    return failed;
   }
 
   async updateRunTriggerData(runId: string, triggerData: Record<string, unknown>): Promise<void> {
@@ -288,6 +362,14 @@ export class WorkflowService {
 
     if (!d.trigger.config) {
       d.trigger.config = {};
+    }
+
+    if (
+      isPublish &&
+      d.trigger.type === TriggerType.KEYWORD_MATCH &&
+      parseKeywords(d.trigger.config['keyword']).length === 0
+    ) {
+      throw new BadRequestException('A keyword trigger needs at least one keyword');
     }
 
     if (d.conditions && !Array.isArray(d.conditions)) {

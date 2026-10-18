@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
@@ -7,6 +8,16 @@ import { Agent } from './entities/agent.entity';
 import { FollowupAttempt } from '../conversation/entities/followup-attempt.entity';
 
 export type LeadWithFollowup = Lead & { followupSentAt: Date | null; followupRepliedAt: Date | null };
+
+/** mainService of the plain lead captured from a customer's first message, before a flow learns more. */
+const INBOUND_MAIN_SERVICE = 'general';
+
+/** Time-ordered and collision-safe (the old 5 random digits clashed with the UNIQUE leadNumber). */
+function generateLeadNumber(prefix: string): string {
+  const time = Date.now().toString(36).toUpperCase();
+  const random = randomBytes(3).toString('hex').toUpperCase();
+  return `LD-${prefix}-${time}${random}`;
+}
 
 export interface CreateLeadDto {
   businessId: string;
@@ -47,16 +58,23 @@ export class LeadService {
   async createOrUpdateLead(dto: CreateLeadDto): Promise<Lead> {
     const cleanPhone = dto.customerPhone.replace(/[^0-9]/g, '');
 
-    // 1. Idempotency check: If a lead for this phone & service was created in the last 10 minutes, update it rather than duplicating
+    // 1. Reuse instead of duplicating: the same service asked again within 10 minutes, or the plain
+    // lead captured from this customer's first WhatsApp message (now learning what they want).
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    const existing = await this.leadRepo.findOne({
-      where: {
-        businessId: dto.businessId,
-        customerPhone: cleanPhone,
-        createdAt: MoreThan(tenMinutesAgo),
-      },
-      order: { createdAt: 'DESC' },
-    });
+    const existing =
+      (await this.leadRepo.findOne({
+        where: {
+          businessId: dto.businessId,
+          customerPhone: cleanPhone,
+          mainService: dto.mainService,
+          createdAt: MoreThan(tenMinutesAgo),
+        },
+        order: { createdAt: 'DESC' },
+      })) ??
+      (await this.leadRepo.findOne({
+        where: { businessId: dto.businessId, customerPhone: cleanPhone, mainService: INBOUND_MAIN_SERVICE },
+        order: { createdAt: 'DESC' },
+      }));
 
     if (existing) {
       existing.mainService = dto.mainService || existing.mainService;
@@ -67,12 +85,17 @@ export class LeadService {
       existing.insuranceCompany = dto.insuranceCompany || existing.insuranceCompany;
       existing.issueDescription = dto.issueDescription || existing.issueDescription;
       existing.pincode = dto.pincode || existing.pincode;
+      existing.workflowId = dto.workflowId || existing.workflowId;
+      existing.conversationId = dto.conversationId || existing.conversationId;
+      existing.customerName = existing.customerName || dto.customerName || null;
 
       if (dto.matchedAgent) {
         existing.matchedAgentId = dto.matchedAgent.id;
         existing.matchedAgentName = dto.matchedAgent.name;
         existing.matchedAgentPhone = dto.matchedAgent.phone;
         existing.status = LeadStatus.ASSIGNED;
+      } else if (existing.status === LeadStatus.NEW) {
+        existing.status = LeadStatus.QUALIFIED;
       }
 
       existing.metadata = { ...(existing.metadata || {}), ...(dto.metadata || {}) };
@@ -81,10 +104,7 @@ export class LeadService {
       return saved;
     }
 
-    // 2. Generate unique lead number (e.g. LEAD-INS-84920)
-    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-    const prefix = dto.mainService === 'mutual_fund' ? 'MF' : 'INS';
-    const leadNumber = `LD-${prefix}-${randomSuffix}`;
+    const leadNumber = generateLeadNumber(dto.mainService === 'mutual_fund' ? 'MF' : 'INS');
 
     const newLead = this.leadRepo.create({
       leadNumber,
@@ -156,10 +176,7 @@ export class LeadService {
       return { lead: changed ? await this.leadRepo.save(existing) : existing, created: false };
     }
 
-    const leadNumber = `LD-WA-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1296)
-      .toString(36)
-      .toUpperCase()
-      .padStart(2, '0')}`;
+    const leadNumber = generateLeadNumber('WA');
     const saved = await this.leadRepo.save(
       this.leadRepo.create({
         leadNumber,
@@ -168,7 +185,7 @@ export class LeadService {
         chatId: input.chatId,
         customerPhone: cleanPhone,
         customerName: input.customerName || null,
-        mainService: 'general',
+        mainService: INBOUND_MAIN_SERVICE,
         selectedService: 'whatsapp_enquiry',
         pincode: '',
         status: LeadStatus.NEW,

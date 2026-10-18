@@ -11,8 +11,14 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  ForbiddenException,
   Optional,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Session } from '../session/entities/session.entity';
+import { BusinessService } from '../business/business.service';
+import { sessionScopeVisible } from '../../common/security/session-scope';
 import { ApiTags, ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
@@ -39,10 +45,33 @@ export class WorkflowController {
     private readonly agentService?: AgentService,
     @Optional()
     private readonly leadService?: LeadService,
+    @Optional()
+    @InjectRepository(Session, 'data')
+    private readonly sessionRepo?: Repository<Session>,
+    @Optional()
+    private readonly businessService?: BusinessService,
   ) {}
 
   private getBusinessId(apiKey?: ApiKey): string | null {
     return apiKey?.businessId ?? null;
+  }
+
+  // A test run sends from the given WhatsApp number, so it must be one this key may use and one that
+  // belongs to the workflow's business (a session with no business belongs to the default one).
+  private async assertSessionUsable(sessionId: string, businessId: string, apiKey?: ApiKey): Promise<void> {
+    if (!sessionScopeVisible(apiKey?.allowedSessions, sessionId)) {
+      throw new ForbiddenException('This API key may not use that session');
+    }
+    const session = await this.sessionRepo?.findOne({
+      where: { id: sessionId },
+      select: { id: true, businessId: true },
+    });
+    if (!session) throw new BadRequestException('Session not found');
+    const sessionBusinessId =
+      session.businessId ?? (await this.businessService?.getOrCreateDefaultBusiness())?.id ?? null;
+    if (sessionBusinessId !== businessId) {
+      throw new ForbiddenException("That session does not belong to this workflow's business");
+    }
   }
 
   @Get('agents/list')
@@ -87,7 +116,7 @@ export class WorkflowController {
   }
 
   @Post('presets/seed-insurance')
-  @RequireRole(ApiKeyRole.OPERATOR)
+  @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Create and publish the complete Insurance & Mutual Fund Automation Workflow' })
   async seedInsurancePreset(@CurrentApiKey() apiKey: ApiKey) {
     const businessId = this.getBusinessId(apiKey);
@@ -202,6 +231,7 @@ export class WorkflowController {
   ) {
     const wf = await this.workflowService.findOne(id, this.getBusinessId(apiKey));
     const sessionId = dto.sessionId;
+    if (sessionId) await this.assertSessionUsable(sessionId, wf.businessId, apiKey);
     const ctx: TriggerContext = {
       businessId: wf.businessId,
       sessionId,
@@ -210,7 +240,7 @@ export class WorkflowController {
       messageType: 'text',
       metadata: { isTest: true },
     };
-    const run = await this.workflowService.createRun(wf, { isTest: true, ...dto }, sessionId);
+    const run = await this.workflowService.createRun(wf, { isTest: true, ...dto }, sessionId, undefined, ctx.chatId);
     if (!run) throw new BadRequestException('Could not create workflow test run');
     await this.executor.execute(wf, run, ctx);
     return this.workflowService.findRun(run.id, this.getBusinessId(apiKey));

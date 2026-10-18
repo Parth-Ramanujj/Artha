@@ -227,7 +227,7 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
       });
 
       expect(lead).toBeDefined();
-      expect(lead.leadNumber).toMatch(/^LD-INS-\d{5}$/);
+      expect(lead.leadNumber).toMatch(/^LD-INS-[0-9A-Z]{10,}$/);
       expect(lead.claimIssueType).toBe('Claim Rejected');
       expect(lead.insuranceCompany).toBe('Star Health');
     });

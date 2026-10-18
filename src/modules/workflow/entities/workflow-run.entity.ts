@@ -39,6 +39,9 @@ export class WorkflowRun {
   @Column({ type: 'varchar', length: 36, nullable: true })
   sessionId: string | null;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  chatId: string | null;
+
   @Column({ type: 'integer' })
   workflowVersion: number;
 

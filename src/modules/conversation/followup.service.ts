@@ -116,7 +116,13 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
     const qb = this.convoRepo
       .createQueryBuilder('c')
       .where('c.status = :status', { status: ConversationStatus.OPEN })
-      .andWhere('c.lastMessageAt < :idleCutoff', { idleCutoff });
+      .andWhere('c.lastMessageAt < :idleCutoff', { idleCutoff: toDbDate(idleCutoff) })
+      .andWhere("(c.chatId LIKE '%@c.us' OR c.chatId LIKE '%@lid')");
+    if (rule.trigger === (FollowupTrigger.NO_REPLY as string)) {
+      // "No reply" means the business spoke last and the customer went quiet — never nudge a customer
+      // who is still waiting for the business, or one who never wrote at all.
+      qb.andWhere('c.lastInboundAt IS NOT NULL').andWhere('c.lastMessageAt > c.lastInboundAt');
+    }
     if (rule.businessId) qb.andWhere('c.businessId = :businessId', { businessId: rule.businessId });
     const targetChatIds = rule.conditions?.chatIds;
     if (Array.isArray(targetChatIds)) {

@@ -1,11 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  OnModuleInit,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiConfig, AiProvider } from './entities/ai-config.entity';
@@ -13,14 +6,38 @@ import { KnowledgeDocument, DocumentStatus } from './entities/knowledge-document
 import { UpdateAiConfigDto, CreateKnowledgeDocumentDto, UpdateKnowledgeDocumentDto } from './dto/ai.dto';
 import { createLogger } from '../../common/services/logger.service';
 import { BusinessService } from '../business/business.service';
-import { HookManager } from '../../core/hooks';
 import { EngineRegistry } from '../../engine/engine-registry.service';
-import { Session } from '../session/entities/session.entity';
 import { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
 import { Message, MessageDirection } from '../message/entities/message.entity';
 
 const MAX_DOCUMENT_CONTENT_LENGTH = 500_000;
 const MAX_DOCUMENTS_PER_BUSINESS = 100;
+
+// Prompt budget: long stored messages (bot menus, agent cards) once pushed a request to ~65k tokens
+// against an 8k tokens-per-minute plan, so every message is capped and the history has a total cap.
+const MAX_HISTORY_MESSAGE_CHARS = 800;
+const MAX_HISTORY_CHARS = 6000;
+const MAX_USER_MESSAGE_CHARS = 2000;
+const FALLBACK_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_MEMORY_MAX = 5000;
+
+export type AutoReplyOutcome = 'skipped' | 'replied' | 'handoff' | 'failed';
+
+/** A provider error that would repeat on every key (request too large, malformed). */
+class NonRetryableAiError extends Error {}
+
+/** Newest-first within the budget, returned in chronological order. */
+function trimHistory<T extends { content: string }>(history: T[]): T[] {
+  const kept: T[] = [];
+  let total = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const content = history[i].content.slice(0, MAX_HISTORY_MESSAGE_CHARS);
+    if (total + content.length > MAX_HISTORY_CHARS) break;
+    total += content.length;
+    kept.unshift({ ...history[i], content });
+  }
+  return kept;
+}
 
 export interface AiChatRequest {
   businessId: string;
@@ -39,9 +56,9 @@ export interface AiChatResponse {
 }
 
 @Injectable()
-export class AiService implements OnModuleInit, OnModuleDestroy {
+export class AiService implements OnModuleInit {
   private readonly logger = createLogger('AiService');
-  private readonly hookIds: string[] = [];
+  private readonly lastFallbackAt = new Map<string, number>();
   private groqKeyIndex = 0;
 
   constructor(
@@ -49,71 +66,37 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
     private readonly configRepo: Repository<AiConfig>,
     @InjectRepository(KnowledgeDocument, 'data')
     private readonly docRepo: Repository<KnowledgeDocument>,
-    @InjectRepository(Session, 'data')
-    private readonly sessionRepo: Repository<Session>,
     @InjectRepository(Message, 'data')
     private readonly messageRepo: Repository<Message>,
     private readonly businessService: BusinessService,
-    private readonly hookManager: HookManager,
     private readonly engines: EngineRegistry,
   ) {}
 
   onModuleInit(): void {
-    this.hookIds.push(
-      this.hookManager.register(
-        'ai-assistant-auto-reply',
-        'message:received',
-        hookCtx => {
-          const msg = hookCtx.data as IncomingMessage;
-          // Only auto-reply to incoming 1-to-1 direct messages (ignore self, status, group, and channels)
-          if (
-            !hookCtx.sessionId ||
-            msg.fromMe ||
-            msg.isStatusBroadcast ||
-            msg.isGroup ||
-            (msg.kind && msg.kind !== 'individual') ||
-            msg.chatId.includes('@newsletter') ||
-            msg.chatId.includes('@broadcast') ||
-            msg.chatId.includes('@g.us') ||
-            !msg.body?.trim()
-          ) {
-            return Promise.resolve({ continue: true });
-          }
-
-          void this.handleIncomingMessageAi(hookCtx.sessionId, msg).catch(err =>
-            this.logger.error(
-              `AI auto-reply error: session=${hookCtx.sessionId}`,
-              err instanceof Error ? err.message : String(err),
-            ),
-          );
-          return Promise.resolve({ continue: true });
-        },
-        800,
-      ),
-    );
-
     const keysCount = this.getGroqApiKeys().length;
     this.logger.log(`AI Assistant initialized with ${keysCount} Groq API key(s) in pool`);
   }
 
-  onModuleDestroy(): void {
-    for (const id of this.hookIds) {
-      this.hookManager.unregister(id);
-    }
-  }
-
-  private async handleIncomingMessageAi(sessionId: string, msg: IncomingMessage): Promise<void> {
-    const session = await this.sessionRepo.findOne({
-      where: { id: sessionId },
-      select: { id: true, businessId: true },
-    });
-    const businessId = session?.businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
+  /**
+   * Auto-reply to a customer message no workflow took. The caller (the workflow trigger, which
+   * already filtered to fresh one-to-one chats) acts on the outcome: 'handoff' and 'failed' mean a
+   * person should pick the conversation up.
+   */
+  async autoReply(sessionId: string, businessId: string, msg: IncomingMessage): Promise<AutoReplyOutcome> {
+    if (!msg.body?.trim()) return 'skipped';
 
     const config = await this.getConfig(businessId);
-    if (!config.enabled) return;
+    if (!config.enabled) return 'skipped';
+    if (config.sessionScopes && config.sessionScopes.length > 0 && !config.sessionScopes.includes(sessionId)) {
+      return 'skipped';
+    }
 
-    if (config.sessionScopes && config.sessionScopes.length > 0) {
-      if (!config.sessionScopes.includes(sessionId)) return;
+    const engine = this.engines.get(sessionId);
+    if (!engine) return 'skipped';
+
+    if (this.shouldHandoff(msg.body, config)) {
+      await engine.sendTextMessage(msg.chatId, 'Connecting you with a human agent. Please wait.');
+      return 'handoff';
     }
 
     // Retrieve previous conversation messages for multi-turn context
@@ -138,21 +121,46 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
       // Non-critical: continue without history if query fails
     }
 
-    const response = await this.chat({
+    const request: AiChatRequest = {
       businessId,
       sessionId,
       chatId: msg.chatId,
       message: msg.body,
       conversationHistory,
-    });
-
-    if (response.reply) {
-      const engine = this.engines.get(sessionId);
-      if (engine) {
-        await engine.sendTextMessage(msg.chatId, response.reply);
-        this.logger.log(`AI Assistant sent auto-reply to chat=${msg.chatId} session=${sessionId}`);
+    };
+    let reply: string;
+    try {
+      reply = (await this.generateReply(config, request)).reply;
+    } catch (err) {
+      this.logger.error(
+        `AI auto-reply failed for business=${businessId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      // One apology per chat per day; the conversation is handed to the team either way.
+      const key = `${sessionId}:${msg.chatId}`;
+      const last = this.lastFallbackAt.get(key) ?? 0;
+      if (Date.now() - last > FALLBACK_COOLDOWN_MS) {
+        this.rememberFallback(key);
+        await engine.sendTextMessage(
+          msg.chatId,
+          config.fallbackMessage ?? 'Thanks for your message! Our team will get back to you shortly.',
+        );
       }
+      return 'failed';
     }
+
+    if (!reply?.trim()) return 'failed';
+    await engine.sendTextMessage(msg.chatId, reply);
+    this.logger.log(`AI Assistant sent auto-reply to chat=${msg.chatId} session=${sessionId}`);
+    return 'replied';
+  }
+
+  private rememberFallback(key: string): void {
+    if (this.lastFallbackAt.size >= FALLBACK_MEMORY_MAX) {
+      const oldest = this.lastFallbackAt.keys().next().value;
+      if (oldest !== undefined) this.lastFallbackAt.delete(oldest);
+    }
+    this.lastFallbackAt.delete(key);
+    this.lastFallbackAt.set(key, Date.now());
   }
 
   // ── Config ──
@@ -161,9 +169,11 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
     const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
     let config = await this.configRepo.findOne({ where: { businessId: targetBusinessId } });
     if (!config) {
+      // Off until a person turns it on: an auto-created config used to start answering customers
+      // the first time anything read the settings.
       config = this.configRepo.create({
         businessId: targetBusinessId,
-        enabled: true,
+        enabled: false,
         provider: AiProvider.GROQ,
         model: process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
         systemPrompt:
@@ -313,14 +323,8 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    let knowledgeContext = '';
-    if (config.useKnowledgeBase) {
-      knowledgeContext = await this.retrieveRelevantKnowledge(targetBusinessId, request.message);
-    }
-
     try {
-      const response = await this.callProvider(config, request, knowledgeContext);
-      return response;
+      return await this.generateReply(config, { ...request, businessId: targetBusinessId });
     } catch (err) {
       this.logger.error(
         `AI provider error for business=${request.businessId}: ${err instanceof Error ? err.message : String(err)}`,
@@ -333,6 +337,14 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
         confidence: 'low',
       };
     }
+  }
+
+  /** Knowledge lookup plus provider call. Throws on failure; callers choose how to fall back. */
+  private async generateReply(config: AiConfig, request: AiChatRequest): Promise<AiChatResponse> {
+    const knowledgeContext = config.useKnowledgeBase
+      ? await this.retrieveRelevantKnowledge(request.businessId, request.message)
+      : '';
+    return this.callProvider(config, request, knowledgeContext);
   }
 
   private shouldHandoff(message: string, config: AiConfig): boolean {
@@ -415,10 +427,10 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
           role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
           content: m.content.trim(),
         }));
-      messages.push(...validHistory);
+      messages.push(...trimHistory(validHistory));
     }
 
-    messages.push({ role: 'user', content: request.message });
+    messages.push({ role: 'user', content: request.message.slice(0, MAX_USER_MESSAGE_CHARS) });
 
     const { content, tokensUsed } = await this.complete(messages, {
       model: config.model?.trim() || undefined,
@@ -484,6 +496,10 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
 
         if (!response.ok) {
           const errText = await response.text();
+          // Too large / malformed fails identically on every key; rotating would only multiply the cost.
+          if (response.status === 413 || response.status === 400) {
+            throw new NonRetryableAiError(`Groq HTTP ${response.status}: ${errText}`);
+          }
           throw new Error(`Groq HTTP ${response.status}: ${errText}`);
         }
 
@@ -500,6 +516,7 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
 
         return { content, tokensUsed: data.usage?.total_tokens };
       } catch (err) {
+        if (err instanceof NonRetryableAiError) throw err;
         lastError = err instanceof Error ? err : new Error(String(err));
         this.logger.warn(`Groq attempt ${attempt + 1} with key index ${keyIndex} failed: ${lastError.message}`);
       }
@@ -545,13 +562,7 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    return {
-      reply:
-        config.fallbackMessage ??
-        'AI provider integration requires configuration. Please set up your Groq API key in .env or settings.',
-      handoff: false,
-      confidence: 'low',
-    };
+    throw new Error('No AI provider configured. Set GROQ_API_KEY in .env or a custom endpoint in settings.');
   }
 
   getAvailableModels() {

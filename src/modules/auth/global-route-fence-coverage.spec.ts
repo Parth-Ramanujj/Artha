@@ -64,7 +64,10 @@ const ALLOWLIST = new Map<string, string>([
   ['ai.controller.ts :: updateDocument', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: removeDocument', 'business-scoped via getBusinessId(apiKey)'],
   ['campaign.controller.ts :: create', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController'],
-  ['campaign.controller.ts :: findAll', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController/CampaignController/ConsentController'],
+  [
+    'campaign.controller.ts :: findAll',
+    'business-scoped via getBusinessId(apiKey) — ScheduledMessageController/CampaignController/ConsentController',
+  ],
   ['campaign.controller.ts :: cancel', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController'],
   ['campaign.controller.ts :: findOne', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
   ['campaign.controller.ts :: update', 'business-scoped via getBusinessId(apiKey) — CampaignController'],
@@ -166,6 +169,8 @@ const ALLOWLIST = new Map<string, string>([
   ['workflow-analytics.controller.ts :: getPathStats', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: listAgents', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: listLeads', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: updateLeadStatus', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: updateLeadClassification', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: seedInsurancePreset', 'business-scoped via getBusinessId(apiKey)'],
 ]);
 

@@ -167,7 +167,8 @@ export const INSURANCE_PRESET_NODES: VisualWorkflowNode[] = [
       label: 'Type Insurer Name',
       config: {
         slot: 'insuranceCompany',
-        question: '🏢 Please type the name of your Insurance Company (e.g. Star Health, HDFC ERGO, Care Health, LIC, ICICI Lombard):',
+        question:
+          '🏢 Please type the name of your Insurance Company (e.g. Star Health, HDFC ERGO, Care Health, LIC, ICICI Lombard):',
       },
     },
   },
@@ -237,9 +238,12 @@ export const INSURANCE_PRESET_NODES: VisualWorkflowNode[] = [
       config: {
         slot: 'pincode',
         validation: 'pincode',
-        question: '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
-        prompt: '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
-        message: '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
+        question:
+          '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
+        prompt:
+          '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
+        message:
+          '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
         retryPrompt: '⚠️ Invalid format. Please enter a valid 6-digit Indian Pincode (e.g. 380015):',
         maxRetries: 3,
       },
@@ -255,7 +259,8 @@ export const INSURANCE_PRESET_NODES: VisualWorkflowNode[] = [
       label: 'Search 3 Matching Advisors',
       config: {
         pincode: '{{steps.node-ask-pincode.answer}}',
-        mainService: 'insurance',
+        // The main-menu choice (btn_insurance / btn_mutual_fund) decides which advisors are matched.
+        mainService: '{{steps.node-main-menu.choice}}',
         limit: 3,
         sendDirectMessage: true,
       },
@@ -271,8 +276,12 @@ export const INSURANCE_PRESET_NODES: VisualWorkflowNode[] = [
       label: 'Record Lead & Assign',
       config: {
         customerPhone: '{{trigger.phone}}',
-        mainService: 'insurance',
-        selectedService: 'WhatsApp Interactive Flow',
+        // Only the menus the customer passed through have a choice; the rest resolve to ''.
+        mainService: '{{steps.node-main-menu.choice}}',
+        selectedService: '{{steps.node-ins-menu.choice}}{{steps.node-mf-menu.choice}}',
+        productCategory: '{{steps.node-ins-categories.choice}}',
+        subProduct: '{{steps.node-sub-life.choice}}{{steps.node-sub-health.choice}}{{steps.node-sub-motor.choice}}',
+        claimIssueType: '{{steps.node-claim-issues.choice}}',
         pincode: '{{steps.node-ask-pincode.answer}}',
       },
     },
@@ -328,9 +337,24 @@ export const INSURANCE_PRESET_EDGES: VisualWorkflowEdge[] = [
   { id: 'e-motor-pin', source: 'node-sub-motor', target: 'node-ask-pincode' },
 
   // Claim Issues -> Type Insurer Name
-  { id: 'e-claim-insurer-1', source: 'node-claim-issues', sourceHandle: 'btn_claim_rejected', target: 'node-ask-insurer' },
-  { id: 'e-claim-insurer-2', source: 'node-claim-issues', sourceHandle: 'btn_claim_short_settled', target: 'node-ask-insurer' },
-  { id: 'e-claim-insurer-3', source: 'node-claim-issues', sourceHandle: 'btn_claim_delayed', target: 'node-ask-insurer' },
+  {
+    id: 'e-claim-insurer-1',
+    source: 'node-claim-issues',
+    sourceHandle: 'btn_claim_rejected',
+    target: 'node-ask-insurer',
+  },
+  {
+    id: 'e-claim-insurer-2',
+    source: 'node-claim-issues',
+    sourceHandle: 'btn_claim_short_settled',
+    target: 'node-ask-insurer',
+  },
+  {
+    id: 'e-claim-insurer-3',
+    source: 'node-claim-issues',
+    sourceHandle: 'btn_claim_delayed',
+    target: 'node-ask-insurer',
+  },
 
   // Type Insurer Name -> Enter Pincode
   { id: 'e-insurer-pin', source: 'node-ask-insurer', target: 'node-ask-pincode' },

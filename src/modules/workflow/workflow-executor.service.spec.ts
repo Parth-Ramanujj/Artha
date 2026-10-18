@@ -1,5 +1,34 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
+
+// These tests stub global.fetch with plain objects. Route the guarded request through that stub and
+// wrap it in a real Response so the capped body reader works; the guard itself is covered in
+// workflow-security.spec.ts.
+jest.mock('../../common/security/ssrf-guard', () => {
+  const actual = jest.requireActual<typeof import('../../common/security/ssrf-guard')>(
+    '../../common/security/ssrf-guard',
+  );
+  return {
+    ...actual,
+    withSafeFetch: jest.fn(async (url: string, init: RequestInit, use: (response: Response) => Promise<unknown>) => {
+      const stub = (await global.fetch(url, init)) as unknown as {
+        status: number;
+        statusText?: string;
+        headers?: Headers;
+        json?: () => Promise<unknown>;
+        text?: () => Promise<string>;
+      };
+      const payload = stub.json ? JSON.stringify(await stub.json()) : ((await stub.text?.()) ?? '');
+      return use(
+        new Response(payload, {
+          status: stub.status,
+          statusText: stub.statusText,
+          headers: { 'content-type': stub.headers?.get('content-type') ?? 'application/json' },
+        }),
+      );
+    }),
+  };
+});
 import { WorkflowService } from './workflow.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { MessageService } from '../message/message.service';
@@ -24,6 +53,7 @@ describe('WorkflowExecutor', () => {
     workflowId: 'wf-1',
     businessId: 'biz-1',
     sessionId: 'sess-1',
+    chatId: null,
     workflowVersion: 1,
     status: RunStatus.PENDING,
     triggerData: {},
@@ -87,13 +117,9 @@ describe('WorkflowExecutor', () => {
         executor.evaluateTrigger(trigger, { businessId: 'biz-1', messageBody: 'Can you give me a QUOTE please?' }),
       ).toBe(true);
 
-      expect(
-        executor.evaluateTrigger(trigger, { businessId: 'biz-1', messageBody: 'What is the price?' }),
-      ).toBe(true);
+      expect(executor.evaluateTrigger(trigger, { businessId: 'biz-1', messageBody: 'What is the price?' })).toBe(true);
 
-      expect(
-        executor.evaluateTrigger(trigger, { businessId: 'biz-1', messageBody: 'Hello there' }),
-      ).toBe(false);
+      expect(executor.evaluateTrigger(trigger, { businessId: 'biz-1', messageBody: 'Hello there' })).toBe(false);
     });
   });
 
@@ -334,9 +360,7 @@ describe('WorkflowExecutor', () => {
                     { key: 'phone', value: '{{phone}}' },
                     { key: 'tag', value: 'vip' },
                   ],
-                  responseMapping: [
-                    { path: 'data.orderId', variable: 'order_id' },
-                  ],
+                  responseMapping: [{ path: 'data.orderId', variable: 'order_id' }],
                 },
               },
             ],
@@ -447,11 +471,9 @@ describe('WorkflowExecutor', () => {
 
       await executor.execute(wf, { ...mockRun }, ctx);
 
-      expect(conversationService.updateConversation).toHaveBeenCalledWith(
-        'conv-1',
-        'biz-1',
-        { status: ConversationStatus.PENDING },
-      );
+      expect(conversationService.updateConversation).toHaveBeenCalledWith('conv-1', 'biz-1', {
+        status: ConversationStatus.PENDING,
+      });
     });
 
     it('executes CREATE_CONTACT and UPDATE_CONTACT actions', async () => {
@@ -560,7 +582,8 @@ describe('WorkflowExecutor', () => {
       };
 
       // 1. Upstream node output interpolation
-      const text1 = 'Hello {{steps.api_verify_user.data.customer.name}}, your balance is ₹{{steps.api_verify_user.data.customer.balance}}!';
+      const text1 =
+        'Hello {{steps.api_verify_user.data.customer.name}}, your balance is ₹{{steps.api_verify_user.data.customer.balance}}!';
       expect(executor.interpolateVariables(text1, ctx, run)).toBe('Hello Parth Patel, your balance is ₹1250!');
 
       // 2. Upstream node bracket path interpolation
@@ -622,7 +645,8 @@ describe('WorkflowExecutor', () => {
                 id: 'step_send_receipt',
                 type: ActionType.SEND_MESSAGE,
                 config: {
-                  message: 'Dear {{steps.step_fetch_order.data.customerName}}, order #{{steps.step_fetch_order.data.orderId}} tracking is {{steps.step_fetch_order.data.trackingNumber}}!',
+                  message:
+                    'Dear {{steps.step_fetch_order.data.customerName}}, order #{{steps.step_fetch_order.data.orderId}} tracking is {{steps.step_fetch_order.data.trackingNumber}}!',
                 },
               },
             ],
@@ -845,7 +869,9 @@ describe('WorkflowExecutor', () => {
         'run-1',
         RunStatus.COMPLETED,
         expect.objectContaining({
-          failureReason: expect.stringContaining('Workflow terminated at node step_stop: Customer requested human handover immediately'),
+          failureReason: expect.stringContaining(
+            'Workflow terminated at node step_stop: Customer requested human handover immediately',
+          ),
         }),
       );
     });

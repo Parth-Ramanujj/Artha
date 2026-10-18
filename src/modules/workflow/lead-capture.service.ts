@@ -9,9 +9,7 @@ import { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interfa
 import { createLogger } from '../../common/services/logger.service';
 import { LeadService } from './lead.service';
 import { LeadClassifierService } from './lead-classifier.service';
-
-// History replayed on reconnect arrives as message:received too; only recent messages are new leads.
-const MAX_MESSAGE_AGE_MS = 24 * 60 * 60 * 1000;
+import { isFreshPersonalMessage, LEAD_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
 
 @Injectable()
 export class LeadCaptureService implements OnModuleInit, OnModuleDestroy {
@@ -55,9 +53,7 @@ export class LeadCaptureService implements OnModuleInit, OnModuleDestroy {
   }
 
   isLeadMessage(msg: IncomingMessage, now = Date.now()): boolean {
-    if (msg.fromMe || msg.isGroup || msg.isStatusBroadcast || msg.kind !== 'individual') return false;
-    if (msg.timestamp && now - msg.timestamp * 1000 > MAX_MESSAGE_AGE_MS) return false;
-    return true;
+    return isFreshPersonalMessage(msg, LEAD_MAX_MESSAGE_AGE_MS, now);
   }
 
   async capture(sessionId: string, msg: IncomingMessage): Promise<void> {

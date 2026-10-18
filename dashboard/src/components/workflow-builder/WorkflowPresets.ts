@@ -27,7 +27,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'insurance_mutual_fund_advisor',
     name: 'Insurance & Mutual Fund Advisory Bot (Artha Flow)',
     category: 'Financial Services & Insurance',
-    description: 'Complete production workflow: Buy/Port/Renew insurance, Claim Support (rejections, delays, short-settlements), Free Audit, SIP & Mutual Funds, Indian Pincode verification, and live verified Advisors with Call Now & WhatsApp links.',
+    description:
+      'Complete production workflow: Buy/Port/Renew insurance, Claim Support (rejections, delays, short-settlements), Free Audit, SIP & Mutual Funds, Indian Pincode verification, and live verified Advisors with Call Now & WhatsApp links.',
     nodes: [
       {
         id: 'node-trg',
@@ -174,7 +175,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           label: 'Type Insurer Name',
           config: {
             slot: 'insuranceCompany',
-            question: '🏢 Please type the name of your Insurance Company (e.g. Star Health, HDFC ERGO, Care Health, LIC, ICICI Lombard):',
+            question:
+              '🏢 Please type the name of your Insurance Company (e.g. Star Health, HDFC ERGO, Care Health, LIC, ICICI Lombard):',
           },
         },
       },
@@ -216,7 +218,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           config: {
             slot: 'pincode',
             validation: 'pincode',
-            question: '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
+            question:
+              '📍 Please enter your 6-digit residential area Pincode (e.g. 380015) so we can find verified advisors near you:',
             retryPrompt: '⚠️ Invalid format. Please enter a valid 6-digit Indian Pincode (e.g. 380015):',
             maxRetries: 3,
           },
@@ -230,7 +233,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           label: 'Search 3 Matching Advisors',
           config: {
             pincode: '{{steps.node-ask-pincode.answer}}',
-            mainService: 'insurance',
+            mainService: '{{steps.node-main-menu.choice}}',
             limit: 3,
             sendDirectMessage: true,
           },
@@ -244,8 +247,11 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           label: 'Record Lead & Assign',
           config: {
             customerPhone: '{{trigger.phone}}',
-            mainService: 'insurance',
-            selectedService: 'WhatsApp Interactive Flow',
+            mainService: '{{steps.node-main-menu.choice}}',
+            selectedService: '{{steps.node-ins-menu.choice}}{{steps.node-mf-menu.choice}}',
+            productCategory: '{{steps.node-ins-categories.choice}}',
+            subProduct: '{{steps.node-sub-life.choice}}{{steps.node-sub-health.choice}}{{steps.node-sub-motor.choice}}',
+            claimIssueType: '{{steps.node-claim-issues.choice}}',
             pincode: '{{steps.node-ask-pincode.answer}}',
           },
         },
@@ -279,9 +285,24 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       { id: 'e-life-pin', source: 'node-sub-life', target: 'node-ask-pincode' },
       { id: 'e-health-pin', source: 'node-sub-health', target: 'node-ask-pincode' },
       { id: 'e-motor-pin', source: 'node-sub-motor', target: 'node-ask-pincode' },
-      { id: 'e-claim-insurer-1', source: 'node-claim-issues', sourceHandle: 'btn_claim_rejected', target: 'node-ask-insurer' },
-      { id: 'e-claim-insurer-2', source: 'node-claim-issues', sourceHandle: 'btn_claim_short_settled', target: 'node-ask-insurer' },
-      { id: 'e-claim-insurer-3', source: 'node-claim-issues', sourceHandle: 'btn_claim_delayed', target: 'node-ask-insurer' },
+      {
+        id: 'e-claim-insurer-1',
+        source: 'node-claim-issues',
+        sourceHandle: 'btn_claim_rejected',
+        target: 'node-ask-insurer',
+      },
+      {
+        id: 'e-claim-insurer-2',
+        source: 'node-claim-issues',
+        sourceHandle: 'btn_claim_short_settled',
+        target: 'node-ask-insurer',
+      },
+      {
+        id: 'e-claim-insurer-3',
+        source: 'node-claim-issues',
+        sourceHandle: 'btn_claim_delayed',
+        target: 'node-ask-insurer',
+      },
       { id: 'e-insurer-pin', source: 'node-ask-insurer', target: 'node-ask-pincode' },
       { id: 'e-audit-pin', source: 'node-audit-info', target: 'node-ask-pincode' },
       { id: 'e-mf-pin-1', source: 'node-mf-menu', sourceHandle: 'btn_sip_stp_swp', target: 'node-ask-pincode' },
@@ -346,7 +367,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Send Pricing Details',
           config: {
-            message: '💼 Our pricing plans start at $29/mo with full WhatsApp API features. View full details here: https://example.com/pricing',
+            message:
+              '💼 Our pricing plans start at $29/mo with full WhatsApp API features. View full details here: https://example.com/pricing',
           },
         },
         position: { x: 30, y: 640 },
@@ -453,7 +475,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Groq RAG Assistant',
           config: {
-            systemPrompt: 'You are an intelligent customer support assistant. Answer accurately based on the knowledge base. If customer asks for human or is frustrated, signal handoff.',
+            systemPrompt:
+              'You are an intelligent customer support assistant. Answer accurately based on the knowledge base. If customer asks for human or is frustrated, signal handoff.',
             useKnowledgeBase: true,
             enableHandoff: true,
           },
@@ -524,7 +547,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'ecommerce_order_tracking',
     name: 'Order Tracking & Razorpay UPI (n8n API Chain)',
     category: 'E-Commerce & Orders',
-    description: 'Node-to-node data pipeline: captures Order ID, calls external API, branches status, and delivers dynamic shipping or Razorpay payment link.',
+    description:
+      'Node-to-node data pipeline: captures Order ID, calls external API, branches status, and delivers dynamic shipping or Razorpay payment link.',
     nodes: [
       {
         id: 'node-trigger',
@@ -593,7 +617,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Send Tracking Details',
           config: {
-            message: '🚚 Great news, {{trigger.contactName}}! Order #{{vars.orderId}} has SHIPPED via {{steps.node-fetch-order-api.data.carrier}}.\nAmount: ₹{{steps.node-fetch-order-api.data.amount}}\nEstimated Delivery: 2 business days.',
+            message:
+              '🚚 Great news, {{trigger.contactName}}! Order #{{vars.orderId}} has SHIPPED via {{steps.node-fetch-order-api.data.carrier}}.\nAmount: ₹{{steps.node-fetch-order-api.data.amount}}\nEstimated Delivery: 2 business days.',
           },
         },
         position: { x: 100, y: 880 },
@@ -604,7 +629,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Send Razorpay Payment Link',
           config: {
-            message: '💳 Order #{{vars.orderId}} is awaiting payment of ₹{{steps.node-fetch-order-api.data.amount}}.\nPlease complete payment here: https://rzp.io/l/pay-{{vars.orderId}}',
+            message:
+              '💳 Order #{{vars.orderId}} is awaiting payment of ₹{{steps.node-fetch-order-api.data.amount}}.\nPlease complete payment here: https://rzp.io/l/pay-{{vars.orderId}}',
           },
         },
         position: { x: 500, y: 880 },
@@ -622,7 +648,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'multilingual_smart_bot',
     name: 'Multi-Language Auto Bot (English / ગુજરાતી / हिंदी)',
     category: 'Smart Automation',
-    description: 'Presents interactive language selection buttons and branches into dedicated native language menus with automated contact tagging.',
+    description:
+      'Presents interactive language selection buttons and branches into dedicated native language menus with automated contact tagging.',
     nodes: [
       {
         id: 'node-trigger',
@@ -660,7 +687,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'English Welcome Menu',
           config: {
-            message: '👋 Welcome! You have selected English. How can our team help you today?\n1. Product Catalog\n2. Track Order\n3. Talk to Agent',
+            message:
+              '👋 Welcome! You have selected English. How can our team help you today?\n1. Product Catalog\n2. Track Order\n3. Talk to Agent',
           },
         },
         position: { x: 30, y: 500 },
@@ -671,7 +699,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'ગુજરાતી મેનુ',
           config: {
-            message: 'નમસ્તે {{trigger.contactName}}! ગુજરાતી પસંદ કરવા બદલ આભાર. અમે તમને શું મદદ કરી શકીએ?\n૧. પ્રોડક્ટ કેટાલોગ જુઓ\n૨. ઓર્ડર ટ્રેકિંગ\n૩. સપોર્ટ ટીમ સાથે વાત કરો',
+            message:
+              'નમસ્તે {{trigger.contactName}}! ગુજરાતી પસંદ કરવા બદલ આભાર. અમે તમને શું મદદ કરી શકીએ?\n૧. પ્રોડક્ટ કેટાલોગ જુઓ\n૨. ઓર્ડર ટ્રેકિંગ\n૩. સપોર્ટ ટીમ સાથે વાત કરો',
           },
         },
         position: { x: 330, y: 500 },
@@ -682,7 +711,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'हिंदी मेनू',
           config: {
-            message: 'नमस्ते {{trigger.contactName}}! हमारे WhatsApp सेवा में आपका स्वागत है। हम आपकी क्या सहायता कर सकते हैं?\n१. कैटलॉग देखें\n२. आर्डर ट्रैक करें\n३. कस्टमर केयर से बात करें',
+            message:
+              'नमस्ते {{trigger.contactName}}! हमारे WhatsApp सेवा में आपका स्वागत है। हम आपकी क्या सहायता कर सकते हैं?\n१. कैटलॉग देखें\n२. आर्डर ट्रैक करें\n३. कस्टमर केयर से बात करें',
           },
         },
         position: { x: 630, y: 500 },
@@ -699,7 +729,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'abandoned_cart_recovery',
     name: 'Abandoned Cart Recovery & Razorpay Discount',
     category: 'E-Commerce & Orders',
-    description: 'Automatic follow-up for abandoned carts with personalized coupon code, timed delay, and CSAT recovery check.',
+    description:
+      'Automatic follow-up for abandoned carts with personalized coupon code, timed delay, and CSAT recovery check.',
     nodes: [
       {
         id: 'node-trigger',
@@ -720,7 +751,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Send 15% Recovery Offer',
           config: {
-            message: '🛍️ Hey {{trigger.contactName}}! We noticed you left items in your shopping cart.\nHere is an exclusive 15% discount coupon: *SAVE15* 🎁\nComplete your checkout now: https://rzp.io/l/quick-checkout?ref={{trigger.phone}}',
+            message:
+              '🛍️ Hey {{trigger.contactName}}! We noticed you left items in your shopping cart.\nHere is an exclusive 15% discount coupon: *SAVE15* 🎁\nComplete your checkout now: https://rzp.io/l/quick-checkout?ref={{trigger.phone}}',
           },
         },
         position: { x: 280, y: 230 },
@@ -789,7 +821,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'google_sheets_sync',
     name: 'WhatsApp to Google Sheets Lead Capture',
     category: 'Integrations & CRM',
-    description: 'Capture inbound inquiry, set lead score variables, append row directly to Google Sheets, and send instant confirmation.',
+    description:
+      'Capture inbound inquiry, set lead score variables, append row directly to Google Sheets, and send instant confirmation.',
     nodes: [
       {
         id: 'node-trigger',
@@ -841,7 +874,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Confirmation Reply',
           config: {
-            message: '✅ Thanks! We have received your inquiry and recorded it in our system. A specialist will follow up shortly.',
+            message:
+              '✅ Thanks! We have received your inquiry and recorded it in our system. A specialist will follow up shortly.',
           },
         },
         position: { x: 300, y: 560 },
@@ -857,7 +891,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
     id: 'out_of_hours_responder',
     name: 'Smart Message Filter & Stop Workflow',
     category: 'Automation & Filtering',
-    description: 'Filter messages containing specific keywords, send automated auto-reply notice, and terminate flow cleanly.',
+    description:
+      'Filter messages containing specific keywords, send automated auto-reply notice, and terminate flow cleanly.',
     nodes: [
       {
         id: 'node-trigger',
@@ -890,7 +925,8 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Send Priority Notice',
           config: {
-            message: '🚨 Priority inquiry detected. Our on-call team has been alerted and will reach out to {{trigger.phone}} right away.',
+            message:
+              '🚨 Priority inquiry detected. Our on-call team has been alerted and will reach out to {{trigger.phone}} right away.',
           },
         },
         position: { x: 300, y: 390 },

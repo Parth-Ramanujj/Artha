@@ -1,5 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { Reflector } from '@nestjs/core';
+import { Session } from '../session/entities/session.entity';
 import { WorkflowController } from './workflow.controller';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor } from './workflow-executor.service';
@@ -98,6 +100,10 @@ describe('WorkflowController', () => {
       providers: [
         { provide: WorkflowService, useValue: workflowService },
         { provide: WorkflowExecutor, useValue: executor },
+        {
+          provide: getRepositoryToken(Session, 'data'),
+          useValue: { findOne: jest.fn().mockResolvedValue({ id: 'sess-1', businessId: 'biz-1' }) },
+        },
       ],
     }).compile();
 

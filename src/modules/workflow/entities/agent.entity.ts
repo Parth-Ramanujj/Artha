@@ -1,5 +1,4 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-import { DateTransformer } from '../../../common/transformers/date.transformer';
 import { jsonColumnType } from '../../../common/utils/column-types';
 
 @Entity('workflow_agents')
@@ -60,9 +59,11 @@ export class Agent {
   @Column({ type: 'varchar', length: 255, nullable: true })
   whatsappLink: string | null; // 'https://wa.me/919876543210'
 
-  @CreateDateColumn({ transformer: DateTransformer })
+  // No DateTransformer here: it maps an unset value to NULL, which bypasses the column DEFAULT and
+  // fails the NOT NULL insert (agent seeding silently failed on SQLite).
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ transformer: DateTransformer })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

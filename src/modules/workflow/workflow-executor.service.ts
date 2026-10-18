@@ -25,6 +25,13 @@ import { Agent } from './entities/agent.entity';
 import { Lead } from './entities/lead.entity';
 import { ScheduledMessage, ScheduledMessageStatus } from '../campaign/entities/scheduled-message.entity';
 import { createLogger } from '../../common/services/logger.service';
+import { containsKeyword, parseKeywords } from './keyword-match';
+import {
+  isSsrfProtectionEnabled,
+  redactSsrfError,
+  SsrfBlockedError,
+  withSafeFetch,
+} from '../../common/security/ssrf-guard';
 
 export interface TriggerContext {
   businessId: string;
@@ -38,6 +45,192 @@ export interface TriggerContext {
   conversationStatus?: string;
   assignedTo?: string;
   metadata?: Record<string, unknown>;
+}
+
+// Plain "continue" edges: drawn from a node's generic output, or from preset edges with no handle.
+const GENERIC_HANDLES = new Set(['out', 'default']);
+// Outcomes that mean "the step did not succeed"; they never fall through to the success path.
+const FAILURE_HANDLES = new Set(['false', 'fallback', 'invalid_pincode']);
+
+const MAX_HTTP_RESPONSE_BYTES = 1024 * 1024;
+
+interface GuardedHttpResponse {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  data: unknown;
+}
+
+async function readBodyCapped(body: ReadableStream<Uint8Array> | null): Promise<string> {
+  if (!body) return '';
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_HTTP_RESPONSE_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error(`Response is larger than ${MAX_HTTP_RESPONSE_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * Outbound HTTP for workflow nodes, through the shared SSRF guard: internal and cloud-metadata
+ * addresses are refused, the vetted IP is pinned (no DNS rebinding), redirects are refused and the
+ * body is capped. The blocked internal IP is logged, never returned to the caller or stored in a run.
+ */
+async function guardedHttpRequest(
+  url: string,
+  init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal },
+  logger: { warn: (message: string) => void },
+): Promise<GuardedHttpResponse> {
+  try {
+    return await withSafeFetch(
+      url,
+      init,
+      async response => {
+        const text = await readBodyCapped(response.body as ReadableStream<Uint8Array> | null);
+        let data: unknown = text;
+        if ((response.headers.get('content-type') || '').includes('application/json')) {
+          try {
+            data = text ? (JSON.parse(text) as unknown) : null;
+          } catch {
+            data = null;
+          }
+        }
+        const headers: Record<string, string> = {};
+        response.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        return { ok: response.ok, status: response.status, statusText: response.statusText, headers, data };
+      },
+      { guard: isSsrfProtectionEnabled() },
+    );
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) {
+      throw new Error(redactSsrfError(err, logger, 'a workflow HTTP request'), { cause: err });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Menu text as a customer would type it: "🛡️ Insurance" → "insurance", "1️⃣" → "1". Combining marks
+ * (\p{M}) are kept so Gujarati/Hindi option names still match.
+ */
+export function normalizeChoice(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      // Emoji variation selectors and the keycap mark are "marks" too, but never part of a word.
+      .replace(/[︎️⃣]/g, '')
+      .replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
+const CUSTOMER_MESSAGING_ACTIONS = new Set<string>([
+  ActionType.SEND_MESSAGE,
+  ActionType.SEND_TEMPLATE,
+  ActionType.INTERACTIVE_BUTTONS,
+  ActionType.INTERACTIVE_LIST,
+  ActionType.ASK_QUESTION,
+  ActionType.AI_ASSISTANT,
+  ActionType.SEND_LOCATION,
+  ActionType.SEND_MEDIA,
+  ActionType.SEARCH_AGENTS,
+  ActionType.SEND_CONTACT_VCARD,
+  ActionType.SEND_DOCUMENT,
+  ActionType.SEND_VOICE_NOTE,
+  ActionType.INTERNAL_ALERT,
+  ActionType.PAYMENT_LINK,
+  ActionType.DYNAMIC_PDF_GENERATOR,
+  ActionType.SEND_CAROUSEL_TEMPLATE,
+  ActionType.INTERACTIVE_CTA_TEMPLATE,
+  ActionType.WEBHOOK_CALL,
+  ActionType.GOOGLE_SHEETS,
+]);
+
+/** A menu button id stored as a lead value: "btn_mutual_fund" → "mutual_fund", "btn_cat_health" → "health". */
+export function menuChoiceValue(value: string): string {
+  return value.replace(/^btn_(cat_|claim_)?/, '');
+}
+
+/**
+ * A question answer checked against its validation, returned in the form it should be stored in
+ * (pincode without spaces, phone as digits), or null when it does not pass.
+ */
+export function validateAnswer(validation: string, reply: string): string | null {
+  const text = reply.trim();
+  switch (validation) {
+    case 'email':
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : null;
+    case 'phone': {
+      const compact = text.replace(/[\s\-().]/g, '');
+      const indian = /^(?:\+?91|0)?([6-9]\d{9})$/.exec(compact);
+      if (indian) return `91${indian[1]}`;
+      // Other countries only with an explicit +country code, so a short typo is not taken for a number.
+      return /^\+(?!91)[1-9]\d{7,14}$/.test(compact) ? compact.slice(1) : null;
+    }
+    case 'number':
+      return text !== '' && Number.isFinite(Number(text)) ? text : null;
+    case 'pincode': {
+      const pin = text.replace(/\s/g, '');
+      return /^[1-9][0-9]{5}$/.test(pin) ? pin : null;
+    }
+    default:
+      return text;
+  }
+}
+
+/** The URL with credentials and every query value masked: "…?key=abc&id=7" → "…?key=***&id=***". */
+export function redactUrlSecrets(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username || parsed.password) {
+      parsed.username = '***';
+      parsed.password = '';
+    }
+    for (const key of [...new Set(parsed.searchParams.keys())]) parsed.searchParams.set(key, '***');
+    return parsed.toString().replace(/%2A%2A%2A/g, '***');
+  } catch {
+    return url.replace(/\?.*$/, '?***');
+  }
+}
+
+/** A value escaped for use inside a JSON string literal (without the surrounding quotes). */
+const jsonStringContent = (value: string): string => JSON.stringify(value).slice(1, -1);
+
+export type ResumeOutcome = 'resumed' | 'ignored' | 'cancelled' | 'restart';
+// A paused customer can always get out: these end the waiting run instead of being read as an answer.
+const STOP_WORDS = new Set(['stop', 'cancel', 'exit', 'quit']);
+const RESTART_WORDS = new Set(['menu', 'main menu', 'start', 'restart', 'reset', 'hi', 'hii', 'hello', 'hey']);
+const MAX_INVALID_CHOICES = 3;
+
+/**
+ * The edge to follow out of a node for the branch it reported. An exact handle wins; otherwise only a
+ * generic edge is taken (so any menu choice can share one "continue" edge), and a failure outcome with
+ * no edge of its own ends the run instead of continuing as if it had succeeded.
+ */
+export function pickNextEdge(
+  edges: VisualWorkflowEdge[],
+  nodeId: string,
+  handle?: string,
+): VisualWorkflowEdge | undefined {
+  const outgoing = edges.filter(e => e.source === nodeId);
+  const isGeneric = (e: VisualWorkflowEdge) => !e.sourceHandle || GENERIC_HANDLES.has(e.sourceHandle);
+  if (!handle) return outgoing.find(isGeneric) ?? outgoing.find(e => !FAILURE_HANDLES.has(e.sourceHandle ?? ''));
+  const exact = outgoing.find(e => e.sourceHandle === handle);
+  if (exact) return exact;
+  if (FAILURE_HANDLES.has(handle)) return undefined;
+  return outgoing.find(isGeneric);
 }
 
 @Injectable()
@@ -63,6 +256,29 @@ export class WorkflowExecutor {
     @InjectRepository(ScheduledMessage, 'data')
     private readonly scheduledMessageRepo?: Repository<ScheduledMessage>,
   ) {}
+
+  /**
+   * A node field: its configured template if set, otherwise the customer's captured answer used as is.
+   * Answers are never re-templated, so a reply like "{{steps.x.data}}" cannot pull other data in.
+   */
+  private configOrAnswer(
+    action: WorkflowAction,
+    key: string,
+    ctx: TriggerContext,
+    run: WorkflowRun | undefined,
+    answer: unknown,
+  ): string {
+    const configured = action.config[key];
+    if (configured !== undefined && configured !== null && String(configured).trim() !== '') {
+      return this.interpolateVariables(String(configured), ctx, run).trim();
+    }
+    return answer !== undefined && answer !== null ? String(answer).trim() : '';
+  }
+
+  // Test runs and dry-run nodes must never reach a real customer.
+  private isDryRun(ctx: TriggerContext, action: WorkflowAction): boolean {
+    return Boolean(ctx.metadata?.isTest || action.config['dryRun']);
+  }
 
   async execute(workflow: WorkflowDefinition, run: WorkflowRun, ctx: TriggerContext): Promise<void> {
     if (this.activeRuns.has(run.id)) {
@@ -98,8 +314,14 @@ export class WorkflowExecutor {
       }
 
       if (def.nodes && def.nodes.length > 0 && def.edges) {
-        const triggerNode = def.nodes.find(n => n.type === 'trigger') || def.nodes[0];
-        await this.executeGraphFromNode(workflow, run, ctx, triggerNode.id);
+        const triggerNode = def.nodes.find(n => n.type === 'trigger');
+        if (triggerNode) {
+          await this.executeGraphFromNode(workflow, run, ctx, triggerNode.id);
+        } else {
+          // No trigger node: the first node is an action and must run itself, not just its successors.
+          const root = def.nodes.find(n => !def.edges?.some(e => e.target === n.id)) ?? def.nodes[0];
+          await this.executeGraphFromNode(workflow, run, ctx, '', undefined, root.id);
+        }
         return;
       }
 
@@ -182,16 +404,9 @@ export class WorkflowExecutor {
   evaluateTrigger(trigger: WorkflowTrigger, ctx: TriggerContext): boolean {
     if (!trigger) return true;
     if (trigger.type === TriggerType.KEYWORD_MATCH) {
-      const raw = String(trigger.config?.['keyword'] ?? '').trim();
-      if (!raw) return true;
-      const body = (ctx.messageBody ?? '').toLowerCase().trim();
-      const keywords = raw
-        .split(',')
-        .map(k => k.trim().toLowerCase())
-        .filter(Boolean);
-      if (keywords.length > 0) {
-        return keywords.some(k => body.includes(k));
-      }
+      // A keyword trigger with no keywords would answer every message; it never fires instead.
+      const keywords = parseKeywords(trigger.config?.['keyword']);
+      return keywords.some(k => containsKeyword(ctx.messageBody ?? '', k));
     }
     return true;
   }
@@ -306,7 +521,9 @@ export class WorkflowExecutor {
     globalMaxRetries: number,
     run?: WorkflowRun,
   ): Promise<StepResult> {
-    const maxRetries = action.maxRetries ?? globalMaxRetries;
+    // Retrying a node that messages the customer re-sends whatever already went out (a header, half
+    // the agent cards, the menu), so those only retry when the node itself asks for it.
+    const maxRetries = action.maxRetries ?? (CUSTOMER_MESSAGING_ACTIONS.has(action.type) ? 0 : globalMaxRetries);
     const step: StepResult = {
       actionId: action.id,
       actionType: action.type,
@@ -495,11 +712,16 @@ export class WorkflowExecutor {
     }
   }
 
+  /**
+   * Fill {{tokens}}. `encode` is applied to every substituted value — use it whenever the result is
+   * not plain chat text (a JSON body, a URL), so customer-typed text cannot change its structure.
+   */
   interpolateVariables(
     text: string,
     ctx: Partial<TriggerContext> = {},
     run?: WorkflowRun,
     extraVars?: Record<string, string>,
+    encode?: (value: string) => string,
   ): string {
     if (!text || typeof text !== 'string') return '';
 
@@ -533,7 +755,7 @@ export class WorkflowExecutor {
     const now = new Date();
 
     // Universal token matcher: {{ expression }}
-    return text.replace(/\{\{\s*([a-zA-Z0-9_.\-[\]]+)\s*\}\}/g, (match, rawExpr) => {
+    const resolveToken = (match: string, rawExpr: string): string => {
       const expr = rawExpr.trim();
 
       // 1. Extra variables passed directly (highest precedence for testing or runtime overrides)
@@ -630,6 +852,11 @@ export class WorkflowExecutor {
       }
 
       return match;
+    };
+
+    return text.replace(/\{\{\s*([a-zA-Z0-9_.\-[\]]+)\s*\}\}/g, (match: string, rawExpr: string) => {
+      const value = resolveToken(match, rawExpr);
+      return encode && value !== match ? encode(value) : value;
     });
   }
 
@@ -880,21 +1107,9 @@ export class WorkflowExecutor {
 
     let sentVia = 'text_fallback';
 
-    if (mode === 'poll' && this.engineRegistry) {
-      // Only send a WhatsApp Poll if explicitly requested by config mode='poll'
-      try {
-        const engine = this.engineRegistry.get(ctx.sessionId);
-        if (engine && typeof engine.sendPollMessage === 'function') {
-          await engine.sendPollMessage(ctx.chatId, {
-            name: message,
-            options: buttons.map(b => b.text),
-            allowMultipleAnswers: false,
-          });
-          sentVia = 'native_poll';
-        }
-      } catch (err) {
-        this.logger.warn(`Poll send failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
+    if (mode === 'poll') {
+      // Poll votes never reach resume(), so a poll would leave the customer's tap unanswered.
+      this.logger.warn(`Poll menus cannot be answered yet; sending node ${action.id} as a numbered menu`);
     } else if (mode !== 'text' && this.engineRegistry) {
       // Auto / Buttons mode: Attempt real native interactive buttons first
       try {
@@ -904,26 +1119,11 @@ export class WorkflowExecutor {
           sentVia = 'native_buttons';
         }
       } catch (err) {
+        // Not a poll: poll votes never reach resume(), so a tapped option would go unanswered.
+        // A numbered text menu is answered by a normal reply.
         this.logger.warn(
-          `Native buttons not supported (${err instanceof Error ? err.message : String(err)}). Trying poll fallback.`,
+          `Native buttons not supported (${err instanceof Error ? err.message : String(err)}). Sending a numbered menu.`,
         );
-        // Fallback to WhatsApp Poll — interactive and clickable on all engines
-        try {
-          const engine = this.engineRegistry.get(ctx.sessionId);
-          if (engine && typeof engine.sendPollMessage === 'function') {
-            await engine.sendPollMessage(ctx.chatId, {
-              name: message,
-              options: buttons.map(b => b.text),
-              allowMultipleAnswers: false,
-            });
-            sentVia = 'native_poll';
-          }
-        } catch (pollErr) {
-          this.logger.warn(
-            `Poll fallback also failed: ${pollErr instanceof Error ? pollErr.message : String(pollErr)}`,
-          );
-          sentVia = 'text_fallback';
-        }
       }
     }
 
@@ -933,7 +1133,7 @@ export class WorkflowExecutor {
         lines.push(`${idx + 1}️⃣  *${b.text}*`);
       });
       lines.push('');
-      lines.push('👉 *Reply with number (1, 2) or option name*');
+      lines.push(`👉 *Reply with number (${buttons.map((_, idx) => idx + 1).join(', ')}) or option name*`);
       await this.messageService.sendText(ctx.sessionId, {
         chatId: ctx.chatId,
         text: lines.join('\n'),
@@ -947,6 +1147,8 @@ export class WorkflowExecutor {
         choiceMap[String(idx + 1)] = b.id;
         choiceMap[b.text.toLowerCase().trim()] = b.id;
         choiceMap[b.id.toLowerCase().trim()] = b.id;
+        const plain = normalizeChoice(b.text);
+        if (plain) choiceMap[plain] = b.id;
       });
 
       const triggerData = {
@@ -956,6 +1158,8 @@ export class WorkflowExecutor {
         waitingForInput: true,
         expectedInputType: 'button_choice',
         choiceMap,
+        invalidAttempts: 0,
+        pausedAt: new Date().toISOString(),
         timeoutMinutes: Number(action.config['timeoutMinutes'] || 60),
         timeoutAt: new Date(Date.now() + Number(action.config['timeoutMinutes'] || 60) * 60 * 1000).toISOString(),
       };
@@ -982,6 +1186,10 @@ export class WorkflowExecutor {
     const retryPrompt = this.interpolateVariables(rawRetry, ctx, run);
     const maxRetries = Number(action.config['maxRetries'] || 3);
 
+    if (this.isDryRun(ctx, action)) {
+      return { sent: true, simulated: true, dryRun: true, prompt, slot, validation };
+    }
+
     if (this.messageService) {
       await this.messageService.sendText(ctx.sessionId, {
         chatId: ctx.chatId,
@@ -1001,6 +1209,7 @@ export class WorkflowExecutor {
         retryPrompt,
         maxRetries,
         attempts: 0,
+        pausedAt: new Date().toISOString(),
         timeoutMinutes: Number(action.config['timeoutMinutes'] || 60),
         timeoutAt: new Date(Date.now() + Number(action.config['timeoutMinutes'] || 60) * 60 * 1000).toISOString(),
       };
@@ -1126,14 +1335,15 @@ export class WorkflowExecutor {
       message,
     });
 
-    if (this.messageService && res.reply) {
+    const dryRun = this.isDryRun(ctx, action);
+    if (this.messageService && res.reply && !dryRun) {
       await this.messageService.sendText(ctx.sessionId, {
         chatId: ctx.chatId,
         text: res.reply,
       });
     }
 
-    if (res.handoff && this.conversationService && ctx.conversationId) {
+    if (res.handoff && this.conversationService && ctx.conversationId && !dryRun) {
       await this.conversationService.updateConversation(ctx.conversationId, ctx.businessId, {
         status: ConversationStatus.PENDING,
       });
@@ -1153,6 +1363,7 @@ export class WorkflowExecutor {
       return { status: 'skipped', reason: 'No session/chat or engineRegistry' };
     }
     const durationMs = Math.min(Math.max(Number(action.config['durationMs'] || 1500), 200), 10000);
+    if (this.isDryRun(ctx, action)) return { success: true, simulated: true, dryRun: true, durationMs };
     try {
       const engine = this.engineRegistry.get(ctx.sessionId);
       if (engine && typeof engine.sendChatState === 'function') {
@@ -1167,10 +1378,11 @@ export class WorkflowExecutor {
     return { success: false, fallback: true };
   }
 
-  private async actionMarkAsRead(_action: WorkflowAction, ctx: TriggerContext): Promise<Record<string, unknown>> {
+  private async actionMarkAsRead(action: WorkflowAction, ctx: TriggerContext): Promise<Record<string, unknown>> {
     if (!ctx.sessionId || !ctx.chatId || !this.engineRegistry) {
       return { status: 'skipped', reason: 'No session/chat or engineRegistry' };
     }
+    if (this.isDryRun(ctx, action)) return { markedRead: true, simulated: true, dryRun: true };
     try {
       const engine = this.engineRegistry.get(ctx.sessionId);
       if (engine && typeof engine.sendSeen === 'function') {
@@ -1199,6 +1411,7 @@ export class WorkflowExecutor {
     if (!messageId) {
       return { status: 'skipped', reason: 'No message ID for reaction' };
     }
+    if (this.isDryRun(ctx, action)) return { reacted: true, simulated: true, dryRun: true, emoji, messageId };
 
     try {
       const engine = this.engineRegistry.get(ctx.sessionId);
@@ -1224,6 +1437,9 @@ export class WorkflowExecutor {
     const longitude = Number(this.interpolateVariables(String(action.config['longitude'] || 0), ctx, run));
     const name = this.interpolateVariables(String(action.config['name'] || ''), ctx, run) || undefined;
     const address = this.interpolateVariables(String(action.config['address'] || ''), ctx, run) || undefined;
+    if (this.isDryRun(ctx, action)) {
+      return { sent: true, simulated: true, dryRun: true, latitude, longitude, name, address };
+    }
 
     try {
       const engine = this.engineRegistry.get(ctx.sessionId);
@@ -1237,9 +1453,11 @@ export class WorkflowExecutor {
         return { sent: true, messageId: res.id, latitude, longitude, name, address };
       }
     } catch (err) {
-      this.logger.warn(`Failed to send location message: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`Failed to send location message: ${err instanceof Error ? err.message : String(err)}`, {
+        cause: err,
+      });
     }
-    return { sent: false };
+    throw new Error('This WhatsApp engine cannot send location messages');
   }
 
   private async actionWebhookCall(
@@ -1253,8 +1471,8 @@ export class WorkflowExecutor {
     const method = String(action.config['method'] || 'POST').toUpperCase();
     const timeoutMs = Math.min(Math.max(Number(action.config['timeoutMs'] || 10000), 1000), 30000);
 
-    // 1. Interpolate base URL
-    let fullUrl = this.interpolateVariables(rawUrl, ctx, run);
+    // 1. Interpolate base URL (values are URL-encoded, so customer text cannot add path or query parts)
+    let fullUrl = this.interpolateVariables(rawUrl, ctx, run, undefined, encodeURIComponent);
 
     // 2. Query Parameters
     const rawParams = action.config['queryParams'] || action.config['params'];
@@ -1314,13 +1532,16 @@ export class WorkflowExecutor {
     let reqBody: string | undefined;
     if (method !== 'GET' && method !== 'HEAD') {
       const rawBody = action.config['body'];
+      const contentType = headers['Content-Type'] || headers['content-type'] || 'application/json';
+      // Customer text lands inside JSON string literals; escape it so a quote cannot add fields.
+      const bodyEncode = contentType.includes('json') ? jsonStringContent : undefined;
       if (typeof rawBody === 'string' && rawBody.trim()) {
-        reqBody = this.interpolateVariables(rawBody, ctx, run);
+        reqBody = this.interpolateVariables(rawBody, ctx, run, undefined, bodyEncode);
         if (!headers['Content-Type'] && !headers['content-type']) {
           headers['Content-Type'] = 'application/json';
         }
       } else if (rawBody && typeof rawBody === 'object' && Object.keys(rawBody).length > 0) {
-        reqBody = this.interpolateVariables(JSON.stringify(rawBody), ctx, run);
+        reqBody = this.interpolateVariables(JSON.stringify(rawBody), ctx, run, undefined, jsonStringContent);
         if (!headers['Content-Type'] && !headers['content-type']) {
           headers['Content-Type'] = 'application/json';
         }
@@ -1347,25 +1568,13 @@ export class WorkflowExecutor {
     const start = Date.now();
 
     try {
-      const response = await fetch(fullUrl, {
-        method,
-        headers,
-        body: reqBody,
-        signal: controller.signal,
-      });
+      const response = await guardedHttpRequest(
+        fullUrl,
+        { method, headers, body: reqBody, signal: controller.signal },
+        this.logger,
+      );
       const durationMs = Date.now() - start;
-
-      const contentType = response.headers.get('content-type') || '';
-      let responseData: unknown;
-      if (contentType.includes('application/json')) {
-        try {
-          responseData = await response.json();
-        } catch {
-          responseData = null;
-        }
-      } else {
-        responseData = await response.text();
-      }
+      const responseData = response.data;
 
       // 6. Response Variable Mapping
       const responseMapping = action.config['responseMapping'] as Array<{ path: string; variable: string }> | undefined;
@@ -1405,7 +1614,8 @@ export class WorkflowExecutor {
       return {
         status: response.status,
         durationMs,
-        url: fullUrl,
+        // Step output is stored on the run and readable by viewer keys; API keys often ride in the query.
+        url: redactUrlSecrets(fullUrl),
         data: responseData,
       };
     } finally {
@@ -1545,30 +1755,12 @@ export class WorkflowExecutor {
     const start = Date.now();
 
     try {
-      const res = await fetch(fullUrl, {
-        method,
-        headers: reqHeaders,
-        body: reqBody,
-        signal: controller.signal,
-      });
+      const res = await guardedHttpRequest(
+        fullUrl,
+        { method, headers: reqHeaders, body: reqBody, signal: controller.signal },
+        this.logger,
+      );
       const durationMs = Date.now() - start;
-
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((v, k) => {
-        resHeaders[k] = v;
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      let data: unknown;
-      if (contentType.includes('application/json')) {
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-      } else {
-        data = await res.text();
-      }
 
       return {
         success: res.ok,
@@ -1576,8 +1768,8 @@ export class WorkflowExecutor {
         statusText: res.statusText || (res.ok ? 'OK' : 'Error'),
         durationMs,
         resolvedUrl: fullUrl,
-        headers: resHeaders,
-        data,
+        headers: res.headers,
+        data: res.data,
         error: res.ok ? undefined : `HTTP ${res.status} ${res.statusText}`,
       };
     } catch (err) {
@@ -1616,10 +1808,69 @@ export class WorkflowExecutor {
     }
   }
 
-  async resume(workflow: WorkflowDefinition, run: WorkflowRun, ctx: TriggerContext, userReply: string): Promise<void> {
+  /**
+   * Feed a customer's message to a run that is waiting for their answer. The outcome tells the caller
+   * whether the message was consumed here or should start workflows afresh ('restart').
+   */
+  async resume(
+    workflow: WorkflowDefinition,
+    run: WorkflowRun,
+    ctx: TriggerContext,
+    userReply: string,
+    message: { id?: string; timestamp?: number } = {},
+  ): Promise<ResumeOutcome> {
     const triggerData = (run.triggerData || {}) as Record<string, any>;
-    if (!triggerData.waitingForInput) return;
+    if (!triggerData.waitingForInput) return 'ignored';
 
+    // The message that started or last advanced this run, or one sent before the bot asked its
+    // question (e.g. "Hi" followed by a second line), belongs to the previous step, not this answer.
+    if (message.id && (message.id === triggerData.messageId || message.id === triggerData.lastMessageId)) {
+      return 'ignored';
+    }
+    const pausedAtSec = Math.floor(Date.parse(String(triggerData.pausedAt ?? '')) / 1000);
+    if (message.timestamp && Number.isFinite(pausedAtSec) && message.timestamp < pausedAtSec) return 'ignored';
+
+    const reply = userReply.trim();
+    // Stickers, voice notes and captionless media carry no answer; stay quiet instead of "Invalid choice".
+    if (!reply) return 'ignored';
+
+    if (!(await this.workflowService.claimPausedRun(run.id))) return 'ignored';
+
+    try {
+      const word = reply.toLowerCase().replace(/[\s!.]+$/, '');
+      const choiceMap = (triggerData.choiceMap || {}) as Record<string, string>;
+      const isMenuChoice =
+        triggerData.expectedInputType === 'button_choice' &&
+        Boolean(choiceMap[word] || choiceMap[normalizeChoice(reply)]);
+      if (!isMenuChoice && (STOP_WORDS.has(word) || RESTART_WORDS.has(word))) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.CANCELLED, {
+          failureReason: `Customer sent "${word}"`,
+        });
+        return STOP_WORDS.has(word) ? 'cancelled' : 'restart';
+      }
+
+      triggerData.lastMessageId = message.id;
+      await this.applyReply(workflow, run, ctx, reply, triggerData);
+      return 'resumed';
+    } catch (err) {
+      this.logger.error(
+        `Workflow resume error: workflow=${workflow.id} run=${run.id}`,
+        err instanceof Error ? err.message : String(err),
+      );
+      await this.workflowService
+        .updateRunStatus(run.id, RunStatus.FAILED, { failureReason: err instanceof Error ? err.message : String(err) })
+        .catch(() => undefined);
+      return 'resumed';
+    }
+  }
+
+  private async applyReply(
+    workflow: WorkflowDefinition,
+    run: WorkflowRun,
+    ctx: TriggerContext,
+    userReply: string,
+    triggerData: Record<string, any>,
+  ): Promise<void> {
     const inputType = triggerData.expectedInputType;
     let nextHandle: string | undefined;
 
@@ -1630,15 +1881,29 @@ export class WorkflowExecutor {
     if (inputType === 'button_choice') {
       const choiceMap = (triggerData.choiceMap || {}) as Record<string, string>;
       const normalized = userReply.toLowerCase().trim();
-      const matchedChoiceId = choiceMap[normalized] || choiceMap[userReply.trim()];
+      const matchedChoiceId =
+        choiceMap[normalized] || choiceMap[userReply.trim()] || choiceMap[normalizeChoice(userReply)];
 
       if (!matchedChoiceId) {
+        const invalidAttempts = Number(triggerData.invalidAttempts || 0) + 1;
+        const givingUp = invalidAttempts >= MAX_INVALID_CHOICES;
         if (this.messageService && ctx.sessionId && ctx.chatId) {
           await this.messageService.sendText(ctx.sessionId, {
             chatId: ctx.chatId,
-            text: `❌ Invalid choice. Please select a valid option or reply with the correct number.`,
+            text: givingUp
+              ? `Let's start over. Type *menu* any time to see the options again.`
+              : `❌ Invalid choice. Please select a valid option or reply with the correct number.\nType *menu* to start again.`,
           });
         }
+        if (givingUp) {
+          await this.workflowService.updateRunStatus(run.id, RunStatus.CANCELLED, {
+            failureReason: `No valid choice after ${MAX_INVALID_CHOICES} replies`,
+          });
+          return;
+        }
+        triggerData.invalidAttempts = invalidAttempts;
+        await this.workflowService.updateRunTriggerData(run.id, triggerData);
+        await this.workflowService.updateRunStatus(run.id, RunStatus.PAUSED);
         return;
       }
 
@@ -1664,18 +1929,9 @@ export class WorkflowExecutor {
     } else if (inputType === 'question_slot') {
       const slot = triggerData.slot || 'response';
       const validation = triggerData.validation || 'any';
-      const trimmed = userReply.trim();
-      let isValid = true;
-
-      if (validation === 'email') {
-        isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
-      } else if (validation === 'phone') {
-        isValid = /^\+?[0-9]{7,15}$/.test(trimmed.replace(/[\s-]/g, ''));
-      } else if (validation === 'number') {
-        isValid = !isNaN(Number(trimmed));
-      } else if (validation === 'pincode') {
-        isValid = /^[1-9][0-9]{5}$/.test(trimmed.replace(/\s/g, ''));
-      }
+      const checked = validateAnswer(String(validation), userReply);
+      const isValid = checked !== null;
+      const trimmed = checked ?? userReply.trim();
 
       if (!isValid) {
         const attempts = Number(triggerData.attempts || 0) + 1;
@@ -1688,6 +1944,7 @@ export class WorkflowExecutor {
             });
           }
           await this.workflowService.updateRunTriggerData(run.id, triggerData);
+          await this.workflowService.updateRunStatus(run.id, RunStatus.PAUSED);
           return;
         }
         nextHandle = 'fallback';
@@ -1872,14 +2129,9 @@ export class WorkflowExecutor {
       columns['Timestamp'] = new Date().toISOString();
     }
 
-    if (!webhookUrl || ctx.metadata?.isTest || action.config['dryRun']) {
-      return {
-        success: true,
-        simulated: true,
-        dryRun: true,
-        appendedRow: columns,
-        destination: webhookUrl || 'simulated_sheets',
-      };
+    if (!webhookUrl) throw new Error('Google Sheets action requires a webhook URL');
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      return { success: true, simulated: true, dryRun: true, appendedRow: columns, destination: webhookUrl };
     }
 
     const result = await this.testWebhookCall({
@@ -1889,11 +2141,10 @@ export class WorkflowExecutor {
       body: JSON.stringify({ action: 'appendRow', row: columns }),
     });
 
-    return {
-      success: result.statusCode >= 200 && result.statusCode < 300,
-      statusCode: result.statusCode,
-      appendedRow: columns,
-    };
+    if (!result.success) {
+      throw new Error(`Google Sheets append failed: ${result.error ?? `HTTP ${result.statusCode}`}`);
+    }
+    return { success: true, statusCode: result.statusCode, appendedRow: columns };
   }
 
   private async actionSendMedia(
@@ -1916,7 +2167,8 @@ export class WorkflowExecutor {
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
-    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+    if (!url) throw new Error('Send media action requires a media URL');
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
       return {
         sent: true,
         simulated: true,
@@ -1968,7 +2220,7 @@ export class WorkflowExecutor {
       }
     }
 
-    return { sent: true, simulated: true, chatId: normalizedChatId, mediaType, url, caption };
+    throw new Error('No messaging service available to send media');
   }
 
   private async actionSearchAgents(
@@ -1978,20 +2230,22 @@ export class WorkflowExecutor {
   ): Promise<Record<string, unknown>> {
     const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
 
-    const rawPin =
-      action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || captured['pin'] || '';
-    const resolvedPin = this.interpolateVariables(String(rawPin), ctx, run)
-      .trim()
-      .replace(/[^0-9]/g, '');
-
-    const rawService = action.config['mainService'] || captured['mainService'] || captured['service'] || 'insurance';
-    const mainService = this.interpolateVariables(String(rawService), ctx, run).toLowerCase();
-
-    const rawCategory = action.config['productCategory'] || captured['productCategory'] || captured['category'] || '';
-    const productCategory = this.interpolateVariables(String(rawCategory), ctx, run);
-
-    const rawSubProduct = action.config['subProduct'] || captured['subProduct'] || '';
-    const subProduct = this.interpolateVariables(String(rawSubProduct), ctx, run);
+    const answer = (...keys: string[]) =>
+      keys.map(k => captured[k]).find(v => v !== undefined && v !== null && v !== '');
+    const resolvedPin = this.configOrAnswer(
+      action,
+      'pincode',
+      ctx,
+      run,
+      answer('pincode', 'residence_pincode', 'pin'),
+    ).replace(/[^0-9]/g, '');
+    const mainService = menuChoiceValue(
+      this.configOrAnswer(action, 'mainService', ctx, run, answer('mainService', 'service')) || 'insurance',
+    ).toLowerCase();
+    const productCategory = menuChoiceValue(
+      this.configOrAnswer(action, 'productCategory', ctx, run, answer('productCategory', 'category')),
+    );
+    const subProduct = menuChoiceValue(this.configOrAnswer(action, 'subProduct', ctx, run, answer('subProduct')));
 
     const limit = Number(action.config['limit'] || action.config['maxResults'] || 3);
     const sendDirectMessage = action.config['sendDirectMessage'] !== false;
@@ -2086,34 +2340,18 @@ export class WorkflowExecutor {
   ): Promise<Record<string, unknown>> {
     const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
 
-    const rawPhone = action.config['customerPhone'] || ctx.chatId?.replace(/@.*$/, '') || '';
-    const customerPhone = this.interpolateVariables(String(rawPhone), ctx, run);
+    const field = (key: string, fallback = ''): string =>
+      this.configOrAnswer(action, key, ctx, run, captured[key]) || fallback;
 
-    const rawMain = action.config['mainService'] || captured['mainService'] || 'insurance';
-    const mainService = this.interpolateVariables(String(rawMain), ctx, run);
-
-    const rawSelected = action.config['selectedService'] || captured['selectedService'] || 'General Enquiry';
-    const selectedService = this.interpolateVariables(String(rawSelected), ctx, run);
-
-    const rawCategory = action.config['productCategory'] || captured['productCategory'] || '';
-    const productCategory = this.interpolateVariables(String(rawCategory), ctx, run);
-
-    const rawSub = action.config['subProduct'] || captured['subProduct'] || '';
-    const subProduct = this.interpolateVariables(String(rawSub), ctx, run);
-
-    const rawClaimType = action.config['claimIssueType'] || captured['claimIssueType'] || '';
-    const claimIssueType = this.interpolateVariables(String(rawClaimType), ctx, run);
-
-    const rawCompany = action.config['insuranceCompany'] || captured['insuranceCompany'] || '';
-    const insuranceCompany = this.interpolateVariables(String(rawCompany), ctx, run);
-
-    const rawDesc = action.config['issueDescription'] || captured['issueDescription'] || '';
-    const issueDescription = this.interpolateVariables(String(rawDesc), ctx, run);
-
-    const rawPin = action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || '';
-    const pincode = this.interpolateVariables(String(rawPin), ctx, run)
-      .trim()
-      .replace(/[^0-9]/g, '');
+    const customerPhone = field('customerPhone', ctx.chatId?.replace(/@.*$/, '') || '');
+    const mainService = menuChoiceValue(field('mainService', 'insurance'));
+    const selectedService = menuChoiceValue(field('selectedService', 'General Enquiry'));
+    const productCategory = menuChoiceValue(field('productCategory'));
+    const subProduct = menuChoiceValue(field('subProduct'));
+    const claimIssueType = menuChoiceValue(field('claimIssueType'));
+    const insuranceCompany = field('insuranceCompany');
+    const issueDescription = field('issueDescription');
+    const pincode = (field('pincode') || String(captured['residence_pincode'] ?? '')).replace(/[^0-9]/g, '');
 
     let matchedAgent: Agent | undefined;
     const agentId = action.config['matchedAgentId'] || captured['matchedAgentId'];
@@ -2140,7 +2378,7 @@ export class WorkflowExecutor {
         pincode,
         matchedAgent,
         workflowId: run?.workflowId,
-        conversationId: ctx.sessionId,
+        conversationId: ctx.conversationId,
         metadata: {
           capturedVariables: captured,
           source: 'whatsapp_automation_flow',
@@ -2168,9 +2406,13 @@ export class WorkflowExecutor {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    // The configured value is a template; a captured answer or the message is customer text, used as is.
+    const configured = action.config['pincode'];
     const rawPin =
-      action.config['pincode'] || captured['pincode'] || captured['residence_pincode'] || ctx.messageBody || '';
-    const pincode = this.interpolateVariables(String(rawPin), ctx, run).trim().replace(/\s/g, '');
+      configured !== undefined && configured !== null && String(configured).trim() !== ''
+        ? this.interpolateVariables(String(configured), ctx, run)
+        : String(captured['pincode'] || captured['residence_pincode'] || ctx.messageBody || '');
+    const pincode = rawPin.trim().replace(/\s/g, '');
 
     const isValid = /^[1-9][0-9]{5}$/.test(pincode);
 
@@ -2196,21 +2438,40 @@ export class WorkflowExecutor {
     ctx: TriggerContext,
     fromNodeId: string,
     outgoingHandle?: string,
+    startNodeId?: string,
   ): Promise<void> {
     const nodes = (workflow.definition.nodes || []) as VisualWorkflowNode[];
     const edges = (workflow.definition.edges || []) as VisualWorkflowEdge[];
     const steps: StepResult[] = (run.steps as StepResult[]) || [];
 
-    let matchingEdge = edges.find(
-      e => e.source === fromNodeId && (!outgoingHandle || e.sourceHandle === outgoingHandle),
-    );
-    if (!matchingEdge && outgoingHandle) {
-      matchingEdge = edges.find(e => e.source === fromNodeId);
-    }
+    const matchingEdge = startNodeId ? undefined : pickNextEdge(edges, fromNodeId, outgoingHandle);
+    let currentNode = startNodeId
+      ? nodes.find(n => n.id === startNodeId)
+      : matchingEdge
+        ? nodes.find(n => n.id === matchingEdge?.target)
+        : undefined;
 
-    let currentNode = matchingEdge ? nodes.find(n => n.id === matchingEdge?.target) : undefined;
+    // Guards a node cycle (A → B → A) from messaging the customer without end.
+    const startedAt = Date.now();
+    let nodesRun = 0;
 
     while (currentNode) {
+      if (nodesRun >= workflow.maxActionsPerRun) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.FAILED, {
+          steps,
+          failureReason: `Action count limit exceeded (${workflow.maxActionsPerRun}) — check the workflow for a loop`,
+        });
+        return;
+      }
+      if ((Date.now() - startedAt) / 1000 > workflow.maxExecutionSeconds) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.TIMED_OUT, {
+          steps,
+          failureReason: `Execution time limit exceeded (${workflow.maxExecutionSeconds}s)`,
+        });
+        return;
+      }
+      nodesRun++;
+
       const action: WorkflowAction = {
         id: currentNode.id,
         type: currentNode.type as ActionType,
@@ -2250,12 +2511,7 @@ export class WorkflowExecutor {
         return;
       }
 
-      const nextHandle = step.output?.['branch'] as string | undefined;
-      let nextEdge = edges.find(e => e.source === currentNode?.id && (!nextHandle || e.sourceHandle === nextHandle));
-      if (!nextEdge && nextHandle) {
-        nextEdge = edges.find(e => e.source === currentNode?.id);
-      }
-
+      const nextEdge = pickNextEdge(edges, currentNode.id, step.output?.['branch'] as string | undefined);
       currentNode = nextEdge ? nodes.find(n => n.id === nextEdge?.target) : undefined;
     }
 
@@ -2267,20 +2523,24 @@ export class WorkflowExecutor {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    if (!this.scheduledMessageRepo) {
-      return { status: 'error', error: 'Scheduled message repository not available' };
-    }
+    if (!this.scheduledMessageRepo) throw new Error('Scheduled message repository not available');
 
     const delayMinutes = Number(action.config.delayMinutes ?? action.config.delay ?? 60);
     const message = this.interpolateVariables(String(action.config.message ?? ''), ctx, run);
     const chatId = this.interpolateVariables(String(action.config.chatId ?? ctx.chatId ?? ''), ctx, run);
-    const sessionId = this.interpolateVariables(String(action.config.sessionId ?? ctx.sessionId ?? ''), ctx, run);
-
-    if (!chatId || !sessionId || !message) {
-      return { status: 'error', error: 'chatId, sessionId, and message are required' };
+    // Always the number this conversation is on: a configured session id could belong to another business.
+    const sessionId = ctx.sessionId ?? '';
+    const configuredSession = action.config.sessionId ? String(action.config.sessionId) : '';
+    if (configuredSession && configuredSession !== sessionId) {
+      throw new Error('A follow-up can only be scheduled from the number this conversation is on');
     }
 
+    if (!chatId || !sessionId || !message) throw new Error('chatId, sessionId, and message are required');
+
     const scheduledAt = new Date(Date.now() + delayMinutes * 60 * 1000);
+    if (this.isDryRun(ctx, action)) {
+      return { scheduled: true, simulated: true, dryRun: true, chatId, scheduledAt: scheduledAt.toISOString() };
+    }
 
     const scheduled = this.scheduledMessageRepo.create({
       businessId: ctx.businessId,
@@ -2322,7 +2582,8 @@ export class WorkflowExecutor {
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
-    if (ctx.metadata?.isTest || action.config['dryRun'] || !phoneNumber) {
+    if (!phoneNumber) throw new Error('Send contact card action requires a phone number');
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
       return {
         sent: true,
         simulated: true,
@@ -2351,7 +2612,7 @@ export class WorkflowExecutor {
       };
     }
 
-    return { sent: true, simulated: true, chatId: normalizedChatId, displayName, phoneNumber };
+    throw new Error('No messaging service available to send the contact card');
   }
 
   private async actionSendDocument(
@@ -2373,7 +2634,8 @@ export class WorkflowExecutor {
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
-    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+    if (!url) throw new Error('Send document action requires a document URL');
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
       return { sent: true, simulated: true, chatId: normalizedChatId, fileName, url, caption };
     }
 
@@ -2388,7 +2650,7 @@ export class WorkflowExecutor {
       return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, fileName, url, caption };
     }
 
-    return { sent: true, simulated: true, chatId: normalizedChatId, fileName, url, caption };
+    throw new Error('No messaging service available to send the document');
   }
 
   private async actionSendVoiceNote(
@@ -2406,7 +2668,8 @@ export class WorkflowExecutor {
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
-    if (ctx.metadata?.isTest || action.config['dryRun'] || !url) {
+    if (!url) throw new Error('Send voice note action requires an audio URL');
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
       return { sent: true, simulated: true, chatId: normalizedChatId, url, ptt: true };
     }
 
@@ -2419,7 +2682,7 @@ export class WorkflowExecutor {
       return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, url, ptt: true };
     }
 
-    return { sent: true, simulated: true, chatId: normalizedChatId, url, ptt: true };
+    throw new Error('No messaging service available to send the voice note');
   }
 
   private async actionWorkingHoursGateway(
@@ -2487,7 +2750,7 @@ export class WorkflowExecutor {
     const defaultTemplate =
       '🚨 *NEW LEAD ALERT!*\n\n' +
       '👤 *Name:* {{trigger.contactName}}\n' +
-      '📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n' +
+      '📍 *Pincode:* {{vars.pincode}}\n' +
       '📱 *Phone:* {{trigger.phone}}\n' +
       '🕒 *Time:* {{time}}\n\n' +
       '👉 *Direct Call:* tel:{{trigger.phone}}\n' +
@@ -2508,7 +2771,7 @@ export class WorkflowExecutor {
       return { alerted: true, recipient: alertChatId, message };
     }
 
-    return { alerted: true, simulated: true, recipient: alertChatId, message };
+    throw new Error('No messaging service available to send the internal alert');
   }
 
   private async actionABTestSplit(
@@ -2546,13 +2809,20 @@ export class WorkflowExecutor {
     const customKeywords = (action.config['keywords'] as string[]) || [];
     const allKeywords = [...defaultKeywords, ...customKeywords.map(k => k.toLowerCase().trim())];
 
-    const isMatch = allKeywords.some(kw => rawText === kw || rawText.startsWith(kw));
+    // Whole words only: a prefix test opted out every "Radhe…" because it starts with "rad".
+    const isMatch = allKeywords.some(kw => kw && containsKeyword(rawText, kw));
     const forceOptOut = Boolean(action.config['forceOptOut']);
 
     if (isMatch || forceOptOut) {
       this.logger.log(`Opt-out / DND triggered for ${ctx.chatId}`);
+      // Record the opt-out on the conversation so it outlives this run.
+      if (!this.isDryRun(ctx, action)) {
+        await this.actionAddTag({ ...action, config: { tag: 'dnd' } }, ctx).catch(err =>
+          this.logger.warn(`Could not tag DND opt-out: ${err instanceof Error ? err.message : String(err)}`),
+        );
+      }
 
-      if (action.config['sendConfirmation'] !== false && ctx.sessionId && ctx.chatId) {
+      if (action.config['sendConfirmation'] !== false && ctx.sessionId && ctx.chatId && !this.isDryRun(ctx, action)) {
         const confirmMsg = String(
           action.config['confirmationMessage'] ||
             'તમારી વિનંતી મુજબ સેવાઓ બંધ કરવામાં આવી છે. ફરી શરૂ કરવા માટે START લખીને મોકલો.',
@@ -2652,20 +2922,23 @@ export class WorkflowExecutor {
     if (!ctx.chatId) throw new Error('No chat context for payment link');
 
     const provider = String(action.config['provider'] || 'UPI').toUpperCase();
-    const rawAmount = String(action.config['amount'] || action.config['amountInRupees'] || '299');
-    const amount = parseFloat(this.interpolateVariables(rawAmount, ctx, run).replace(/[^0-9.]/g, '')) || 299;
+    // Money goes to whatever payee and amount this node names, so neither may be guessed.
+    const payeeVpa = String(action.config['payeeVpa'] || '').trim();
+    if (!payeeVpa) throw new Error('Payment link action requires payeeVpa (the UPI ID that receives the money)');
+    const rawAmount = String(action.config['amount'] || action.config['amountInRupees'] || '');
+    const amount = parseFloat(this.interpolateVariables(rawAmount, ctx, run).replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment link action requires a positive amount');
     const rawDesc = String(action.config['description'] || 'Expert Policy Audit & Consultation');
     const description = this.interpolateVariables(rawDesc, ctx, run);
 
-    const payeeVpa = String(action.config['payeeVpa'] || 'paytmqr.advisor@paytm');
     const payeeName = String(action.config['payeeName'] || 'PadosiAgent Consultation');
     const txnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const upiLink = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(description)}`;
 
     const paymentUrl = action.config['razorpayUrl']
-      ? this.interpolateVariables(String(action.config['razorpayUrl']), ctx, run)
-      : `https://rzp.io/l/padosi-${txnId.toLowerCase()}`;
+      ? this.interpolateVariables(String(action.config['razorpayUrl']), ctx, run, undefined, encodeURIComponent)
+      : null;
 
     const defaultMsg =
       `💳 *ઓનલાઇન કન્સલ્ટેશન પેમેન્ટ*\n\n` +
@@ -2673,8 +2946,7 @@ export class WorkflowExecutor {
       `💰 *રકમ:* ₹${amount}\n\n` +
       `👇 *UPI એપ (GPay / PhonePe / Paytm) થી ચૂકવવા માટે:* \n` +
       `${upiLink}\n\n` +
-      `🌐 *ક્રેડિટ / ડેબિટ કાર્ડ અથવા નેટબેંકિંગ માટે:* \n` +
-      `${paymentUrl}\n\n` +
+      (paymentUrl ? `🌐 *ક્રેડિટ / ડેબિટ કાર્ડ અથવા નેટબેંકિંગ માટે:* \n${paymentUrl}\n\n` : '') +
       `_પેમેન્ટ સફળ થયા પછી તુરંત તમને રસીદ મોકલવામાં આવશે._`;
 
     const rawMessage = String(action.config['message'] || defaultMsg);
@@ -2707,25 +2979,24 @@ export class WorkflowExecutor {
     const imageUrl = this.interpolateVariables(rawUrl, ctx, run);
     const docType = String(action.config['documentType'] || 'AUTO').toUpperCase();
 
-    const textSample = (ctx.messageBody || '') + ' ' + (imageUrl || '');
-    const vehicleRegex = /([A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4})/i;
-    const policyRegex = /(OG-[0-9\-]+|[0-9]{10,16})/i;
+    // No OCR provider is wired in, so the image is not read: numbers are only picked out of the text
+    // the customer typed. Anything not found stays null — this node must never invent policy data.
+    const text = ctx.messageBody || '';
+    const vehicleMatch = /([A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4})/i.exec(text);
+    const policyMatch = /(OG-[0-9-]+|[0-9]{10,16})/i.exec(text);
 
-    const vehicleMatch = textSample.match(vehicleRegex);
-    const policyMatch = textSample.match(policyRegex);
-
-    const extracted = {
+    return {
       documentType: docType,
-      policyNumber: policyMatch ? policyMatch[0] : `POL-2026-${Math.floor(100000 + Math.random() * 900000)}`,
-      vehicleNumber: vehicleMatch ? vehicleMatch[0].toUpperCase() : 'GJ01AB1234',
-      insuredName: (ctx.metadata?.['contactName'] as string) || 'Customer',
-      insurerName: 'HDFC ERGO General Insurance',
-      expiryDate: '2026-12-31',
-      isValid: true,
+      source: 'message_text',
+      ocr: false,
+      policyNumber: policyMatch ? policyMatch[0] : null,
+      vehicleNumber: vehicleMatch ? vehicleMatch[0].toUpperCase() : null,
+      insuredName: (ctx.metadata?.['contactName'] as string) || null,
+      insurerName: null,
+      expiryDate: null,
+      isValid: Boolean(policyMatch || vehicleMatch),
       imageUrl,
     };
-
-    return extracted;
   }
 
   private async actionDynamicPDFGenerator(
@@ -2735,20 +3006,28 @@ export class WorkflowExecutor {
   ): Promise<Record<string, unknown>> {
     const rawTitle = String(action.config['title'] || 'PadosiAgent Advisor Comparison & Quotation');
     const title = this.interpolateVariables(rawTitle, ctx, run);
-    const fileName = `Quotation_${Date.now()}.pdf`;
-    const pdfUrl = `https://assets.padosiagent.com/generated/${fileName}`;
+    // Nothing here renders a PDF; the node sends a document hosted elsewhere, so it must be given one
+    // (it used to send a link to a file that was never created).
+    const configuredUrl = String(action.config['pdfUrl'] || '').trim();
+    if (!configuredUrl) throw new Error('PDF node requires pdfUrl: a link to an already generated PDF');
+    const pdfUrl = this.interpolateVariables(configuredUrl, ctx, run, undefined, encodeURIComponent);
+    const fileName = String(action.config['fileName'] || `Quotation_${Date.now()}.pdf`);
     const caption = `📄 *${title}*\nતમારા વિસ્તારના શ્રેષ્ઠ એડવાઈઝર્સની સરખામણી સ્લિપ.`;
 
-    if (action.config['autoSend'] === true && ctx.sessionId && ctx.chatId && this.messageService) {
-      await this.messageService
-        .sendDocument(ctx.sessionId, {
-          chatId: ctx.chatId,
-          url: pdfUrl,
-          filename: fileName,
-          caption,
-          mimetype: 'application/pdf',
-        })
-        .catch(() => undefined);
+    if (
+      action.config['autoSend'] === true &&
+      ctx.sessionId &&
+      ctx.chatId &&
+      this.messageService &&
+      !this.isDryRun(ctx, action)
+    ) {
+      await this.messageService.sendDocument(ctx.sessionId, {
+        chatId: ctx.chatId,
+        url: pdfUrl,
+        filename: fileName,
+        caption,
+        mimetype: 'application/pdf',
+      });
     }
 
     return {
@@ -2827,7 +3106,7 @@ export class WorkflowExecutor {
       return { sent: true, fallbackCards: true, cardCount: cards.length, chatId: normalizedChatId };
     }
 
-    return { sent: true, simulated: true, cardCount: cards.length };
+    throw new Error('No messaging service available to send carousel cards');
   }
 
   private async actionInteractiveCTATemplate(

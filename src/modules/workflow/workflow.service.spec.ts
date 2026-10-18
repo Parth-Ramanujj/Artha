@@ -52,6 +52,7 @@ function createMockRun(overrides: Partial<WorkflowRun> = {}): WorkflowRun {
     workflowId: 'wf-1',
     businessId: 'biz-1',
     sessionId: 'sess-1',
+    chatId: null,
     workflowVersion: 1,
     status: RunStatus.PENDING,
     triggerData: {},

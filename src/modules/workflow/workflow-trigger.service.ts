@@ -4,14 +4,18 @@ import { Repository } from 'typeorm';
 import { HookManager } from '../../core/hooks';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
-import { TriggerType } from './entities/workflow-definition.entity';
+import { TriggerType, WorkflowDefinition } from './entities/workflow-definition.entity';
+import { RunStatus } from './entities/workflow-run.entity';
 import { Session } from '../session/entities/session.entity';
 import { createLogger } from '../../common/services/logger.service';
 import { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
 import { createHash } from 'crypto';
 import { BusinessService } from '../business/business.service';
 import { ConversationService } from '../conversation/conversation.service';
+import { Conversation, ConversationStatus } from '../conversation/entities/conversation.entity';
+import { AiService } from '../ai/ai.service';
 import { Optional } from '@nestjs/common';
+import { isFreshPersonalMessage, WORKFLOW_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
 
 @Injectable()
 export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
@@ -27,6 +31,8 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     private readonly businessService: BusinessService,
     @Optional()
     private readonly conversationService?: ConversationService,
+    @Optional()
+    private readonly aiService?: AiService,
   ) {}
 
   onModuleInit(): void {
@@ -36,7 +42,7 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
         'message:received',
         hookCtx => {
           const msg = hookCtx.data as IncomingMessage;
-          if (!hookCtx.sessionId || msg.fromMe) {
+          if (!hookCtx.sessionId || !isFreshPersonalMessage(msg, WORKFLOW_MAX_MESSAGE_AGE_MS)) {
             return Promise.resolve({ continue: true });
           }
 
@@ -65,79 +71,26 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     });
     const businessId = session?.businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
 
-    // 1. Check if there is an active paused run waiting for user input in this chat
-    const activePausedRun = await this.workflowService.findActivePausedRun(businessId, msg.chatId);
-    if (activePausedRun) {
-      try {
-        const pausedWf = await this.workflowService.findOne(activePausedRun.workflowId, businessId);
-        if (pausedWf) {
-          const ctx: TriggerContext = {
-            businessId,
-            sessionId,
-            chatId: msg.chatId,
-            messageBody: msg.body,
-            messageType: msg.type,
-            metadata: {
-              from: msg.from,
-              to: msg.to,
-              messageId: msg.id,
-              timestamp: msg.timestamp,
-            },
-          };
-          await this.executor.resume(pausedWf, activePausedRun, ctx, msg.body || '');
-          return;
-        }
-      } catch (err) {
-        this.logger.error(
-          `Failed to resume paused workflow: ${activePausedRun.id}`,
-          err instanceof Error ? err.message : String(err),
-        );
-      }
-    }
-
-    const messageReceivedWorkflows = await this.workflowService.getPublishedWorkflowsForTrigger(
-      businessId,
-      TriggerType.MESSAGE_RECEIVED,
-    );
-    const keywordMatchWorkflows = await this.workflowService.getPublishedWorkflowsForTrigger(
-      businessId,
-      TriggerType.KEYWORD_MATCH,
-    );
-
-    const allWorkflows = [...messageReceivedWorkflows, ...keywordMatchWorkflows];
-    if (allWorkflows.length === 0) return;
-
-    let conversationId: string | undefined;
-    let conversationStatus: string | undefined;
-    let assignedTo: string | undefined;
-    let contactTags: string[] = [];
     const contactName = msg.contact?.pushName || msg.contact?.name;
-
+    let conv: Conversation | null = null;
     if (this.conversationService) {
       try {
-        const conv = await this.conversationService.getOrCreateConversation(
-          businessId,
-          sessionId,
-          msg.chatId,
-          contactName,
-        );
-        conversationId = conv?.id;
-        conversationStatus = conv?.status;
-        assignedTo = conv?.assignedTo || undefined;
-        contactTags = conv?.tags || [];
+        conv = await this.conversationService.getOrCreateConversation(businessId, sessionId, msg.chatId, contactName);
       } catch {
         // conversation creation is non-blocking
       }
     }
 
+    // Shared by a resumed run and a new one, so tags, assignment, handoff and {{name}} keep working
+    // after the first question.
     const ctx: TriggerContext = {
       businessId,
       sessionId,
       chatId: msg.chatId,
-      conversationId,
-      conversationStatus,
-      assignedTo,
-      contactTags,
+      conversationId: conv?.id,
+      conversationStatus: conv?.status,
+      assignedTo: conv?.assignedTo || undefined,
+      contactTags: conv?.tags || [],
       messageBody: msg.body,
       messageType: msg.type,
       metadata: {
@@ -150,32 +103,101 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
       },
     };
 
-    for (const workflow of allWorkflows) {
-      // Early check for keyword match workflows
-      if (workflow.definition.trigger.type === TriggerType.KEYWORD_MATCH) {
-        const kw = String(workflow.definition.trigger.config?.['keyword'] ?? '').trim();
-        if (kw) {
-          const body = (msg.body ?? '').toLowerCase().trim();
-          const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
-          if (keywords.length > 0 && !keywords.some(k => body.includes(k))) {
-            continue;
-          }
-        }
+    // 1. A run in this chat waiting for the customer's answer gets the message first.
+    const activePausedRun = await this.workflowService.findActivePausedRun(businessId, sessionId, msg.chatId);
+    if (activePausedRun) {
+      let pausedWf: WorkflowDefinition | null = null;
+      try {
+        pausedWf = await this.workflowService.findOne(activePausedRun.workflowId, businessId);
+      } catch (err) {
+        // The workflow was deleted while the customer was answering; close the orphan and start fresh.
+        this.logger.error(
+          `Failed to load workflow for paused run ${activePausedRun.id}`,
+          err instanceof Error ? err.message : String(err),
+        );
+        await this.workflowService.updateRunStatus(activePausedRun.id, RunStatus.FAILED, {
+          failureReason: 'Workflow no longer exists',
+        });
       }
+      if (pausedWf) {
+        const outcome = await this.executor.resume(pausedWf, activePausedRun, ctx, msg.body || '', {
+          id: msg.id,
+          timestamp: msg.timestamp,
+        });
+        // 'restart' ("menu", "hi"…) ended the wait; let the message start workflows like a new chat.
+        if (outcome !== 'restart') return;
+      }
+    }
+
+    const messageReceivedWorkflows = await this.workflowService.getPublishedWorkflowsForTrigger(
+      businessId,
+      TriggerType.MESSAGE_RECEIVED,
+    );
+    const keywordMatchWorkflows = await this.workflowService.getPublishedWorkflowsForTrigger(
+      businessId,
+      TriggerType.KEYWORD_MATCH,
+    );
+    // A keyword workflow is the more specific match, so it is tried before catch-all ones.
+    const allWorkflows = [...keywordMatchWorkflows, ...messageReceivedWorkflows];
+
+    let matched = 0;
+    for (const workflow of allWorkflows) {
+      // The same checks execute() makes, made up front: no run for a workflow that would not act, and
+      // the AI assistant only answers when no workflow claims the message.
+      const def = workflow.definition;
+      if (
+        !this.executor.evaluateTrigger(def.trigger, ctx) ||
+        !this.executor.evaluateConditions(def.conditions ?? [], ctx)
+      ) {
+        continue;
+      }
+      matched++;
 
       const idempotencyKey = this.buildIdempotencyKey(workflow.id, msg.id, sessionId);
 
-      const run = await this.workflowService.createRun(workflow, ctx.metadata ?? {}, sessionId, idempotencyKey);
-      if (!run) continue;
+      const run = await this.workflowService.createRun(
+        workflow,
+        ctx.metadata ?? {},
+        sessionId,
+        idempotencyKey,
+        msg.chatId,
+      );
+      if (run) {
+        void this.executor
+          .execute(workflow, run, ctx)
+          .catch(err =>
+            this.logger.error(
+              `Workflow execution failed: workflow=${workflow.id} run=${run.id}`,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+      }
+      // One workflow per message: two matching flows would each greet the customer and leave two
+      // waiting runs in one chat.
+      break;
+    }
 
-      void this.executor
-        .execute(workflow, run, ctx)
-        .catch(err =>
-          this.logger.error(
-            `Workflow execution failed: workflow=${workflow.id} run=${run.id}`,
-            err instanceof Error ? err.message : String(err),
-          ),
-        );
+    if (matched === 0) await this.replyWithAi(sessionId, businessId, msg, conv);
+  }
+
+  private async replyWithAi(
+    sessionId: string,
+    businessId: string,
+    msg: IncomingMessage,
+    conv: Conversation | null,
+  ): Promise<void> {
+    if (!this.aiService) return;
+    // Once a person owns the chat the assistant must not talk over them.
+    if (conv?.assignedTo) return;
+
+    const outcome = await this.aiService.autoReply(sessionId, businessId, msg);
+    if (
+      (outcome === 'handoff' || outcome === 'failed') &&
+      conv &&
+      this.conversationService &&
+      conv.status !== ConversationStatus.PENDING
+    ) {
+      await this.conversationService.updateConversation(conv.id, businessId, { status: ConversationStatus.PENDING });
     }
   }
 
