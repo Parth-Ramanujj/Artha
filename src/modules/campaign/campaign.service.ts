@@ -24,6 +24,10 @@ import {
 } from './dto/campaign.dto';
 import { createLogger } from '../../common/services/logger.service';
 import { BusinessService } from '../business/business.service';
+import { Conversation } from '../conversation/entities/conversation.entity';
+import { hasDndTag } from '../conversation/dnd';
+
+const OPTED_OUT_REASON = 'Contact opted out (DND)';
 
 const MAX_RECIPIENTS_PER_CAMPAIGN = 10_000;
 const MAX_SCHEDULED_PER_BUSINESS = 1_000;
@@ -46,7 +50,28 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
     private readonly templateRepo: Repository<Template>,
     private readonly businessService: BusinessService,
     private readonly engines: EngineRegistry,
+    @InjectRepository(Conversation, 'data')
+    private readonly conversationRepo: Repository<Conversation>,
   ) {}
+
+  /**
+   * True when the contact opted out: a DND tag on its chat in this session (set by a workflow's opt-out
+   * step) or an opted-out consent record. Checked right before each send, since a campaign runs for hours.
+   */
+  private async isOptedOut(businessId: string, sessionId: string, chatId: string): Promise<boolean> {
+    const phone = chatId.replace(/@.*$/, '');
+    const ids = [...new Set([chatId, phone, `${phone}@c.us`])];
+    const consent = await this.consentRepo.findOne({
+      where: { businessId, waContactId: In(ids), channel: 'whatsapp', status: ConsentStatus.OPTED_OUT },
+      select: { id: true },
+    });
+    if (consent) return true;
+    const conversations = await this.conversationRepo.find({
+      where: { sessionId, chatId: In(ids) },
+      select: { id: true, tags: true },
+    });
+    return conversations.some(c => hasDndTag(c.tags));
+  }
 
   onModuleInit(): void {
     this.schedulerTimer = setInterval(() => {
@@ -79,6 +104,14 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
         const engine = this.engines.get(msg.sessionId);
         if (!engine) {
           this.logger.warn(`Session ${msg.sessionId} not loaded for scheduled message ${msg.id}`);
+          continue;
+        }
+
+        if (await this.isOptedOut(msg.businessId, msg.sessionId, msg.chatId)) {
+          msg.status = ScheduledMessageStatus.CANCELLED;
+          msg.errorMessage = OPTED_OUT_REASON;
+          await this.scheduledRepo.save(msg);
+          this.logger.log(`Skipped scheduled message ${msg.id}: ${msg.chatId} opted out`);
           continue;
         }
 
@@ -416,6 +449,14 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
         }
 
         try {
+          if (await this.isOptedOut(campaign.businessId, campaign.sessionId, recipient.chatId)) {
+            recipient.status = RecipientStatus.SKIPPED;
+            recipient.errorMessage = OPTED_OUT_REASON;
+            await this.recipientRepo.save(recipient);
+            this.logger.log(`Campaign ${campaignId} skipped ${recipient.chatId}: opted out`);
+            continue;
+          }
+
           let text = baseText;
           if (recipient.contactName) {
             text = text.replace(/\{\{\s*name\s*\}\}/gi, recipient.contactName);

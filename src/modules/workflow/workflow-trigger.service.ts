@@ -16,6 +16,7 @@ import { Conversation, ConversationStatus } from '../conversation/entities/conve
 import { AiService } from '../ai/ai.service';
 import { Optional } from '@nestjs/common';
 import { isFreshPersonalMessage, WORKFLOW_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
+import { DND_TAG, hasDndTag, isOptInMessage } from '../conversation/dnd';
 
 @Injectable()
 export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
@@ -78,6 +79,18 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
         conv = await this.conversationService.getOrCreateConversation(businessId, sessionId, msg.chatId, contactName);
       } catch {
         // conversation creation is non-blocking
+      }
+    }
+
+    // The opt-out confirmation tells the customer to send START to resume; honour it here so campaigns
+    // and follow-ups reach them again.
+    if (conv && this.conversationService && hasDndTag(conv.tags) && isOptInMessage(msg.body)) {
+      try {
+        const tags = (conv.tags ?? []).filter(t => t !== DND_TAG);
+        conv = await this.conversationService.updateConversation(conv.id, businessId, { tags });
+        this.logger.log(`Opt-in: removed DND for ${msg.chatId}`);
+      } catch (err) {
+        this.logger.warn(`Could not clear DND for ${msg.chatId}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

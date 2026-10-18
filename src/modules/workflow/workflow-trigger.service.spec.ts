@@ -315,6 +315,18 @@ describe('WorkflowTriggerService', () => {
       const ctx = ((executor.resume as jest.Mock).mock.calls as unknown[][])[0][2] as Record<string, unknown>;
       expect(ctx).toMatchObject({ conversationId: 'conv-9', contactTags: ['vip'] });
     });
+
+    it('lifts an opt-out when the customer sends START, and only then', async () => {
+      const optedOut = { id: 'conv-9', status: 'open', tags: ['vip', 'dnd'] };
+      (conversationService.getOrCreateConversation as jest.Mock).mockResolvedValue(optedOut);
+      (conversationService.updateConversation as jest.Mock).mockResolvedValue({ ...optedOut, tags: ['vip'] });
+
+      await fire('hello');
+      expect(conversationService.updateConversation).not.toHaveBeenCalledWith('conv-9', 'biz-1', expect.anything());
+
+      await fire('START');
+      expect(conversationService.updateConversation).toHaveBeenCalledWith('conv-9', 'biz-1', { tags: ['vip'] });
+    });
   });
 
   describe('AI assistant coordination', () => {

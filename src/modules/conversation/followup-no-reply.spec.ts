@@ -76,6 +76,14 @@ describe('FollowupService no_reply / conversation_idle rules (SQLite)', () => {
     await expect(service.runScheduler(now)).resolves.toBe(0);
   });
 
+  it('never nudges a customer who opted out', async () => {
+    await addRule(FollowupTrigger.CONVERSATION_IDLE);
+    const optedOut = await addConversation('915555555555@c.us', minutesAgo(90), minutesAgo(120));
+    await convoRepo.update(optedOut.id, { tags: ['dnd'] });
+
+    await expect(service.runScheduler(now)).resolves.toBe(0);
+  });
+
   it('conversation_idle nudges either way, but never a group or a recent chat', async () => {
     await addRule(FollowupTrigger.CONVERSATION_IDLE);
     await addConversation('912222222222@c.us', minutesAgo(90), minutesAgo(90));

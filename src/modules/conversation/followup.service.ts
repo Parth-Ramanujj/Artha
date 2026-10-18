@@ -7,6 +7,7 @@ import { Conversation, ConversationStatus } from './entities/conversation.entity
 import { CreateFollowupRuleDto, UpdateFollowupRuleDto } from './dto/followup-rule.dto';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { DateTransformer } from '../../common/transformers/date.transformer';
+import { notDndSql } from './dnd';
 
 const SCHEDULER_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_SENDS_PER_TICK = 50;
@@ -117,7 +118,8 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
       .createQueryBuilder('c')
       .where('c.status = :status', { status: ConversationStatus.OPEN })
       .andWhere('c.lastMessageAt < :idleCutoff', { idleCutoff: toDbDate(idleCutoff) })
-      .andWhere("(c.chatId LIKE '%@c.us' OR c.chatId LIKE '%@lid')");
+      .andWhere("(c.chatId LIKE '%@c.us' OR c.chatId LIKE '%@lid')")
+      .andWhere(notDndSql('c'));
     if (rule.trigger === (FollowupTrigger.NO_REPLY as string)) {
       // "No reply" means the business spoke last and the customer went quiet — never nudge a customer
       // who is still waiting for the business, or one who never wrote at all.
@@ -166,6 +168,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
       .createQueryBuilder('c')
       .where('c.status = :status', { status: ConversationStatus.OPEN })
       .andWhere("(c.chatId LIKE '%@c.us' OR c.chatId LIKE '%@lid')")
+      .andWhere(notDndSql('c'))
       // Leads from before the rule existed are left alone, so enabling it does not message old chats.
       .andWhere('c.lastInboundAt >= :since', { since: toDbDate(new Date(rule.createdAt)) })
       .andWhere('c.lastInboundAt < :startOfToday', { startOfToday: toDbDate(startOfToday) });

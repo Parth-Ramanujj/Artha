@@ -26,6 +26,7 @@ import { Lead } from './entities/lead.entity';
 import { ScheduledMessage, ScheduledMessageStatus } from '../campaign/entities/scheduled-message.entity';
 import { createLogger } from '../../common/services/logger.service';
 import { containsKeyword, parseKeywords } from './keyword-match';
+import { DND_TAG } from '../conversation/dnd';
 import {
   isSsrfProtectionEnabled,
   redactSsrfError,
@@ -2817,7 +2818,7 @@ export class WorkflowExecutor {
       this.logger.log(`Opt-out / DND triggered for ${ctx.chatId}`);
       // Record the opt-out on the conversation so it outlives this run.
       if (!this.isDryRun(ctx, action)) {
-        await this.actionAddTag({ ...action, config: { tag: 'dnd' } }, ctx).catch(err =>
+        await this.actionAddTag({ ...action, config: { tag: DND_TAG } }, ctx).catch(err =>
           this.logger.warn(`Could not tag DND opt-out: ${err instanceof Error ? err.message : String(err)}`),
         );
       }
