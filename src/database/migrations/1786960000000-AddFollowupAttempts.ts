@@ -1,14 +1,15 @@
-import { MigrationInterface, QueryRunner, Table, TableColumn, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
+import { portableTable, portableColumn } from '../portable-table';
 
 export class AddFollowupAttempts1786960000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'conversations',
-      new TableColumn({ name: 'lastInboundAt', type: 'datetime', isNullable: true }),
+      new TableColumn(portableColumn(queryRunner, { name: 'lastInboundAt', type: 'datetime', isNullable: true })),
     );
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'followup_attempts',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },

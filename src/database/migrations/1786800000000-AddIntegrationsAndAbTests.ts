@@ -1,9 +1,10 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { portableTable } from '../portable-table';
 
 export class AddIntegrationsAndAbTests1786800000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'integrations',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -25,7 +26,7 @@ export class AddIntegrationsAndAbTests1786800000000 implements MigrationInterfac
     await queryRunner.createIndex('integrations', new TableIndex({ columnNames: ['businessId'] }));
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'sla_policies',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -47,7 +48,7 @@ export class AddIntegrationsAndAbTests1786800000000 implements MigrationInterfac
     await queryRunner.createIndex('sla_policies', new TableIndex({ columnNames: ['businessId'] }));
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'sla_events',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -68,7 +69,7 @@ export class AddIntegrationsAndAbTests1786800000000 implements MigrationInterfac
     await queryRunner.createIndex('sla_events', new TableIndex({ columnNames: ['businessId'] }));
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'ab_tests',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },

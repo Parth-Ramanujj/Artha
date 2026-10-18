@@ -1,9 +1,10 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { portableTable } from '../portable-table';
 
 export class AddAdvisorAlertConfigs1786950000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'advisor_alert_configs',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },

@@ -1,10 +1,11 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { portableTable } from '../portable-table';
 
 export class AddDealsAndAiAgents1786970000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Deals table for Sales Pipeline CRM
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'deals',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -29,7 +30,7 @@ export class AddDealsAndAiAgents1786970000000 implements MigrationInterface {
 
     // 2. AI Agents table for Autonomous Astra Bots
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'ai_agents',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },

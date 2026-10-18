@@ -1,9 +1,10 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { portableTable } from '../portable-table';
 
 export class AddFeedbackSyncFollowup1786900000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'feedback',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -25,7 +26,7 @@ export class AddFeedbackSyncFollowup1786900000000 implements MigrationInterface 
     await queryRunner.createIndex('feedback', new TableIndex({ columnNames: ['businessId'] }));
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'sync_configs',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },
@@ -51,7 +52,7 @@ export class AddFeedbackSyncFollowup1786900000000 implements MigrationInterface 
     await queryRunner.createIndex('sync_configs', new TableIndex({ columnNames: ['businessId'] }));
 
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'followup_rules',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, generationStrategy: 'uuid' },

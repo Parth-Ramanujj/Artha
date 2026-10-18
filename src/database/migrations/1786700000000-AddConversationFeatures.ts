@@ -1,10 +1,11 @@
-import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { portableTable } from '../portable-table';
 
 export class AddConversationFeatures1786700000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Canned Responses
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'canned_responses',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, isGenerated: true, generationStrategy: 'uuid' },
@@ -24,7 +25,7 @@ export class AddConversationFeatures1786700000000 implements MigrationInterface 
 
     // Assignment Rules
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'assignment_rules',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, isGenerated: true, generationStrategy: 'uuid' },
@@ -46,7 +47,7 @@ export class AddConversationFeatures1786700000000 implements MigrationInterface 
 
     // Notifications
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'notifications',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, isGenerated: true, generationStrategy: 'uuid' },
@@ -67,7 +68,7 @@ export class AddConversationFeatures1786700000000 implements MigrationInterface 
 
     // Contact Segments
     await queryRunner.createTable(
-      new Table({
+      portableTable(queryRunner, {
         name: 'contact_segments',
         columns: [
           { name: 'id', type: 'varchar', length: '36', isPrimary: true, isGenerated: true, generationStrategy: 'uuid' },
