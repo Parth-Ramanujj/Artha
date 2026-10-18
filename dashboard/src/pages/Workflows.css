@@ -204,6 +204,12 @@
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+.workflows-page .run-status-badge.waiting {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
 /* Builder Form */
 .workflows-page .workflow-builder-form {
   display: flex;

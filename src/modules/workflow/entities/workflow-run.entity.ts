@@ -10,17 +10,21 @@ export enum RunStatus {
   CANCELLED = 'cancelled',
   TIMED_OUT = 'timed_out',
   PAUSED = 'paused',
+  /** Sleeping until triggerData.wake.at (a WAIT node or a retry backoff); survives a restart. */
+  WAITING = 'waiting',
 }
 
 export interface StepResult {
   actionId: string;
   actionType: string;
-  status: 'success' | 'failed' | 'skipped' | 'cancelled';
+  status: 'success' | 'failed' | 'skipped' | 'cancelled' | 'retrying';
   startedAt: string;
   completedAt?: string;
   output?: Record<string, unknown>;
   error?: string;
   retryCount?: number;
+  /** For a 'retrying' step: when the next attempt runs. */
+  retryAt?: string;
 }
 
 @Entity('workflow_runs')

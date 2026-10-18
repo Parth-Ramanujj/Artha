@@ -17,7 +17,7 @@ import {
   ActionType,
   ConditionType,
 } from './entities/workflow-definition.entity';
-import { WorkflowRun, RunStatus } from './entities/workflow-run.entity';
+import { WorkflowRun, RunStatus, StepResult } from './entities/workflow-run.entity';
 import { parseKeywords } from './keyword-match';
 import { CreateWorkflowDto, UpdateWorkflowDto } from './dto/workflow.dto';
 import { createLogger } from '../../common/services/logger.service';
@@ -207,7 +207,7 @@ export class WorkflowService implements OnModuleInit, OnModuleDestroy {
   async cancelRun(id: string, businessId: string | null): Promise<WorkflowRun> {
     const run = await this.findRun(id, businessId);
 
-    if (run.status !== RunStatus.RUNNING && run.status !== RunStatus.PENDING && run.status !== RunStatus.PAUSED) {
+    if (![RunStatus.RUNNING, RunStatus.PENDING, RunStatus.PAUSED, RunStatus.WAITING].includes(run.status)) {
       throw new BadRequestException(`Cannot cancel a run in status "${run.status}"`);
     }
 
@@ -249,6 +249,7 @@ export class WorkflowService implements OnModuleInit, OnModuleDestroy {
       where: [
         { workflowId: workflow.id, status: RunStatus.RUNNING, updatedAt: activeSince },
         { workflowId: workflow.id, status: RunStatus.PENDING, updatedAt: activeSince },
+        { workflowId: workflow.id, status: RunStatus.WAITING },
       ],
     });
     if (activeRuns >= workflow.maxConcurrentRuns) {
@@ -325,6 +326,26 @@ export class WorkflowService implements OnModuleInit, OnModuleDestroy {
   /** Atomically moves a waiting run to RUNNING; false when another message already took it. */
   async claimPausedRun(runId: string): Promise<boolean> {
     const result = await this.runRepo.update({ id: runId, status: RunStatus.PAUSED }, { status: RunStatus.RUNNING });
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** Puts a run to sleep in one write, so a crash cannot leave it WAITING without its wake point. */
+  async markRunWaiting(runId: string, triggerData: Record<string, unknown>, steps: StepResult[]): Promise<void> {
+    const update: Record<string, unknown> = {
+      status: RunStatus.WAITING,
+      triggerData,
+      steps: steps.slice(-MAX_STORED_STEPS),
+    };
+    await this.runRepo.update(runId, update);
+  }
+
+  findWaitingRuns(limit = 500): Promise<WorkflowRun[]> {
+    return this.runRepo.find({ where: { status: RunStatus.WAITING }, order: { updatedAt: 'ASC' }, take: limit });
+  }
+
+  /** Atomically wakes a sleeping run; false when another timer, poll or instance already took it. */
+  async claimWaitingRun(runId: string): Promise<boolean> {
+    const result = await this.runRepo.update({ id: runId, status: RunStatus.WAITING }, { status: RunStatus.RUNNING });
     return (result.affected ?? 0) > 0;
   }
 

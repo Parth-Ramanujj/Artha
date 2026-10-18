@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -11,6 +11,7 @@ import {
   TriggerType,
   VisualWorkflowNode,
   VisualWorkflowEdge,
+  WorkflowStatus,
 } from './entities/workflow-definition.entity';
 import { WorkflowRun, RunStatus, StepResult } from './entities/workflow-run.entity';
 import { WorkflowService } from './workflow.service';
@@ -206,6 +207,11 @@ export function redactUrlSecrets(url: string): string {
   }
 }
 
+function waitSeconds(config: Record<string, unknown>): number {
+  const seconds = Number(config['seconds'] ?? 1);
+  return Number.isFinite(seconds) ? Math.min(Math.max(seconds, 0), MAX_WAIT_SECONDS) : 1;
+}
+
 /** A value escaped for use inside a JSON string literal (without the surrounding quotes). */
 const jsonStringContent = (value: string): string => JSON.stringify(value).slice(1, -1);
 
@@ -234,10 +240,25 @@ export function pickNextEdge(
   return outgoing.find(isGeneric);
 }
 
+/** Where a sleeping run continues: after a WAIT node, or another attempt at a failed node. */
+interface WakePoint {
+  kind: 'wait' | 'retry';
+  nodeId: string;
+  attempt?: number;
+  at: string;
+  ctx: TriggerContext;
+}
+
+// Catches runs whose in-process timer is gone (restart, another instance) and keeps lateness small.
+const WAKE_POLL_MS = 30_000;
+const MAX_WAIT_SECONDS = 300;
+
 @Injectable()
-export class WorkflowExecutor {
+export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('WorkflowExecutor');
   private readonly activeRuns = new Set<string>();
+  private readonly wakeTimers = new Map<string, NodeJS.Timeout>();
+  private wakePoll?: NodeJS.Timeout;
 
   constructor(
     private readonly workflowService: WorkflowService,
@@ -257,6 +278,105 @@ export class WorkflowExecutor {
     @InjectRepository(ScheduledMessage, 'data')
     private readonly scheduledMessageRepo?: Repository<ScheduledMessage>,
   ) {}
+
+  onModuleInit(): void {
+    const poll = () =>
+      void this.scheduleWaitingRuns().catch(err =>
+        this.logger.warn(`Waiting run recovery failed: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    poll();
+    this.wakePoll = setInterval(poll, WAKE_POLL_MS);
+    this.wakePoll.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.wakePoll) clearInterval(this.wakePoll);
+    for (const timer of this.wakeTimers.values()) clearTimeout(timer);
+    this.wakeTimers.clear();
+  }
+
+  /** Arms a timer for every sleeping run, including ones put to sleep before a restart. */
+  async scheduleWaitingRuns(): Promise<number> {
+    const runs = await this.workflowService.findWaitingRuns();
+    for (const run of runs) {
+      const at = Date.parse(String((run.triggerData?.['wake'] as WakePoint | undefined)?.at ?? ''));
+      this.scheduleWake(run.id, Number.isFinite(at) ? at : Date.now());
+    }
+    return runs.length;
+  }
+
+  private scheduleWake(runId: string, atMs: number): void {
+    const existing = this.wakeTimers.get(runId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(
+      () => {
+        this.wakeTimers.delete(runId);
+        void this.wakeRun(runId).catch(err =>
+          this.logger.error(`Wake failed for run ${runId}`, err instanceof Error ? err.message : String(err)),
+        );
+      },
+      Math.max(0, atMs - Date.now()),
+    );
+    timer.unref();
+    this.wakeTimers.set(runId, timer);
+  }
+
+  /** Saves where the run continues and lets it sleep without holding this process. */
+  private async sleepRun(
+    run: WorkflowRun,
+    ctx: TriggerContext,
+    steps: StepResult[],
+    wake: Omit<WakePoint, 'ctx'>,
+  ): Promise<void> {
+    const triggerData = {
+      ...(run.triggerData ?? {}),
+      wake: { ...wake, ctx: JSON.parse(JSON.stringify(ctx)) as TriggerContext },
+    };
+    run.triggerData = triggerData;
+    await this.workflowService.markRunWaiting(run.id, triggerData, steps);
+    this.scheduleWake(run.id, Date.parse(wake.at));
+  }
+
+  /** Continues a sleeping run once its time has come; safe to call from several timers at once. */
+  async wakeRun(runId: string): Promise<'woken' | 'skipped'> {
+    const run = await this.workflowService.findRun(runId, null).catch(() => null);
+    const wake = run?.triggerData?.['wake'] as WakePoint | undefined;
+    if (!run || run.status !== RunStatus.WAITING || !wake) return 'skipped';
+    const atMs = Date.parse(wake.at);
+    if (atMs > Date.now()) {
+      this.scheduleWake(run.id, atMs);
+      return 'skipped';
+    }
+    if (!(await this.workflowService.claimWaitingRun(run.id))) return 'skipped';
+
+    const triggerData: Record<string, unknown> = { ...(run.triggerData ?? {}) };
+    delete triggerData['wake'];
+    run.triggerData = triggerData;
+    this.activeRuns.add(run.id);
+    try {
+      await this.workflowService.updateRunTriggerData(run.id, triggerData);
+      const workflow = await this.workflowService.findOne(run.workflowId, run.businessId).catch(() => null);
+      if (!workflow || workflow.status !== WorkflowStatus.PUBLISHED) {
+        await this.workflowService.updateRunStatus(run.id, RunStatus.CANCELLED, {
+          failureReason: workflow ? 'Workflow is no longer published' : 'Workflow no longer exists',
+        });
+        return 'woken';
+      }
+      if (wake.kind === 'wait') {
+        await this.executeGraphFromNode(workflow, run, wake.ctx, wake.nodeId);
+      } else {
+        await this.executeGraphFromNode(workflow, run, wake.ctx, '', undefined, wake.nodeId, wake.attempt);
+      }
+    } catch (err) {
+      this.logger.error(`Workflow wake error: run=${run.id}`, err instanceof Error ? err.message : String(err));
+      await this.workflowService
+        .updateRunStatus(run.id, RunStatus.FAILED, { failureReason: err instanceof Error ? err.message : String(err) })
+        .catch(() => undefined);
+    } finally {
+      this.activeRuns.delete(run.id);
+    }
+    return 'woken';
+  }
 
   /**
    * A node field: its configured template if set, otherwise the customer's captured answer used as is.
@@ -521,6 +641,8 @@ export class WorkflowExecutor {
     ctx: TriggerContext,
     globalMaxRetries: number,
     run?: WorkflowRun,
+    // deferRetries: return a 'retrying' step instead of sleeping, so the caller can persist the wait.
+    opts: { startAttempt?: number; deferRetries?: boolean } = {},
   ): Promise<StepResult> {
     // Retrying a node that messages the customer re-sends whatever already went out (a header, half
     // the agent cards, the menu), so those only retry when the node itself asks for it.
@@ -532,23 +654,14 @@ export class WorkflowExecutor {
       startedAt: new Date().toISOString(),
     };
 
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    for (let attempt = opts.startAttempt ?? 0; attempt <= maxRetries; attempt++) {
       try {
         const output = await this.runAction(action, ctx, run);
         step.output = output;
         step.completedAt = new Date().toISOString();
         step.retryCount = attempt;
 
-        // Store step output into run.triggerData so downstream nodes can access it
-        // via {{steps.<nodeId>.<path>}} or {{steps.last.<path>}}
-        if (run) {
-          if (!run.triggerData) run.triggerData = {};
-          if (!run.triggerData['stepOutputs']) run.triggerData['stepOutputs'] = {};
-          const stepOutputs = run.triggerData['stepOutputs'] as Record<string, unknown>;
-          stepOutputs[action.id] = output;
-          stepOutputs['last'] = output;
-        }
-
+        this.recordStepOutput(run, action.id, output);
         return step;
       } catch (err) {
         step.retryCount = attempt;
@@ -560,13 +673,30 @@ export class WorkflowExecutor {
           return step;
         }
 
-        await this.delay(Math.min(1000 * Math.pow(2, attempt), 10000));
+        const backoffMs = Math.min(1000 * Math.pow(2, attempt), 10000);
+        if (opts.deferRetries) {
+          step.status = 'retrying';
+          step.retryAt = new Date(Date.now() + backoffMs).toISOString();
+          step.completedAt = new Date().toISOString();
+          return step;
+        }
+        await this.delay(backoffMs);
       }
     }
 
     step.status = 'failed';
     step.completedAt = new Date().toISOString();
     return step;
+  }
+
+  /** Makes a node's output readable downstream as {{steps.<nodeId>.<path>}} or {{steps.last.<path>}}. */
+  private recordStepOutput(run: WorkflowRun | undefined, nodeId: string, output: Record<string, unknown>): void {
+    if (!run) return;
+    if (!run.triggerData) run.triggerData = {};
+    if (!run.triggerData['stepOutputs']) run.triggerData['stepOutputs'] = {};
+    const stepOutputs = run.triggerData['stepOutputs'] as Record<string, unknown>;
+    stepOutputs[nodeId] = output;
+    stepOutputs['last'] = output;
   }
 
   private async runAction(
@@ -616,7 +746,7 @@ export class WorkflowExecutor {
         return { paused: true };
 
       case ActionType.WAIT: {
-        const seconds = Math.min(Number(action.config.seconds ?? 1), 300);
+        const seconds = waitSeconds(action.config);
         await this.delay(seconds * 1000);
         return { waited: seconds };
       }
@@ -2440,6 +2570,7 @@ export class WorkflowExecutor {
     fromNodeId: string,
     outgoingHandle?: string,
     startNodeId?: string,
+    startAttempt?: number,
   ): Promise<void> {
     const nodes = (workflow.definition.nodes || []) as VisualWorkflowNode[];
     const edges = (workflow.definition.edges || []) as VisualWorkflowEdge[];
@@ -2479,9 +2610,41 @@ export class WorkflowExecutor {
         config: currentNode.data?.config || {},
       };
 
-      const step = await this.executeAction(action, ctx, workflow.maxRetries, run);
+      // Test runs answer the builder in one request, so they keep sleeping in memory.
+      const durable = !ctx.metadata?.isTest;
+      if (durable && action.type === ActionType.WAIT) {
+        const seconds = waitSeconds(action.config);
+        const at = new Date(Date.now() + seconds * 1000).toISOString();
+        const output = { waited: seconds, resumeAt: at };
+        steps.push({
+          actionId: action.id,
+          actionType: action.type,
+          status: 'success',
+          startedAt: new Date().toISOString(),
+          completedAt: at,
+          output,
+        });
+        this.recordStepOutput(run, action.id, output);
+        await this.sleepRun(run, ctx, steps, { kind: 'wait', nodeId: action.id, at });
+        return;
+      }
+
+      const step = await this.executeAction(action, ctx, workflow.maxRetries, run, {
+        startAttempt: nodesRun === 1 ? startAttempt : undefined,
+        deferRetries: durable,
+      });
       steps.push(step);
       if (run) run.steps = steps;
+
+      if (step.status === 'retrying' && step.retryAt) {
+        await this.sleepRun(run, ctx, steps, {
+          kind: 'retry',
+          nodeId: action.id,
+          attempt: (step.retryCount ?? 0) + 1,
+          at: step.retryAt,
+        });
+        return;
+      }
 
       if (step.status === 'failed') {
         await this.workflowService.updateRunStatus(run.id, RunStatus.FAILED, {
