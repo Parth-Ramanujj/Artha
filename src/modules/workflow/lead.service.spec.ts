@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { LeadService } from './lead.service';
-import { Lead, LeadStatus } from './entities/lead.entity';
+import { Lead, LeadClassifiedBy, LeadInterest, LeadStatus, LeadTemperature } from './entities/lead.entity';
 import { FollowupAttempt } from '../conversation/entities/followup-attempt.entity';
 
 describe('LeadService lead list and status', () => {
@@ -19,6 +19,7 @@ describe('LeadService lead list and status', () => {
   let leads: Lead[];
   let attempts: FollowupAttempt[];
   let service: LeadService;
+  let update: jest.Mock;
 
   beforeEach(() => {
     leads = [
@@ -44,7 +45,9 @@ describe('LeadService lead list and status', () => {
         ),
       ),
       save: jest.fn((l: Lead) => Promise.resolve(l)),
+      update: jest.fn(() => Promise.resolve({ affected: 1 })),
     };
+    update = leadRepo.update;
     const attemptRepo = { find: jest.fn(() => Promise.resolve(attempts)) };
     service = new LeadService(leadRepo as never, {} as never, attemptRepo as never);
   });
@@ -64,6 +67,32 @@ describe('LeadService lead list and status', () => {
     const updated = await service.updateLeadStatus('l1', LeadStatus.CONTACTED, 'biz');
     expect(updated.status).toBe(LeadStatus.CONTACTED);
     expect(updated.contactedAt).toBeInstanceOf(Date);
+  });
+
+  it('a manual classification is kept when automatic classification runs later', async () => {
+    const manual = await service.updateClassification('l1', { temperature: LeadTemperature.HOT }, 'biz');
+    expect(manual).toMatchObject({ temperature: 'hot', classifiedBy: LeadClassifiedBy.MANUAL });
+
+    await service.applyAutoClassification('l1', {
+      temperature: LeadTemperature.COLD,
+      interest: LeadInterest.GENERAL,
+      classifiedBy: LeadClassifiedBy.RULES,
+      reason: 'Greeting only',
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('stores an automatic classification on an unclassified lead', async () => {
+    await service.applyAutoClassification('l2', {
+      temperature: LeadTemperature.WARM,
+      interest: LeadInterest.MUTUAL_FUND,
+      classifiedBy: LeadClassifiedBy.AI,
+      reason: 'Asked about SIP',
+    });
+    expect(update).toHaveBeenCalledWith(
+      { id: 'l2' },
+      { temperature: 'warm', interest: 'mutual_fund', classifiedBy: 'ai', classificationReason: 'Asked about SIP' },
+    );
   });
 
   it("refuses to change another business's lead", async () => {

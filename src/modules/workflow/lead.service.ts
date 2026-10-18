@@ -1,7 +1,8 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
-import { Lead, LeadStatus } from './entities/lead.entity';
+import { Lead, LeadClassifiedBy, LeadInterest, LeadStatus, LeadTemperature } from './entities/lead.entity';
+import type { LeadClassification } from './lead-classifier.service';
 import { Agent } from './entities/agent.entity';
 import { FollowupAttempt } from '../conversation/entities/followup-attempt.entity';
 
@@ -126,21 +127,33 @@ export class LeadService {
     businessId: string;
     sessionId: string;
     chatId: string;
-    customerPhone: string;
+    customerPhone?: string;
     customerName?: string;
-  }): Promise<Lead | null> {
-    const cleanPhone = input.customerPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 7) return null;
+    firstMessage?: string;
+  }): Promise<{ lead: Lead; created: boolean }> {
+    const digits = (input.customerPhone ?? '').replace(/[^0-9]/g, '');
+    // Empty when WhatsApp hides the number behind a privacy id; the chat then identifies the lead.
+    const cleanPhone = digits.length >= 7 ? digits : '';
 
     const existing = await this.leadRepo.findOne({
-      where: { businessId: input.businessId, customerPhone: cleanPhone },
+      where: cleanPhone
+        ? [
+            { businessId: input.businessId, customerPhone: cleanPhone },
+            { businessId: input.businessId, chatId: input.chatId },
+          ]
+        : { businessId: input.businessId, chatId: input.chatId },
     });
     if (existing) {
+      let changed = false;
       if (!existing.customerName && input.customerName) {
         existing.customerName = input.customerName;
-        return this.leadRepo.save(existing);
+        changed = true;
       }
-      return existing;
+      if (!existing.customerPhone && cleanPhone) {
+        existing.customerPhone = cleanPhone;
+        changed = true;
+      }
+      return { lead: changed ? await this.leadRepo.save(existing) : existing, created: false };
     }
 
     const leadNumber = `LD-WA-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1296)
@@ -160,10 +173,40 @@ export class LeadService {
         pincode: '',
         status: LeadStatus.NEW,
         metadata: { source: 'whatsapp_inbound' },
+        firstMessage: input.firstMessage?.slice(0, 2000) || null,
       }),
     );
-    this.logger.log(`Captured inbound lead ${saved.leadNumber} for ${cleanPhone}`);
-    return saved;
+    this.logger.log(`Captured inbound lead ${saved.leadNumber} for ${cleanPhone || input.chatId}`);
+    return { lead: saved, created: true };
+  }
+
+  // Automatic classification never overwrites a choice a person made in the dashboard.
+  async applyAutoClassification(id: string, result: LeadClassification): Promise<void> {
+    const lead = await this.leadRepo.findOne({ where: { id }, select: { id: true, classifiedBy: true } });
+    if (!lead || lead.classifiedBy === LeadClassifiedBy.MANUAL) return;
+    await this.leadRepo.update(
+      { id },
+      {
+        temperature: result.temperature,
+        interest: result.interest,
+        classifiedBy: result.classifiedBy,
+        classificationReason: result.reason || null,
+      },
+    );
+  }
+
+  async updateClassification(
+    id: string,
+    change: { temperature?: LeadTemperature; interest?: LeadInterest },
+    businessId?: string,
+  ): Promise<Lead> {
+    const lead = await this.leadRepo.findOne({ where: { id, ...(businessId ? { businessId } : {}) } });
+    if (!lead) throw new NotFoundException('Lead not found');
+    if (change.temperature) lead.temperature = change.temperature;
+    if (change.interest) lead.interest = change.interest;
+    lead.classifiedBy = LeadClassifiedBy.MANUAL;
+    lead.classificationReason = 'Set by a team member';
+    return this.leadRepo.save(lead);
   }
 
   async listLeads(businessId?: string, status?: LeadStatus): Promise<LeadWithFollowup[]> {

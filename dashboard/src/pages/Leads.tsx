@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, RefreshCw, Search, Target, UserPlus, PhoneCall, Send, MessageCircle } from 'lucide-react';
-import { leadApi, type Lead, type LeadStatus } from '../services/api';
+import { Loader2, RefreshCw, Search, Target, UserPlus, PhoneCall, Send, MessageCircle, Flame } from 'lucide-react';
+import { leadApi, type Lead, type LeadInterest, type LeadStatus, type LeadTemperature } from '../services/api';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 
@@ -16,6 +16,32 @@ const STATUS_OPTIONS: { value: LeadStatus; label: string; color: string }[] = [
 ];
 
 const statusColor = (status: LeadStatus) => STATUS_OPTIONS.find(s => s.value === status)?.color ?? '#94a3b8';
+
+const TEMPERATURE_OPTIONS: { value: LeadTemperature; label: string; color: string }[] = [
+  { value: 'hot', label: '🔥 Hot', color: '#ef4444' },
+  { value: 'warm', label: '🌤 Warm', color: '#f59e0b' },
+  { value: 'cold', label: '❄ Cold', color: '#64748b' },
+];
+
+const INTEREST_OPTIONS: { value: LeadInterest; label: string }[] = [
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'mutual_fund', label: 'Mutual Fund' },
+  { value: 'claim_support', label: 'Claim Support' },
+  { value: 'general', label: 'General' },
+];
+
+const temperatureColor = (t: LeadTemperature | null) =>
+  TEMPERATURE_OPTIONS.find(o => o.value === t)?.color ?? 'var(--text-muted)';
+
+const CLASSIFIED_BY_LABEL: Record<string, string> = { ai: 'AI', rules: 'Keywords', manual: 'Manual' };
+
+const compactSelect = (color: string) => ({
+  width: 'auto',
+  padding: '4px 8px',
+  fontWeight: 600,
+  color,
+  borderColor: color,
+});
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
@@ -87,6 +113,7 @@ export function Leads() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
+  const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | 'all'>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const load = () => {
@@ -119,10 +146,27 @@ export function Leads() {
     }
   };
 
+  const changeClassification = async (
+    lead: Lead,
+    change: { temperature?: LeadTemperature; interest?: LeadInterest },
+  ) => {
+    setSavingId(lead.id);
+    try {
+      const updated = await leadApi.updateClassification(lead.id, change);
+      setLeads(prev => prev.map(l => (l.id === lead.id ? { ...l, ...updated } : l)));
+      toast.success(`${lead.leadNumber} updated`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update lead');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter(l => {
       if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+      if (temperatureFilter !== 'all' && l.temperature !== temperatureFilter) return false;
       if (!q) return true;
       return (
         l.leadNumber.toLowerCase().includes(q) ||
@@ -130,12 +174,12 @@ export function Leads() {
         (l.customerName ?? '').toLowerCase().includes(q)
       );
     });
-  }, [leads, search, statusFilter]);
+  }, [leads, search, statusFilter, temperatureFilter]);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   const todayCount = leads.filter(l => new Date(l.createdAt) >= startOfToday).length;
-  const newCount = leads.filter(l => l.status === 'new').length;
+  const hotCount = leads.filter(l => l.temperature === 'hot').length;
   const contactedCount = leads.filter(l => l.status === 'contacted' || l.status === 'in_progress').length;
   const followupCount = leads.filter(l => l.followupSentAt).length;
 
@@ -161,7 +205,7 @@ export function Leads() {
         }}
       >
         <StatTile label="New today" value={todayCount} icon={<UserPlus size={22} />} color="#3b82f6" />
-        <StatTile label="Waiting (status New)" value={newCount} icon={<Target size={22} />} color="#8b5cf6" />
+        <StatTile label="Hot leads" value={hotCount} icon={<Flame size={22} />} color="#ef4444" />
         <StatTile label="Contacted" value={contactedCount} icon={<PhoneCall size={22} />} color="#f59e0b" />
         <StatTile label="Follow-up sent" value={followupCount} icon={<Send size={22} />} color="#22c55e" />
       </div>
@@ -200,6 +244,20 @@ export function Leads() {
             </option>
           ))}
         </select>
+        <select
+          className="input"
+          value={temperatureFilter}
+          onChange={e => setTemperatureFilter(e.target.value as LeadTemperature | 'all')}
+          style={{ width: 'auto' }}
+          aria-label="Filter by temperature"
+        >
+          <option value="all">Hot, warm and cold</option>
+          {TEMPERATURE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>
+              {o.label} ({leads.filter(l => l.temperature === o.value).length})
+            </option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -229,12 +287,13 @@ export function Leads() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 820 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 1040 }}>
             <thead>
               <tr>
                 <th style={headStyle}>Lead</th>
                 <th style={headStyle}>Customer</th>
-                <th style={headStyle}>Source</th>
+                <th style={headStyle}>Temperature</th>
+                <th style={headStyle}>Interest &amp; first message</th>
                 <th style={headStyle}>Received</th>
                 <th style={headStyle}>Morning follow-up</th>
                 <th style={headStyle}>Status</th>
@@ -248,16 +307,99 @@ export function Leads() {
                   </td>
                   <td style={cellStyle}>
                     <div style={{ fontWeight: 600 }}>{lead.customerName || 'Unknown'}</div>
-                    <a
-                      href={`https://wa.me/${lead.customerPhone}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: '#22c55e' }}
-                    >
-                      <MessageCircle size={13} /> +{lead.customerPhone}
-                    </a>
+                    {lead.customerPhone ? (
+                      <a
+                        href={`https://wa.me/${lead.customerPhone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 12.5,
+                          color: '#22c55e',
+                        }}
+                      >
+                        <MessageCircle size={13} /> +{lead.customerPhone}
+                      </a>
+                    ) : (
+                      <span
+                        style={{ fontSize: 12.5, color: 'var(--text-muted)' }}
+                        title="WhatsApp hid this contact's number (privacy ID). Reply from Chats to reach them."
+                      >
+                        Number hidden by WhatsApp
+                      </span>
+                    )}
                   </td>
-                  <td style={{ ...cellStyle, textTransform: 'capitalize' }}>{leadSource(lead)}</td>
+                  <td style={cellStyle}>
+                    <select
+                      className="input"
+                      value={lead.temperature ?? ''}
+                      disabled={savingId === lead.id}
+                      onChange={e =>
+                        void changeClassification(lead, { temperature: e.target.value as LeadTemperature })
+                      }
+                      aria-label={`Temperature of ${lead.leadNumber}`}
+                      title={lead.classificationReason ?? undefined}
+                      style={compactSelect(temperatureColor(lead.temperature))}
+                    >
+                      {!lead.temperature && (
+                        <option value="" disabled>
+                          Not classified
+                        </option>
+                      )}
+                      {TEMPERATURE_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {lead.classifiedBy && (
+                      <div
+                        style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}
+                        title={lead.classificationReason ?? undefined}
+                      >
+                        by {CLASSIFIED_BY_LABEL[lead.classifiedBy] ?? lead.classifiedBy}
+                        {lead.classificationReason ? ` · ${lead.classificationReason}` : ''}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ ...cellStyle, maxWidth: 280 }}>
+                    <select
+                      className="input"
+                      value={lead.interest ?? ''}
+                      disabled={savingId === lead.id}
+                      onChange={e => void changeClassification(lead, { interest: e.target.value as LeadInterest })}
+                      aria-label={`Interest of ${lead.leadNumber}`}
+                      style={{ width: 'auto', padding: '4px 8px' }}
+                    >
+                      {!lead.interest && (
+                        <option value="" disabled>
+                          {leadSource(lead)}
+                        </option>
+                      )}
+                      {INTEREST_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {lead.firstMessage && (
+                      <div
+                        title={lead.firstMessage}
+                        style={{
+                          fontSize: 12.5,
+                          color: 'var(--text-secondary)',
+                          marginTop: 4,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        &ldquo;{lead.firstMessage}&rdquo;
+                      </div>
+                    )}
+                  </td>
                   <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{formatDate(lead.createdAt)}</td>
                   <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>
                     <FollowupCell lead={lead} />
@@ -269,13 +411,7 @@ export function Leads() {
                       disabled={savingId === lead.id}
                       onChange={e => void changeStatus(lead, e.target.value as LeadStatus)}
                       aria-label={`Status of ${lead.leadNumber}`}
-                      style={{
-                        width: 'auto',
-                        padding: '4px 8px',
-                        fontWeight: 600,
-                        color: statusColor(lead.status),
-                        borderColor: statusColor(lead.status),
-                      }}
+                      style={compactSelect(statusColor(lead.status))}
                     >
                       {STATUS_OPTIONS.map(s => (
                         <option key={s.value} value={s.value}>

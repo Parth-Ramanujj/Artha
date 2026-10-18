@@ -2,6 +2,25 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 import { DateTransformer } from '../../../common/transformers/date.transformer';
 import { jsonColumnType, dateColumnType } from '../../../common/utils/column-types';
 
+export enum LeadTemperature {
+  HOT = 'hot',
+  WARM = 'warm',
+  COLD = 'cold',
+}
+
+export enum LeadInterest {
+  INSURANCE = 'insurance',
+  MUTUAL_FUND = 'mutual_fund',
+  CLAIM_SUPPORT = 'claim_support',
+  GENERAL = 'general',
+}
+
+export enum LeadClassifiedBy {
+  AI = 'ai',
+  RULES = 'rules',
+  MANUAL = 'manual',
+}
+
 export enum LeadStatus {
   NEW = 'new',
   QUALIFIED = 'qualified',
@@ -94,9 +113,26 @@ export class Lead {
   @Column({ type: dateColumnType(), nullable: true, transformer: DateTransformer })
   contactedAt: Date | null;
 
-  @CreateDateColumn({ transformer: DateTransformer })
+  @Column({ type: 'text', nullable: true })
+  firstMessage: string | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  temperature: LeadTemperature | null;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  interest: LeadInterest | null;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  classifiedBy: LeadClassifiedBy | null;
+
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  classificationReason: string | null;
+
+  // No DateTransformer here: it maps an unset value to NULL, which bypasses the column DEFAULT and
+  // violates NOT NULL on insert.
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ transformer: DateTransformer })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

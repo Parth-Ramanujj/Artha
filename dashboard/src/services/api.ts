@@ -1470,6 +1470,8 @@ export const workflowApi = {
 };
 
 export type LeadStatus = 'new' | 'qualified' | 'assigned' | 'contacted' | 'in_progress' | 'closed' | 'unassigned';
+export type LeadTemperature = 'hot' | 'warm' | 'cold';
+export type LeadInterest = 'insurance' | 'mutual_fund' | 'claim_support' | 'general';
 
 export interface Lead {
   id: string;
@@ -1492,6 +1494,11 @@ export interface Lead {
   updatedAt: string;
   followupSentAt: string | null;
   followupRepliedAt: string | null;
+  firstMessage: string | null;
+  temperature: LeadTemperature | null;
+  interest: LeadInterest | null;
+  classifiedBy: 'ai' | 'rules' | 'manual' | null;
+  classificationReason: string | null;
 }
 
 export const leadApi = {
@@ -1501,6 +1508,11 @@ export const leadApi = {
     request<Lead>(`/workflows/leads/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+  updateClassification: (id: string, change: { temperature?: LeadTemperature; interest?: LeadInterest }) =>
+    request<Lead>(`/workflows/leads/${encodeURIComponent(id)}/classification`, {
+      method: 'PATCH',
+      body: JSON.stringify(change),
     }),
 };
 

@@ -19,7 +19,7 @@ import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
 import { AgentService } from './agent.service';
 import { LeadService } from './lead.service';
 import { CreateWorkflowDto, UpdateWorkflowDto, TestWebhookDto } from './dto/workflow.dto';
-import { UpdateLeadStatusDto } from './dto/lead.dto';
+import { UpdateLeadClassificationDto, UpdateLeadStatusDto } from './dto/lead.dto';
 import { LeadStatus } from './entities/lead.entity';
 import { WorkflowStatus, TriggerType } from './entities/workflow-definition.entity';
 import { RunStatus } from './entities/workflow-run.entity';
@@ -70,6 +70,20 @@ export class WorkflowController {
   async updateLeadStatus(@CurrentApiKey() apiKey: ApiKey, @Param('id') id: string, @Body() dto: UpdateLeadStatusDto) {
     if (!this.leadService) throw new BadRequestException('Leads are not available');
     return this.leadService.updateLeadStatus(id, dto.status, this.getBusinessId(apiKey) || undefined);
+  }
+
+  @Patch('leads/:id/classification')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Set a lead temperature (hot/warm/cold) and interest by hand' })
+  @ApiParam({ name: 'id', description: 'Lead ID' })
+  async updateLeadClassification(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Param('id') id: string,
+    @Body() dto: UpdateLeadClassificationDto,
+  ) {
+    if (!this.leadService) throw new BadRequestException('Leads are not available');
+    if (!dto.temperature && !dto.interest) throw new BadRequestException('Send temperature and/or interest');
+    return this.leadService.updateClassification(id, dto, this.getBusinessId(apiKey) || undefined);
   }
 
   @Post('presets/seed-insurance')

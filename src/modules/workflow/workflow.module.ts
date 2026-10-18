@@ -18,6 +18,7 @@ import { AbTest } from './entities/ab-test.entity';
 import { AgentService } from './agent.service';
 import { LeadService } from './lead.service';
 import { LeadCaptureService } from './lead-capture.service';
+import { LeadClassifierService } from './lead-classifier.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { MessageModule } from '../message/message.module';
 import { AiModule } from '../ai/ai.module';
@@ -40,6 +41,7 @@ import { AiModule } from '../ai/ai.module';
     AgentService,
     LeadService,
     LeadCaptureService,
+    LeadClassifierService,
     AbTestService,
   ],
   exports: [WorkflowService, WorkflowExecutor, AgentService, LeadService, AbTestService],

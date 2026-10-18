@@ -166,7 +166,8 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
         enabled: true,
         provider: AiProvider.GROQ,
         model: process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
-        systemPrompt: 'You are a helpful and polite WhatsApp customer support assistant. Answer concisely and accurately.',
+        systemPrompt:
+          'You are a helpful and polite WhatsApp customer support assistant. Answer concisely and accurately.',
       });
       config = await this.configRepo.save(config);
     }
@@ -235,7 +236,9 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
     const allowedTypes = ['text', 'markdown', 'faq', 'csv', 'json', 'product', 'guideline', 'custom'];
     const resolvedFileType = dto.fileType || dto.type || 'faq';
     if (!allowedTypes.includes(resolvedFileType)) {
-      throw new BadRequestException(`File type "${resolvedFileType}" not supported. Allowed: ${allowedTypes.join(', ')}`);
+      throw new BadRequestException(
+        `File type "${resolvedFileType}" not supported. Allowed: ${allowedTypes.join(', ')}`,
+      );
     }
 
     const doc = this.docRepo.create({
@@ -315,7 +318,6 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
       knowledgeContext = await this.retrieveRelevantKnowledge(targetBusinessId, request.message);
     }
 
-
     try {
       const response = await this.callProvider(config, request, knowledgeContext);
       return response;
@@ -389,16 +391,7 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
     return Array.from(new Set(rawKeys.map(k => k.trim())));
   }
 
-  private async callGroq(
-    config: AiConfig,
-    request: AiChatRequest,
-    knowledgeContext: string,
-  ): Promise<AiChatResponse> {
-    const keys = this.getGroqApiKeys();
-    if (keys.length === 0) {
-      throw new Error('No Groq API keys configured. Set GROQ_API_KEY in .env or settings.');
-    }
-
+  private async callGroq(config: AiConfig, request: AiChatRequest, knowledgeContext: string): Promise<AiChatResponse> {
     const systemParts: string[] = [];
     if (config.systemPrompt) systemParts.push(config.systemPrompt);
     if (knowledgeContext) {
@@ -427,12 +420,45 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
 
     messages.push({ role: 'user', content: request.message });
 
-    const model = config.model?.trim() || process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b';
-    const payload = {
-      model,
-      messages,
-      max_tokens: config.maxTokens || 1000,
+    const { content, tokensUsed } = await this.complete(messages, {
+      model: config.model?.trim() || undefined,
+      maxTokens: config.maxTokens || 1000,
       temperature: 0.7,
+    });
+
+    return {
+      reply: content,
+      handoff: false,
+      confidence: 'high',
+      sourceDocs: knowledgeContext ? ['knowledge-base'] : undefined,
+      tokensUsed,
+    };
+  }
+
+  /**
+   * Raw Groq chat completion over the rotating key pool. Throws when every key fails, so callers
+   * can tell a real answer from a failure (unlike chat(), which returns the business fallback text).
+   */
+  async complete(
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    options: {
+      model?: string;
+      maxTokens?: number;
+      temperature?: number;
+      reasoningEffort?: 'low' | 'medium' | 'high';
+    } = {},
+  ): Promise<{ content: string; tokensUsed?: number }> {
+    const keys = this.getGroqApiKeys();
+    if (keys.length === 0) {
+      throw new Error('No Groq API keys configured. Set GROQ_API_KEY in .env or settings.');
+    }
+
+    const payload = {
+      model: options.model || process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
+      messages,
+      max_tokens: options.maxTokens ?? 1000,
+      temperature: options.temperature ?? 0.7,
+      ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
     };
 
     let lastError: Error | null = null;
@@ -466,19 +492,13 @@ export class AiService implements OnModuleInit, OnModuleDestroy {
           usage?: { total_tokens?: number };
         };
 
-        const reply = data.choices?.[0]?.message?.content?.trim();
-        if (!reply) throw new Error('Groq returned empty reply');
+        const content = data.choices?.[0]?.message?.content?.trim();
+        if (!content) throw new Error('Groq returned empty reply');
 
         // Advance key index for round-robin distribution
         this.groqKeyIndex = (keyIndex + 1) % keys.length;
 
-        return {
-          reply,
-          handoff: false,
-          confidence: 'high',
-          sourceDocs: knowledgeContext ? ['knowledge-base'] : undefined,
-          tokensUsed: data.usage?.total_tokens,
-        };
+        return { content, tokensUsed: data.usage?.total_tokens };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         this.logger.warn(`Groq attempt ${attempt + 1} with key index ${keyIndex} failed: ${lastError.message}`);
