@@ -1465,8 +1465,43 @@ export const workflowApi = {
       error?: string;
     }>('/workflows/test-webhook', { method: 'POST', body: JSON.stringify(data) }),
   listAgents: () => request<any[]>('/workflows/agents/list'),
-  listLeads: () => request<any[]>('/workflows/leads/list'),
+  listLeads: () => request<Lead[]>('/workflows/leads/list'),
   seedInsuranceWorkflow: () => request<WorkflowDefinition>('/workflows/presets/seed-insurance', { method: 'POST' }),
+};
+
+export type LeadStatus = 'new' | 'qualified' | 'assigned' | 'contacted' | 'in_progress' | 'closed' | 'unassigned';
+
+export interface Lead {
+  id: string;
+  leadNumber: string;
+  sessionId: string | null;
+  chatId: string;
+  customerPhone: string;
+  customerName: string | null;
+  mainService: string;
+  selectedService: string;
+  productCategory: string | null;
+  subProduct: string | null;
+  pincode: string;
+  city: string | null;
+  matchedAgentName: string | null;
+  status: LeadStatus;
+  metadata: Record<string, unknown> | null;
+  contactedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  followupSentAt: string | null;
+  followupRepliedAt: string | null;
+}
+
+export const leadApi = {
+  list: (status?: LeadStatus) =>
+    request<Lead[]>(`/workflows/leads/list${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  updateStatus: (id: string, status: LeadStatus) =>
+    request<Lead>(`/workflows/leads/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };
 
 export interface TestWebhookResult {

@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, In } from 'typeorm';
 import { Lead, LeadStatus } from './entities/lead.entity';
 import { Agent } from './entities/agent.entity';
+import { FollowupAttempt } from '../conversation/entities/followup-attempt.entity';
+
+export type LeadWithFollowup = Lead & { followupSentAt: Date | null; followupRepliedAt: Date | null };
 
 export interface CreateLeadDto {
   businessId: string;
@@ -35,6 +38,9 @@ export class LeadService {
     private readonly leadRepo: Repository<Lead>,
     @InjectRepository(Agent, 'data')
     private readonly agentRepo: Repository<Agent>,
+    @Optional()
+    @InjectRepository(FollowupAttempt, 'data')
+    private readonly attemptRepo?: Repository<FollowupAttempt>,
   ) {}
 
   async createOrUpdateLead(dto: CreateLeadDto): Promise<Lead> {
@@ -116,15 +122,77 @@ export class LeadService {
     return saved;
   }
 
-  async listLeads(businessId?: string, status?: LeadStatus): Promise<Lead[]> {
+  async captureInboundLead(input: {
+    businessId: string;
+    sessionId: string;
+    chatId: string;
+    customerPhone: string;
+    customerName?: string;
+  }): Promise<Lead | null> {
+    const cleanPhone = input.customerPhone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 7) return null;
+
+    const existing = await this.leadRepo.findOne({
+      where: { businessId: input.businessId, customerPhone: cleanPhone },
+    });
+    if (existing) {
+      if (!existing.customerName && input.customerName) {
+        existing.customerName = input.customerName;
+        return this.leadRepo.save(existing);
+      }
+      return existing;
+    }
+
+    const leadNumber = `LD-WA-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1296)
+      .toString(36)
+      .toUpperCase()
+      .padStart(2, '0')}`;
+    const saved = await this.leadRepo.save(
+      this.leadRepo.create({
+        leadNumber,
+        businessId: input.businessId,
+        sessionId: input.sessionId,
+        chatId: input.chatId,
+        customerPhone: cleanPhone,
+        customerName: input.customerName || null,
+        mainService: 'general',
+        selectedService: 'whatsapp_enquiry',
+        pincode: '',
+        status: LeadStatus.NEW,
+        metadata: { source: 'whatsapp_inbound' },
+      }),
+    );
+    this.logger.log(`Captured inbound lead ${saved.leadNumber} for ${cleanPhone}`);
+    return saved;
+  }
+
+  async listLeads(businessId?: string, status?: LeadStatus): Promise<LeadWithFollowup[]> {
     const where: Record<string, unknown> = {};
     if (businessId) where['businessId'] = businessId;
     if (status) where['status'] = status;
 
-    return this.leadRepo.find({
+    const leads = await this.leadRepo.find({
       where,
       order: { createdAt: 'DESC' },
-      take: 100,
+      take: 500,
+    });
+    if (leads.length === 0 || !this.attemptRepo) {
+      return leads.map(l => ({ ...l, followupSentAt: null, followupRepliedAt: null }));
+    }
+
+    const attempts = await this.attemptRepo.find({
+      where: {
+        chatId: In([...new Set(leads.map(l => l.chatId))]),
+        ...(businessId ? { businessId } : {}),
+      },
+      order: { sentAt: 'ASC' },
+    });
+    const firstAttempt = new Map<string, FollowupAttempt>();
+    for (const a of attempts) if (!firstAttempt.has(a.chatId)) firstAttempt.set(a.chatId, a);
+
+    return leads.map(l => {
+      const attempt = firstAttempt.get(l.chatId);
+      return { ...l, followupSentAt: attempt?.sentAt ?? null, followupRepliedAt: attempt?.recoveredAt ?? null };
     });
   }
 
@@ -132,8 +200,9 @@ export class LeadService {
     return this.leadRepo.findOne({ where: { id } });
   }
 
-  async updateLeadStatus(id: string, status: LeadStatus): Promise<Lead> {
-    const lead = await this.leadRepo.findOneOrFail({ where: { id } });
+  async updateLeadStatus(id: string, status: LeadStatus, businessId?: string): Promise<Lead> {
+    const lead = await this.leadRepo.findOne({ where: { id, ...(businessId ? { businessId } : {}) } });
+    if (!lead) throw new NotFoundException('Lead not found');
     lead.status = status;
     if (status === LeadStatus.CONTACTED) {
       lead.contactedAt = new Date();

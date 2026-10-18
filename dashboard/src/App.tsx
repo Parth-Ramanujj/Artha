@@ -41,6 +41,7 @@ const AdvisorAlerts = lazy(() => import('./pages/AdvisorAlerts').then(m => ({ de
 const FeedbackPage = lazy(() => import('./pages/Feedback').then(m => ({ default: m.Feedback })));
 const SyncManager = lazy(() => import('./pages/SyncManager').then(m => ({ default: m.SyncManager })));
 const FollowupRecovery = lazy(() => import('./pages/FollowupRecovery').then(m => ({ default: m.FollowupRecovery })));
+const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads })));
 const SalesPipeline = lazy(() => import('./pages/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
 const AiAgents = lazy(() => import('./pages/AiAgents').then(m => ({ default: m.AiAgents })));
 const ShopifyCommerce = lazy(() => import('./pages/ShopifyCommerce').then(m => ({ default: m.ShopifyCommerce })));
@@ -169,6 +170,7 @@ function AppContent() {
               <Route path="feedback" element={<FeedbackPage />} />
               {role === 'admin' && <Route path="sync" element={<SyncManager />} />}
               <Route path="followup" element={<FollowupRecovery />} />
+              <Route path="leads" element={<Leads />} />
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />

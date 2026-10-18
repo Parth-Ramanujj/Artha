@@ -30,6 +30,7 @@ interface FollowupRule {
   message: string;
   maxAttempts: number;
   cooldownMinutes: number;
+  conditions?: Record<string, unknown> | null;
   enabled: boolean;
   totalSent: number;
   totalRecovered: number;
@@ -53,7 +54,18 @@ interface FollowupStats {
   recoveryRate: number;
 }
 
+const LEAD_MORNING = 'lead_morning';
+const DEFAULT_SEND_AT = '10:00';
+
+const ruleSendAt = (rule: FollowupRule) =>
+  typeof rule.conditions?.sendAt === 'string' ? rule.conditions.sendAt : DEFAULT_SEND_AT;
+
 const triggerLabels: Record<string, { label: string; icon: string; desc: string }> = {
+  lead_morning: {
+    label: 'Morning Lead Follow-up',
+    icon: '🌅',
+    desc: 'Once per lead, the morning after they message, if they have not written again today',
+  },
   no_reply: { label: 'No Reply', icon: '⏳', desc: 'User stopped replying after agent/bot message' },
   conversation_idle: { label: 'Conversation Idle', icon: '💤', desc: 'No activity in conversation for set duration' },
   cart_abandoned: { label: 'Cart Abandoned', icon: '🛒', desc: 'User dropped out before checkout / plan selection' },
@@ -62,10 +74,19 @@ const triggerLabels: Record<string, { label: string; icon: string; desc: string 
 
 const RULE_PRESETS = [
   {
+    name: 'Next-Morning Lead Follow-up',
+    trigger: LEAD_MORNING,
+    delayMinutes: '60',
+    message: 'Good morning {{name}}! You messaged us yesterday. How can we help you today?',
+    maxAttempts: '1',
+    cooldownMinutes: '1440',
+    sendAt: DEFAULT_SEND_AT,
+  },
+  {
     name: '15-Min Incomplete Lead Recovery',
     trigger: 'form_incomplete',
     delayMinutes: '15',
-    message: 'Hi {{name}}, we noticed you started an inquiry but didn\'t finish. Can we answer any questions for you?',
+    message: "Hi {{name}}, we noticed you started an inquiry but didn't finish. Can we answer any questions for you?",
     maxAttempts: '2',
     cooldownMinutes: '720',
   },
@@ -73,7 +94,8 @@ const RULE_PRESETS = [
     name: '1-Hour Inactive Consultation Check-in',
     trigger: 'no_reply',
     delayMinutes: '60',
-    message: 'Hello! Just checking in to see if you had a chance to review the details we sent earlier? Let us know if you need assistance.',
+    message:
+      'Hello! Just checking in to see if you had a chance to review the details we sent earlier? Let us know if you need assistance.',
     maxAttempts: '3',
     cooldownMinutes: '1440',
   },
@@ -81,7 +103,8 @@ const RULE_PRESETS = [
     name: '24-Hour Plan Selection Nudge',
     trigger: 'cart_abandoned',
     delayMinutes: '1440',
-    message: 'Hi there! Your quote is saved and waiting. Would you like our senior advisor to assist you with the next step?',
+    message:
+      'Hi there! Your quote is saved and waiting. Would you like our senior advisor to assist you with the next step?',
     maxAttempts: '2',
     cooldownMinutes: '2880',
   },
@@ -127,7 +150,9 @@ export function FollowupRecovery() {
     message: '',
     maxAttempts: '3',
     cooldownMinutes: '1440',
+    sendAt: DEFAULT_SEND_AT,
   });
+  const isMorningRule = form.trigger === LEAD_MORNING;
 
   // Modal: Send Follow-up to Dropped User
   const [sendTargetUser, setSendTargetUser] = useState<DroppedUser | null>(null);
@@ -165,11 +190,12 @@ export function FollowupRecovery() {
       message: '',
       maxAttempts: '3',
       cooldownMinutes: '1440',
+      sendAt: DEFAULT_SEND_AT,
     });
     setShowModal(true);
   };
 
-  const applyPreset = (preset: typeof RULE_PRESETS[0]) => {
+  const applyPreset = (preset: (typeof RULE_PRESETS)[number]) => {
     setForm({
       name: preset.name,
       trigger: preset.trigger,
@@ -177,6 +203,7 @@ export function FollowupRecovery() {
       message: preset.message,
       maxAttempts: preset.maxAttempts,
       cooldownMinutes: preset.cooldownMinutes,
+      sendAt: 'sendAt' in preset && preset.sendAt ? preset.sendAt : DEFAULT_SEND_AT,
     });
   };
 
@@ -189,16 +216,14 @@ export function FollowupRecovery() {
       message: rule.message,
       maxAttempts: String(rule.maxAttempts),
       cooldownMinutes: String(rule.cooldownMinutes),
+      sendAt: ruleSendAt(rule),
     });
     setShowModal(true);
   };
 
   const handleToggleRule = async (rule: FollowupRule) => {
     try {
-      await followupApi.updateRule(rule.id, {
-        ...rule,
-        enabled: !rule.enabled,
-      });
+      await followupApi.updateRule(rule.id, { enabled: !rule.enabled });
       toast.success(rule.enabled ? 'Rule paused' : 'Rule activated');
       await load();
     } catch {
@@ -217,8 +242,9 @@ export function FollowupRecovery() {
       trigger: form.trigger,
       delayMinutes: parseInt(form.delayMinutes, 10) || 60,
       message: form.message.trim(),
-      maxAttempts: parseInt(form.maxAttempts, 10) || 3,
+      maxAttempts: isMorningRule ? 1 : parseInt(form.maxAttempts, 10) || 3,
       cooldownMinutes: parseInt(form.cooldownMinutes, 10) || 1440,
+      ...(isMorningRule ? { conditions: { sendAt: form.sendAt, timezone: 'Asia/Kolkata' } } : {}),
     };
 
     setSavingRule(true);
@@ -253,7 +279,7 @@ export function FollowupRecovery() {
   const handleOpenSendModal = (user: DroppedUser) => {
     setSendTargetUser(user);
     setCustomFollowupMessage(
-      `Hi ${user.chatName || 'there'}, we noticed you hadn't replied yet. Is there anything we can assist you with regarding your inquiry?`
+      `Hi ${user.chatName || 'there'}, we noticed you hadn't replied yet. Is there anything we can assist you with regarding your inquiry?`,
     );
   };
 
@@ -283,8 +309,7 @@ export function FollowupRecovery() {
 
   const filteredRules = rules.filter(r => {
     const matchesSearch =
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.message.toLowerCase().includes(search.toLowerCase());
+      r.name.toLowerCase().includes(search.toLowerCase()) || r.message.toLowerCase().includes(search.toLowerCase());
     const matchesTrigger = triggerFilter === 'all' || r.trigger === triggerFilter;
     return matchesSearch && matchesTrigger;
   });
@@ -320,9 +345,7 @@ export function FollowupRecovery() {
             <div className="fr-stat-top">
               <div>
                 <div className="fr-stat-label">Total Rules</div>
-                <div className="fr-stat-value">
-                  {stats.totalRules}
-                </div>
+                <div className="fr-stat-value">{stats.totalRules}</div>
               </div>
               <div className="fr-stat-icon blue">
                 <Zap size={22} />
@@ -337,17 +360,13 @@ export function FollowupRecovery() {
             <div className="fr-stat-top">
               <div>
                 <div className="fr-stat-label">Follow-ups Sent</div>
-                <div className="fr-stat-value">
-                  {stats.totalSent}
-                </div>
+                <div className="fr-stat-value">{stats.totalSent}</div>
               </div>
               <div className="fr-stat-icon purple">
                 <Send size={22} />
               </div>
             </div>
-            <div className="fr-stat-footer">
-              Across all dropped WhatsApp leads
-            </div>
+            <div className="fr-stat-footer">Across all dropped WhatsApp leads</div>
           </div>
 
           <div className="fr-stat-card">
@@ -362,9 +381,7 @@ export function FollowupRecovery() {
                 <CheckCircle2 size={22} />
               </div>
             </div>
-            <div className="fr-stat-footer">
-              Re-engaged into active conversations
-            </div>
+            <div className="fr-stat-footer">Re-engaged into active conversations</div>
           </div>
 
           <div className="fr-stat-card">
@@ -395,24 +412,15 @@ export function FollowupRecovery() {
       {/* Tabs and Controls */}
       <div className="fr-toolbar">
         <div className="fr-tabs-group">
-          <button
-            className={`fr-tab-btn ${tab === 'rules' ? 'active' : ''}`}
-            onClick={() => setTab('rules')}
-          >
+          <button className={`fr-tab-btn ${tab === 'rules' ? 'active' : ''}`} onClick={() => setTab('rules')}>
             <Zap size={16} />
             Rules <span className="fr-tab-badge">{rules.length}</span>
           </button>
-          <button
-            className={`fr-tab-btn ${tab === 'dropped' ? 'active' : ''}`}
-            onClick={() => setTab('dropped')}
-          >
+          <button className={`fr-tab-btn ${tab === 'dropped' ? 'active' : ''}`} onClick={() => setTab('dropped')}>
             <Clock size={16} />
             Dropped Users <span className="fr-tab-badge">{droppedUsers.length}</span>
           </button>
-          <button
-            className={`fr-tab-btn ${tab === 'stats' ? 'active' : ''}`}
-            onClick={() => setTab('stats')}
-          >
+          <button className={`fr-tab-btn ${tab === 'stats' ? 'active' : ''}`} onClick={() => setTab('stats')}>
             <TrendingUp size={16} />
             Funnel Insights
           </button>
@@ -465,9 +473,20 @@ export function FollowupRecovery() {
           {filteredRules.length === 0 ? (
             <div className="fr-empty-state">
               <div className="fr-empty-icon">⚡</div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>No Follow-up Rules Found</h3>
-              <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', maxWidth: 460, margin: '0 auto 20px auto', lineHeight: 1.5 }}>
-                Create automated recovery rules to detect when users drop out and automatically send timely WhatsApp messages.
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>
+                No Follow-up Rules Found
+              </h3>
+              <p
+                style={{
+                  fontSize: 13.5,
+                  color: 'var(--text-secondary)',
+                  maxWidth: 460,
+                  margin: '0 auto 20px auto',
+                  lineHeight: 1.5,
+                }}
+              >
+                Create automated recovery rules to detect when users drop out and automatically send timely WhatsApp
+                messages.
               </p>
               <button className="btn btn-primary" onClick={openCreate}>
                 <Plus size={16} /> Create Your First Rule
@@ -490,19 +509,37 @@ export function FollowupRecovery() {
                           {triggerInfo.icon} {triggerInfo.label}
                         </span>
                         <span className="fr-delay-tag">
-                          <Clock size={13} /> Wait {formatIdle(r.delayMinutes)}
+                          <Clock size={13} />{' '}
+                          {r.trigger === LEAD_MORNING
+                            ? `Daily at ${ruleSendAt(r)}`
+                            : `Wait ${formatIdle(r.delayMinutes)}`}
                         </span>
                       </div>
 
-                      <div className="fr-rule-message-box">
-                        💬 &ldquo;{r.message}&rdquo;
-                      </div>
+                      <div className="fr-rule-message-box">💬 &ldquo;{r.message}&rdquo;</div>
 
                       <div className="fr-rule-stats-bar">
-                        <span>Max attempts: <strong style={{ color: 'var(--text-primary)' }}>{r.maxAttempts}</strong></span>
-                        <span>Cooldown: <strong style={{ color: 'var(--text-primary)' }}>{formatIdle(r.cooldownMinutes)}</strong></span>
-                        <span>Sent: <strong style={{ color: 'var(--text-primary)' }}>{r.totalSent}</strong></span>
-                        <span style={{ color: '#10b981' }}>Recovered: <strong>{r.totalRecovered}</strong></span>
+                        {r.trigger === LEAD_MORNING ? (
+                          <span>
+                            Sends: <strong style={{ color: 'var(--text-primary)' }}>once per lead</strong>
+                          </span>
+                        ) : (
+                          <>
+                            <span>
+                              Max attempts: <strong style={{ color: 'var(--text-primary)' }}>{r.maxAttempts}</strong>
+                            </span>
+                            <span>
+                              Cooldown:{' '}
+                              <strong style={{ color: 'var(--text-primary)' }}>{formatIdle(r.cooldownMinutes)}</strong>
+                            </span>
+                          </>
+                        )}
+                        <span>
+                          Sent: <strong style={{ color: 'var(--text-primary)' }}>{r.totalSent}</strong>
+                        </span>
+                        <span style={{ color: '#10b981' }}>
+                          Recovered: <strong>{r.totalRecovered}</strong>
+                        </span>
                         {r.totalSent > 0 && (
                           <span style={{ color: '#f59e0b', fontWeight: 700 }}>
                             ({Math.round((r.totalRecovered / r.totalSent) * 100)}% recovery)
@@ -521,11 +558,7 @@ export function FollowupRecovery() {
                         {r.enabled ? <Pause size={14} /> : <Play size={14} />}
                         {r.enabled ? 'Pause' : 'Activate'}
                       </button>
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => openEdit(r)}
-                        title="Edit rule"
-                      >
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(r)} title="Edit rule">
                         <Edit2 size={14} />
                       </button>
                       <button
@@ -549,7 +582,9 @@ export function FollowupRecovery() {
         <div>
           {/* Quick Idle Filter */}
           <div className="fr-filter-pills" style={{ alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginRight: 4 }}>Filter idle:</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, marginRight: 4 }}>
+              Filter idle:
+            </span>
             {[
               { label: 'All Idle', val: null },
               { label: '> 30m', val: 30 },
@@ -570,7 +605,9 @@ export function FollowupRecovery() {
           {filteredUsers.length === 0 ? (
             <div className="fr-empty-state">
               <div className="fr-empty-icon">🎉</div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>No Inactive Dropped Leads</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px 0', color: 'var(--text-primary)' }}>
+                No Inactive Dropped Leads
+              </h3>
               <p style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
                 All conversations are currently active or resolved within normal interaction timeframes.
               </p>
@@ -593,7 +630,8 @@ export function FollowupRecovery() {
                           </span>
                         </div>
                         <div className="fr-user-meta">
-                          Chat ID: <code>{user.chatId}</code> &bull; Session: <code>{user.sessionId}</code> &bull; Last seen: {new Date(user.lastMessageAt).toLocaleString()}
+                          Chat ID: <code>{user.chatId}</code> &bull; Session: <code>{user.sessionId}</code> &bull; Last
+                          seen: {new Date(user.lastMessageAt).toLocaleString()}
                         </div>
                       </div>
                     </div>
@@ -624,7 +662,9 @@ export function FollowupRecovery() {
               <div className="fr-funnel-step">
                 <div className="fr-funnel-header">
                   <span>1. Dropped / Idle Opportunities Detected</span>
-                  <strong style={{ color: 'var(--text-primary)' }}>{stats.totalSent + droppedUsers.length} Leads</strong>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    {stats.totalSent + droppedUsers.length} Leads
+                  </strong>
                 </div>
                 <div className="fr-funnel-track">
                   <div className="fr-funnel-fill" style={{ width: '100%', background: '#3b82f6' }} />
@@ -670,9 +710,19 @@ export function FollowupRecovery() {
               💡 Best Practices for High WhatsApp Re-engagement
             </h3>
             <ul style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.7, margin: 0, paddingLeft: 20 }}>
-              <li><strong style={{ color: 'var(--text-primary)' }}>Timeliness:</strong> Re-engaging within 15–60 minutes results in 4x higher recovery rates than waiting 24 hours.</li>
-              <li><strong style={{ color: 'var(--text-primary)' }}>Open-ended Questions:</strong> Ask a specific question (e.g. &ldquo;Did you prefer Option A or Option B?&rdquo;) rather than just saying &ldquo;Are you there?&rdquo;</li>
-              <li><strong style={{ color: 'var(--text-primary)' }}>Respect Quiet Hours:</strong> Ensure your cooldown is at least 12–24 hours so users are never spammed.</li>
+              <li>
+                <strong style={{ color: 'var(--text-primary)' }}>Timeliness:</strong> Re-engaging within 15–60 minutes
+                results in 4x higher recovery rates than waiting 24 hours.
+              </li>
+              <li>
+                <strong style={{ color: 'var(--text-primary)' }}>Open-ended Questions:</strong> Ask a specific question
+                (e.g. &ldquo;Did you prefer Option A or Option B?&rdquo;) rather than just saying &ldquo;Are you
+                there?&rdquo;
+              </li>
+              <li>
+                <strong style={{ color: 'var(--text-primary)' }}>Respect Quiet Hours:</strong> Ensure your cooldown is
+                at least 12–24 hours so users are never spammed.
+              </li>
             </ul>
           </div>
         </div>
@@ -695,7 +745,17 @@ export function FollowupRecovery() {
                   borderRadius: 12,
                 }}
               >
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: 'var(--primary)',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
                   <Sparkles size={15} /> Quick-Start Blueprints
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -714,7 +774,16 @@ export function FollowupRecovery() {
               </div>
             )}
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
               Rule Name *
               <input
                 className="input"
@@ -725,7 +794,16 @@ export function FollowupRecovery() {
             </label>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
                 Trigger Type *
                 <select
                   className="input"
@@ -740,22 +818,56 @@ export function FollowupRecovery() {
                 </select>
               </label>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                Delay (minutes) *
-                <input
-                  className="input"
-                  type="number"
-                  value={form.delayMinutes}
-                  onChange={e => setForm(f => ({ ...f, delayMinutes: e.target.value }))}
-                  min="1"
-                />
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {isMorningRule ? (
+                  <>
+                    Send Time (India) *
+                    <input
+                      className="input"
+                      type="time"
+                      value={form.sendAt}
+                      onChange={e => setForm(f => ({ ...f, sendAt: e.target.value }))}
+                    />
+                  </>
+                ) : (
+                  <>
+                    Delay (minutes) *
+                    <input
+                      className="input"
+                      type="number"
+                      value={form.delayMinutes}
+                      onChange={e => setForm(f => ({ ...f, delayMinutes: e.target.value }))}
+                      min="1"
+                    />
+                  </>
+                )}
               </label>
             </div>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Recovery Message *</span>
-                <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 400 }}>Variables: <code>{'{{name}}'}</code></span>
+                <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 400 }}>
+                  Variables: <code>{'{{name}}'}</code>
+                </span>
               </div>
               <textarea
                 className="input"
@@ -767,8 +879,24 @@ export function FollowupRecovery() {
               />
             </label>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {isMorningRule && (
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+                Every new lead gets this message only once, on the first morning after they message you, and only if
+                they have not written again that day. Leads from before this rule was created are skipped.
+              </div>
+            )}
+
+            <div style={{ display: isMorningRule ? 'none' : 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
                 Max Follow-up Attempts
                 <input
                   className="input"
@@ -780,7 +908,16 @@ export function FollowupRecovery() {
                 />
               </label>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                }}
+              >
                 Cooldown (minutes)
                 <input
                   className="input"
@@ -795,7 +932,16 @@ export function FollowupRecovery() {
             {/* Live WhatsApp Preview */}
             {form.message && (
               <div className="fr-preview-box">
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    fontWeight: 700,
+                    marginBottom: 8,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                  }}
+                >
                   WhatsApp Message Preview
                 </div>
                 <div className="fr-preview-bubble">
@@ -845,8 +991,8 @@ export function FollowupRecovery() {
             >
               <Clock size={16} color="#f59e0b" style={{ flexShrink: 0 }} />
               <span>
-                User has been inactive for <strong>{formatIdle(sendTargetUser.minutesIdle)}</strong>. Last activity was at{' '}
-                {new Date(sendTargetUser.lastMessageAt).toLocaleTimeString()}.
+                User has been inactive for <strong>{formatIdle(sendTargetUser.minutesIdle)}</strong>. Last activity was
+                at {new Date(sendTargetUser.lastMessageAt).toLocaleTimeString()}.
               </span>
             </div>
 
@@ -869,7 +1015,16 @@ export function FollowupRecovery() {
               </div>
             </div>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
               Message Content *
               <textarea
                 className="input"
@@ -883,7 +1038,16 @@ export function FollowupRecovery() {
 
             {/* WhatsApp Preview Bubble */}
             <div className="fr-preview-box">
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-muted)',
+                  fontWeight: 700,
+                  marginBottom: 8,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
                 WhatsApp Outgoing Preview
               </div>
               <div className="fr-preview-bubble">
@@ -895,7 +1059,11 @@ export function FollowupRecovery() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button className="btn btn-secondary" onClick={() => setSendTargetUser(null)} disabled={isSendingFollowup}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setSendTargetUser(null)}
+                disabled={isSendingFollowup}
+              >
                 {t('common.cancel', 'Cancel')}
               </button>
               <button

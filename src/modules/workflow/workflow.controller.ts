@@ -1,10 +1,26 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpCode, HttpStatus, BadRequestException, Optional } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+  Optional,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
 import { AgentService } from './agent.service';
 import { LeadService } from './lead.service';
 import { CreateWorkflowDto, UpdateWorkflowDto, TestWebhookDto } from './dto/workflow.dto';
+import { UpdateLeadStatusDto } from './dto/lead.dto';
+import { LeadStatus } from './entities/lead.entity';
 import { WorkflowStatus, TriggerType } from './entities/workflow-definition.entity';
 import { RunStatus } from './entities/workflow-run.entity';
 import { RequireRole, CurrentApiKey } from '../auth/decorators/auth.decorators';
@@ -37,10 +53,23 @@ export class WorkflowController {
   }
 
   @Get('leads/list')
-  @ApiOperation({ summary: 'List captured insurance & mutual fund advisory leads' })
-  async listLeads(@CurrentApiKey() apiKey: ApiKey) {
+  @ApiOperation({ summary: 'List captured leads with their follow-up state' })
+  @ApiQuery({ name: 'status', required: false, enum: LeadStatus })
+  async listLeads(@CurrentApiKey() apiKey: ApiKey, @Query('status') status?: string) {
     if (!this.leadService) return [];
-    return this.leadService.listLeads(this.getBusinessId(apiKey) || undefined);
+    if (status && !Object.values(LeadStatus).includes(status as LeadStatus)) {
+      throw new BadRequestException(`Invalid lead status: ${status}`);
+    }
+    return this.leadService.listLeads(this.getBusinessId(apiKey) || undefined, status as LeadStatus | undefined);
+  }
+
+  @Patch('leads/:id/status')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Change a lead status (e.g. new → contacted → closed)' })
+  @ApiParam({ name: 'id', description: 'Lead ID' })
+  async updateLeadStatus(@CurrentApiKey() apiKey: ApiKey, @Param('id') id: string, @Body() dto: UpdateLeadStatusDto) {
+    if (!this.leadService) throw new BadRequestException('Leads are not available');
+    return this.leadService.updateLeadStatus(id, dto.status, this.getBusinessId(apiKey) || undefined);
   }
 
   @Post('presets/seed-insurance')

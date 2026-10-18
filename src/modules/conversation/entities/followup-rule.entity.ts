@@ -6,6 +6,7 @@ export enum FollowupTrigger {
   CONVERSATION_IDLE = 'conversation_idle',
   CART_ABANDONED = 'cart_abandoned',
   FORM_INCOMPLETE = 'form_incomplete',
+  LEAD_MORNING = 'lead_morning',
 }
 
 @Entity('followup_rules')
