@@ -525,6 +525,94 @@ export class AiService implements OnModuleInit {
     throw lastError ?? new Error('All Groq keys failed to process request');
   }
 
+  /**
+   * Streamed Groq chat completion over the same key pool. Yields text as it arrives; keys rotate only
+   * before the first token, so a reply is never stitched together from two answers.
+   */
+  async *streamComplete(
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    options: {
+      model?: string;
+      maxTokens?: number;
+      temperature?: number;
+      reasoningEffort?: 'low' | 'medium' | 'high';
+      signal?: AbortSignal;
+    } = {},
+  ): AsyncGenerator<string> {
+    const keys = this.getGroqApiKeys();
+    if (keys.length === 0) {
+      throw new Error('No Groq API keys configured. Set GROQ_API_KEY in .env or settings.');
+    }
+    const payload = {
+      model: options.model || process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
+      messages,
+      max_tokens: options.maxTokens ?? 400,
+      temperature: options.temperature ?? 0.7,
+      stream: true,
+      ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort, include_reasoning: false } : {}),
+    };
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const keyIndex = (this.groqKeyIndex + attempt) % keys.length;
+      const signals = [AbortSignal.timeout(30000), ...(options.signal ? [options.signal] : [])];
+      let response: Response;
+      try {
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${keys[keyIndex]}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.any(signals),
+        });
+      } catch (err) {
+        if (options.signal?.aborted) return;
+        lastError = err instanceof Error ? err : new Error(String(err));
+        continue;
+      }
+      if (response.status === 429) {
+        this.logger.warn(`Groq rate limited (429) on key [${keyIndex + 1}/${keys.length}]. Rotating to next key.`);
+        continue;
+      }
+      if (!response.ok || !response.body) {
+        const errText = await response.text().catch(() => '');
+        if (response.status === 413 || response.status === 400) {
+          throw new NonRetryableAiError(`Groq HTTP ${response.status}: ${errText}`);
+        }
+        lastError = new Error(`Groq HTTP ${response.status}: ${errText}`);
+        continue;
+      }
+
+      this.groqKeyIndex = (keyIndex + 1) % keys.length;
+      const decoder = new TextDecoder();
+      let buffered = '';
+      try {
+        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+          buffered += decoder.decode(chunk, { stream: true });
+          let newline: number;
+          while ((newline = buffered.indexOf('\n')) >= 0) {
+            const line = buffered.slice(0, newline).trim();
+            buffered = buffered.slice(newline + 1);
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (data === '[DONE]') return;
+            try {
+              const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+              const text = parsed.choices?.[0]?.delta?.content;
+              if (text) yield text;
+            } catch {
+              // a keep-alive or partial line; the next chunk completes it
+            }
+          }
+        }
+      } catch (err) {
+        if (options.signal?.aborted) return;
+        throw err;
+      }
+      return;
+    }
+    throw lastError ?? new Error('All Groq keys failed to process request');
+  }
+
   private async callProvider(
     config: AiConfig,
     request: AiChatRequest,

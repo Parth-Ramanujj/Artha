@@ -54,6 +54,7 @@
     "toggleTo": "切换到{{value}}"
   },
   "nav": {
+    "aiCalling": "AI 外呼",
     "dashboard": "仪表盘",
     "sessions": "会话",
     "chats": "聊天",

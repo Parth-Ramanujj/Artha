@@ -43,6 +43,7 @@ import {
   UserSearch,
   TrendingUp,
   Target,
+  PhoneCall,
   Sparkles,
   ShoppingBag,
   ShieldAlert,
@@ -91,6 +92,7 @@ const allNavItems = [
   { to: '/followup', icon: UserSearch, key: 'followup' as const, adminOnly: false },
   { to: '/sales-pipeline', icon: TrendingUp, key: 'salesPipeline' as const, adminOnly: false },
   { to: '/leads', icon: Target, key: 'leads' as const, adminOnly: false },
+  { to: '/ai-calling', icon: PhoneCall, key: 'aiCalling' as const, adminOnly: false },
   { to: '/ai-agents', icon: Sparkles, key: 'aiAgents' as const, adminOnly: false },
   { to: '/commerce', icon: ShoppingBag, key: 'commerce' as const, adminOnly: false },
   { to: '/roles', icon: ShieldAlert, key: 'roles' as const, adminOnly: true },
@@ -106,6 +108,8 @@ const navSections: { id: string; paths: string[] }[] = [
     paths: [
       '/chats',
       '/leads',
+
+      '/ai-calling',
       '/sales-pipeline',
       '/conversations',
       '/canned-responses',

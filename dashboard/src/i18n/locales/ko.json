@@ -54,6 +54,7 @@
     "toggleTo": "{{value}}(으)로 전환"
   },
   "nav": {
+    "aiCalling": "AI 전화",
     "dashboard": "대시보드",
     "sessions": "세션",
     "chats": "채팅",

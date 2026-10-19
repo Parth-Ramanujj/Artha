@@ -31,6 +31,8 @@ export default defineConfig({
         target: 'http://localhost:2785',
         changeOrigin: true,
         secure: false,
+        // AI calling's browser test call streams audio over a websocket under /api.
+        ws: true,
       },
       // Proxy the WebSocket (socket.io) transport so the dashboard's real-time
       // chats/sessions streams work against the dev backend.

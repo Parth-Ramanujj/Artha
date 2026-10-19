@@ -54,6 +54,7 @@
     "toggleTo": "Passer à {{value}}"
   },
   "nav": {
+    "aiCalling": "Appels IA",
     "dashboard": "Tableau de bord",
     "sessions": "Sessions",
     "chats": "Discussions",

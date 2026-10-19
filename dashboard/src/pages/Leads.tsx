@@ -1,7 +1,25 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, RefreshCw, Search, Target, UserPlus, PhoneCall, Send, MessageCircle, Flame } from 'lucide-react';
-import { leadApi, type Lead, type LeadInterest, type LeadStatus, type LeadTemperature } from '../services/api';
+import {
+  Loader2,
+  RefreshCw,
+  Search,
+  Target,
+  UserPlus,
+  PhoneCall,
+  PhoneOutgoing,
+  Send,
+  MessageCircle,
+  Flame,
+} from 'lucide-react';
+import {
+  aiCallingApi,
+  leadApi,
+  type Lead,
+  type LeadInterest,
+  type LeadStatus,
+  type LeadTemperature,
+} from '../services/api';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
 
@@ -115,6 +133,7 @@ export function Leads() {
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | 'all'>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [callingId, setCallingId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -159,6 +178,23 @@ export function Leads() {
       toast.error(err instanceof Error ? err.message : 'Failed to update lead');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const aiCall = async (lead: Lead) => {
+    setCallingId(lead.id);
+    try {
+      const call = await aiCallingApi.queueCall({
+        phone: lead.customerPhone,
+        name: lead.customerName ?? undefined,
+        leadId: lead.id,
+      });
+      if (call.status === 'skipped') toast.error(`${lead.leadNumber} opted out (DND), so the AI will not call`);
+      else toast.success(`AI call queued for ${lead.customerName || lead.leadNumber} — see AI Calling for the result`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not queue the AI call');
+    } finally {
+      setCallingId(null);
     }
   };
 
@@ -287,7 +323,7 @@ export function Leads() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 1040 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 1160 }}>
             <thead>
               <tr>
                 <th style={headStyle}>Lead</th>
@@ -297,6 +333,7 @@ export function Leads() {
                 <th style={headStyle}>Received</th>
                 <th style={headStyle}>Morning follow-up</th>
                 <th style={headStyle}>Status</th>
+                <th style={headStyle}>AI call</th>
               </tr>
             </thead>
             <tbody>
@@ -419,6 +456,22 @@ export function Leads() {
                         </option>
                       ))}
                     </select>
+                  </td>
+                  <td style={cellStyle}>
+                    <button
+                      className="btn-secondary"
+                      disabled={!lead.customerPhone || callingId === lead.id}
+                      onClick={() => void aiCall(lead)}
+                      title={lead.customerPhone ? 'Have the AI agent call this lead' : 'WhatsApp hid this number'}
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {callingId === lead.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <PhoneOutgoing size={14} />
+                      )}{' '}
+                      AI Call
+                    </button>
                   </td>
                 </tr>
               ))}

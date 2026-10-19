@@ -54,6 +54,7 @@
     "toggleTo": "切換到{{value}}"
   },
   "nav": {
+    "aiCalling": "AI 外撥",
     "dashboard": "控制面板",
     "sessions": "工作階段",
     "chats": "聊天",

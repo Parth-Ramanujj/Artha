@@ -54,6 +54,7 @@
     "toggleTo": "Cambiar a {{value}}"
   },
   "nav": {
+    "aiCalling": "Llamadas con IA",
     "dashboard": "Panel",
     "sessions": "Sesiones",
     "chats": "Chats",

@@ -54,6 +54,7 @@
     "toggleTo": "עבור ל{{value}}"
   },
   "nav": {
+    "aiCalling": "שיחות AI",
     "dashboard": "דאשבורד",
     "sessions": "Sessions",
     "chats": "שיחות",

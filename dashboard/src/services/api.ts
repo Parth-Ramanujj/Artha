@@ -1516,6 +1516,181 @@ export const leadApi = {
     }),
 };
 
+// ── AI calling agent ──
+
+export type AiCallStatus =
+  | 'queued'
+  | 'dialing'
+  | 'ringing'
+  | 'in_progress'
+  | 'completed'
+  | 'no_answer'
+  | 'busy'
+  | 'failed'
+  | 'canceled'
+  | 'skipped';
+
+export type AiCallOutcome =
+  | 'interested'
+  | 'callback'
+  | 'not_interested'
+  | 'wrong_number'
+  | 'do_not_call'
+  | 'no_conversation';
+
+export interface AiCallTurn {
+  role: 'agent' | 'customer';
+  text: string;
+  at: string;
+  language?: string;
+  interrupted?: boolean;
+}
+
+export interface AiCall {
+  id: string;
+  agentId: string;
+  batchId: string | null;
+  leadId: string | null;
+  phone: string;
+  contactName: string | null;
+  channel: 'phone' | 'browser';
+  status: AiCallStatus;
+  attempts: number;
+  nextAttemptAt: string | null;
+  startedAt: string | null;
+  answeredAt: string | null;
+  endedAt: string | null;
+  durationSeconds: number;
+  language: string | null;
+  transcript: AiCallTurn[] | null;
+  summary: string | null;
+  sentiment: 'positive' | 'neutral' | 'negative' | null;
+  outcome: AiCallOutcome | null;
+  extracted: {
+    name?: string | null;
+    interest?: string | null;
+    need?: string | null;
+    pincode?: string | null;
+    city?: string | null;
+    callbackTime?: string | null;
+    notes?: string | null;
+  } | null;
+  isVerifiedLead: boolean;
+  leadTemperature: 'hot' | 'warm' | 'cold' | null;
+  whatsappSentAt: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface VoiceAgent {
+  id: string;
+  name: string;
+  personaName: string;
+  companyName: string;
+  greeting: string;
+  script: string;
+  verifiedLeadCriteria: string;
+  defaultLanguage: 'gu-IN' | 'hi-IN';
+  gujaratiVoice: string;
+  hindiVoice: string;
+  pace: number;
+  model: string;
+  maxCallSeconds: number;
+  concurrency: number;
+  maxAttempts: number;
+  retryAfterMinutes: number;
+  callingStart: string;
+  callingEnd: string;
+  callingTimezone: string;
+  whatsappFollowup: boolean;
+  whatsappMessage: string | null;
+  whatsappSessionId: string | null;
+  isDefault: boolean;
+}
+
+export interface AiCallBatch {
+  id: string;
+  agentId: string;
+  name: string;
+  source: 'upload' | 'leads';
+  status: 'running' | 'paused' | 'completed' | 'canceled';
+  totalContacts: number;
+  sendWhatsapp: boolean;
+  createdAt: string;
+  counts: Partial<Record<AiCallStatus, number>>;
+  verified: number;
+}
+
+export interface AiCallingSetup {
+  sarvamKey: boolean;
+  groqKey: boolean;
+  twilioConfigured: boolean;
+  twilioAccountType: string | null;
+  twilioNumberOwned: boolean | null;
+  twilioVerifiedCallerIds: number | null;
+  twilioError: string | null;
+  publicUrl: string | null;
+  publicUrlReachable: boolean | null;
+  readyForPhoneCalls: boolean;
+}
+
+export interface CallContact {
+  phone: string;
+  name: string | null;
+}
+
+export const aiCallingApi = {
+  setup: () => request<AiCallingSetup>('/ai-calling/setup'),
+  setPublicUrl: (url: string) =>
+    request<{ publicUrl: string | null }>('/ai-calling/public-url', { method: 'PUT', body: JSON.stringify({ url }) }),
+  stats: () => request<Partial<Record<AiCallStatus | 'verified', number>>>('/ai-calling/stats'),
+  agents: () => request<VoiceAgent[]>('/ai-calling/agents'),
+  updateAgent: (id: string, change: Partial<VoiceAgent>) =>
+    request<VoiceAgent>(`/ai-calling/agents/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(change) }),
+  calls: (filters: { status?: string; verified?: boolean; batchId?: string; search?: string; limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== '') qs.set(k, String(v));
+    const query = qs.toString();
+    return request<{ items: AiCall[]; total: number }>(`/ai-calling/calls${query ? `?${query}` : ''}`);
+  },
+  call: (id: string) => request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}`),
+  queueCall: (input: { phone: string; name?: string; agentId?: string; leadId?: string }) =>
+    request<AiCall>('/ai-calling/calls', { method: 'POST', body: JSON.stringify(input) }),
+  cancelCall: (id: string) => request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  sendWhatsapp: (id: string) => request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}/whatsapp`, { method: 'POST' }),
+  previewUpload: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<{ contacts: CallContact[]; invalid: number; duplicates: number }>('/ai-calling/uploads/preview', {
+      method: 'POST',
+      body: form,
+    });
+  },
+  createBatch: (input: { name: string; agentId?: string; contacts: CallContact[]; sendWhatsapp?: boolean; source?: 'upload' | 'leads' }) =>
+    request<AiCallBatch & { queued: number; skipped: number }>('/ai-calling/batches', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  batches: () => request<AiCallBatch[]>('/ai-calling/batches'),
+  batchAction: (id: string, action: 'pause' | 'resume' | 'cancel') =>
+    request<AiCallBatch>(`/ai-calling/batches/${encodeURIComponent(id)}/action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
+  startTestCall: (agentId?: string) =>
+    request<{ callId: string; token: string; path: string }>('/ai-calling/test-call', {
+      method: 'POST',
+      body: JSON.stringify(agentId ? { agentId } : {}),
+    }),
+  testCalls: () => request<AiCall[]>('/ai-calling/test-calls'),
+};
+
+/** ws:// or wss:// URL for an API websocket path, honouring VITE_API_URL like API_BASE_URL does. */
+export function apiWebSocketUrl(path: string): string {
+  const base = API_ORIGIN || window.location.origin;
+  return `${base.replace(/^http/i, 'ws')}${path}`;
+}
+
 export interface TestWebhookResult {
   success: boolean;
   statusCode: number;

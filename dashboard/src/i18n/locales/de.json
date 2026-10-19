@@ -54,6 +54,7 @@
     "toggleTo": "Zu {{value}} wechseln"
   },
   "nav": {
+    "aiCalling": "KI-Anrufe",
     "dashboard": "Dashboard",
     "sessions": "Sitzungen",
     "chats": "Chats",

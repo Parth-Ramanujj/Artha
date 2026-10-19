@@ -939,7 +939,7 @@ export function ChatbotTraining() {
                   className="input"
                   value={config.model}
                   onChange={e => setConfig({ ...config, model: e.target.value })}
-                  placeholder="e.g. llama-3.3-70b-versatile or gpt-4o"
+                  placeholder="e.g. openai/gpt-oss-120b or gpt-4o"
                 />
               </label>
             </div>

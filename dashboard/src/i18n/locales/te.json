@@ -54,6 +54,7 @@
     "toggleTo": "{{value}}కి మారండి"
   },
   "nav": {
+    "aiCalling": "AI కాలింగ్",
     "dashboard": "డ్యాష్‌బోర్డ్",
     "sessions": "సెషన్స్",
     "chats": "చాట్‌లు",
