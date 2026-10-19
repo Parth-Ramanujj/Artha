@@ -5,6 +5,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -218,12 +219,11 @@ export class AiCallingTwilioController {
   constructor(
     private readonly calling: AiCallingService,
     private readonly dialer: DialerService,
+    private readonly runner: CallRunnerService,
   ) {}
 
-  @Public()
-  @Post('status')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async status(@Body() body: Record<string, string>, @Req() req: express.Request): Promise<void> {
+  /** Every Twilio request carries an HMAC of the exact URL it called; reject anything else. */
+  private async assertFromTwilio(body: Record<string, string>, req: express.Request, what: string): Promise<void> {
     const twilio = twilioConfigFromEnv();
     const publicUrl = await this.calling.getPublicUrl();
     const signature = req.headers['x-twilio-signature'];
@@ -237,9 +237,54 @@ export class AiCallingTwilioController {
         typeof signature === 'string' ? signature : undefined,
       )
     ) {
-      this.logger.warn('Rejected a Twilio status callback with a bad signature');
+      this.logger.warn(`Rejected a Twilio ${what} request with a bad signature`, {
+        signedUrl: publicUrl ? `${publicUrl}${req.originalUrl.replace(/key=[^&]+/, 'key=…')}` : null,
+        params: Object.keys(body ?? {})
+          .sort()
+          .join(','),
+      });
       throw new ForbiddenException('Invalid Twilio signature');
     }
+  }
+
+  @Public()
+  @Post('twiml')
+  @HttpCode(HttpStatus.OK)
+  @Header('Content-Type', 'text/xml')
+  async twiml(
+    @Body() body: Record<string, string>,
+    @Query('callId') callId: string | undefined,
+    @Query('key') key: string | undefined,
+    @Req() req: express.Request,
+  ): Promise<string> {
+    // The URL carries a key only we can make for this call; Twilio's signature is the fallback.
+    if (!this.runner.tokens.isCallKey(callId, key)) await this.assertFromTwilio(body, req, 'TwiML');
+    return this.dialer.twimlFor(callId);
+  }
+
+  /** Twilio Media Stream events for a call; logged, because a stream error is otherwise invisible. */
+  @Public()
+  @Post('stream-status')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async streamStatus(
+    @Body() body: Record<string, string>,
+    @Query('callId') callId: string | undefined,
+    @Query('key') key: string | undefined,
+    @Req() req: express.Request,
+  ): Promise<void> {
+    if (!this.runner.tokens.isCallKey(callId, key)) await this.assertFromTwilio(body, req, 'stream status');
+    const event = body?.StreamEvent ?? 'unknown';
+    const detail = body?.StreamError ? ` — ${body.StreamError}` : '';
+    if (event === 'stream-error') this.logger.warn(`Twilio stream error for call ${callId}${detail}`);
+    else this.logger.log(`Twilio stream ${event} for call ${callId}${detail}`);
+    await this.dialer.onStreamEvent(callId, event, body?.StreamError);
+  }
+
+  @Public()
+  @Post('status')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async status(@Body() body: Record<string, string>, @Req() req: express.Request): Promise<void> {
+    await this.assertFromTwilio(body, req, 'status callback');
     await this.dialer.onTwilioStatus(body);
   }
 }

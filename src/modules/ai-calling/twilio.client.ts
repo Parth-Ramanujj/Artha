@@ -34,12 +34,16 @@ function escapeXml(value: string): string {
   return value.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]!);
 }
 
-/** TwiML that connects the answered call to our media stream; the token travels as a stream parameter. */
-export function streamTwiml(streamUrl: string, params: Record<string, string>): string {
+/**
+ * TwiML that connects the answered call to our media stream; the token travels as a stream parameter.
+ * The <Say> after <Connect> only plays if the stream could not be opened, instead of a silent hang-up.
+ */
+export function streamTwiml(streamUrl: string, params: Record<string, string>, statusCallback?: string): string {
+  const callback = statusCallback ? ` statusCallback="${escapeXml(statusCallback)}" statusCallbackMethod="POST"` : '';
   const parameters = Object.entries(params)
     .map(([name, value]) => `<Parameter name="${escapeXml(name)}" value="${escapeXml(value)}"/>`)
     .join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${escapeXml(streamUrl)}">${parameters}</Stream></Connect></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${escapeXml(streamUrl)}"${callback}>${parameters}</Stream></Connect><Say>Sorry, the assistant could not be connected. We will call you back.</Say></Response>`;
 }
 
 /**
@@ -94,21 +98,19 @@ export class TwilioClient {
     return json;
   }
 
-  async createCall(input: {
-    to: string;
-    twiml: string;
-    statusCallback?: string;
-    timeoutSeconds?: number;
-  }): Promise<TwilioCallResult> {
+  /**
+   * Places a call whose instructions Twilio fetches from `twimlUrl` once it is answered. Only
+   * parameters trial accounts accept are sent: they reject Twiml, Method, Timeout and
+   * StatusCallbackMethod, and the defaults (POST, 60 s ring) are what we want anyway.
+   */
+  async createCall(input: { to: string; twimlUrl: string; statusCallback?: string }): Promise<TwilioCallResult> {
     const form: Record<string, string | string[]> = {
       To: input.to,
       From: this.config.fromNumber,
-      Twiml: input.twiml,
-      Timeout: String(input.timeoutSeconds ?? 30),
+      Url: input.twimlUrl,
     };
     if (input.statusCallback) {
       form.StatusCallback = input.statusCallback;
-      form.StatusCallbackMethod = 'POST';
       form.StatusCallbackEvent = ['initiated', 'ringing', 'answered', 'completed'];
     }
     const json = await this.post('/Calls.json', form);

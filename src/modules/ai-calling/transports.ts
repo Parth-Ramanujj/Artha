@@ -3,6 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import WebSocket from 'ws';
 import { CallTransport } from './call-session';
 import { wsText } from './sarvam';
+import { createLogger } from '../../common/services/logger.service';
 
 // Twilio plays what it is sent as soon as it arrives; 200 ms frames keep "clear" (barge-in) responsive.
 const TWILIO_FRAME_BYTES = 1600;
@@ -10,6 +11,18 @@ const TWILIO_FRAME_BYTES = 1600;
 /** Signs short-lived call ids, so only calls we placed (or test sessions we issued) can open a stream. */
 export class CallTokens {
   private readonly secret = randomBytes(32);
+
+  /** A key that only this server can make for a call id; put in URLs handed to Twilio for that call. */
+  callKey(callId: string): string {
+    return this.sign(`key.${callId}`);
+  }
+
+  isCallKey(callId: string | undefined, key: string | undefined): boolean {
+    if (!callId || !key) return false;
+    const expected = Buffer.from(this.callKey(callId));
+    const given = Buffer.from(key);
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  }
 
   issue(callId: string, ttlMs = 10 * 60 * 1000): string {
     const expires = Date.now() + ttlMs;
@@ -30,12 +43,25 @@ export class CallTokens {
   }
 }
 
-/** Twilio bidirectional Media Stream (mu-law 8 kHz). Emits 'start' ({ callSid, token }) first. */
+/**
+ * Twilio bidirectional Media Stream (mu-law 8 kHz). Emits 'start' ({ callSid, token }) first.
+ * Each stage of the stream is logged once (connected, start, first audio in, first audio out, stop),
+ * so a call that stays silent shows where it stopped.
+ */
 export class TwilioTransport extends EventEmitter implements CallTransport {
+  private readonly logger = createLogger('AiCallTwilioStream');
   private streamSid?: string;
+  private callSid?: string;
   private closed = false;
+  private framesIn = 0;
+  private bytesOut = 0;
+  private readonly openedAt = Date.now();
 
-  constructor(private readonly ws: WebSocket) {
+  /** endCall hangs up through the Twilio API, because closing the stream would run the TwiML after it. */
+  constructor(
+    private readonly ws: WebSocket,
+    private readonly endCall?: (callSid: string) => Promise<void>,
+  ) {
     super();
     ws.on('message', raw => this.onMessage(wsText(raw)));
     ws.on('close', () => this.onClose());
@@ -56,12 +82,19 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
       return;
     }
     switch (msg.event) {
+      case 'connected':
+        this.stage('connected');
+        break;
       case 'start':
         this.streamSid = msg.start?.streamSid ?? msg.streamSid;
-        this.emit('start', { callSid: msg.start?.callSid, token: msg.start?.customParameters?.token });
+        this.callSid = msg.start?.callSid;
+        this.stage('start', { hasToken: Boolean(msg.start?.customParameters?.token) });
+        if (!this.streamSid) this.logger.warn('Twilio start event had no streamSid; audio cannot be sent back');
+        this.emit('start', { callSid: this.callSid, token: msg.start?.customParameters?.token });
         break;
       case 'media':
         if (msg.media?.payload && (msg.media.track ?? 'inbound') === 'inbound') {
+          if (++this.framesIn === 1) this.stage('first caller audio');
           this.emit('audio', Buffer.from(msg.media.payload, 'base64'));
         }
         break;
@@ -69,9 +102,19 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
         if (msg.mark?.name) this.emit('mark', msg.mark.name);
         break;
       case 'stop':
+        this.stage('stop', { framesIn: this.framesIn, secondsOut: Math.round(this.bytesOut / 800) / 10 });
         this.onClose();
         break;
     }
+  }
+
+  private stage(name: string, extra: Record<string, unknown> = {}): void {
+    this.logger.log(`Twilio stream ${name}`, {
+      callSid: this.callSid,
+      streamSid: this.streamSid,
+      msSinceOpen: Date.now() - this.openedAt,
+      ...extra,
+    });
   }
 
   private send(payload: Record<string, unknown>): void {
@@ -81,6 +124,9 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
   }
 
   playAudio(mulaw: Buffer): void {
+    if (mulaw.length === 0) return;
+    if (this.bytesOut === 0) this.stage('first agent audio');
+    this.bytesOut += mulaw.length;
     for (let i = 0; i < mulaw.length; i += TWILIO_FRAME_BYTES) {
       this.send({ event: 'media', media: { payload: mulaw.subarray(i, i + TWILIO_FRAME_BYTES).toString('base64') } });
     }
@@ -94,10 +140,14 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
     this.send({ event: 'mark', mark: { name } });
   }
 
-  /** Closing the stream ends the <Connect> verb; with nothing after it, Twilio hangs up the call. */
   hangup(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.callSid && this.endCall) {
+      this.endCall(this.callSid).catch(err =>
+        this.logger.warn(`Could not hang up call ${this.callSid}: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }
     this.ws.close();
   }
 

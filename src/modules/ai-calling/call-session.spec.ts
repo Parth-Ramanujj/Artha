@@ -63,7 +63,7 @@ class FakeTransport extends EventEmitter implements CallTransport {
   }
 }
 
-const flush = () => new Promise(resolve => setTimeout(resolve, 15));
+const flush = () => new Promise(resolve => setTimeout(resolve, 80));
 
 function setup(
   reply: (messages: ChatMessage[], signal: AbortSignal) => AsyncIterable<string>,

@@ -75,6 +75,9 @@ export class CallSession extends EventEmitter {
   private silentPrompts = 0;
   private ended = false;
   private customerSpoke = false;
+  /** When the latest customer turn was transcribed, and what of its reply was already timed. */
+  private turnAt = 0;
+  private turnTimed = { token: false, audio: false };
 
   constructor(
     private readonly transport: CallTransport,
@@ -117,7 +120,12 @@ export class CallSession extends EventEmitter {
         pace: this.config.agent.pace,
       });
       created.on('audio', (audio: Buffer) => {
-        if (!this.ended) this.transport.playAudio(audio);
+        if (this.ended) return;
+        if (this.turnAt && !this.turnTimed.audio) {
+          this.turnTimed.audio = true;
+          this.logger.log(`Turn latency: first agent audio ${Date.now() - this.turnAt} ms after the customer's words`);
+        }
+        this.transport.playAudio(audio);
       });
       created.on('spoken', () => this.onSpoken(created));
       created.on('error', (err: Error) => this.fail(err));
@@ -211,6 +219,8 @@ export class CallSession extends EventEmitter {
       this.language = t.language;
     }
     this.record({ role: 'customer', text: t.text, language: t.language });
+    this.turnAt = Date.now();
+    this.turnTimed = { token: false, audio: false };
     if (this.endAfterSpeech) return;
     if (this.agentTalking) this.interrupt();
     void this.respond();
@@ -260,6 +270,10 @@ export class CallSession extends EventEmitter {
     try {
       for await (const chunk of this.config.reply(this.history(), generation.signal)) {
         if (generation.signal.aborted) return;
+        if (this.turnAt && !this.turnTimed.token) {
+          this.turnTimed.token = true;
+          this.logger.log(`Turn latency: first reply token ${Date.now() - this.turnAt} ms`);
+        }
         full += chunk;
         feed(false);
         if (full.includes(END_CALL_MARKER)) break;

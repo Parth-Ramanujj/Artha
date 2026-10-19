@@ -69,12 +69,14 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
           hint={
             setup.twilioNumberOwned === false
               ? 'The number in TWILIO_PHONE_NUMBER is not on this Twilio account. In the Twilio console get a phone number (trial accounts get one free) and put it in .env.'
-              : undefined
+              : setup.twilioNumberOwned === null && trial
+                ? 'Twilio does not list numbers for trial accounts, so this cannot be checked. Make sure TWILIO_PHONE_NUMBER is your Twilio number.'
+                : undefined
           }
         />
         {trial && (
           <Item
-            ok={(setup.twilioVerifiedCallerIds ?? 0) > 0}
+            ok={setup.twilioVerifiedCallerIds === null ? null : setup.twilioVerifiedCallerIds > 0}
             title="Verified numbers (trial accounts only)"
             hint="A trial account can only call numbers you verified in Twilio → Phone Numbers → Verified Caller IDs, and plays a short trial notice first. Upgrade to call anyone."
           />

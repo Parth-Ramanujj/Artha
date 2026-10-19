@@ -51,6 +51,8 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('AiCallDialer');
   private timer?: NodeJS.Timeout;
   private ticking = false;
+  /** Calls whose TwiML Twilio fetched, i.e. that got past ringing (and a trial account's key press). */
+  private readonly connecting = new Set<string>();
 
   constructor(
     @InjectRepository(AiCall, 'data') private readonly callRepo: Repository<AiCall>,
@@ -158,11 +160,9 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       active.set(agent.id, (active.get(agent.id) ?? 0) + 1);
 
       try {
-        const token = this.runner.tokens.issue(call.id);
-        const host = publicUrl.replace(/^https:\/\//i, '');
         const result = await client.createCall({
           to: call.phone,
-          twiml: streamTwiml(`wss://${host}/api/ai-calling/stream`, { token }),
+          twimlUrl: `${publicUrl}/api/ai-calling/twilio/twiml?callId=${encodeURIComponent(call.id)}&key=${this.runner.tokens.callKey(call.id)}`,
           statusCallback: `${publicUrl}/api/ai-calling/twilio/status`,
         });
         await this.callRepo.update(call.id, { twilioCallSid: result.sid });
@@ -179,6 +179,35 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     return dialled;
   }
 
+  /**
+   * TwiML for an answered call (Twilio fetches it, signature already checked): connects the call to
+   * our media stream with a fresh one-call token, or hangs up a call we did not place or no longer want.
+   */
+  async twimlFor(callId: string | undefined): Promise<string> {
+    const hangup = '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>';
+    const call = callId ? await this.callRepo.findOne({ where: { id: callId } }) : null;
+    const publicUrl = await this.calling.getPublicUrl();
+    if (!call || !publicUrl || call.channel !== 'phone' || !ACTIVE_CALL_STATUSES.includes(call.status)) return hangup;
+    const host = publicUrl.replace(/^https:\/\//i, '');
+    this.connecting.add(call.id);
+    this.logger.log(`Connecting answered call ${call.id} to the AI agent`);
+    // Twilio reports stream start, stop and errors (e.g. it could not reach the websocket) here.
+    const streamStatus = `${publicUrl}/api/ai-calling/twilio/stream-status?callId=${encodeURIComponent(call.id)}&key=${this.runner.tokens.callKey(call.id)}`;
+    return streamTwiml(
+      `wss://${host}/api/ai-calling/stream`,
+      { token: this.runner.tokens.issue(call.id) },
+      streamStatus,
+    );
+  }
+
+  /** A Twilio stream error is the real reason a call never reached the AI; keep it on the call. */
+  async onStreamEvent(callId: string | undefined, event: string, error?: string): Promise<void> {
+    if (!callId || event !== 'stream-error') return;
+    await this.callRepo.update(callId, {
+      error: `Twilio could not open the audio stream: ${error ?? 'unknown error'}`,
+    });
+  }
+
   /** Twilio status callback (already signature-checked). */
   async onTwilioStatus(params: Record<string, string>): Promise<void> {
     const sid = params.CallSid;
@@ -192,6 +221,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (status === 'completed') {
+      const reached = this.connecting.delete(call.id);
       // A live conversation saves itself when it ends; this only closes calls that never connected.
       if (!this.runner.isLive(call.id) && call.status !== AiCallStatus.COMPLETED && !call.transcript?.length) {
         await this.callRepo.update(
@@ -200,6 +230,10 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
             status: AiCallStatus.COMPLETED,
             endedAt: new Date(),
             durationSeconds: Number(params.CallDuration ?? 0) || 0,
+            // Say why the AI never spoke, so it is not a mystery in the call log.
+            error: reached
+              ? 'The call was answered but the audio stream to the AI never opened'
+              : 'The call ended before it reached the AI. On a Twilio trial account, press any key after Twilio\x27s message.',
           },
         );
       }

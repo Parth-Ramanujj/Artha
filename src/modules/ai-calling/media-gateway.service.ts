@@ -5,7 +5,14 @@ import type { Duplex } from 'stream';
 import { WebSocketServer } from 'ws';
 import { CallRunnerService } from './call-runner.service';
 import { BrowserTransport, TwilioTransport } from './transports';
+import { TwilioClient, twilioConfigFromEnv } from './twilio.client';
 import { createLogger } from '../../common/services/logger.service';
+
+/** Ends a Twilio call through the API, so the TwiML after <Connect> (the failure message) does not play. */
+async function endTwilioCall(callSid: string): Promise<void> {
+  const config = twilioConfigFromEnv();
+  if (config) await new TwilioClient(config).hangup(callSid);
+}
 
 export const TWILIO_STREAM_PATH = '/api/ai-calling/stream';
 export const BROWSER_STREAM_PATH = '/api/ai-calling/browser';
@@ -41,13 +48,25 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
   }
 
   private handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
-    const path = (req.url ?? '').split('?')[0];
+    const path = (req.url ?? '').split('?')[0].replace(/\/+$/, '');
+    if (!path.startsWith('/socket.io')) {
+      this.logger.log(
+        `Websocket upgrade request for ${path || '/'} from ${req.headers['user-agent'] ?? 'unknown client'}`,
+      );
+    }
     if (path !== TWILIO_STREAM_PATH && path !== BROWSER_STREAM_PATH) return; // socket.io and others handle theirs
     this.wss.handleUpgrade(req, socket, head, ws => {
       const browser = path === BROWSER_STREAM_PATH;
-      const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws);
+      const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws, endTwilioCall);
+      this.logger.log(`${browser ? 'Browser' : 'Twilio'} audio websocket opened`);
+      let started = false;
+      ws.once('close', code => {
+        if (!started)
+          this.logger.warn(`${browser ? 'Browser' : 'Twilio'} audio websocket closed before it started (code ${code})`);
+      });
       const timeout = setTimeout(() => ws.close(), START_TIMEOUT_MS);
       transport.once('start', ({ token }: { token?: string }) => {
+        started = true;
         clearTimeout(timeout);
         void this.runner
           .attach(token, transport, browser ? 'browser' : 'phone')

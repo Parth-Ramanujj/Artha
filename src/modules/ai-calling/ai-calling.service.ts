@@ -89,8 +89,11 @@ export class AiCallingService {
       try {
         const check = await new TwilioClient(twilio).check();
         status.twilioAccountType = check.accountType;
-        status.twilioNumberOwned = check.fromNumberOwned;
-        status.twilioVerifiedCallerIds = check.verifiedCallerIds;
+        // Trial accounts get empty phone-number and caller-id lists from the API even when both exist
+        // (calls still go through), so an empty list there means "unknown", not "missing".
+        const trial = check.accountType === 'Trial';
+        status.twilioNumberOwned = check.fromNumberOwned || (trial ? null : false);
+        status.twilioVerifiedCallerIds = check.verifiedCallerIds || (trial ? null : 0);
       } catch (err) {
         status.twilioError = err instanceof Error ? err.message : String(err);
       }
@@ -104,7 +107,7 @@ export class AiCallingService {
       status.sarvamKey &&
       status.groqKey &&
       status.twilioConfigured &&
-      status.twilioNumberOwned === true &&
+      status.twilioNumberOwned !== false &&
       status.publicUrlReachable === true;
     return status;
   }

@@ -169,8 +169,27 @@ describe('AI calling flow (SQLite)', () => {
     const body = (fetchMock.mock.calls[0] as [string, RequestInit & { body: URLSearchParams }])[1].body;
     expect(body.get('To')).toBe('+919876543210');
     expect(body.get('From')).toBe('+15550001111');
-    expect(body.get('Twiml')).toContain('wss://abc.trycloudflare.com/api/ai-calling/stream');
+    // Trial accounts reject inline TwiML, so the call points Twilio at our TwiML URL instead.
+    expect(body.get('Twiml')).toBeNull();
+    const twimlUrl = new URL(body.get('Url') ?? '');
+    expect(`${twimlUrl.origin}${twimlUrl.pathname}`).toBe('https://abc.trycloudflare.com/api/ai-calling/twilio/twiml');
+    expect(twimlUrl.searchParams.get('callId')).toBe(first.id);
+    // The URL carries a key only this server can make for this call, and only for this call.
+    expect(runner.tokens.isCallKey(first.id, twimlUrl.searchParams.get('key') ?? undefined)).toBe(true);
+    expect(runner.tokens.isCallKey(second.id, twimlUrl.searchParams.get('key') ?? undefined)).toBe(false);
     expect(body.get('StatusCallback')).toBe('https://abc.trycloudflare.com/api/ai-calling/twilio/status');
+
+    // That URL connects the answered call to the media stream with a token only this call can use.
+    const xml = await dialer.twimlFor(first.id);
+    expect(xml).toContain(
+      '<Connect><Stream url="wss://abc.trycloudflare.com/api/ai-calling/stream" statusCallback="https://abc.trycloudflare.com/api/ai-calling/twilio/stream-status?callId=',
+    );
+    const token = /name="token" value="([^"]+)"/.exec(xml)?.[1];
+    expect(runner.tokens.verify(token)).toBe(first.id);
+    // A call that is not being placed (or an unknown id) is hung up.
+    expect(await dialer.twimlFor(second.id)).toContain('<Hangup/>');
+    expect(await dialer.twimlFor('nope')).toContain('<Hangup/>');
+    expect(await dialer.twimlFor(undefined)).toContain('<Hangup/>');
   });
 
   it('does not dial a paused list, and cancelling it cancels its queue', async () => {
