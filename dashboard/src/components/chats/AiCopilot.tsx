@@ -18,11 +18,13 @@ import {
 import { aiCreditsService } from '../../services/aiCredits';
 import { useToast } from '../Toast';
 import type { ChatMessageView } from '../../utils/chatMessages';
-import { aiAssistantApi, type Chat } from '../../services/api';
+import { aiCopilotApi, messageApi, type Chat, type CopilotMessage, type CopilotTone } from '../../services/api';
 import './AiCopilot.css';
 
 interface AiCopilotProps {
   activeChat: Chat | null;
+  /** WhatsApp number (session) the chat belongs to; needed to send the catalog. */
+  sessionId?: string;
   messages: ChatMessageView[];
   currentDraft: string;
   onInsertReply: (text: string) => void;
@@ -32,6 +34,7 @@ interface AiCopilotProps {
 
 export function AiCopilot({
   activeChat,
+  sessionId,
   messages,
   currentDraft,
   onInsertReply,
@@ -40,16 +43,27 @@ export function AiCopilot({
 }: AiCopilotProps) {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<'assist' | 'tone' | 'actions'>('assist');
+  const [sendingCatalog, setSendingCatalog] = useState(false);
   const [credits, setCredits] = useState<number>(aiCreditsService.getBalance());
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isGeneratingReplies, setIsGeneratingReplies] = useState(false);
   const [isRewriting, setIsRewriting] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('gu');
 
-  // Copilot output state
+  // Copilot output state — empty until the user asks the AI; never prefilled with canned text.
   const [summary, setSummary] = useState<string>('');
-  const [sentiment, setSentiment] = useState<'positive' | 'neutral' | 'urgent'>('neutral');
+  const [sentiment, setSentiment] = useState<'positive' | 'neutral' | 'urgent' | null>(null);
   const [suggestedReplies, setSuggestedReplies] = useState<Array<{ id: string; tag: string; text: string }>>([]);
+
+  // Reset AI output when the user switches chats (render-time reset instead of an effect).
+  const chatId = activeChat?.id ?? null;
+  const [shownChatId, setShownChatId] = useState<string | null>(chatId);
+  if (shownChatId !== chatId) {
+    setShownChatId(chatId);
+    setSummary('');
+    setSentiment(null);
+    setSuggestedReplies([]);
+  }
 
   // Sync credits on global event
   useEffect(() => {
@@ -61,251 +75,137 @@ export function AiCopilot({
     return () => window.removeEventListener('ai-credits-updated', handleCreditsUpdate);
   }, []);
 
-  // Generate initial summary & replies when activeChat or messages change
-  useEffect(() => {
-    if (!activeChat || messages.length === 0) {
-      setSummary('');
-      setSuggestedReplies([]);
-      return;
-    }
+  const contactName = activeChat?.name || undefined;
+  const latestIncoming = [...messages].reverse().find(m => m.direction === 'incoming' && m.body?.trim());
 
-    // Generate intelligent default suggestions from recent conversation
-    const recentIncoming = [...messages].reverse().find(m => m.direction === 'incoming');
-    const contactName = activeChat.name || activeChat.id.split('@')[0] || 'Customer';
+  const recentMessages = (): CopilotMessage[] =>
+    messages
+      .filter(m => m.body?.trim())
+      .slice(-20)
+      .map(m => ({ role: m.direction === 'incoming' ? 'customer' : 'agent', text: m.body }));
 
-    // Auto generate summary
-    const lastIncomingText = recentIncoming?.body || '';
-
-    let detectedSentiment: 'positive' | 'neutral' | 'urgent' = 'neutral';
-    if (/urgent|asap|issue|problem|broken|refund|help|urgently|તરત|મુશ્કેલી/i.test(lastIncomingText)) {
-      detectedSentiment = 'urgent';
-    } else if (/thanks|thank you|great|awesome|good|perfect|આભાર|સરસ/i.test(lastIncomingText)) {
-      detectedSentiment = 'positive';
-    }
-    setSentiment(detectedSentiment);
-
-    setSummary(
-      `• Contact: ${contactName} (${activeChat.id.split('@')[0]})\n` +
-      `• Intent: ${detectedSentiment === 'urgent' ? 'Requires urgent support/resolution' : 'Inquiry about products & services'}\n` +
-      `• Latest Query: "${lastIncomingText.slice(0, 75)}${lastIncomingText.length > 75 ? '...' : ''}"\n` +
-      `• Action: Recommend sending product catalog or scheduling call.`
-    );
-
-    // Initial contextual smart replies
-    setSuggestedReplies([
-      {
-        id: '1',
-        tag: 'Friendly Acknowledgement',
-        text: `Hello ${contactName}! Thank you for reaching out to us. We have received your request and our team is actively reviewing it.`,
-      },
-      {
-        id: '2',
-        tag: 'Product Catalog / Pricing',
-        text: `Sure! I would be glad to share our latest product catalog and pricing sheet with volume discounts. Would you like me to send the PDF here?`,
-      },
-      {
-        id: '3',
-        tag: 'Quick Call Invitation',
-        text: `Would you prefer a quick 5-minute call so we can understand your specific requirements and offer you the best deal? Let me know a convenient time.`,
-      },
-    ]);
-  }, [activeChat, messages]);
-
-  // Summarize action
-  const handleRegenerateSummary = async () => {
-    if (!aiCreditsService.deduct('copilot_summary', 'AI Conversation Summary', 2)) {
-      toast.addToast({ type: 'warning', title: 'Insufficient AI credits. Please recharge your wallet.' });
-      return;
-    }
-    setIsSummarizing(true);
-    const contactName = activeChat?.name || 'Customer';
-    const recentIncoming = [...messages].reverse().find(m => m.direction === 'incoming');
-    const lastIncomingText = recentIncoming?.body || '';
-
-    try {
-      const history = messages.slice(-6).map(m => ({
-        role: (m.direction === 'incoming' ? 'user' : 'assistant') as 'user' | 'assistant',
-        content: m.body || '',
-      }));
-      const prompt = `Provide a 3-bullet executive summary and recommended next action for customer "${contactName}" who said: "${lastIncomingText}"`;
-      const res = await aiAssistantApi.chat({
-        message: prompt,
-        conversationHistory: history,
-        sessionId: 'default',
-        chatId: activeChat?.id || 'test',
-      });
-      if (res?.reply) {
-        setSummary(res.reply);
-        setIsSummarizing(false);
-        toast.addToast({ type: 'success', title: 'Conversation summarized via AI (-2 credits)' });
-        return;
-      }
-    } catch {
-      // fallback
-    }
-
-    setSummary(
-      `• Customer: ${contactName}\n` +
-      `• Status: Highly interested buyer\n` +
-      `• Discussion: Explored features & pricing options\n` +
-      `• Recommendation: Close with a limited-time 10% volume discount offer.`
-    );
-    setIsSummarizing(false);
-    toast.addToast({ type: 'success', title: 'Conversation summarized (-2 credits)' });
+  const hasCredits = (amount: number) => {
+    if (aiCreditsService.getBalance() >= amount) return true;
+    toast.addToast({ type: 'warning', title: 'Insufficient AI credits. Please recharge your wallet.' });
+    return false;
   };
 
-  // Generate new smart replies
-  const handleGenerateReplies = async () => {
-    if (!aiCreditsService.deduct('copilot_reply', 'AI Smart Replies Generator', 1)) {
-      toast.addToast({ type: 'warning', title: 'Insufficient AI credits.' });
+  const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+  // Summarize action
+  const handleSummarize = async () => {
+    const history = recentMessages();
+    if (history.length === 0) {
+      toast.addToast({ type: 'warning', title: 'No messages to summarize yet' });
       return;
     }
-    setIsGeneratingReplies(true);
-    const contactName = activeChat?.name || 'Customer';
-    const recentIncoming = [...messages].reverse().find(m => m.direction === 'incoming');
-    const lastIncomingText = recentIncoming?.body || '';
-
+    if (!hasCredits(2)) return;
+    setIsSummarizing(true);
     try {
-      const history = messages.slice(-4).map(m => ({
-        role: (m.direction === 'incoming' ? 'user' : 'assistant') as 'user' | 'assistant',
-        content: m.body || '',
-      }));
-      const prompt = `Suggest 3 concise, friendly WhatsApp responses to customer "${contactName}" who said: "${lastIncomingText}".`;
-      const res = await aiAssistantApi.chat({
-        message: prompt,
-        conversationHistory: history,
-        sessionId: 'default',
-        chatId: activeChat?.id || 'test',
-      });
-      if (res?.reply) {
-        const lines = res.reply.split('\n').filter(l => l.trim().length > 5);
-        if (lines.length >= 2) {
-          setSuggestedReplies([
-            { id: 'ai-1', tag: 'AI Recommended', text: lines[0].replace(/^[\d.-]+\s*/, '') },
-            { id: 'ai-2', tag: 'Alternative Solution', text: lines[1].replace(/^[\d.-]+\s*/, '') },
-            { id: 'ai-3', tag: 'Fast Confirmation', text: lines[2]?.replace(/^[\d.-]+\s*/, '') || `Hi ${contactName}, thank you for your query. Let us know if you need anything else!` },
-          ]);
-          setIsGeneratingReplies(false);
-          toast.addToast({ type: 'success', title: 'Smart replies generated via AI (-1 credit)' });
-          return;
-        }
-      }
-    } catch {
-      // fallback
+      const res = await aiCopilotApi.summary(history, contactName);
+      setSummary(res.summary);
+      setSentiment(res.sentiment);
+      aiCreditsService.deduct('copilot_summary', 'AI Conversation Summary', 2);
+      toast.addToast({ type: 'success', title: 'Conversation summarized (-2 credits)' });
+    } catch (err) {
+      toast.error('Could not summarize conversation', errorText(err));
+    } finally {
+      setIsSummarizing(false);
     }
+  };
 
-    setSuggestedReplies([
-      {
-        id: 'new-1',
-        tag: 'Direct Order Closing',
-        text: `Hi ${contactName}, we can process your order right now with express delivery. Shall I prepare the checkout invoice?`,
-      },
-      {
-        id: 'new-2',
-        tag: 'Special Discount Offer',
-        text: `Good news! We have an exclusive 15% discount for orders confirmed today. Here is the link to explore our top-selling items.`,
-      },
-      {
-        id: 'new-3',
-        tag: 'Gujarati/Hindi Native Greeting',
-        text: `નમસ્તે ${contactName}, તમારી વિગતો મળી ગઈ છે. અમે ટૂંક સમયમાં તમને યોગ્ય માહિતી મોકલી રહ્યા છીએ.`,
-      },
-    ]);
-    setIsGeneratingReplies(false);
-    toast.addToast({ type: 'success', title: 'Smart replies generated (-1 credit)' });
+  // Generate smart replies
+  const handleGenerateReplies = async () => {
+    const history = recentMessages();
+    if (history.length === 0) {
+      toast.addToast({ type: 'warning', title: 'No messages to reply to yet' });
+      return;
+    }
+    if (!hasCredits(1)) return;
+    setIsGeneratingReplies(true);
+    try {
+      const res = await aiCopilotApi.replies(history, contactName);
+      setSuggestedReplies(res.replies.map((r, i) => ({ id: `ai-${Date.now()}-${i}`, tag: r.tag, text: r.text })));
+      aiCreditsService.deduct('copilot_reply', 'AI Smart Replies Generator', 1);
+      toast.addToast({ type: 'success', title: 'Smart replies generated (-1 credit)' });
+    } catch (err) {
+      toast.error('Could not generate replies', errorText(err));
+    } finally {
+      setIsGeneratingReplies(false);
+    }
   };
 
   // Rewrite draft tone
-  const handleRewriteTone = async (tone: 'professional' | 'friendly' | 'short' | 'sales') => {
-    const textToTransform = currentDraft.trim() || 'Thank you for your message. We are ready to help you with your order.';
-    if (!aiCreditsService.deduct('copilot_rewrite', `Tone Rewrite (${tone})`, 1)) {
-      toast.addToast({ type: 'warning', title: 'Insufficient AI credits.' });
+  const handleRewriteTone = async (tone: CopilotTone) => {
+    const text = currentDraft.trim();
+    if (!text) {
+      toast.addToast({ type: 'warning', title: 'Type a message first' });
       return;
     }
+    if (!hasCredits(1)) return;
     setIsRewriting(true);
-
     try {
-      const prompt = `Rewrite this draft WhatsApp message in a ${tone} tone: "${textToTransform}". Return only the rewritten message without commentary.`;
-      const res = await aiAssistantApi.chat({
-        message: prompt,
-        sessionId: 'default',
-        chatId: activeChat?.id || 'test',
-      });
-      if (res?.reply) {
-        onInsertReply(res.reply.trim());
-        setIsRewriting(false);
-        toast.addToast({ type: 'success', title: `Tone rewritten to ${tone} via AI (-1 credit)` });
-        return;
-      }
-    } catch {
-      // fallback
+      const res = await aiCopilotApi.rewrite(text, tone, recentMessages());
+      onInsertReply(res.text.trim());
+      aiCreditsService.deduct('copilot_rewrite', `Tone Rewrite (${tone})`, 1);
+      toast.addToast({ type: 'success', title: `Tone rewritten to ${tone} (-1 credit)` });
+    } catch (err) {
+      toast.error('Could not rewrite message', errorText(err));
+    } finally {
+      setIsRewriting(false);
     }
+  };
 
-    let transformed = textToTransform;
-    if (tone === 'professional') {
-      transformed = `Dear ${activeChat?.name || 'Sir/Madam'}, we appreciate your correspondence. ${textToTransform} Please do not hesitate to contact us should you require further assistance.`;
-    } else if (tone === 'friendly') {
-      transformed = `Hey ${activeChat?.name || 'there'}! 😊 Thanks for getting in touch. ${textToTransform} We're always here for you!`;
-    } else if (tone === 'short') {
-      transformed = textToTransform.length > 50 ? `${textToTransform.slice(0, 45)}... Done!` : textToTransform;
-    } else if (tone === 'sales') {
-      transformed = `${textToTransform} 🚀 Special note: Confirm today to avail our exclusive VIP volume discount!`;
-    }
-    onInsertReply(transformed);
-    setIsRewriting(false);
-    toast.addToast({ type: 'success', title: `Tone rewritten to ${tone} (-1 credit)` });
+  const languageNames: Record<string, string> = {
+    gu: 'Gujarati',
+    hi: 'Hindi',
+    es: 'Spanish',
+    ar: 'Arabic',
+    de: 'German',
   };
 
   // Translate Draft
   const handleTranslateDraft = async () => {
-    const text = currentDraft.trim() || 'Hello, thank you for contacting us. How can we assist you today?';
-    if (!aiCreditsService.deduct('copilot_rewrite', `Translate to ${selectedLanguage}`, 2)) {
-      toast.addToast({ type: 'warning', title: 'Insufficient AI credits.' });
+    const text = currentDraft.trim();
+    if (!text) {
+      toast.addToast({ type: 'warning', title: 'Type a message first' });
       return;
     }
-
-    const languageNames: Record<string, string> = {
-      gu: 'Gujarati',
-      hi: 'Hindi',
-      es: 'Spanish',
-      ar: 'Arabic',
-      de: 'German',
-    };
-
+    if (!hasCredits(2)) return;
+    const language = languageNames[selectedLanguage] || selectedLanguage;
+    setIsRewriting(true);
     try {
-      const prompt = `Translate this message into ${languageNames[selectedLanguage] || selectedLanguage}: "${text}". Return only the translated message without explanation.`;
-      const res = await aiAssistantApi.chat({
-        message: prompt,
-        sessionId: 'default',
-        chatId: activeChat?.id || 'test',
-      });
-      if (res?.reply) {
-        onInsertReply(res.reply.trim());
-        toast.addToast({ type: 'success', title: `Translated to ${languageNames[selectedLanguage]} via AI (-2 credits)` });
-        return;
-      }
-    } catch {
-      // fallback
+      const res = await aiCopilotApi.translate(text, language);
+      onInsertReply(res.text.trim());
+      aiCreditsService.deduct('copilot_rewrite', `Translate to ${language}`, 2);
+      toast.addToast({ type: 'success', title: `Translated to ${language} (-2 credits)` });
+    } catch (err) {
+      toast.error('Could not translate message', errorText(err));
+    } finally {
+      setIsRewriting(false);
     }
-
-    let translated = text;
-    if (selectedLanguage === 'gu') {
-      translated = `નમસ્તે! અમારો સંપર્ક કરવા બદલ આભાર. અમે આજે તમને કેવી રીતે મદદ કરી શકીએ?`;
-    } else if (selectedLanguage === 'hi') {
-      translated = `नमस्ते! हमसे संपर्क करने के लिए धन्यवाद। आज हम आपकी क्या सहायता कर सकते हैं?`;
-    } else if (selectedLanguage === 'es') {
-      translated = `¡Hola! Gracias por contactarnos. ¿Cómo podemos ayudarte hoy?`;
-    } else if (selectedLanguage === 'ar') {
-      translated = `مرحبًا! شكرًا لاتصالك بنا. كيف يمكننا مساعدتك اليوم؟`;
-    } else if (selectedLanguage === 'de') {
-      translated = `Hallo! Vielen Dank für Ihre Kontaktaufnahme. Wie können wir Ihnen heute helfen?`;
-    }
-
-    onInsertReply(translated);
-    toast.addToast({ type: 'success', title: `Translated & inserted into composer (-2 credits)` });
   };
 
   // Create Deal from Chat
+  // Sends the business's real WhatsApp catalog to this chat (asks first: it goes straight to the customer).
+  const handleSendCatalog = async () => {
+    if (!sessionId || !activeChat) return;
+    if (!window.confirm(`Send your WhatsApp catalog to ${activeChat.name || 'this contact'} now?`)) return;
+    setSendingCatalog(true);
+    try {
+      await messageApi.sendCatalog(sessionId, activeChat.id, currentDraft.trim() || undefined);
+      toast.addToast({ type: 'success', title: 'Catalog sent' });
+    } catch (err) {
+      toast.addToast({
+        type: 'error',
+        title: 'Could not send the catalog',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSendingCatalog(false);
+    }
+  };
+
   const handleCreateDealFromChat = () => {
     const contactName = activeChat?.name || 'Customer';
     const phone = activeChat?.id ? activeChat.id.split('@')[0] : '';
@@ -375,11 +275,13 @@ export function AiCopilot({
                   <MessageSquare size={13} />
                   Chat Summary
                 </span>
-                <span className={`ai-sentiment-badge ${sentiment}`}>
-                  {sentiment === 'positive' && '😊 Positive'}
-                  {sentiment === 'neutral' && '💬 Neutral'}
-                  {sentiment === 'urgent' && '🚨 Urgent'}
-                </span>
+                {sentiment && (
+                  <span className={`ai-sentiment-badge ${sentiment}`}>
+                    {sentiment === 'positive' && '😊 Positive'}
+                    {sentiment === 'neutral' && '💬 Neutral'}
+                    {sentiment === 'urgent' && '🚨 Urgent'}
+                  </span>
+                )}
               </div>
               <div className="ai-summary-text">
                 {isSummarizing ? (
@@ -387,17 +289,20 @@ export function AiCopilot({
                     <Loader2 size={14} className="animate-spin" />
                     <span>Analyzing conversation context...</span>
                   </div>
+                ) : summary ? (
+                  summary
+                ) : latestIncoming ? (
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Latest message: “{latestIncoming.body.slice(0, 120)}
+                    {latestIncoming.body.length > 120 ? '…' : ''}”
+                  </span>
                 ) : (
-                  summary || 'No conversation history available to summarize yet.'
+                  'No conversation history available to summarize yet.'
                 )}
               </div>
-              <button
-                className="ai-btn-sm"
-                onClick={handleRegenerateSummary}
-                disabled={isSummarizing || !activeChat}
-              >
+              <button className="ai-btn-sm" onClick={handleSummarize} disabled={isSummarizing || !activeChat}>
                 <RotateCw size={12} className={isSummarizing ? 'spin' : ''} />
-                Refresh Summary (-2 cr)
+                {summary ? 'Refresh Summary (-2 cr)' : 'Summarize conversation (-2 cr)'}
               </button>
             </div>
 
@@ -412,14 +317,25 @@ export function AiCopilot({
                   className="ai-btn-sm"
                   style={{ padding: '2px 8px', fontSize: '11px' }}
                   onClick={handleGenerateReplies}
-                  disabled={isGeneratingReplies}
+                  disabled={isGeneratingReplies || !activeChat}
                 >
                   <RotateCw size={11} className={isGeneratingReplies ? 'spin' : ''} />
-                  Regenerate
+                  {suggestedReplies.length ? 'Regenerate' : 'Suggest replies'}
                 </button>
               </div>
 
               <div className="ai-replies-list">
+                {isGeneratingReplies && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6366f1', fontSize: '12px' }}>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Drafting replies...</span>
+                  </div>
+                )}
+                {!isGeneratingReplies && suggestedReplies.length === 0 && (
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+                    Click “Suggest replies” to draft responses from this conversation (-1 cr).
+                  </p>
+                )}
                 {suggestedReplies.map(reply => (
                   <div
                     key={reply.id}
@@ -458,35 +374,19 @@ export function AiCopilot({
                 Rewrite your current draft into a customized tone:
               </p>
               <div className="tone-selector-grid">
-                <button
-                  className="tone-btn"
-                  onClick={() => handleRewriteTone('professional')}
-                  disabled={isRewriting}
-                >
+                <button className="tone-btn" onClick={() => handleRewriteTone('professional')} disabled={isRewriting}>
                   <ShieldCheck size={14} style={{ color: '#2563eb' }} />
                   Professional
                 </button>
-                <button
-                  className="tone-btn"
-                  onClick={() => handleRewriteTone('friendly')}
-                  disabled={isRewriting}
-                >
+                <button className="tone-btn" onClick={() => handleRewriteTone('friendly')} disabled={isRewriting}>
                   <Smile size={14} style={{ color: '#16a34a' }} />
                   Warm & Friendly
                 </button>
-                <button
-                  className="tone-btn"
-                  onClick={() => handleRewriteTone('short')}
-                  disabled={isRewriting}
-                >
+                <button className="tone-btn" onClick={() => handleRewriteTone('short')} disabled={isRewriting}>
                   <Zap size={14} style={{ color: '#eab308' }} />
                   Short & Direct
                 </button>
-                <button
-                  className="tone-btn"
-                  onClick={() => handleRewriteTone('sales')}
-                  disabled={isRewriting}
-                >
+                <button className="tone-btn" onClick={() => handleRewriteTone('sales')} disabled={isRewriting}>
                   <TrendingUp size={14} style={{ color: '#9333ea' }} />
                   Sales Closing
                 </button>
@@ -516,11 +416,7 @@ export function AiCopilot({
                   <option value="ar">العربية (Arabic)</option>
                   <option value="de">Deutsch (German)</option>
                 </select>
-                <button
-                  className="ai-btn-sm ai-btn-primary-sm"
-                  onClick={handleTranslateDraft}
-                  disabled={isRewriting}
-                >
+                <button className="ai-btn-sm ai-btn-primary-sm" onClick={handleTranslateDraft} disabled={isRewriting}>
                   Translate (-2 cr)
                 </button>
               </div>
@@ -550,12 +446,11 @@ export function AiCopilot({
             <button
               className="ai-btn-sm"
               style={{ width: '100%', justifyContent: 'center' }}
-              onClick={() => {
-                onInsertReply(`Here is our complete digital catalog: https://catalog.openwa.local/products\nUse code WELCOME10 for an instant 10% discount!`);
-                toast.addToast({ type: 'info', title: 'Catalog link inserted' });
-              }}
+              disabled={!sessionId || !activeChat || sendingCatalog}
+              onClick={() => void handleSendCatalog()}
             >
-              Send E-Commerce Catalog
+              {sendingCatalog ? <Loader2 size={16} className="animate-spin" /> : null}
+              Send WhatsApp Catalog
             </button>
           </div>
         )}

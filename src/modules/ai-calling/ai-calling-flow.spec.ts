@@ -32,6 +32,7 @@ class FakeTts extends EventEmitter implements TtsStream {
       this.emit('spoken');
     });
   }
+  setStyle(): void {}
   reset(): void {}
   close(): void {}
 }
@@ -105,7 +106,7 @@ describe('AI calling flow (SQLite)', () => {
     stt = new FakeStt();
     const speech: SpeechFactory = { stt: () => stt, tts: () => new FakeTts() };
     runner.useSpeech(speech);
-    dialer = new DialerService(repo(AiCall), repo(AiCallBatch), repo(VoiceAgent), calling, runner);
+    dialer = new DialerService(repo(AiCall), repo(AiCallBatch), repo(VoiceAgent), calling, runner, outcome);
     await calling.setPublicUrl('https://abc.trycloudflare.com');
 
     let sid = 0;
@@ -171,7 +172,7 @@ describe('AI calling flow (SQLite)', () => {
     expect(body.get('From')).toBe('+15550001111');
     // Trial accounts reject inline TwiML, so the call points Twilio at our TwiML URL instead.
     expect(body.get('Twiml')).toBeNull();
-    const twimlUrl = new URL(body.get('Url') ?? '');
+    const twimlUrl = new URL((body.get('Url') as string | null) ?? '');
     expect(`${twimlUrl.origin}${twimlUrl.pathname}`).toBe('https://abc.trycloudflare.com/api/ai-calling/twilio/twiml');
     expect(twimlUrl.searchParams.get('callId')).toBe(first.id);
     // The URL carries a key only this server can make for this call, and only for this call.
@@ -227,7 +228,62 @@ describe('AI calling flow (SQLite)', () => {
     expect(await dialer.recoverStale()).toBe(1);
     expect((await calls())[0]).toMatchObject({
       status: AiCallStatus.FAILED,
-      error: 'The server restarted during this call',
+      error: 'The call was left unfinished (server restart)',
+    });
+  });
+
+  it('is not held up by an abandoned browser test call, and closes it', async () => {
+    const test = await calling.createTestCall(BIZ); // the microphone link never opened
+    await ds.getRepository(AiCall).update(test.id, { startedAt: new Date(NOON_IST.getTime() - 5 * 60 * 1000) });
+    await calling.queueCall(BIZ, { phone: '9876543210' });
+
+    expect(await dialer.tick(NOON_IST)).toBe(1);
+    const repo = ds.getRepository(AiCall);
+    expect(await repo.findOneByOrFail({ id: test.id })).toMatchObject({
+      status: AiCallStatus.FAILED,
+      error: 'The browser test call never connected',
+    });
+    expect(await repo.findOneByOrFail({ channel: 'phone' })).toMatchObject({ status: AiCallStatus.DIALING });
+  });
+
+  it('asks Twilio about a call whose final status callback was lost, freeing the line', async () => {
+    const repo = ds.getRepository(AiCall);
+    const first = await calling.queueCall(BIZ, { phone: '9876543210' });
+    await calling.queueCall(BIZ, { phone: '9123456789' });
+    expect(await dialer.tick(NOON_IST)).toBe(1);
+    // The "completed" callback never arrived; the call went quiet two minutes ago.
+    await repo.update(first.id, { updatedAt: new Date(NOON_IST.getTime() - 2 * 60 * 1000) });
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            String(url).endsWith('/Calls/CA1.json')
+              ? { status: 'completed', duration: '7' }
+              : { sid: 'CA2', status: 'queued' },
+          ),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    expect(await dialer.tick(NOON_IST)).toBe(1);
+    expect(await repo.findOneByOrFail({ id: first.id })).toMatchObject({
+      status: AiCallStatus.COMPLETED,
+      durationSeconds: 7,
+    });
+    expect(await repo.findOneByOrFail({ phone: '+919123456789' })).toMatchObject({ status: AiCallStatus.DIALING });
+  });
+
+  it('says on a queued call why it is waiting', async () => {
+    const call = await calling.queueCall(BIZ, { phone: '9876543210' });
+    expect(await dialer.tick(tomorrowUtc(2, 0))).toBe(0); // 07:30 IST
+    expect((await ds.getRepository(AiCall).findOneByOrFail({ id: call.id })).error).toMatch(
+      /^Waiting: outside calling hours \(09:00–21:00/,
+    );
+    await dialer.tick(NOON_IST);
+    expect(await ds.getRepository(AiCall).findOneByOrFail({ id: call.id })).toMatchObject({
+      status: AiCallStatus.DIALING,
+      error: null,
     });
   });
 
@@ -281,6 +337,84 @@ describe('AI calling flow (SQLite)', () => {
       status: AiCallStatus.SKIPPED,
     });
     expect((await calls())[0].outcome).toBe(AiCallOutcome.DO_NOT_CALL);
+    // Campaigns read consent, so the refusal reaches them even with no chat to tag.
+    const consent = await ds.getRepository(ContactConsent).findOneByOrFail({ waContactId: '919876543210@c.us' });
+    expect(consent).toMatchObject({ businessId: BIZ, status: ConsentStatus.OPTED_OUT, source: 'ai_call' });
+  });
+
+  it('a paused list does not hold up calls queued after it', async () => {
+    const paused = await calling.createBatch(BIZ, {
+      name: 'big',
+      contacts: Array.from({ length: 5 }, (_, i) => ({ phone: `98765000${10 + i}`, name: null })),
+    });
+    await calling.setBatchStatus(BIZ, paused.id, 'pause');
+    await calling.queueCall(BIZ, { phone: '9123456789' });
+    expect(await dialer.tick(NOON_IST)).toBe(1);
+    const dialled = (await calls()).filter(c => c.status === AiCallStatus.DIALING);
+    expect(dialled.map(c => c.phone)).toEqual(['+919123456789']);
+  });
+
+  it('does not re-queue an unanswered call whose list was cancelled meanwhile', async () => {
+    const batch = await calling.createBatch(BIZ, { name: 'x', contacts: [{ phone: '9876543210', name: null }] });
+    await dialer.tick(NOON_IST);
+    await calling.setBatchStatus(BIZ, batch.id, 'cancel');
+    await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'no-answer' });
+    expect((await calls())[0]).toMatchObject({ status: AiCallStatus.CANCELED, error: 'List cancelled' });
+    await expect(calling.queueCall(BIZ, { phone: '9876543210' })).resolves.toMatchObject({
+      status: AiCallStatus.QUEUED,
+    });
+  });
+
+  it('keeps and analyses a conversation that a server restart cut off', async () => {
+    const call = await calling.queueCall(BIZ, { phone: '9876543210' });
+    await dialer.tick(NOON_IST);
+    await ds.getRepository(AiCall).update(call.id, {
+      status: AiCallStatus.IN_PROGRESS,
+      answeredAt: new Date(Date.now() - 60_000),
+      transcript: [{ role: 'customer', text: 'મારે હેલ્થ ઇન્શ્યોરન્સ જોઈએ છે', at: new Date().toISOString() }],
+    });
+    await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '61' });
+    const saved = (await calls())[0];
+    expect(saved).toMatchObject({ status: AiCallStatus.COMPLETED, isVerifiedLead: true });
+    expect(saved.leadId).toBeTruthy();
+  });
+
+  it('retries a call Twilio could not take right now instead of failing it', async () => {
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(new Response(JSON.stringify({ message: 'Too many requests', code: 20429 }), { status: 429 })),
+    );
+    await calling.queueCall(BIZ, { phone: '9876543210' });
+    await dialer.tick(NOON_IST);
+    const [call] = await calls();
+    expect(call).toMatchObject({ status: AiCallStatus.QUEUED, attempts: 0 });
+    expect(call.error).toMatch(/trying again in a minute/);
+  });
+
+  it('sends the WhatsApp follow-up once even when asked twice at the same time', async () => {
+    await ds.getRepository(Session).save({ id: 'wa-1', name: 'main', businessId: BIZ, status: SessionStatus.READY });
+    const call = await calling.queueCall(BIZ, { phone: '9876543210' });
+    await ds.getRepository(AiCall).update(call.id, { status: AiCallStatus.COMPLETED });
+    const results = await Promise.allSettled([outcome.sendWhatsapp(BIZ, call.id), outcome.sendWhatsapp(BIZ, call.id)]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    expect(messages.sendText).toHaveBeenCalledTimes(1);
+  });
+
+  it("never sends from another business's WhatsApp number", async () => {
+    await ds
+      .getRepository(Session)
+      .save({ id: 'wa-other', name: 'x', businessId: 'biz-2', status: SessionStatus.READY });
+    await ds.getRepository(Session).save({ id: 'wa-1', name: 'main', businessId: BIZ, status: SessionStatus.READY });
+    const agent = await calling.getDefaultAgent(BIZ);
+    await calling.updateAgent(BIZ, agent.id, { whatsappSessionId: 'wa-other' });
+    const call = await calling.queueCall(BIZ, { phone: '9876543210' });
+    await ds.getRepository(AiCall).update(call.id, { status: AiCallStatus.COMPLETED });
+    await outcome.sendWhatsapp(BIZ, call.id);
+    expect(messages.sendText).toHaveBeenCalledWith('wa-1', expect.anything());
+  });
+
+  it('refuses calling hours that start and end at the same time', async () => {
+    const agent = await calling.getDefaultAgent(BIZ);
+    await expect(calling.updateAgent(BIZ, agent.id, { callingEnd: '09:00' })).rejects.toThrow(/different times/);
   });
 
   it('runs a whole browser test call over a real websocket and never creates a lead', async () => {
@@ -347,5 +481,19 @@ describe('AI calling flow (SQLite)', () => {
     expect(saved.status).toBe(AiCallBatchStatus.COMPLETED);
     const listed = await calling.listBatches(BIZ);
     expect(listed[0].counts).toEqual({ failed: 1 });
+  });
+
+  it('tells a call that reached the AI from one that did not, and each call is judged alone', async () => {
+    await calling.queueCall(BIZ, { phone: '9876543210' });
+    await calling.queueCall(BIZ, { phone: '9876543211' });
+    await dialer.tick(NOON_IST);
+    const [first] = await calls();
+    await dialer.twimlFor(first.id); // the answered call reached the AI
+    await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '0' });
+    expect((await calls())[0].error).toContain('the audio stream to the AI never opened');
+
+    await dialer.tick(NOON_IST); // the second call dials; it never reached the AI
+    await dialer.onTwilioStatus({ CallSid: 'CA2', CallStatus: 'completed', CallDuration: '0' });
+    expect((await calls())[1].error).toContain('ended before it reached the AI');
   });
 });

@@ -11,30 +11,30 @@ export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
   @Get('catalog')
-  @ApiOperation({ summary: 'Get business catalog info (not implemented by any engine)' })
+  @ApiOperation({ summary: 'Get the business catalog (Baileys and Cloud API engines)' })
   @ApiResponse({
     status: 501,
-    description: 'Not supported: neither engine implements catalog reads.',
+    description: 'Not supported on the whatsapp-web.js engine (its library cannot read catalogs).',
   })
   async getCatalog(@Param('sessionId') sessionId: string) {
     return this.catalogService.getCatalog(sessionId);
   }
 
   @Get('catalog/products')
-  @ApiOperation({ summary: 'List catalog products (not implemented by any engine)' })
+  @ApiOperation({ summary: 'List catalog products (Baileys and Cloud API engines)' })
   @ApiResponse({
     status: 501,
-    description: 'Not supported: neither engine implements catalog reads.',
+    description: 'Not supported on the whatsapp-web.js engine (its library cannot read catalogs).',
   })
   async getProducts(@Param('sessionId') sessionId: string, @Query() query: ProductQueryDto) {
     return this.catalogService.getProducts(sessionId, query.page, query.limit);
   }
 
   @Get('catalog/products/:productId')
-  @ApiOperation({ summary: 'Get a specific product (not implemented by any engine)' })
+  @ApiOperation({ summary: 'Get one product by id or retailer id (Baileys and Cloud API engines)' })
   @ApiResponse({
     status: 501,
-    description: 'Not supported: neither engine implements catalog reads.',
+    description: 'Not supported on the whatsapp-web.js engine (its library cannot read catalogs).',
   })
   async getProduct(@Param('sessionId') sessionId: string, @Param('productId') productId: string) {
     return this.catalogService.getProduct(sessionId, productId);
@@ -42,16 +42,15 @@ export class CatalogController {
 
   @Post('messages/send-product')
   @RequireRole(ApiKeyRole.OPERATOR)
-  @ApiOperation({ summary: 'Send a product message (not supported by any engine)' })
-  @ApiResponse({ status: 501, description: 'Not supported by the active engine: no engine can send product messages.' })
+  @ApiOperation({ summary: 'Send a product card (Baileys and Cloud API engines)' })
+  @ApiResponse({ status: 501, description: 'Not supported on the whatsapp-web.js engine.' })
   async sendProduct(@Param('sessionId') sessionId: string, @Body() dto: SendProductDto) {
     return this.catalogService.sendProduct(sessionId, dto.chatId, dto.productId, dto.body);
   }
 
   @Post('messages/send-catalog')
   @RequireRole(ApiKeyRole.OPERATOR)
-  @ApiOperation({ summary: 'Send catalog link (not supported by any engine)' })
-  @ApiResponse({ status: 501, description: 'Not supported by the active engine: no engine can send catalog links.' })
+  @ApiOperation({ summary: 'Send the catalog: a catalog message on Cloud API, the wa.me/c link on other engines' })
   async sendCatalog(@Param('sessionId') sessionId: string, @Body() dto: SendCatalogDto) {
     return this.catalogService.sendCatalog(sessionId, dto.chatId, dto.body);
   }

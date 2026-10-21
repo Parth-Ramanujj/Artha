@@ -1,3 +1,4 @@
+import { IntegrationModule as GoogleIntegrationsModule } from '../integrations/integration.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WorkflowDefinition } from './entities/workflow-definition.entity';
@@ -22,6 +23,7 @@ import { LeadClassifierService } from './lead-classifier.service';
 import { ConversationModule } from '../conversation/conversation.module';
 import { MessageModule } from '../message/message.module';
 import { AiModule } from '../ai/ai.module';
+import { MessageStudioModule } from '../message-studio/message-studio.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { AiModule } from '../ai/ai.module';
     ConversationModule,
     MessageModule,
     AiModule,
+    MessageStudioModule,
+    GoogleIntegrationsModule,
   ],
   controllers: [WorkflowController, WorkflowAnalyticsController, AbTestController],
   providers: [

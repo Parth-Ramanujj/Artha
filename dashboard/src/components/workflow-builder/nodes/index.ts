@@ -1,3 +1,4 @@
+import { SheetsLookupNode } from './SheetsLookupNode';
 import { TriggerNode } from './TriggerNode';
 import { MessageNode } from './MessageNode';
 import { ButtonsNode } from './ButtonsNode';
@@ -24,11 +25,13 @@ import { FinancialCalcNode } from './FinancialCalcNode';
 import { PaymentLinkNode } from './PaymentLinkNode';
 import { AiOcrNode } from './AiOcrNode';
 import { CarouselTemplateNode } from './CarouselTemplateNode';
+import { StudioMessageNode } from './StudioMessageNode';
 
 export const nodeTypes = {
   trigger: TriggerNode,
   send_message: MessageNode,
   interactive_buttons: ButtonsNode,
+  send_studio_message: StudioMessageNode,
   ask_question: QuestionNode,
   condition_branch: BranchNode,
   wait: DelayNode,
@@ -40,6 +43,7 @@ export const nodeTypes = {
   filter: FilterNode,
   stop_workflow: StopNode,
   google_sheets: GoogleSheetsNode,
+  sheets_lookup: SheetsLookupNode,
   send_media: MediaNode,
   search_agents: SearchAgentsNode,
   create_lead: CreateLeadNode,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BadgeCheck, Loader2, PhoneCall, PhoneOutgoing, Search, XCircle } from 'lucide-react';
-import { aiCallingApi, type AiCall, type AiCallStatus } from '../../services/api';
+import { aiCallingApi, type AiCall, type AiCallingSetup, type AiCallStatus } from '../../services/api';
 import { useToast } from '../Toast';
 import { CallDrawer } from './CallDrawer';
 import { EmptyState, Pill, StatusPill } from './shared';
@@ -11,9 +12,8 @@ import {
   formatDuration,
   formatWhen,
   headStyle,
-  OUTCOME_LABEL,
   SENTIMENT_META,
-  STATUS_META,
+  STATUS_COLOR,
 } from './callMeta';
 
 const PAGE = 50;
@@ -21,14 +21,17 @@ const PAGE = 50;
 /** The call log; with `verifiedOnly` it is the list of verified leads. */
 export function CallsTab({
   verifiedOnly,
+  setup,
   refreshKey,
   onActivity,
 }: {
   verifiedOnly?: boolean;
+  setup?: AiCallingSetup | null;
   refreshKey: number;
   /** Called whenever the calls may have changed, so the page can refresh its totals. */
   onActivity?: () => void;
 }) {
+  const { t } = useTranslation();
   const toast = useToast();
   // The toast context changes on every toast; a ref keeps load() stable so an error cannot loop.
   const toastRef = useRef(toast);
@@ -44,30 +47,59 @@ export function CallsTab({
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [queuing, setQueuing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // How many rows are shown, so a live refresh keeps the pages already loaded.
+  const shown = useRef(PAGE);
+
+  const filters = useCallback(
+    () => ({
+      status: status || undefined,
+      verified: verifiedOnly ? true : undefined,
+      search: search || undefined,
+    }),
+    [status, search, verifiedOnly],
+  );
 
   const load = useCallback(
     (quiet = false) => {
-      if (!quiet) setLoading(true);
+      if (!quiet) {
+        setLoading(true);
+        shown.current = PAGE;
+      }
       aiCallingApi
-        .calls({
-          status: status || undefined,
-          verified: verifiedOnly ? true : undefined,
-          search: search || undefined,
-          limit: PAGE,
-        })
+        .calls({ ...filters(), limit: Math.max(PAGE, shown.current) })
         .then(res => {
           setCalls(res.items);
+          shown.current = Math.max(PAGE, res.items.length);
           setTotal(res.total);
           if (quiet) onActivity?.();
           setOpen(prev => (prev ? (res.items.find(c => c.id === prev.id) ?? prev) : prev));
         })
         .catch(err => {
-          if (!quiet) toastRef.current.error(errorText(err, 'Could not load calls'));
+          if (!quiet) toastRef.current.error(errorText(err, t('aiCalling.calls.loadFailed')));
         })
         .finally(() => setLoading(false));
     },
-    [status, search, verifiedOnly, onActivity],
+    [filters, onActivity, t],
   );
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await aiCallingApi.calls({ ...filters(), limit: PAGE, offset: calls.length });
+      setCalls(prev => {
+        const seen = new Set(prev.map(c => c.id));
+        const next = [...prev, ...res.items.filter(c => !seen.has(c.id))];
+        shown.current = next.length;
+        return next;
+      });
+      setTotal(res.total);
+    } catch (err) {
+      toast.error(errorText(err, t('aiCalling.calls.loadMoreFailed')));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => load(), search ? 300 : 0);
@@ -86,12 +118,12 @@ export function CallsTab({
     setQueuing(true);
     try {
       const call = await aiCallingApi.queueCall({ phone, name: name || undefined });
-      toast.success(call.status === 'skipped' ? 'This number opted out (DND), so it was not called' : 'Call queued');
+      toast.success(call.status === 'skipped' ? t('aiCalling.calls.dnd') : t('aiCalling.calls.queued'));
       setPhone('');
       setName('');
       load(true);
     } catch (err) {
-      toast.error(errorText(err, 'Could not queue the call'));
+      toast.error(errorText(err, t('aiCalling.calls.queueFailed')));
     } finally {
       setQueuing(false);
     }
@@ -102,7 +134,7 @@ export function CallsTab({
       await aiCallingApi.cancelCall(call.id);
       load(true);
     } catch (err) {
-      toast.error(errorText(err, 'Could not cancel the call'));
+      toast.error(errorText(err, t('aiCalling.calls.cancelFailed')));
     }
   };
 
@@ -112,23 +144,27 @@ export function CallsTab({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14, alignItems: 'center' }}>
           <input
             className="input"
-            placeholder="Mobile number, e.g. 98765 43210"
+            placeholder={t('aiCalling.calls.phonePlaceholder')}
             value={phone}
             onChange={e => setPhone(e.target.value)}
             style={{ flex: '1 1 200px', maxWidth: 240 }}
-            aria-label="Mobile number"
+            aria-label={t('aiCalling.calls.phoneLabel')}
           />
           <input
             className="input"
-            placeholder="Name (optional)"
+            placeholder={t('aiCalling.calls.namePlaceholder')}
             value={name}
             onChange={e => setName(e.target.value)}
             style={{ flex: '1 1 160px', maxWidth: 200 }}
-            aria-label="Name"
+            aria-label={t('aiCalling.calls.nameLabel')}
           />
           <button className="btn-primary" onClick={() => void queue()} disabled={queuing || !phone.trim()}>
-            {queuing ? <Loader2 size={15} className="animate-spin" /> : <PhoneOutgoing size={15} />} AI call this number
+            {queuing ? <Loader2 size={15} className="animate-spin" /> : <PhoneOutgoing size={15} />}{' '}
+            {t('aiCalling.calls.callNumber')}
           </button>
+          {setup?.readyForPhoneCalls === false && (
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{t('aiCalling.waitForSetup')}</span>
+          )}
         </div>
       )}
 
@@ -146,11 +182,11 @@ export function CallsTab({
           />
           <input
             className="input"
-            placeholder="Search name or number"
+            placeholder={t('aiCalling.calls.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: 34, width: '100%' }}
-            aria-label="Search calls"
+            aria-label={t('aiCalling.calls.searchLabel')}
           />
         </div>
         {!verifiedOnly && (
@@ -159,17 +195,19 @@ export function CallsTab({
             value={status}
             onChange={e => setStatus(e.target.value as AiCallStatus | '')}
             style={{ width: 'auto' }}
-            aria-label="Filter by status"
+            aria-label={t('aiCalling.calls.statusFilter')}
           >
-            <option value="">All statuses</option>
-            {Object.entries(STATUS_META).map(([value, meta]) => (
+            <option value="">{t('aiCalling.calls.allStatuses')}</option>
+            {Object.keys(STATUS_COLOR).map(value => (
               <option key={value} value={value}>
-                {meta.label}
+                {t(`aiCalling.status.${value}`)}
               </option>
             ))}
           </select>
         )}
-        <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>{total} calls</span>
+        <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--text-secondary)' }}>
+          {t('aiCalling.calls.total', { count: total })}
+        </span>
       </div>
 
       {loading ? (
@@ -179,24 +217,20 @@ export function CallsTab({
       ) : calls.length === 0 ? (
         <EmptyState
           icon={verifiedOnly ? <BadgeCheck size={30} /> : <PhoneCall size={30} />}
-          title={verifiedOnly ? 'No verified leads yet' : 'No calls yet'}
-          hint={
-            verifiedOnly
-              ? 'Calls where the customer is interested and agreed to a call back appear here.'
-              : 'Call a number above, upload a list in Call lists, or use AI Call on the Leads page.'
-          }
+          title={verifiedOnly ? t('aiCalling.calls.emptyVerified') : t('aiCalling.calls.empty')}
+          hint={verifiedOnly ? t('aiCalling.calls.emptyVerifiedHint') : t('aiCalling.calls.emptyHint')}
         />
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 900 }}>
             <thead>
               <tr>
-                <th style={headStyle}>Contact</th>
-                <th style={headStyle}>Status</th>
-                <th style={headStyle}>Result</th>
-                <th style={headStyle}>Summary</th>
-                <th style={headStyle}>When</th>
-                <th style={headStyle}>Length</th>
+                <th style={headStyle}>{t('aiCalling.calls.contact')}</th>
+                <th style={headStyle}>{t('aiCalling.calls.status')}</th>
+                <th style={headStyle}>{t('aiCalling.calls.result')}</th>
+                <th style={headStyle}>{t('aiCalling.calls.summary')}</th>
+                <th style={headStyle}>{t('aiCalling.calls.when')}</th>
+                <th style={headStyle}>{t('aiCalling.calls.length')}</th>
                 <th style={headStyle} />
               </tr>
             </thead>
@@ -204,16 +238,31 @@ export function CallsTab({
               {calls.map(call => {
                 const sentiment = call.sentiment ? SENTIMENT_META[call.sentiment] : null;
                 return (
-                  <tr key={call.id} onClick={() => setOpen(call)} style={{ cursor: 'pointer' }}>
+                  <tr
+                    key={call.id}
+                    onClick={() => setOpen(call)}
+                    tabIndex={0}
+                    aria-label={t('aiCalling.calls.openCall', { name: call.contactName || call.phone })}
+                    onKeyDown={e => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setOpen(call);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <td style={cellStyle}>
-                      <div style={{ fontWeight: 600 }}>{call.contactName || call.extracted?.name || 'Unknown'}</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {call.contactName || call.extracted?.name || t('aiCalling.calls.unknown')}
+                      </div>
                       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{call.phone}</div>
                     </td>
                     <td style={cellStyle}>
                       <StatusPill call={call} />
                       {call.attempts > 1 && (
                         <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>
-                          Attempt {call.attempts}
+                          {t('aiCalling.calls.attempt', { count: call.attempts })}
                         </div>
                       )}
                     </td>
@@ -221,13 +270,13 @@ export function CallsTab({
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {call.isVerifiedLead && (
                           <Pill color="#22c55e">
-                            <BadgeCheck size={12} /> Verified
+                            <BadgeCheck size={12} /> {t('aiCalling.calls.verified')}
                           </Pill>
                         )}
                         {call.outcome && !call.isVerifiedLead && (
-                          <Pill color="#64748b">{OUTCOME_LABEL[call.outcome]}</Pill>
+                          <Pill color="#64748b">{t(`aiCalling.outcome.${call.outcome}`)}</Pill>
                         )}
-                        {sentiment && <span title={sentiment.label}>{sentiment.emoji}</span>}
+                        {sentiment && <span title={t(`aiCalling.sentiment.${call.sentiment}`)}>{sentiment.emoji}</span>}
                       </div>
                     </td>
                     <td style={{ ...cellStyle, maxWidth: 320 }}>
@@ -252,8 +301,8 @@ export function CallsTab({
                         <button
                           className="btn-secondary"
                           onClick={() => void cancel(call)}
-                          title="Cancel this call"
-                          aria-label="Cancel this call"
+                          title={t('aiCalling.calls.cancelCall')}
+                          aria-label={t('aiCalling.calls.cancelCall')}
                         >
                           <XCircle size={15} />
                         </button>
@@ -264,6 +313,14 @@ export function CallsTab({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {!loading && calls.length < total && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+          <button className="btn-secondary" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore && <Loader2 size={15} className="animate-spin" />}{' '}
+            {t('aiCalling.calls.loadMore', { count: total - calls.length })}
+          </button>
         </div>
       )}
 

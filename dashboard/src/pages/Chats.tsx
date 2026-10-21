@@ -1932,6 +1932,7 @@ export function Chats() {
               {showAiCopilot && (
                 <AiCopilot
                   activeChat={activeChat}
+                  sessionId={selectedSessionId || undefined}
                   messages={messages}
                   currentDraft={messageInput}
                   onInsertReply={text => setMessageInput(text)}

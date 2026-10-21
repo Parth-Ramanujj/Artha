@@ -38,7 +38,12 @@ export interface SetupStatus {
   publicUrl: string | null;
   publicUrlReachable: boolean | null;
   readyForPhoneCalls: boolean;
+  /** Port this server listens on, for the tunnel command in the setup guide. */
+  serverPort: number;
 }
+
+// Opt-out lookups run in chunks so a 10,000-contact list stays a handful of queries.
+const LOOKUP_CHUNK = 500;
 
 @Injectable()
 export class AiCallingService {
@@ -84,6 +89,7 @@ export class AiCallingService {
       publicUrl,
       publicUrlReachable: null,
       readyForPhoneCalls: false,
+      serverPort: Number(process.env.PORT) || 2785,
     };
     if (twilio) {
       try {
@@ -135,15 +141,27 @@ export class AiCallingService {
 
   async createAgent(businessId: string, input: AgentInput): Promise<VoiceAgent> {
     await this.getDefaultAgent(businessId);
-    return this.agentRepo.save(
-      this.agentRepo.create({ ...DEFAULT_AGENT, ...this.cleanAgentInput(input), businessId, isDefault: false }),
-    );
+    const agent = this.agentRepo.create({
+      ...DEFAULT_AGENT,
+      ...this.cleanAgentInput(input),
+      businessId,
+      isDefault: false,
+    });
+    return this.agentRepo.save(this.checkAgent(agent));
   }
 
   async updateAgent(businessId: string, id: string, input: AgentInput): Promise<VoiceAgent> {
     const agent = await this.getAgent(businessId, id);
     Object.assign(agent, this.cleanAgentInput(input));
-    return this.agentRepo.save(agent);
+    return this.agentRepo.save(this.checkAgent(agent));
+  }
+
+  /** Rules that span fields, checked on the merged agent. */
+  private checkAgent(agent: VoiceAgent): VoiceAgent {
+    // A zero-length window would keep every call waiting forever.
+    if (agent.callingStart === agent.callingEnd)
+      throw new BadRequestException('Calling hours must start and end at different times');
+    return agent;
   }
 
   async deleteAgent(businessId: string, id: string): Promise<void> {
@@ -187,20 +205,55 @@ export class AiCallingService {
 
   /** Opted out on WhatsApp (DND tag or consent), or asked an AI call not to be called again. */
   async isDoNotCall(businessId: string, phone: string): Promise<boolean> {
-    const digits = phone.replace(/\D/g, '');
-    const ids = [chatIdFor(phone), digits, `+${digits}`];
-    const consent = await this.consentRepo.findOne({
-      where: { businessId, waContactId: In(ids), status: ConsentStatus.OPTED_OUT },
-      select: { id: true },
+    return (await this.doNotCallSet(businessId, [phone])).has(phone);
+  }
+
+  /** The E.164 numbers among `phones` that must not be called, in a few queries however long the list. */
+  async doNotCallSet(businessId: string, phones: string[]): Promise<Set<string>> {
+    const byId = new Map<string, string>();
+    for (const phone of phones) {
+      const digits = phone.replace(/\D/g, '');
+      for (const id of [chatIdFor(phone), digits, `+${digits}`]) byId.set(id, phone);
+    }
+    const blocked = new Set<string>();
+    const ids = [...byId.keys()];
+    for (let i = 0; i < ids.length; i += LOOKUP_CHUNK) {
+      const chunk = ids.slice(i, i + LOOKUP_CHUNK);
+      const consents = await this.consentRepo.find({
+        where: { businessId, waContactId: In(chunk), status: ConsentStatus.OPTED_OUT },
+        select: { waContactId: true },
+      });
+      for (const c of consents) blocked.add(byId.get(c.waContactId)!);
+      const conversations = await this.conversationRepo.find({
+        where: { businessId, chatId: In(chunk) },
+        select: { chatId: true, tags: true },
+      });
+      for (const c of conversations) if (hasDndTag(c.tags)) blocked.add(byId.get(c.chatId)!);
+    }
+    for (let i = 0; i < phones.length; i += LOOKUP_CHUNK) {
+      const refused = await this.callRepo.find({
+        where: { businessId, phone: In(phones.slice(i, i + LOOKUP_CHUNK)), outcome: AiCallOutcome.DO_NOT_CALL },
+        select: { phone: true },
+      });
+      for (const c of refused) blocked.add(c.phone);
+    }
+    return blocked;
+  }
+
+  /** Records a "do not call me" as a WhatsApp opt-out too, so campaigns stop even when no chat exists yet. */
+  async markOptedOut(businessId: string, phone: string): Promise<void> {
+    const waContactId = chatIdFor(phone);
+    const existing = await this.consentRepo.findOne({ where: { businessId, waContactId, channel: 'whatsapp' } });
+    if (existing?.status === ConsentStatus.OPTED_OUT) return;
+    await this.consentRepo.save({
+      ...(existing ?? {}),
+      businessId,
+      waContactId,
+      channel: 'whatsapp',
+      status: ConsentStatus.OPTED_OUT,
+      revokedAt: new Date(),
+      source: 'ai_call',
     });
-    if (consent) return true;
-    const conversations = await this.conversationRepo.find({
-      where: { businessId, chatId: In(ids) },
-      select: { id: true, tags: true },
-    });
-    if (conversations.some(c => hasDndTag(c.tags))) return true;
-    const refused = await this.callRepo.count({ where: { businessId, phone, outcome: AiCallOutcome.DO_NOT_CALL } });
-    return refused > 0;
   }
 
   // ── queue ──
@@ -255,18 +308,6 @@ export class AiCallingService {
     }
     if (contacts.length === 0) throw new BadRequestException('No valid phone numbers in this list');
 
-    const batch = await this.batchRepo.save(
-      this.batchRepo.create({
-        businessId,
-        agentId: agent.id,
-        name: input.name.trim().slice(0, 150) || 'Call list',
-        source: input.source === 'leads' ? 'leads' : 'upload',
-        status: AiCallBatchStatus.RUNNING,
-        totalContacts: contacts.length,
-        sendWhatsapp: Boolean(input.sendWhatsapp),
-      }),
-    );
-
     const busy = new Set(
       (
         await this.callRepo.find({
@@ -275,12 +316,25 @@ export class AiCallingService {
         })
       ).map(c => c.phone),
     );
+    const optedOut = await this.doNotCallSet(
+      businessId,
+      contacts.map(c => c.phone),
+    );
+    const batch = this.batchRepo.create({
+      businessId,
+      agentId: agent.id,
+      name: input.name.trim().slice(0, 150) || 'Call list',
+      source: input.source === 'leads' ? 'leads' : 'upload',
+      status: AiCallBatchStatus.RUNNING,
+      totalContacts: contacts.length,
+      sendWhatsapp: Boolean(input.sendWhatsapp),
+    });
     let skipped = 0;
     const rows: AiCall[] = [];
     for (const c of contacts) {
       const blocked = busy.has(c.phone)
         ? 'Already queued in another list'
-        : (await this.isDoNotCall(businessId, c.phone))
+        : optedOut.has(c.phone)
           ? 'Contact opted out (DND)'
           : null;
       if (blocked) skipped++;
@@ -288,7 +342,6 @@ export class AiCallingService {
         this.callRepo.create({
           businessId,
           agentId: agent.id,
-          batchId: batch.id,
           phone: c.phone,
           contactName: c.name,
           channel: 'phone',
@@ -298,7 +351,12 @@ export class AiCallingService {
         }),
       );
     }
-    for (let i = 0; i < rows.length; i += 200) await this.callRepo.save(rows.slice(i, i + 200));
+    // The list and its calls appear together: the dialer would otherwise close a RUNNING list that has no calls yet.
+    await this.batchRepo.manager.transaction(async manager => {
+      await manager.save(batch);
+      for (const row of rows) row.batchId = batch.id;
+      for (let i = 0; i < rows.length; i += 200) await manager.save(rows.slice(i, i + 200));
+    });
     return { ...batch, queued: rows.length - skipped, skipped };
   }
 
@@ -361,8 +419,8 @@ export class AiCallingService {
     }
     const [items, total] = await qb
       .orderBy('c.createdAt', 'DESC')
-      .take(Math.min(200, Math.max(1, filters.limit ?? 50)))
-      .skip(Math.max(0, filters.offset ?? 0))
+      .take(Math.min(200, Math.max(1, Number.isFinite(filters.limit) ? filters.limit! : 50)))
+      .skip(Math.max(0, Number.isFinite(filters.offset) ? filters.offset! : 0))
       .getManyAndCount();
     return { items, total };
   }

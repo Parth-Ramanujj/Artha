@@ -53,6 +53,8 @@ const ALLOWLIST = new Map<string, string>([
   ['workflow.controller.ts :: findRun', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: cancelRun', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: testRun', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: simulateStart', 'business-scoped via getBusinessId(apiKey)'],
+  ['workflow.controller.ts :: simulateReply', 'business-scoped via getBusinessId(apiKey)'],
   ['workflow.controller.ts :: testWebhook', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: getConfig', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: updateConfig', 'business-scoped via getBusinessId(apiKey)'],
@@ -63,6 +65,16 @@ const ALLOWLIST = new Map<string, string>([
   ['ai.controller.ts :: createDocument', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: updateDocument', 'business-scoped via getBusinessId(apiKey)'],
   ['ai.controller.ts :: removeDocument', 'business-scoped via getBusinessId(apiKey)'],
+  ['ai-agent.controller.ts :: list', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: create', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: build', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: update', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: remove', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: test', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: ping', 'business-scoped via business(apiKey)'],
+  ['ai-agent.controller.ts :: voices', 'static voice list, no tenant data'],
+  ['ai-agent.controller.ts :: voicePreview', 'speaks the caller-supplied text, no tenant data'],
+  ['ai-agent.controller.ts :: runCopilot', 'works only on the caller-supplied messages, no tenant data'],
   ['campaign.controller.ts :: create', 'business-scoped via getBusinessId(apiKey) — ScheduledMessageController'],
   [
     'campaign.controller.ts :: findAll',
@@ -190,6 +202,86 @@ const ALLOWLIST = new Map<string, string>([
   ['ai-calling.controller.ts :: startTestCall', 'business-scoped via businessId(apiKey) — AiCallingController'],
   ['ai-calling.controller.ts :: listTestCalls', 'business-scoped via businessId(apiKey) — AiCallingController'],
   ['ai-calling.controller.ts :: previewUpload', 'parses the uploaded file only; reads and stores no tenant data'],
+  [
+    'message-studio.controller.ts :: capabilities',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: listTemplates',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: validate',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: listMessages',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: listPublished',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: getMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: createMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: updateMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: duplicateMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: publishMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: unpublishMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: archiveMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: restoreMessage',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: testSend',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: testStatus',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: listProducts',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: createProduct',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: updateProduct',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: getSettings',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
+  [
+    'message-studio.controller.ts :: updateSettings',
+    'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
+  ],
 ]);
 
 /**

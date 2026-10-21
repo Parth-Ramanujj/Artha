@@ -1,12 +1,47 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Integration, IntegrationType, IntegrationStatus } from './entities/integration.entity';
 import { CreateIntegrationDto, UpdateIntegrationDto } from './dto/integration.dto';
+import * as nodemailer from 'nodemailer';
+import { GoogleWorkspaceService, isGoogleType } from './google/google-workspace.service';
+
+/** The SMTP settings an email integration keeps in its config. */
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure?: boolean;
+  username: string;
+  password: string;
+  fromAddress: string;
+  fromName?: string;
+}
+
+export function readSmtpConfig(config: Record<string, unknown> | null | undefined): SmtpConfig {
+  const c = config ?? {};
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const port = Number(c.port ?? 587);
+  const smtp: SmtpConfig = {
+    host: str(c.host),
+    port,
+    secure: c.secure === true || c.secure === 'true' || port === 465,
+    username: str(c.username),
+    password: str(c.password),
+    fromAddress: str(c.fromAddress),
+    fromName: str(c.fromName) || undefined,
+  };
+  const missing: string[] = (['host', 'username', 'password', 'fromAddress'] as const).filter(k => !smtp[k]);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) missing.push('port');
+  if (missing.length) throw new BadRequestException(`Email settings missing: ${missing.join(', ')}`);
+  return smtp;
+}
 
 @Injectable()
 export class IntegrationService {
-  constructor(@InjectRepository(Integration, 'data') private readonly repo: Repository<Integration>) {}
+  constructor(
+    @InjectRepository(Integration, 'data') private readonly repo: Repository<Integration>,
+    @Optional() private readonly google?: GoogleWorkspaceService,
+  ) {}
 
   async findAll(businessId: string, type?: string) {
     const effectiveBusinessId = businessId || 'default';
@@ -55,6 +90,13 @@ export class IntegrationService {
 
   async testConnection(id: string, businessId: string) {
     const integration = await this.findOne(id, businessId);
+    if (integration.type === IntegrationType.EMAIL_SMTP) {
+      return this.verifySmtp(integration.config);
+    }
+    if (isGoogleType(integration.type)) {
+      if (!this.google) return { success: false, message: 'Google sign-in is not available' };
+      return this.google.verify(integration);
+    }
     const targetUrl =
       integration.config?.webhookUrl ||
       integration.config?.url ||
@@ -146,13 +188,65 @@ export class IntegrationService {
 
   async disconnect(id: string, businessId: string) {
     const integration = await this.findOne(id, businessId);
+    if (isGoogleType(integration.type) && this.google) {
+      await this.google.revoke(integration);
+    }
     integration.status = IntegrationStatus.DISCONNECTED;
     return this.repo.save(integration);
   }
 
   async remove(id: string, businessId: string) {
     const integration = await this.findOne(id, businessId);
+    if (isGoogleType(integration.type) && this.google) {
+      await this.google.revoke(integration);
+    }
     await this.repo.remove(integration);
+  }
+
+  /** Logs in to the SMTP server with the saved settings; nothing is sent. */
+  async verifySmtp(config: Record<string, unknown> | null | undefined) {
+    const smtp = readSmtpConfig(config);
+    const transport = this.smtpTransport(smtp);
+    try {
+      await transport.verify();
+      return { success: true, message: `Connected to ${smtp.host}:${smtp.port} as ${smtp.username}` };
+    } catch (err) {
+      return { success: false, message: `SMTP login failed: ${(err as Error).message}` };
+    } finally {
+      transport.close();
+    }
+  }
+
+  /** Sends one email through the integration's SMTP account. */
+  async sendEmail(id: string, businessId: string, msg: { to: string; subject: string; text: string }) {
+    const integration = await this.findOne(id, businessId);
+    if (integration.type !== IntegrationType.EMAIL_SMTP) {
+      throw new BadRequestException('This integration is not an email integration');
+    }
+    const smtp = readSmtpConfig(integration.config);
+    const transport = this.smtpTransport(smtp);
+    try {
+      const info = await transport.sendMail({
+        from: smtp.fromName ? `"${smtp.fromName.replace(/"/g, '')}" <${smtp.fromAddress}>` : smtp.fromAddress,
+        to: msg.to,
+        subject: msg.subject,
+        text: msg.text,
+      });
+      return { success: true, messageId: info.messageId };
+    } finally {
+      transport.close();
+    }
+  }
+
+  private smtpTransport(smtp: SmtpConfig) {
+    return nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: { user: smtp.username, pass: smtp.password },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+    });
   }
 
   getAvailableTypes() {
@@ -192,6 +286,36 @@ export class IntegrationService {
         label: 'Google Calendar',
         category: 'calendar',
         description: 'Book appointments via Google Calendar',
+      },
+      {
+        type: IntegrationType.EMAIL_SMTP,
+        label: 'Email (SMTP)',
+        category: 'email',
+        description: 'Send emails from your own mailbox through any SMTP server',
+      },
+      {
+        type: IntegrationType.GOOGLE_GMAIL,
+        label: 'Gmail',
+        category: 'google',
+        description: 'Send emails from your own Google account',
+      },
+      {
+        type: IntegrationType.GOOGLE_CALENDAR,
+        label: 'Google Calendar (sign-in)',
+        category: 'google',
+        description: 'Read and create events in your Google Calendar',
+      },
+      {
+        type: IntegrationType.GOOGLE_SHEETS,
+        label: 'Google Sheets',
+        category: 'google',
+        description: 'Add rows to spreadsheets you choose',
+      },
+      {
+        type: IntegrationType.GOOGLE_DRIVE,
+        label: 'Google Drive',
+        category: 'google',
+        description: 'Files this app creates in your Google Drive',
       },
     ];
   }

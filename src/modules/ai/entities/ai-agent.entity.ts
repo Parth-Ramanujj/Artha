@@ -49,8 +49,38 @@ export class AiAgent {
   @Column({ type: 'varchar', length: 500, nullable: true })
   externalWebhookUrl: string | null;
 
+  /** Authorization header value for the external webhook, e.g. "Bearer …"; never returned by the API. */
   @Column({ type: 'varchar', length: 500, nullable: true })
   externalAuthToken: string | null;
+
+  /** flowise, n8n, dify, langchain, botpress or custom: decides the request body shape. */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  externalPlatform: string | null;
+
+  /** Dot path to the reply text in the external webhook's JSON response, e.g. "output.text". */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  responseJsonPath: string | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  externalStatus: string | null;
+
+  @Column({ type: 'integer', nullable: true })
+  lastPingMs: number | null;
+
+  @Column({ type: 'float', default: 0.5 })
+  temperature: number;
+
+  /** Words that route a chat to this agent; empty means it answers any chat no other agent claims. */
+  @Column({ type: jsonColumnType(), nullable: true })
+  triggerKeywords: string[] | null;
+
+  /** WhatsApp session it answers on; null means every number of the business. */
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  sessionId: string | null;
+
+  /** Replies to customers on its own; off means it can only be tried in the test chat. */
+  @Column({ type: 'boolean', default: false })
+  autonomous: boolean;
 
   @Column({ type: 'boolean', default: false })
   isVoiceEnabled: boolean;

@@ -1,422 +1,414 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   Bot,
   Sparkles,
   Zap,
   Mic,
-  Play,
-  Square,
-  Volume2,
   Globe,
   Plus,
   Trash2,
   RotateCw,
-  Send,
   MessageSquare,
   Loader2,
+  Pencil,
+  Info,
 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
-import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
+import { AgentFormModal } from '../components/ai-agents/AgentFormModal';
+import { AgentTestModal } from '../components/ai-agents/AgentTestModal';
+import { VoiceTab } from '../components/ai-agents/VoiceTab';
 import { aiCreditsService } from '../services/aiCredits';
+import {
+  aiAgentsApi,
+  aiAssistantApi,
+  sessionApi,
+  type AiAgent,
+  type AiAgentInput,
+  type Session,
+} from '../services/api';
 import './AiAgents.css';
 
-export interface AgentModel {
-  id: string;
-  name: string;
-  role: string;
-  description: string;
-  model: string;
-  temperature: number;
-  autonomous: boolean;
-  active: boolean;
-  assignedChannel: string;
-  triggerKeywords: string[];
-  systemPrompt: string;
-  conversationsHandled: number;
-}
+type Tab = 'agents' | 'builder' | 'external' | 'voice';
+type FormState = { agent: AiAgent | null; external: boolean } | null;
 
-export interface ExternalAgent {
-  id: string;
-  name: string;
-  platform: 'flowise' | 'n8n' | 'dify' | 'langchain' | 'botpress' | 'custom';
-  webhookUrl: string;
-  authHeader?: string;
-  responseJsonPath: string;
-  status: 'connected' | 'testing' | 'error';
-  lastPingMs?: number;
-}
-
-const INITIAL_AGENTS: AgentModel[] = [
-  {
-    id: 'agent-astra-support',
-    name: 'Astra Support 24/7',
-    role: 'Customer Care & FAQ Specialist',
-    description: 'Autonomous frontline agent resolving 80% of routine inquiries, operating hours, order lookups, and escalations.',
-    model: 'gpt-4o',
-    temperature: 0.3,
-    autonomous: true,
-    active: true,
-    assignedChannel: 'All Numbers',
-    triggerKeywords: ['help', 'order status', 'hours', 'support', 'મદદ', 'સહાય'],
-    systemPrompt: 'You are Astra, a helpful, polite customer support assistant for OpenWA. Respond concisely and empathetically.',
-    conversationsHandled: 1420,
-  },
-  {
-    id: 'agent-sales-qualifier',
-    name: 'Apollo Sales Qualifier',
-    role: 'B2B Lead Qualification & Pricing',
-    description: 'Engages inbound WhatsApp leads, collects requirements, calculates volume discounts, and books demo calls.',
-    model: 'claude-3-5-sonnet',
-    temperature: 0.5,
-    autonomous: true,
-    active: true,
-    assignedChannel: 'Sales Hotline (+91 98765 43210)',
-    triggerKeywords: ['price', 'quote', 'demo', 'pricing', 'ભાવ', 'ઓર્ડર'],
-    systemPrompt: 'You are Apollo, a senior sales consultant. Qualify leads by asking company size, monthly message volume, and expected timeline.',
-    conversationsHandled: 890,
-  },
-  {
-    id: 'agent-booking-orders',
-    name: 'Nexus Booking & Reservations',
-    role: 'Appointment & Delivery Scheduling',
-    description: 'Collects appointment dates, party sizes, service types, and dispatches automated confirmation WhatsApp messages.',
-    model: 'llama-3-3-70b',
-    temperature: 0.2,
-    autonomous: false,
-    active: true,
-    assignedChannel: 'Booking Line (+91 91234 56789)',
-    triggerKeywords: ['book', 'table', 'appointment', 'reserve', 'બુકિંગ'],
-    systemPrompt: 'You are Nexus. Guide customers through booking an appointment step-by-step: date, time, and service required.',
-    conversationsHandled: 640,
-  },
-];
-
-const INITIAL_EXTERNAL_AGENTS: ExternalAgent[] = [
-  {
-    id: 'ext-1',
-    name: 'Dify Customer Knowledge Agent',
-    platform: 'dify',
-    webhookUrl: 'https://api.dify.ai/v1/chat-messages',
-    authHeader: 'Bearer dify-app-8x92nd823hd92jd',
-    responseJsonPath: 'answer',
-    status: 'connected',
-    lastPingMs: 142,
-  },
-  {
-    id: 'ext-2',
-    name: 'n8n ERP Sync & Inventory Bot',
-    platform: 'n8n',
-    webhookUrl: 'https://n8n.mycompany.com/webhook/whatsapp-agent',
-    responseJsonPath: 'output.text',
-    status: 'connected',
-    lastPingMs: 210,
-  },
-  {
-    id: 'ext-3',
-    name: 'Flowise RAG Pipeline',
-    platform: 'flowise',
-    webhookUrl: 'https://flowise.cloud/api/v1/prediction/39d0-23jd',
-    authHeader: 'Bearer flw_982347293847',
-    responseJsonPath: 'text',
-    status: 'connected',
-    lastPingMs: 185,
-  },
-];
-
-const STORAGE_KEY_AGENTS = 'openwa_autonomous_agents';
-const STORAGE_KEY_EXT = 'openwa_external_agents';
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const smallBtn = { padding: '4px 10px', fontSize: '0.75rem' } as const;
 
 export function AiAgents() {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<'agents' | 'builder' | 'external' | 'voice'>('agents');
+  const [activeTab, setActiveTab] = useState<Tab>('agents');
 
-  // Agents State
-  const [agents, setAgents] = useState<AgentModel[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_AGENTS);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_AGENTS;
-  });
+  const [agents, setAgents] = useState<AiAgent[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [models, setModels] = useState<Array<{ id: string; name: string }>>([]);
 
-  // External Agents State
-  const [externalAgents, setExternalAgents] = useState<ExternalAgent[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_EXT);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_EXTERNAL_AGENTS;
-  });
+  const [form, setForm] = useState<FormState>(null);
+  const [testAgent, setTestAgent] = useState<AiAgent | null>(null);
+  const [pingingId, setPingingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_AGENTS, JSON.stringify(agents));
-  }, [agents]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_EXT, JSON.stringify(externalAgents));
-  }, [externalAgents]);
-
-  // Natural Language Builder State
   const [builderPrompt, setBuilderPrompt] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
+  const [buildError, setBuildError] = useState<string | null>(null);
 
-  // Testing Playground Modal
-  const [testAgent, setTestAgent] = useState<AgentModel | null>(null);
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'agent'; text: string }>>([]);
-  const [isReplying, setIsReplying] = useState(false);
+  const loadAgents = useCallback(() => {
+    aiAgentsApi
+      .list()
+      .then(list => {
+        setAgents(list);
+        setLoadError(null);
+      })
+      .catch(err => setLoadError(errorText(err)));
+  }, []);
 
-  // External Agent Modal
-  const [isExtModalOpen, setIsExtModalOpen] = useState(false);
-  const [newExt, setNewExt] = useState<Partial<ExternalAgent>>({
-    name: '',
-    platform: 'flowise',
-    webhookUrl: '',
-    authHeader: '',
-    responseJsonPath: 'text',
-  });
+  useEffect(() => {
+    loadAgents();
+    // Optional lookups: the form still works (All numbers / free-text model) if these fail.
+    sessionApi
+      .list()
+      .then(setSessions)
+      .catch(() => {});
+    aiAssistantApi
+      .getModels()
+      .then(setModels)
+      .catch(() => {});
+  }, [loadAgents]);
 
-  // Voice AI State
-  const [voiceLanguage, setVoiceLanguage] = useState<'gu' | 'hi' | 'en' | 'es'>('gu');
-  const [voicePersona, setVoicePersona] = useState('aarav');
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const internalAgents = (agents ?? []).filter(a => !a.isExternal);
+  const externalAgents = (agents ?? []).filter(a => a.isExternal);
 
-  // Toggle Agent Active
-  const handleToggleActive = (id: string) => {
-    setAgents(prev =>
-      prev.map(a => (a.id === id ? { ...a, active: !a.active } : a))
-    );
-    toast.addToast({ type: 'info', title: 'Agent active status updated' });
+  const replaceAgent = (updated: AiAgent) =>
+    setAgents(prev => (prev ? prev.map(a => (a.id === updated.id ? updated : a)) : prev));
+
+  const sessionLabel = (id: string | null) => (id ? (sessions.find(s => s.id === id)?.name ?? id) : 'All numbers');
+
+  const patchAgent = async (agent: AiAgent, data: AiAgentInput, okMessage: string) => {
+    try {
+      replaceAgent(await aiAgentsApi.update(agent.id, data));
+      toast.success(okMessage);
+    } catch (err) {
+      toast.error('Could not update agent', errorText(err));
+    }
   };
 
-  // Toggle Autonomous mode
-  const handleToggleAutonomous = (id: string) => {
-    setAgents(prev =>
-      prev.map(a => (a.id === id ? { ...a, autonomous: !a.autonomous } : a))
-    );
-    toast.addToast({ type: 'success', title: 'Autonomous mode toggled' });
+  const handleSubmitForm = async (data: AiAgentInput) => {
+    if (!form) return;
+    try {
+      if (form.agent) {
+        replaceAgent(await aiAgentsApi.update(form.agent.id, data));
+        toast.success('Agent saved');
+      } else {
+        const created = await aiAgentsApi.create({ ...data, name: data.name ?? '' });
+        setAgents(prev => [created, ...(prev ?? [])]);
+        toast.success(form.external ? 'External agent connected' : 'Agent created');
+      }
+      setForm(null);
+    } catch (err) {
+      toast.error('Could not save agent', errorText(err));
+    }
   };
 
-  // Astra Natural Language Builder Generate
-  const handleBuildAgent = () => {
+  const handleDelete = async (agent: AiAgent) => {
+    if (!window.confirm(`Delete "${agent.name}"? This cannot be undone.`)) return;
+    try {
+      await aiAgentsApi.delete(agent.id);
+      setAgents(prev => (prev ? prev.filter(a => a.id !== agent.id) : prev));
+      toast.success('Agent deleted');
+    } catch (err) {
+      toast.error('Could not delete agent', errorText(err));
+    }
+  };
+
+  const handleBuildAgent = async () => {
     if (!builderPrompt.trim()) {
-      toast.addToast({ type: 'warning', title: 'Please describe the agent you want to create' });
+      toast.warning('Please describe the agent you want to create');
       return;
     }
-
-    if (!aiCreditsService.deduct('agent_reply', 'Astra AI Agent Builder', 10)) {
-      toast.addToast({ type: 'warning', title: 'Insufficient AI credits to generate new agent' });
+    if (aiCreditsService.getBalance() < 10) {
+      toast.warning('Insufficient AI credits to generate new agent');
       return;
     }
-
     setIsBuilding(true);
-    setTimeout(() => {
-      const generatedName = builderPrompt.slice(0, 30).trim() || 'Astra Custom Agent';
-      const newAgent: AgentModel = {
-        id: `agent-${Date.now()}`,
-        name: generatedName,
-        role: 'Autonomous Domain Specialist',
-        description: `Custom agent built from prompt: "${builderPrompt.slice(0, 80)}..."`,
-        model: 'gpt-4o',
-        temperature: 0.4,
-        autonomous: true,
-        active: true,
-        assignedChannel: 'All Numbers',
-        triggerKeywords: ['order', 'inquiry', 'help', 'details'],
-        systemPrompt: `You are ${generatedName}. Your primary objective is to execute the user's intent: ${builderPrompt}. Keep replies crisp, polite, and action-oriented.`,
-        conversationsHandled: 0,
-      };
-
-      setAgents(prev => [newAgent, ...prev]);
-      setIsBuilding(false);
+    setBuildError(null);
+    try {
+      const created = await aiAgentsApi.build(builderPrompt.trim());
+      aiCreditsService.deduct('agent_reply', 'Astra AI Agent Builder', 10);
+      setAgents(prev => [created, ...(prev ?? [])]);
       setBuilderPrompt('');
       setActiveTab('agents');
-      toast.addToast({ type: 'success', title: 'AI Agent created successfully with Astra AI! (-10 credits)' });
-    }, 1200);
-  };
-
-  // Test Playground Send
-  const handleSendTestMessage = () => {
-    if (!chatInput.trim() || !testAgent) return;
-    const userMsg = chatInput.trim();
-    setChatMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setChatInput('');
-    setIsReplying(true);
-
-    aiCreditsService.deduct('agent_reply', `Test chat with ${testAgent.name}`, 1);
-
-    setTimeout(() => {
-      let reply = `Hello! I am ${testAgent.name}. I received your message: "${userMsg}". How can I proceed to assist you?`;
-      if (/price|cost|quote|ભાવ/i.test(userMsg)) {
-        reply = `Our standard pricing begins at ₹0.42/msg with volume tier discounts. Would you like me to prepare a custom quote?`;
-      } else if (/book|reserve|બુક/i.test(userMsg)) {
-        reply = `Sure! What date and time would you prefer for your reservation?`;
-      }
-      setChatMessages(prev => [...prev, { sender: 'agent', text: reply }]);
-      setIsReplying(false);
-    }, 700);
-  };
-
-  // Ping External Agent
-  const handleTestExternalAgent = (id: string) => {
-    setExternalAgents(prev =>
-      prev.map(ea => (ea.id === id ? { ...ea, status: 'testing' } : ea))
-    );
-    setTimeout(() => {
-      const latency = Math.floor(Math.random() * 120) + 110;
-      setExternalAgents(prev =>
-        prev.map(ea => (ea.id === id ? { ...ea, status: 'connected', lastPingMs: latency } : ea))
-      );
-      toast.addToast({ type: 'success', title: `External agent ping successful (${latency}ms latency)` });
-    }, 800);
-  };
-
-  // Play Sample Voice Note
-  const handleTogglePlayVoice = () => {
-    if (isPlayingAudio) {
-      setIsPlayingAudio(false);
-      return;
+      setForm({ agent: created, external: false });
+      toast.success('Agent drafted — review it, then switch on auto-reply (-10 credits)');
+    } catch (err) {
+      setBuildError(errorText(err));
+    } finally {
+      setIsBuilding(false);
     }
-    setIsPlayingAudio(true);
-    aiCreditsService.deduct('voice_tts', 'Voice AI Synthesis Preview', 2);
-    toast.addToast({ type: 'info', title: `Synthesizing ${voiceLanguage.toUpperCase()} voice note via ElevenLabs... (-2 credits)` });
-    setTimeout(() => {
-      setIsPlayingAudio(false);
-      toast.addToast({ type: 'success', title: 'Voice note playback finished' });
-    }, 4000);
   };
+
+  const handlePing = async (agent: AiAgent) => {
+    setPingingId(agent.id);
+    try {
+      const res = await aiAgentsApi.ping(agent.id);
+      replaceAgent({ ...agent, externalStatus: res.ok ? 'connected' : 'error', lastPingMs: res.latencyMs });
+      if (res.ok) {
+        toast.success(`Connected (${res.latencyMs} ms)`, res.reply ? `Reply: ${res.reply.slice(0, 160)}` : undefined);
+      } else {
+        toast.error(`Connection failed (${res.latencyMs} ms)`, res.error);
+      }
+    } catch (err) {
+      toast.error('Connection test failed', errorText(err));
+    } finally {
+      setPingingId(null);
+    }
+  };
+
+  const renderList = (list: AiAgent[], emptyText: string, renderCard: (a: AiAgent) => ReactNode) => {
+    if (loadError) {
+      return (
+        <div className="empty-state">
+          <p>Could not load agents: {loadError}</p>
+          <button className="btn-secondary" onClick={loadAgents}>
+            <RotateCw size={14} /> Retry
+          </button>
+        </div>
+      );
+    }
+    if (!agents) {
+      return (
+        <div className="empty-state">
+          <Loader2 size={20} className="animate-spin" />
+        </div>
+      );
+    }
+    if (list.length === 0) {
+      return (
+        <div className="empty-state">
+          <p>{emptyText}</p>
+        </div>
+      );
+    }
+    return <div className="agents-grid">{list.map(renderCard)}</div>;
+  };
+
+  const renderInternalCard = (agent: AiAgent) => (
+    <div key={agent.id} className="agent-card">
+      <div className="agent-card-header">
+        <div className="agent-avatar-box">
+          <Bot size={22} />
+        </div>
+        <div className="agent-info">
+          <h3 className="agent-name">
+            {agent.name}
+            {agent.autonomous && agent.status === 'active' && (
+              <span title="Auto-reply on" style={{ color: '#6366f1' }}>
+                <Zap size={14} />
+              </span>
+            )}
+          </h3>
+          <span className="agent-role">{agent.role}</span>
+        </div>
+        <span className={`agent-status-badge ${agent.status === 'active' ? 'active' : 'paused'}`}>
+          {agent.status === 'active' ? 'Active' : agent.status === 'draft' ? 'Draft' : 'Paused'}
+        </span>
+      </div>
+
+      {agent.description && <p className="agent-desc">{agent.description}</p>}
+
+      <div className="agent-meta-tags">
+        <span className="meta-tag">Model: {agent.model || 'default'}</span>
+        <span className="meta-tag">Answers on: {sessionLabel(agent.sessionId)}</span>
+        <span className="meta-tag">
+          Keywords: {agent.triggerKeywords.length ? agent.triggerKeywords.join(', ') : 'any chat'}
+        </span>
+        <span className="meta-tag" style={{ color: '#16a34a' }}>
+          {agent.conversationsHandled.toLocaleString()} chats handled
+        </span>
+      </div>
+
+      <div className="agent-card-footer" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label className="toggle-switch-container">
+            <input
+              type="checkbox"
+              checked={agent.status === 'active'}
+              onChange={e =>
+                patchAgent(
+                  agent,
+                  { status: e.target.checked ? 'active' : 'paused' },
+                  e.target.checked ? 'Agent activated' : 'Agent paused',
+                )
+              }
+            />
+            <span>Active</span>
+          </label>
+          <label className="toggle-switch-container">
+            <input
+              type="checkbox"
+              checked={agent.autonomous}
+              onChange={e =>
+                patchAgent(
+                  agent,
+                  { autonomous: e.target.checked },
+                  e.target.checked ? 'Auto-reply on' : 'Auto-reply off',
+                )
+              }
+            />
+            <span>Auto-reply to customers</span>
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn-secondary" style={smallBtn} onClick={() => setTestAgent(agent)}>
+            <MessageSquare size={12} /> Test
+          </button>
+          <button
+            className="btn-secondary"
+            style={smallBtn}
+            onClick={() => setForm({ agent, external: false })}
+            aria-label={`Edit ${agent.name}`}
+          >
+            <Pencil size={12} />
+          </button>
+          <button className="deal-delete-btn" onClick={() => handleDelete(agent)} aria-label={`Delete ${agent.name}`}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderExternalCard = (agent: AiAgent) => (
+    <div key={agent.id} className="agent-card">
+      <div className="agent-card-header">
+        <div className="agent-avatar-box" style={{ background: '#0284c7' }}>
+          <Globe size={22} />
+        </div>
+        <div className="agent-info">
+          <h3 className="agent-name">{agent.name}</h3>
+          <span className="agent-role" style={{ textTransform: 'uppercase' }}>
+            {agent.externalPlatform ?? 'custom'}
+          </span>
+        </div>
+        <span className={`agent-status-badge ${agent.externalStatus === 'connected' ? 'active' : 'paused'}`}>
+          {agent.externalStatus === 'connected' ? 'Connected' : agent.externalStatus === 'error' ? 'Error' : 'Untested'}
+        </span>
+      </div>
+
+      <div
+        style={{
+          fontSize: '0.8125rem',
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
+        <div>
+          <strong>Webhook: </strong>
+          <code style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>{agent.externalWebhookUrl}</code>
+        </div>
+        <div>
+          <strong>Response path: </strong>
+          <code>{agent.responseJsonPath || '(whole body)'}</code>
+        </div>
+        <div>
+          <strong>Answers on: </strong>
+          {sessionLabel(agent.sessionId)} · <strong>Auto-reply: </strong>
+          {agent.autonomous ? 'on' : 'off'}
+        </div>
+        {agent.lastPingMs != null && <div>Last ping: {agent.lastPingMs} ms</div>}
+      </div>
+
+      <div className="agent-card-footer">
+        <button
+          className="btn-secondary"
+          style={smallBtn}
+          onClick={() => handlePing(agent)}
+          disabled={pingingId === agent.id}
+        >
+          <RotateCw size={12} className={pingingId === agent.id ? 'animate-spin' : ''} />
+          Test connection
+        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className="btn-secondary"
+            style={smallBtn}
+            onClick={() => setForm({ agent, external: true })}
+            aria-label={`Edit ${agent.name}`}
+          >
+            <Pencil size={12} />
+          </button>
+          <button className="deal-delete-btn" onClick={() => handleDelete(agent)} aria-label={`Delete ${agent.name}`}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const tabBtn = (tab: Tab, icon: ReactNode, label: string) => (
+    <button className={`ai-agents-tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
+      {icon}
+      {label}
+    </button>
+  );
+
+  const tabIntro = (text: string, action: ReactNode) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+      <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{text}</p>
+      {action}
+    </div>
+  );
 
   return (
     <div className="ai-agents-page" data-testid="ai-agents-page">
       <PageHeader
         title="AI Agents & Voice Engine"
-        subtitle="Manage autonomous AI agents, Astra natural language builder, external webhook agents, and human voice engine"
+        subtitle="Manage AI agents that answer WhatsApp chats, build agents from a description, connect external agents, and preview voices"
       />
 
-      {/* Navigation Tabs */}
       <div className="ai-agents-nav-tabs">
-        <button
-          className={`ai-agents-tab-btn ${activeTab === 'agents' ? 'active' : ''}`}
-          onClick={() => setActiveTab('agents')}
-        >
-          <Bot size={16} />
-          Autonomous AI Agents ({agents.length})
-        </button>
-        <button
-          className={`ai-agents-tab-btn ${activeTab === 'builder' ? 'active' : ''}`}
-          onClick={() => setActiveTab('builder')}
-        >
-          <Sparkles size={16} />
-          AI Agent Builder (Astra)
-        </button>
-        <button
-          className={`ai-agents-tab-btn ${activeTab === 'external' ? 'active' : ''}`}
-          onClick={() => setActiveTab('external')}
-        >
-          <Globe size={16} />
-          External AI Agents (BYO) ({externalAgents.length})
-        </button>
-        <button
-          className={`ai-agents-tab-btn ${activeTab === 'voice' ? 'active' : ''}`}
-          onClick={() => setActiveTab('voice')}
-        >
-          <Mic size={16} />
-          Voice AI Engine (Whisper + ElevenLabs)
-        </button>
+        {tabBtn('agents', <Bot size={16} />, `AI Agents (${internalAgents.length})`)}
+        {tabBtn('builder', <Sparkles size={16} />, 'Agent Builder (Astra)')}
+        {tabBtn('external', <Globe size={16} />, `External Agents (${externalAgents.length})`)}
+        {tabBtn('voice', <Mic size={16} />, 'Voice (Sarvam)')}
       </div>
 
-      {/* Tab 1: Autonomous AI Agents */}
       {activeTab === 'agents' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              These autonomous agents converse with customers on WhatsApp, answer questions, qualify leads, and perform actions 24/7.
-            </p>
-            <button className="btn-primary" onClick={() => setActiveTab('builder')}>
-              <Plus size={16} />
-              Build New Agent
-            </button>
-          </div>
-
-          <div className="agents-grid">
-            {agents.map(agent => (
-              <div key={agent.id} className="agent-card">
-                <div className="agent-card-header">
-                  <div className="agent-avatar-box">
-                    <Bot size={22} />
-                  </div>
-                  <div className="agent-info">
-                    <h3 className="agent-name">
-                      {agent.name}
-                      {agent.autonomous && (
-                        <span title="Autonomous Mode Active" style={{ color: '#6366f1' }}>
-                          <Zap size={14} />
-                        </span>
-                      )}
-                    </h3>
-                    <span className="agent-role">{agent.role}</span>
-                  </div>
-                  <span className={`agent-status-badge ${agent.active ? 'active' : 'paused'}`}>
-                    {agent.active ? 'Active' : 'Paused'}
-                  </span>
-                </div>
-
-                <p className="agent-desc">{agent.description}</p>
-
-                <div className="agent-meta-tags">
-                  <span className="meta-tag">Model: {agent.model}</span>
-                  <span className="meta-tag">Temp: {agent.temperature}</span>
-                  <span className="meta-tag">Channel: {agent.assignedChannel}</span>
-                  <span className="meta-tag" style={{ color: '#16a34a' }}>
-                    {agent.conversationsHandled.toLocaleString()} Chats Handled
-                  </span>
-                </div>
-
-                <div className="agent-card-footer">
-                  <label className="toggle-switch-container">
-                    <input
-                      type="checkbox"
-                      checked={agent.autonomous}
-                      onChange={() => handleToggleAutonomous(agent.id)}
-                    />
-                    <span>Autonomous Auto-Reply</span>
-                  </label>
-
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      className="btn-secondary"
-                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                      onClick={() => {
-                        setTestAgent(agent);
-                        setChatMessages([
-                          { sender: 'agent', text: `Hi! I am ${agent.name}. How can I assist you today?` },
-                        ]);
-                      }}
-                    >
-                      <MessageSquare size={12} />
-                      Test Bot
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                      onClick={() => handleToggleActive(agent.id)}
-                    >
-                      {agent.active ? 'Pause' : 'Resume'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {tabIntro(
+            'AI agents answer customers on WhatsApp using their system prompt.',
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-secondary" onClick={() => setActiveTab('builder')}>
+                <Sparkles size={16} /> Describe an agent
+              </button>
+              <button className="btn-primary" onClick={() => setForm({ agent: null, external: false })}>
+                <Plus size={16} /> New Agent
+              </button>
+            </div>,
+          )}
+          <p
+            style={{
+              margin: 0,
+              display: 'flex',
+              gap: 6,
+              alignItems: 'flex-start',
+              fontSize: '0.8125rem',
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+            An active agent with auto-reply on answers incoming WhatsApp chats that contain one of its keywords (or any
+            chat if it has none). A human taking over a chat, or a matching workflow, always wins.
+          </p>
+          {renderList(
+            internalAgents,
+            'No agents yet — create one or describe one in the Builder tab',
+            renderInternalCard,
+          )}
         </>
       )}
 
-      {/* Tab 2: Astra Natural Language Builder */}
       {activeTab === 'builder' && (
         <div className="builder-hero-card">
           <div className="builder-header">
@@ -425,17 +417,19 @@ export function AiAgents() {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Astra Natural Language Agent Builder
+                Describe your agent
               </h3>
               <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                Describe what your agent should do in plain English, Gujarati, or Hindi. Astra AI will architect the system prompt, trigger conditions, tools, and guardrails automatically.
+                Describe what your agent should do in plain English, Gujarati, or Hindi. The AI drafts its name, system
+                prompt and keywords. It starts with auto-reply off so you can review it first.
               </p>
             </div>
           </div>
 
           <textarea
             className="builder-prompt-textarea"
-            placeholder="e.g. Build an AI agent for my electronics and gadget store in Surat. It should help customers choose smartphones, provide specs, share warranty details, and ask for their WhatsApp number for home delivery..."
+            aria-label="Agent description"
+            placeholder="e.g. Build an AI agent for my electronics store in Surat. It should help customers choose smartphones, share warranty details, and ask for their address for home delivery..."
             value={builderPrompt}
             onChange={e => setBuilderPrompt(e.target.value)}
           />
@@ -449,7 +443,7 @@ export function AiAgents() {
               className="template-pill"
               onClick={() =>
                 setBuilderPrompt(
-                  'Create an Italian Restaurant reservation agent that takes table bookings, party size, booking time, and sends a confirmed WhatsApp booking pass.'
+                  'Create an Italian Restaurant reservation agent that takes table bookings, party size, booking time, and confirms the booking.',
                 )
               }
             >
@@ -460,7 +454,7 @@ export function AiAgents() {
               className="template-pill"
               onClick={() =>
                 setBuilderPrompt(
-                  'Create a Real Estate broker agent in Ahmedabad. Inquire whether customer wants 2BHK or 3BHK flat, budget range, and schedule site visit.'
+                  'Create a Real Estate broker agent in Ahmedabad. Inquire whether customer wants 2BHK or 3BHK flat, budget range, and schedule site visit.',
                 )
               }
             >
@@ -471,13 +465,19 @@ export function AiAgents() {
               className="template-pill"
               onClick={() =>
                 setBuilderPrompt(
-                  'Create an Automobile workshop booking bot for car servicing, oil change, pickup & drop address, and instant billing quote.'
+                  'Create an Automobile workshop booking bot for car servicing, oil change, pickup & drop address, and a billing quote.',
                 )
               }
             >
               🚗 Car Service & Maintenance Bot
             </button>
           </div>
+
+          {buildError && (
+            <p role="alert" style={{ margin: 0, color: '#dc2626', fontSize: '0.875rem' }}>
+              {buildError}
+            </p>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button
@@ -489,12 +489,12 @@ export function AiAgents() {
               {isBuilding ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Generating Agent Architecture...
+                  Building agent...
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Build Agent with Astra AI (-10 cr)
+                  Build Agent (-10 cr)
                 </>
               )}
             </button>
@@ -502,357 +502,32 @@ export function AiAgents() {
         </div>
       )}
 
-      {/* Tab 3: External AI Agents (BYO) */}
       {activeTab === 'external' && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              Connect your external AI agents built on Flowise, n8n, Dify, LangChain, or custom REST webhooks to WhatsApp.
-            </p>
-            <button className="btn-primary" onClick={() => setIsExtModalOpen(true)}>
-              <Plus size={16} />
-              Connect External Agent
-            </button>
-          </div>
-
-          <div className="agents-grid">
-            {externalAgents.map(ea => (
-              <div key={ea.id} className="agent-card">
-                <div className="agent-card-header">
-                  <div className="agent-avatar-box" style={{ background: '#0284c7' }}>
-                    <Globe size={22} />
-                  </div>
-                  <div className="agent-info">
-                    <h3 className="agent-name">{ea.name}</h3>
-                    <span className="agent-role" style={{ textTransform: 'uppercase' }}>
-                      {ea.platform} Integration
-                    </span>
-                  </div>
-                  <span className={`agent-status-badge ${ea.status === 'connected' ? 'active' : 'paused'}`}>
-                    {ea.status === 'testing' ? 'Pinging...' : ea.status === 'connected' ? 'Connected' : 'Error'}
-                  </span>
-                </div>
-
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div>
-                    <strong>Webhook: </strong>
-                    <code style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>{ea.webhookUrl}</code>
-                  </div>
-                  <div>
-                    <strong>Response Key: </strong>
-                    <code>{ea.responseJsonPath}</code>
-                  </div>
-                  {ea.lastPingMs && (
-                    <div style={{ color: '#16a34a', fontWeight: 600 }}>
-                      ⚡ Latency: {ea.lastPingMs}ms
-                    </div>
-                  )}
-                </div>
-
-                <div className="agent-card-footer">
-                  <button
-                    className="btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-                    onClick={() => handleTestExternalAgent(ea.id)}
-                    disabled={ea.status === 'testing'}
-                  >
-                    <RotateCw size={12} className={ea.status === 'testing' ? 'spin' : ''} />
-                    Test Ping Webhook
-                  </button>
-                  <button
-                    className="deal-delete-btn"
-                    onClick={() => {
-                      setExternalAgents(prev => prev.filter(x => x.id !== ea.id));
-                      toast.addToast({ type: 'info', title: 'External agent disconnected' });
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+          {tabIntro(
+            'Connect agents built on Flowise, n8n, Dify, LangChain, Botpress, or any REST webhook to WhatsApp.',
+            <button className="btn-primary" onClick={() => setForm({ agent: null, external: true })}>
+              <Plus size={16} /> Connect External Agent
+            </button>,
+          )}
+          {renderList(externalAgents, 'No external agents connected yet', renderExternalCard)}
         </>
       )}
 
-      {/* Tab 4: Voice AI Engine */}
-      {activeTab === 'voice' && (
-        <div className="voice-ai-grid">
-          {/* Card 1: Speech-to-Text (STT) */}
-          <div className="voice-ai-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="builder-icon" style={{ background: '#16a34a' }}>
-                <Mic size={22} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>
-                  Speech-to-Text (STT) Whisper Engine
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                  Auto-transcribes incoming WhatsApp audio & voice notes in real-time.
-                </p>
-              </div>
-            </div>
+      {activeTab === 'voice' && <VoiceTab />}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>Active STT Provider</label>
-              <select className="pipeline-select" defaultValue="whisper-large-v3">
-                <option value="whisper-large-v3">OpenAI Whisper Large-v3 HD (All Languages)</option>
-                <option value="deepgram-nova">Deepgram Nova-2 (Ultra Fast &lt;300ms)</option>
-              </select>
-            </div>
+      {testAgent && <AgentTestModal agent={testAgent} onClose={() => setTestAgent(null)} />}
 
-            <div className="voice-preview-box">
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                <strong>Sample Incoming Voice Note Transcribed:</strong>
-                <p style={{ margin: '4px 0 0', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
-                  "નમસ્તે ભાઈ, મારે હોલસેલ ટી-શર્ટ્સના ભાવ જાણવા છે. શું કેટલોગ મોકલી શકશો?"
-                </p>
-                <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
-                  ✓ 99.4% Transcription Accuracy (Gujarati Detected)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Text-to-Speech (TTS) & Voice Cloning */}
-          <div className="voice-ai-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div className="builder-icon">
-                <Volume2 size={22} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>
-                  Text-to-Speech (TTS) & Voice Cloning
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                  Human voice engine with native accents & custom brand voice-cloning.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: '0.8125rem', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Voice Engine
-                </label>
-                <select className="pipeline-select" style={{ width: '100%' }}>
-                  <option value="elevenlabs">ElevenLabs Multilingual v2</option>
-                  <option value="cartesia">Cartesia Sonic Indian English</option>
-                  <option value="openai">OpenAI TTS HD</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.8125rem', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Voice Persona
-                </label>
-                <select
-                  className="pipeline-select"
-                  style={{ width: '100%' }}
-                  value={voicePersona}
-                  onChange={e => setVoicePersona(e.target.value)}
-                >
-                  <option value="aarav">Aarav (Warm & Professional Male)</option>
-                  <option value="diya">Diya (Friendly & Empathetic Female)</option>
-                  <option value="kabir">Kabir (Corporate Voice)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Language & Accent
-              </label>
-              <select
-                className="pipeline-select"
-                style={{ width: '100%' }}
-                value={voiceLanguage}
-                onChange={e => setVoiceLanguage(e.target.value as 'gu' | 'hi' | 'en' | 'es')}
-              >
-                <option value="gu">ગુજરાતી (Gujarati Accent & Fluency)</option>
-                <option value="hi">हिन्दी (Hindi Indian Accent)</option>
-                <option value="en">English (Indian Global Accent)</option>
-                <option value="es">Español (International)</option>
-              </select>
-            </div>
-
-            <div className="voice-preview-box">
-              <button
-                type="button"
-                className="voice-play-btn"
-                onClick={handleTogglePlayVoice}
-                title="Play Voice Sample"
-              >
-                {isPlayingAudio ? <Square size={18} /> : <Play size={20} style={{ marginLeft: 2 }} />}
-              </button>
-              <div>
-                <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>
-                  {isPlayingAudio ? 'Synthesizing & Playing Audio...' : 'Test Human Voice Synthesis'}
-                </span>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Click to listen to sample synthesized voice message in {voiceLanguage.toUpperCase()}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Test Bot Playground Modal */}
-      {testAgent && (
-        <Modal
-          open
-          title={`Test Bot: ${testAgent.name}`}
-          onClose={() => setTestAgent(null)}
-          footer={
-            <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-              <input
-                type="text"
-                placeholder="Type a test customer message..."
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendTestMessage()}
-                style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              />
-              <button className="btn-primary" onClick={handleSendTestMessage} disabled={isReplying}>
-                {isReplying ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              </button>
-            </div>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflowY: 'auto', padding: '4px 0' }}>
-            {chatMessages.map((msg, i) => (
-              <div
-                key={i}
-                style={{
-                  alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                  background: msg.sender === 'user' ? '#6366f1' : 'var(--bg-subtle)',
-                  color: msg.sender === 'user' ? '#ffffff' : 'var(--text-primary)',
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  maxWidth: '80%',
-                  fontSize: '0.875rem',
-                  lineHeight: 1.4,
-                }}
-              >
-                {msg.text}
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-
-      {/* Connect External Agent Modal */}
-      {isExtModalOpen && (
-        <Modal
-          open
-          title="Connect External AI Agent (BYO)"
-          onClose={() => setIsExtModalOpen(false)}
-          footer={
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
-              <button className="btn-secondary" onClick={() => setIsExtModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  if (!newExt.name || !newExt.webhookUrl) {
-                    toast.addToast({ type: 'warning', title: 'Name and Webhook URL are required' });
-                    return;
-                  }
-                  const created: ExternalAgent = {
-                    id: `ext-${Date.now()}`,
-                    name: newExt.name!,
-                    platform: newExt.platform || 'flowise',
-                    webhookUrl: newExt.webhookUrl!,
-                    authHeader: newExt.authHeader,
-                    responseJsonPath: newExt.responseJsonPath || 'text',
-                    status: 'connected',
-                    lastPingMs: 160,
-                  };
-                  setExternalAgents(prev => [created, ...prev]);
-                  setIsExtModalOpen(false);
-                  toast.addToast({ type: 'success', title: 'External agent connected successfully' });
-                }}
-              >
-                Connect Agent
-              </button>
-            </div>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Agent Name *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. My Flowise LangChain Bot"
-                value={newExt.name || ''}
-                onChange={e => setNewExt(prev => ({ ...prev, name: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Platform Framework
-              </label>
-              <select
-                value={newExt.platform}
-                onChange={e => setNewExt(prev => ({ ...prev, platform: e.target.value as ExternalAgent['platform'] }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              >
-                <option value="flowise">Flowise AI</option>
-                <option value="n8n">n8n Workflow</option>
-                <option value="dify">Dify.ai</option>
-                <option value="langchain">LangChain / LangServe</option>
-                <option value="botpress">Botpress</option>
-                <option value="custom">Custom REST API</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Webhook Endpoint URL *
-              </label>
-              <input
-                type="url"
-                placeholder="https://your-agent.com/api/v1/predict"
-                value={newExt.webhookUrl || ''}
-                onChange={e => setNewExt(prev => ({ ...prev, webhookUrl: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Authorization Header (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="Bearer your_secret_token_here"
-                value={newExt.authHeader || ''}
-                onChange={e => setNewExt(prev => ({ ...prev, authHeader: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                Response JSON Key Path
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. text or output or data.message"
-                value={newExt.responseJsonPath || ''}
-                onChange={e => setNewExt(prev => ({ ...prev, responseJsonPath: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
-              />
-            </div>
-          </div>
-        </Modal>
+      {form && (
+        <AgentFormModal
+          key={form.agent?.id ?? 'new'}
+          agent={form.agent}
+          external={form.external}
+          sessions={sessions}
+          models={models}
+          onClose={() => setForm(null)}
+          onSubmit={handleSubmitForm}
+        />
       )}
     </div>
   );

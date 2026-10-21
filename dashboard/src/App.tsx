@@ -42,6 +42,8 @@ const FeedbackPage = lazy(() => import('./pages/Feedback').then(m => ({ default:
 const SyncManager = lazy(() => import('./pages/SyncManager').then(m => ({ default: m.SyncManager })));
 const FollowupRecovery = lazy(() => import('./pages/FollowupRecovery').then(m => ({ default: m.FollowupRecovery })));
 const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads })));
+const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
+const MessageComposer = lazy(() => import('./pages/MessageComposer').then(m => ({ default: m.MessageComposer })));
 const AiCalling = lazy(() => import('./pages/AiCalling').then(m => ({ default: m.AiCalling })));
 const SalesPipeline = lazy(() => import('./pages/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
 const AiAgents = lazy(() => import('./pages/AiAgents').then(m => ({ default: m.AiAgents })));
@@ -173,6 +175,8 @@ function AppContent() {
               <Route path="followup" element={<FollowupRecovery />} />
               <Route path="leads" element={<Leads />} />
               <Route path="ai-calling" element={<AiCalling />} />
+              <Route path="message-studio" element={<MessageStudio />} />
+              <Route path="message-studio/:id" element={<MessageComposer />} />
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />

@@ -246,6 +246,62 @@ export class WorkflowController {
     return this.workflowService.findRun(run.id, this.getBusinessId(apiKey));
   }
 
+  @Post(':id/simulate')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Start a conversational simulation: runs until the first menu/question and pauses' })
+  @ApiParam({ name: 'id' })
+  async simulateStart(
+    @Param('id') id: string,
+    @Body() dto: { sessionId?: string; chatId?: string; messageBody?: string },
+    @CurrentApiKey() apiKey: ApiKey,
+  ) {
+    const wf = await this.workflowService.findOne(id, this.getBusinessId(apiKey));
+    if (dto.sessionId) await this.assertSessionUsable(dto.sessionId, wf.businessId, apiKey);
+    // A real session is optional: in simulate mode nothing is sent, but actions want a session in context.
+    const sessionId = dto.sessionId || 'simulator-preview';
+    const chatId = dto.chatId || '919876543210@c.us';
+    const ctx: TriggerContext = {
+      businessId: wf.businessId,
+      sessionId,
+      chatId,
+      messageBody: dto.messageBody || 'Hi',
+      messageType: 'text',
+      // simulate: pause at menus/questions like a real chat; isTest: never send a real message.
+      metadata: { isTest: true, simulate: true },
+    };
+    const run = await this.workflowService.createRun(wf, { isTest: true, simulate: true, ...dto }, sessionId, undefined, chatId);
+    if (!run) throw new BadRequestException('Could not start the simulation (another run may be active)');
+    await this.executor.execute(wf, run, ctx);
+    return this.workflowService.findRun(run.id, this.getBusinessId(apiKey));
+  }
+
+  @Post('runs/:runId/simulate-reply')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Continue a paused simulation with the customer reply' })
+  @ApiParam({ name: 'runId' })
+  async simulateReply(
+    @Param('runId') runId: string,
+    @Body() dto: { reply?: string },
+    @CurrentApiKey() apiKey: ApiKey,
+  ) {
+    const businessId = this.getBusinessId(apiKey);
+    const run = await this.workflowService.findRun(runId, businessId);
+    const wf = await this.workflowService.findOne(run.workflowId, businessId);
+    const ctx: TriggerContext = {
+      businessId: wf.businessId,
+      sessionId: run.sessionId || 'simulator-preview',
+      chatId: (run.triggerData?.['chatId'] as string) || '919876543210@c.us',
+      messageBody: dto.reply || '',
+      messageType: 'text',
+      metadata: { isTest: true, simulate: true },
+    };
+    const outcome = await this.executor.resume(wf, run, ctx, dto.reply || '');
+    const updated = await this.workflowService.findRun(runId, businessId);
+    return { outcome, run: updated };
+  }
+
   @Delete(':id')
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Delete a draft or disabled workflow' })

@@ -8,11 +8,13 @@ import { IntegrationService } from './integration.service';
 import { SyncService } from './sync.service';
 import { IntegrationController } from './integration.controller';
 import { SyncController } from './sync.controller';
+import { GoogleWorkspaceService } from './google/google-workspace.service';
+import { GoogleController, GoogleOAuthCallbackController } from './google/google.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Integration, SyncConfig, Contact, Conversation], 'data')],
-  controllers: [IntegrationController, SyncController],
-  providers: [IntegrationService, SyncService],
-  exports: [IntegrationService, SyncService],
+  controllers: [IntegrationController, SyncController, GoogleController, GoogleOAuthCallbackController],
+  providers: [IntegrationService, SyncService, GoogleWorkspaceService],
+  exports: [IntegrationService, SyncService, GoogleWorkspaceService],
 })
 export class IntegrationModule {}

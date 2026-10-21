@@ -57,6 +57,7 @@ class FakeSock extends EventEmitter {
   public newsletterFollow = jest.fn().mockResolvedValue(undefined);
   public newsletterUnfollow = jest.fn().mockResolvedValue(undefined);
   public rejectCall = jest.fn().mockResolvedValue(undefined);
+  public getCatalog = jest.fn();
   public signalRepository: { lidMapping: { getLIDForPN: jest.Mock } } | undefined;
   fire(event: string, arg: unknown): void {
     this.emitter.emit(event, arg);
@@ -3809,5 +3810,95 @@ describe('BaileysAdapter proxy support', () => {
     expect(adapter.getStatus()).toBe(EngineStatus.FAILED);
     expect(onError).toHaveBeenCalled();
     expect(makeWASocketMock()).not.toHaveBeenCalled();
+  });
+});
+
+describe('BaileysAdapter catalog', () => {
+  beforeEach(() => {
+    fakeSock.user = { id: '919876543210:1@s.whatsapp.net', name: 'Artha Store' };
+    fakeSock.resetEmitter();
+    jest.clearAllMocks();
+  });
+
+  const ready = async (): Promise<BaileysAdapter> => {
+    const adapter = newAdapter();
+    await adapter.initialize(noopCallbacks());
+    fakeSock.fire('connection.update', { connection: 'open' });
+    return adapter;
+  };
+  const product = (id: string, price: number) => ({
+    id,
+    name: `Plan ${id}`,
+    description: 'Health cover',
+    price,
+    currency: 'INR',
+    retailerId: `SKU-${id}`,
+    imageUrls: { requested: `https://img/${id}.jpg` },
+    reviewStatus: {},
+    availability: 'in stock',
+  });
+
+  it('reads every catalog page, prices in rupees, and pages the result', async () => {
+    fakeSock.getCatalog
+      .mockResolvedValueOnce({ products: [product('1', 1499000), product('2', 99000)], nextPageCursor: 'next' })
+      .mockResolvedValueOnce({ products: [product('3', 5000)], nextPageCursor: undefined });
+    const adapter = await ready();
+    const page = await adapter.getProducts({ page: 2, limit: 2 });
+    expect(fakeSock.getCatalog).toHaveBeenCalledWith({
+      jid: '919876543210@s.whatsapp.net',
+      limit: 100,
+      cursor: undefined,
+    });
+    expect(page.pagination).toEqual({ page: 2, limit: 2, total: 3, totalPages: 2 });
+    expect(page.products[0]).toMatchObject({
+      id: '3',
+      price: 5,
+      currency: 'INR',
+      retailerId: 'SKU-3',
+      isAvailable: true,
+    });
+  });
+
+  it('describes the catalog with its wa.me link, or null when there are no products', async () => {
+    fakeSock.getCatalog.mockResolvedValue({ products: [product('1', 1000)], nextPageCursor: undefined });
+    const adapter = await ready();
+    expect(await adapter.getCatalog()).toEqual({
+      id: '919876543210',
+      name: 'Artha Store',
+      productCount: 1,
+      url: 'https://wa.me/c/919876543210',
+    });
+    fakeSock.getCatalog.mockResolvedValue({ products: [], nextPageCursor: undefined });
+    expect(await adapter.getCatalog()).toBeNull();
+  });
+
+  it('sends a product card with the catalog price and image', async () => {
+    fakeSock.getCatalog.mockResolvedValue({ products: [product('1', 1499000)], nextPageCursor: undefined });
+    fakeSock.sendMessage.mockResolvedValue({ key: { id: 'P1' }, messageTimestamp: 1719600000 });
+    const adapter = await ready();
+    const result = await adapter.sendProduct('919111111111@c.us', 'SKU-1', 'Have a look');
+    const [, content] = fakeSock.sendMessage.mock.calls[0] as [string, Record<string, unknown>];
+    expect(content).toMatchObject({
+      product: {
+        productId: '1',
+        title: 'Plan 1',
+        priceAmount1000: 1499000,
+        currencyCode: 'INR',
+        productImage: { url: 'https://img/1.jpg' },
+      },
+      businessOwnerJid: '919876543210@s.whatsapp.net',
+      body: 'Have a look',
+    });
+    expect(result.id).toBe('P1');
+    await expect(adapter.sendProduct('919111111111@c.us', 'missing')).rejects.toThrow(/not in this account/);
+  });
+
+  it('shares the catalog as its wa.me link', async () => {
+    fakeSock.getCatalog.mockResolvedValue({ products: [product('1', 1000)], nextPageCursor: undefined });
+    fakeSock.sendMessage.mockResolvedValue({ key: { id: 'C1' }, messageTimestamp: 1719600000 });
+    const adapter = await ready();
+    await adapter.sendCatalog('919111111111@c.us', 'Our plans:');
+    const [, content] = fakeSock.sendMessage.mock.calls[0] as [string, { text: string }];
+    expect(content.text).toBe('Our plans:\nhttps://wa.me/c/919876543210');
   });
 });

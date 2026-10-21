@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowTriggerService } from './workflow-trigger.service';
+import { AiAgentService } from '../ai/ai-agent.service';
 import { WorkflowService } from './workflow.service';
 import { WorkflowExecutor } from './workflow-executor.service';
 import { HookManager } from '../../core/hooks';
@@ -21,6 +22,7 @@ describe('WorkflowTriggerService', () => {
   let businessService: jest.Mocked<Partial<BusinessService>>;
   let conversationService: jest.Mocked<Partial<ConversationService>>;
   let aiService: { autoReply: jest.Mock };
+  let aiAgents: { autoReply: jest.Mock };
 
   let registeredHookCallback: ((ctx: any) => Promise<any>) | undefined;
 
@@ -91,6 +93,7 @@ describe('WorkflowTriggerService', () => {
       evaluateConditions: jest.fn().mockReturnValue(true),
     };
     aiService = { autoReply: jest.fn().mockResolvedValue('replied') };
+    aiAgents = { autoReply: jest.fn().mockResolvedValue('skipped') };
 
     sessionRepo = {
       findOne: jest.fn().mockResolvedValue({ id: 'sess-1', businessId: 'biz-1' } as any),
@@ -115,6 +118,7 @@ describe('WorkflowTriggerService', () => {
         { provide: BusinessService, useValue: businessService },
         { provide: ConversationService, useValue: conversationService },
         { provide: AiService, useValue: aiService },
+        { provide: AiAgentService, useValue: aiAgents },
       ],
     }).compile();
 
@@ -388,6 +392,26 @@ describe('WorkflowTriggerService', () => {
       (workflowService.getPublishedWorkflowsForTrigger as jest.Mock).mockResolvedValue([]);
       aiService.autoReply.mockResolvedValue(outcome);
       await deliver();
+      expect(conversationService.updateConversation).toHaveBeenCalledWith('conv-1', 'biz-1', { status: 'pending' });
+    });
+
+    it('lets a business agent answer instead of the general assistant, never both', async () => {
+      (workflowService.getPublishedWorkflowsForTrigger as jest.Mock).mockResolvedValue([]);
+      aiAgents.autoReply.mockResolvedValue('replied');
+      await deliver();
+      expect(aiAgents.autoReply).toHaveBeenCalledWith(
+        'sess-1',
+        'biz-1',
+        expect.objectContaining({ body: 'what are your plans?' }),
+      );
+      expect(aiService.autoReply).not.toHaveBeenCalled();
+    });
+
+    it('hands the chat to the team when the business agent fails', async () => {
+      (workflowService.getPublishedWorkflowsForTrigger as jest.Mock).mockResolvedValue([]);
+      aiAgents.autoReply.mockResolvedValue('failed');
+      await deliver();
+      expect(aiService.autoReply).not.toHaveBeenCalled();
       expect(conversationService.updateConversation).toHaveBeenCalledWith('conv-1', 'biz-1', { status: 'pending' });
     });
 

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BadgeCheck, Loader2, MessageCircle, X } from 'lucide-react';
 import { aiCallingApi, type AiCall } from '../../services/api';
 import { useToast } from '../Toast';
 import { Pill, StatusPill } from './shared';
-import { errorText, formatDuration, formatWhen, OUTCOME_LABEL, SENTIMENT_META } from './callMeta';
+import { errorText, formatDuration, formatWhen, SENTIMENT_META } from './callMeta';
 
 function Fact({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
@@ -25,18 +26,27 @@ export function CallDrawer({
   onClose: () => void;
   onChanged: (c: AiCall) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const x = call.extracted ?? {};
   const sentiment = call.sentiment ? SENTIMENT_META[call.sentiment] : null;
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const sendWhatsapp = async () => {
     setBusy(true);
     try {
       onChanged(await aiCallingApi.sendWhatsapp(call.id));
-      toast.success('WhatsApp message sent');
+      toast.success(t('aiCalling.drawer.sent'));
     } catch (err) {
-      toast.error(errorText(err, 'Could not send the WhatsApp message'));
+      toast.error(errorText(err, t('aiCalling.drawer.sendFailed')));
     } finally {
       setBusy(false);
     }
@@ -45,7 +55,7 @@ export function CallDrawer({
   return (
     <div
       role="dialog"
-      aria-label="Call details"
+      aria-label={t('aiCalling.drawer.dialog')}
       style={{
         position: 'fixed',
         inset: 0,
@@ -71,11 +81,11 @@ export function CallDrawer({
           <div>
             <div style={{ fontSize: 18, fontWeight: 700 }}>{call.contactName || x.name || call.phone}</div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              {call.channel === 'browser' ? 'Browser test call' : call.phone} ·{' '}
+              {call.channel === 'browser' ? t('aiCalling.drawer.browserCall') : call.phone} ·{' '}
               {formatWhen(call.answeredAt ?? call.createdAt)} · {formatDuration(call.durationSeconds)}
             </div>
           </div>
-          <button className="btn-secondary" onClick={onClose} aria-label="Close">
+          <button className="btn-secondary" onClick={onClose} aria-label={t('aiCalling.drawer.close')}>
             <X size={16} />
           </button>
         </div>
@@ -84,17 +94,21 @@ export function CallDrawer({
           <StatusPill call={call} />
           {call.isVerifiedLead && (
             <Pill color="#22c55e">
-              <BadgeCheck size={13} /> Verified lead
+              <BadgeCheck size={13} /> {t('aiCalling.drawer.verifiedLead')}
             </Pill>
           )}
-          {call.outcome && <Pill color="#3b82f6">{OUTCOME_LABEL[call.outcome]}</Pill>}
+          {call.outcome && <Pill color="#3b82f6">{t(`aiCalling.outcome.${call.outcome}`)}</Pill>}
           {sentiment && (
             <Pill color={sentiment.color}>
-              {sentiment.emoji} {sentiment.label}
+              {sentiment.emoji} {t(`aiCalling.sentiment.${call.sentiment}`)}
             </Pill>
           )}
-          {call.leadTemperature && <Pill color="#ef4444">{call.leadTemperature.toUpperCase()}</Pill>}
-          {call.language && <Pill color="#64748b">{call.language === 'hi-IN' ? 'Hindi' : 'Gujarati'}</Pill>}
+          {call.leadTemperature && <Pill color="#ef4444">{t(`aiCalling.leadTemp.${call.leadTemperature}`)}</Pill>}
+          {call.language && (
+            <Pill color="#64748b">
+              {t(call.language === 'hi-IN' ? 'aiCalling.language.hi' : 'aiCalling.language.gu')}
+            </Pill>
+          )}
         </div>
 
         {call.error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{call.error}</div>}
@@ -109,14 +123,14 @@ export function CallDrawer({
               marginBottom: 12,
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Summary</div>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{t('aiCalling.drawer.summary')}</div>
             <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{call.summary}</div>
             <div style={{ marginTop: 8 }}>
-              <Fact label="Name" value={x.name} />
-              <Fact label="Need" value={x.need} />
-              <Fact label="City / pincode" value={[x.city, x.pincode].filter(Boolean).join(' · ')} />
-              <Fact label="Call back" value={x.callbackTime} />
-              <Fact label="Notes" value={x.notes} />
+              <Fact label={t('aiCalling.drawer.name')} value={x.name} />
+              <Fact label={t('aiCalling.drawer.need')} value={x.need} />
+              <Fact label={t('aiCalling.drawer.place')} value={[x.city, x.pincode].filter(Boolean).join(' · ')} />
+              <Fact label={t('aiCalling.drawer.callback')} value={x.callbackTime} />
+              <Fact label={t('aiCalling.drawer.notes')} value={x.notes} />
             </div>
           </div>
         )}
@@ -129,13 +143,15 @@ export function CallDrawer({
             style={{ marginBottom: 16 }}
           >
             {busy ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}{' '}
-            {call.whatsappSentAt ? `WhatsApp sent ${formatWhen(call.whatsappSentAt)}` : 'Send WhatsApp follow-up'}
+            {call.whatsappSentAt
+              ? t('aiCalling.drawer.whatsappSent', { when: formatWhen(call.whatsappSentAt) })
+              : t('aiCalling.drawer.sendWhatsapp')}
           </button>
         )}
 
-        <div style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 8px' }}>Conversation</div>
+        <div style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 8px' }}>{t('aiCalling.drawer.conversation')}</div>
         {!call.transcript?.length ? (
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No conversation recorded.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('aiCalling.drawer.noConversation')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {call.transcript.map((turn, i) => (
@@ -160,13 +176,13 @@ export function CallDrawer({
                     textAlign: turn.role === 'agent' ? 'left' : 'right',
                   }}
                 >
-                  {turn.role === 'agent' ? 'AI agent' : 'Customer'} ·{' '}
-                  {new Date(turn.at).toLocaleTimeString('en-IN', {
+                  {turn.role === 'agent' ? t('aiCalling.drawer.agent') : t('aiCalling.drawer.customer')} ·{' '}
+                  {new Date(turn.at).toLocaleTimeString(i18n.language, {
                     hour: 'numeric',
                     minute: '2-digit',
                     second: '2-digit',
                   })}
-                  {turn.interrupted ? ' · interrupted' : ''}
+                  {turn.interrupted ? ` · ${t('aiCalling.drawer.interrupted')}` : ''}
                 </div>
               </div>
             ))}

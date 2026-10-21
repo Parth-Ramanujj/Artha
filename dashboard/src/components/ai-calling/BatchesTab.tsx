@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileSpreadsheet, ListChecks, Loader2, Pause, Play, Upload, XCircle } from 'lucide-react';
-import { aiCallingApi, type AiCallBatch, type CallContact } from '../../services/api';
+import { aiCallingApi, type AiCallBatch, type AiCallingSetup, type CallContact } from '../../services/api';
 import { useToast } from '../Toast';
 import { EmptyState, Pill } from './shared';
 import { errorText, formatWhen, label, panel } from './callMeta';
@@ -13,6 +14,7 @@ const BATCH_COLOR: Record<AiCallBatch['status'], string> = {
 };
 
 function Progress({ batch }: { batch: AiCallBatch }) {
+  const { t } = useTranslation();
   const c = batch.counts;
   const done =
     (c.completed ?? 0) + (c.no_answer ?? 0) + (c.busy ?? 0) + (c.failed ?? 0) + (c.canceled ?? 0) + (c.skipped ?? 0);
@@ -23,14 +25,29 @@ function Progress({ batch }: { batch: AiCallBatch }) {
         <div style={{ width: `${pct}%`, height: '100%', background: BATCH_COLOR[batch.status] }} />
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-        {done}/{batch.totalContacts} done · {c.completed ?? 0} talked · {batch.verified} verified ·{' '}
-        {(c.no_answer ?? 0) + (c.busy ?? 0)} unanswered · {c.skipped ?? 0} DND
+        {t('aiCalling.batches.progress', {
+          done,
+          total: batch.totalContacts,
+          talked: c.completed ?? 0,
+          verified: batch.verified,
+          unanswered: (c.no_answer ?? 0) + (c.busy ?? 0),
+          dnd: c.skipped ?? 0,
+        })}
       </div>
     </div>
   );
 }
 
-export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onActivity?: () => void }) {
+export function BatchesTab({
+  setup,
+  refreshKey,
+  onActivity,
+}: {
+  setup?: AiCallingSetup | null;
+  refreshKey: number;
+  onActivity?: () => void;
+}) {
+  const { t } = useTranslation();
   const toast = useToast();
   const toastRef = useRef(toast);
   useEffect(() => {
@@ -60,11 +77,11 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
           if (quiet) onActivity?.();
         })
         .catch(err => {
-          if (!quiet) toastRef.current.error(errorText(err, 'Could not load call lists'));
+          if (!quiet) toastRef.current.error(errorText(err, t('aiCalling.batches.loadFailed')));
         })
         .finally(() => setLoading(false));
     },
-    [onActivity],
+    [onActivity, t],
   );
 
   useEffect(() => {
@@ -85,7 +102,7 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
       setPreview({ fileName: file.name, ...parsed });
       setName(file.name.replace(/\.(xlsx|csv|txt)$/i, ''));
     } catch (err) {
-      toast.error(errorText(err, 'Could not read this file'));
+      toast.error(errorText(err, t('aiCalling.batches.readFailed')));
     } finally {
       setReading(false);
       if (fileInput.current) fileInput.current.value = '';
@@ -103,33 +120,34 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
         source: 'upload',
       });
       toast.success(
-        `Calling ${batch.queued} numbers${batch.skipped ? ` (${batch.skipped} skipped: DND or already queued)` : ''}`,
+        t('aiCalling.batches.started', { count: batch.queued }) +
+          (batch.skipped ? ` ${t('aiCalling.batches.startedSkipped', { count: batch.skipped })}` : ''),
       );
       setPreview(null);
       load(true);
     } catch (err) {
-      toast.error(errorText(err, 'Could not start the list'));
+      toast.error(errorText(err, t('aiCalling.batches.startFailed')));
     } finally {
       setStarting(false);
     }
   };
 
   const act = async (batch: AiCallBatch, action: 'pause' | 'resume' | 'cancel') => {
+    if (action === 'cancel' && !window.confirm(t('aiCalling.batches.confirmCancel', { name: batch.name }))) return;
     try {
       await aiCallingApi.batchAction(batch.id, action);
       load(true);
     } catch (err) {
-      toast.error(errorText(err, 'Could not update the list'));
+      toast.error(errorText(err, t('aiCalling.batches.updateFailed')));
     }
   };
 
   return (
     <div>
       <div style={{ ...panel, marginBottom: 18 }}>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>Call a list of numbers</div>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>{t('aiCalling.batches.title')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Upload an Excel (.xlsx) or CSV file with a phone column (and optionally a name column). Numbers that opted out
-          (DND) are skipped automatically.
+          {t('aiCalling.batches.intro')}
         </div>
         <input
           ref={fileInput}
@@ -139,30 +157,37 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
           onChange={e => e.target.files?.[0] && void readFile(e.target.files[0])}
         />
         <button className="btn-secondary" onClick={() => fileInput.current?.click()} disabled={reading}>
-          {reading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Choose file
+          {reading ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}{' '}
+          {t('aiCalling.batches.chooseFile')}
         </button>
 
         {preview && (
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13.5 }}>
               <FileSpreadsheet size={16} /> <b>{preview.fileName}</b>
-              <Pill color="#22c55e">{preview.contacts.length} numbers</Pill>
-              {preview.invalid > 0 && <Pill color="#f59e0b">{preview.invalid} invalid</Pill>}
-              {preview.duplicates > 0 && <Pill color="#94a3b8">{preview.duplicates} duplicates</Pill>}
+              <Pill color="#22c55e">{t('aiCalling.batches.numbers', { count: preview.contacts.length })}</Pill>
+              {preview.invalid > 0 && (
+                <Pill color="#f59e0b">{t('aiCalling.batches.invalid', { count: preview.invalid })}</Pill>
+              )}
+              {preview.duplicates > 0 && (
+                <Pill color="#94a3b8">{t('aiCalling.batches.duplicates', { count: preview.duplicates })}</Pill>
+              )}
             </div>
             {preview.contacts.length > 0 && (
               <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '8px 0' }}>
                 {preview.contacts
                   .slice(0, 5)
-                  .map(c => `${c.name ?? 'No name'} (${c.phone})`)
+                  .map(c => `${c.name ?? t('aiCalling.batches.noName')} (${c.phone})`)
                   .join(', ')}
-                {preview.contacts.length > 5 ? ` and ${preview.contacts.length - 5} more` : ''}
+                {preview.contacts.length > 5
+                  ? ` ${t('aiCalling.batches.more', { count: preview.contacts.length - 5 })}`
+                  : ''}
               </div>
             )}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
               <div style={{ flex: '1 1 240px', maxWidth: 340 }}>
                 <label style={label} htmlFor="batch-name">
-                  List name
+                  {t('aiCalling.batches.listName')}
                 </label>
                 <input
                   id="batch-name"
@@ -174,19 +199,25 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
               </div>
               <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13.5 }}>
                 <input type="checkbox" checked={sendWhatsapp} onChange={e => setSendWhatsapp(e.target.checked)} />
-                Send the WhatsApp follow-up to verified leads
+                {t('aiCalling.batches.sendWhatsapp')}
               </label>
               <button
                 className="btn-primary"
                 onClick={() => void start()}
                 disabled={starting || preview.contacts.length === 0}
               >
-                {starting ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} Start calling
+                {starting ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}{' '}
+                {t('aiCalling.batches.startCalling')}
               </button>
               <button className="btn-secondary" onClick={() => setPreview(null)}>
-                Cancel
+                {t('aiCalling.cancel')}
               </button>
             </div>
+            {setup?.readyForPhoneCalls === false && (
+              <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 8 }}>
+                {t('aiCalling.waitForSetup')}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -198,8 +229,8 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
       ) : batches.length === 0 ? (
         <EmptyState
           icon={<ListChecks size={30} />}
-          title="No call lists yet"
-          hint="Upload a sheet above to start calling."
+          title={t('aiCalling.batches.emptyTitle')}
+          hint={t('aiCalling.batches.emptyHint')}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -208,8 +239,8 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
               <div style={{ flex: '1 1 260px' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
                   <b>{batch.name}</b>
-                  <Pill color={BATCH_COLOR[batch.status]}>{batch.status}</Pill>
-                  {batch.sendWhatsapp && <Pill color="#25d366">WhatsApp follow-up</Pill>}
+                  <Pill color={BATCH_COLOR[batch.status]}>{t(`aiCalling.batchStatus.${batch.status}`)}</Pill>
+                  {batch.sendWhatsapp && <Pill color="#25d366">{t('aiCalling.batches.whatsappFollowup')}</Pill>}
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatWhen(batch.createdAt)}</span>
                 </div>
                 <Progress batch={batch} />
@@ -217,17 +248,17 @@ export function BatchesTab({ refreshKey, onActivity }: { refreshKey: number; onA
               <div style={{ display: 'flex', gap: 6 }}>
                 {batch.status === 'running' && (
                   <button className="btn-secondary" onClick={() => void act(batch, 'pause')}>
-                    <Pause size={14} /> Pause
+                    <Pause size={14} /> {t('aiCalling.batches.pause')}
                   </button>
                 )}
                 {batch.status === 'paused' && (
                   <button className="btn-secondary" onClick={() => void act(batch, 'resume')}>
-                    <Play size={14} /> Resume
+                    <Play size={14} /> {t('aiCalling.batches.resume')}
                   </button>
                 )}
                 {(batch.status === 'running' || batch.status === 'paused') && (
                   <button className="btn-secondary" onClick={() => void act(batch, 'cancel')}>
-                    <XCircle size={14} /> Cancel
+                    <XCircle size={14} /> {t('aiCalling.cancel')}
                   </button>
                 )}
               </div>

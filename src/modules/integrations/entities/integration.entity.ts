@@ -8,6 +8,11 @@ export enum IntegrationType {
   ECOM_SHOPIFY = 'ecom_shopify',
   ECOM_WOOCOMMERCE = 'ecom_woocommerce',
   CALENDAR_GOOGLE = 'calendar_google',
+  EMAIL_SMTP = 'email_smtp',
+  GOOGLE_GMAIL = 'google_gmail',
+  GOOGLE_CALENDAR = 'google_calendar',
+  GOOGLE_SHEETS = 'google_sheets',
+  GOOGLE_DRIVE = 'google_drive',
 }
 
 export enum IntegrationStatus {

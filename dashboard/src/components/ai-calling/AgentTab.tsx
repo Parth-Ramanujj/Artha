@@ -1,22 +1,33 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Loader2, Save } from 'lucide-react';
-import { aiCallingApi, type VoiceAgent } from '../../services/api';
+import { aiCallingApi, sessionApi, type Session, type VoiceAgent } from '../../services/api';
 import { useToast } from '../Toast';
 import { errorText, label, panel } from './callMeta';
 
-const GUJARATI_VOICES = [
-  ['pooja_gu_customer', 'Pooja — customer care (female)'],
-  ['pooja_gu_conversational', 'Pooja — conversational (female)'],
-  ['bhavik_gu_conversation', 'Bhavik — conversational (male)'],
-];
+// Voice labels live in the locale files under aiCalling.agent.voices.<id>.
+const GUJARATI_VOICES = ['pooja_gu_customer', 'pooja_gu_conversational', 'bhavik_gu_conversation'];
 const HINDI_VOICES = [
-  ['ritu_hi_customer_warm', 'Ritu — warm customer care (female)'],
-  ['ritu_hi_customer', 'Ritu — customer care (female)'],
-  ['aparna_hi_customer', 'Aparna — customer care (female)'],
-  ['aarti_hi_customer', 'Aarti — customer care (female)'],
-  ['shubh_hi_customer', 'Shubh — customer care (male)'],
-  ['amit_hi_conversational', 'Amit — conversational (male)'],
+  'ritu_hi_customer_warm',
+  'ritu_hi_customer',
+  'aparna_hi_customer',
+  'aarti_hi_customer',
+  'shubh_hi_customer',
+  'amit_hi_conversational',
 ];
+
+const TIMEZONES = ['Asia/Kolkata', 'Asia/Dubai', 'Europe/London', 'America/New_York', 'Asia/Singapore'];
+
+/** Voice options, plus the saved one if it is not in the list, so it is never silently replaced. */
+function voiceOptions(list: string[], current: string, t: TFunction) {
+  const all = list.includes(current) || !current ? list : [...list, current];
+  return all.map(id => (
+    <option key={id} value={id}>
+      {t(`aiCalling.agent.voices.${id}`, id)}
+    </option>
+  ));
+}
 
 function Field({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -40,6 +51,7 @@ const EDITABLE: (keyof VoiceAgent)[] = [
   'gujaratiVoice',
   'hindiVoice',
   'pace',
+  'model',
   'maxCallSeconds',
   'concurrency',
   'maxAttempts',
@@ -49,6 +61,7 @@ const EDITABLE: (keyof VoiceAgent)[] = [
   'callingTimezone',
   'whatsappFollowup',
   'whatsappMessage',
+  'whatsappSessionId',
 ];
 
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 } as const;
@@ -56,24 +69,34 @@ const full = { width: '100%' } as const;
 
 /** How the agent introduces itself, what it is after, and when and how it calls. */
 export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: VoiceAgent) => void }) {
+  const { t } = useTranslation();
   const toast = useToast();
   const [form, setForm] = useState<VoiceAgent>(agent);
   const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
   useEffect(() => setForm(agent), [agent]);
+  useEffect(() => {
+    sessionApi
+      .list()
+      .then(setSessions)
+      .catch(() => undefined);
+  }, []);
 
   const set = <K extends keyof VoiceAgent>(key: K, value: VoiceAgent[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
   const dirty = JSON.stringify(form) !== JSON.stringify(agent);
+  const timeError = form.callingStart === form.callingEnd ? t('aiCalling.agent.timeError') : null;
 
   const save = async () => {
+    if (timeError) return;
     setSaving(true);
     try {
       const change = Object.fromEntries(EDITABLE.map(key => [key, form[key]])) as Partial<VoiceAgent>;
       const saved = await aiCallingApi.updateAgent(form.id, change);
       onSaved(saved);
-      toast.success('Agent saved');
+      toast.success(t('aiCalling.agent.saved'));
     } catch (err) {
-      toast.error(errorText(err, 'Could not save the agent'));
+      toast.error(errorText(err, t('aiCalling.agent.saveFailed')));
     } finally {
       setSaving(false);
     }
@@ -82,9 +105,12 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={panel}>
-        <div style={{ fontWeight: 700, marginBottom: 12 }}>Who is calling</div>
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('aiCalling.agent.who')}</div>
         <div style={grid}>
-          <Field title="Agent's name on the call" hint="Write it in Gujarati for natural pronunciation, e.g. પૂજા">
+          <Field title={t('aiCalling.agent.name')} hint={t('aiCalling.agent.nameHint')}>
+            <input className="input" style={full} value={form.name} onChange={e => set('name', e.target.value)} />
+          </Field>
+          <Field title={t('aiCalling.agent.persona')} hint={t('aiCalling.agent.personaHint')}>
             <input
               className="input"
               style={full}
@@ -92,7 +118,7 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
               onChange={e => set('personaName', e.target.value)}
             />
           </Field>
-          <Field title="Company name">
+          <Field title={t('aiCalling.agent.company')}>
             <input
               className="input"
               style={full}
@@ -100,23 +126,20 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
               onChange={e => set('companyName', e.target.value)}
             />
           </Field>
-          <Field title="Opening language" hint="The agent switches to Hindi by itself if the customer speaks Hindi">
+          <Field title={t('aiCalling.agent.language')} hint={t('aiCalling.agent.languageHint')}>
             <select
               className="input"
               style={full}
               value={form.defaultLanguage}
               onChange={e => set('defaultLanguage', e.target.value as VoiceAgent['defaultLanguage'])}
             >
-              <option value="gu-IN">Gujarati</option>
-              <option value="hi-IN">Hindi</option>
+              <option value="gu-IN">{t('aiCalling.language.gu')}</option>
+              <option value="hi-IN">{t('aiCalling.language.hi')}</option>
             </select>
           </Field>
         </div>
         <div style={{ marginTop: 14 }}>
-          <Field
-            title="First sentence of every call"
-            hint="{name}, {persona} and {company} are filled in automatically"
-          >
+          <Field title={t('aiCalling.agent.greeting')} hint={t('aiCalling.agent.greetingHint')}>
             <textarea
               className="input"
               rows={3}
@@ -129,11 +152,8 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
       </div>
 
       <div style={panel}>
-        <div style={{ fontWeight: 700, marginBottom: 12 }}>What the agent should do</div>
-        <Field
-          title="Script and knowledge"
-          hint="Describe your business, the goal of the call and what to find out. Plain language works best."
-        >
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('aiCalling.agent.what')}</div>
+        <Field title={t('aiCalling.agent.script')} hint={t('aiCalling.agent.scriptHint')}>
           <textarea
             className="input"
             rows={10}
@@ -143,7 +163,7 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
           />
         </Field>
         <div style={{ marginTop: 14 }}>
-          <Field title="When is a call a verified lead?">
+          <Field title={t('aiCalling.agent.criteria')}>
             <textarea
               className="input"
               rows={3}
@@ -156,37 +176,29 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
       </div>
 
       <div style={panel}>
-        <div style={{ fontWeight: 700, marginBottom: 12 }}>Voice</div>
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('aiCalling.agent.voice')}</div>
         <div style={grid}>
-          <Field title="Gujarati voice">
+          <Field title={t('aiCalling.agent.gujaratiVoice')}>
             <select
               className="input"
               style={full}
               value={form.gujaratiVoice}
               onChange={e => set('gujaratiVoice', e.target.value)}
             >
-              {GUJARATI_VOICES.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
+              {voiceOptions(GUJARATI_VOICES, form.gujaratiVoice, t)}
             </select>
           </Field>
-          <Field title="Hindi voice">
+          <Field title={t('aiCalling.agent.hindiVoice')}>
             <select
               className="input"
               style={full}
               value={form.hindiVoice}
               onChange={e => set('hindiVoice', e.target.value)}
             >
-              {HINDI_VOICES.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
+              {voiceOptions(HINDI_VOICES, form.hindiVoice, t)}
             </select>
           </Field>
-          <Field title={`Speaking speed: ${form.pace.toFixed(2)}×`}>
+          <Field title={t('aiCalling.agent.pace', { pace: form.pace.toFixed(2) })}>
             <input
               type="range"
               min={0.8}
@@ -197,13 +209,22 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
               style={full}
             />
           </Field>
+          <Field title={t('aiCalling.agent.model')} hint={t('aiCalling.agent.modelHint')}>
+            <input
+              className="input"
+              style={full}
+              value={form.model}
+              placeholder="openai/gpt-oss-120b"
+              onChange={e => set('model', e.target.value)}
+            />
+          </Field>
         </div>
       </div>
 
       <div style={panel}>
-        <div style={{ fontWeight: 700, marginBottom: 12 }}>Calling rules</div>
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('aiCalling.agent.rules')}</div>
         <div style={grid}>
-          <Field title="Call between" hint={form.callingTimezone}>
+          <Field title={t('aiCalling.agent.callBetween')}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input
                 type="time"
@@ -211,7 +232,7 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
                 value={form.callingStart}
                 onChange={e => set('callingStart', e.target.value)}
               />
-              <span>and</span>
+              <span>{t('aiCalling.agent.and')}</span>
               <input
                 type="time"
                 className="input"
@@ -219,8 +240,27 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
                 onChange={e => set('callingEnd', e.target.value)}
               />
             </div>
+            {timeError && (
+              <div role="alert" style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>
+                {timeError}
+              </div>
+            )}
           </Field>
-          <Field title="Calls at the same time" hint="Twilio trial accounts allow 1">
+          <Field title={t('aiCalling.agent.timezone')} hint={t('aiCalling.agent.timezoneHint')}>
+            <input
+              className="input"
+              style={full}
+              list="ai-calling-timezones"
+              value={form.callingTimezone}
+              onChange={e => set('callingTimezone', e.target.value)}
+            />
+            <datalist id="ai-calling-timezones">
+              {TIMEZONES.map(zone => (
+                <option key={zone} value={zone} />
+              ))}
+            </datalist>
+          </Field>
+          <Field title={t('aiCalling.agent.concurrency')} hint={t('aiCalling.agent.concurrencyHint')}>
             <input
               type="number"
               min={1}
@@ -232,8 +272,8 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
             />
           </Field>
           <Field
-            title="Tries per number"
-            hint={`Unanswered or busy calls are retried after ${form.retryAfterMinutes} minutes`}
+            title={t('aiCalling.agent.attempts')}
+            hint={t('aiCalling.agent.attemptsHint', { minutes: form.retryAfterMinutes })}
           >
             <input
               type="number"
@@ -245,7 +285,18 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
               onChange={e => set('maxAttempts', Number(e.target.value))}
             />
           </Field>
-          <Field title="Longest call (minutes)">
+          <Field title={t('aiCalling.agent.retryAfter')} hint={t('aiCalling.agent.retryAfterHint')}>
+            <input
+              type="number"
+              min={5}
+              max={1440}
+              className="input"
+              style={full}
+              value={form.retryAfterMinutes}
+              onChange={e => set('retryAfterMinutes', Number(e.target.value))}
+            />
+          </Field>
+          <Field title={t('aiCalling.agent.maxCall')}>
             <input
               type="number"
               min={1}
@@ -260,19 +311,40 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
       </div>
 
       <div style={panel}>
-        <div style={{ fontWeight: 700, marginBottom: 12 }}>WhatsApp follow-up for verified leads</div>
+        <div style={{ fontWeight: 700, marginBottom: 12 }}>{t('aiCalling.agent.whatsapp')}</div>
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13.5, marginBottom: 10 }}>
           <input
             type="checkbox"
             checked={form.whatsappFollowup}
             onChange={e => set('whatsappFollowup', e.target.checked)}
           />
-          Send automatically after every verified call (you can also turn it on per call list)
+          {t('aiCalling.agent.whatsappAuto')}
         </label>
-        <Field
-          title="Message"
-          hint="{name}, {persona} and {company} are filled in. Contacts who opted out (DND) never get it."
-        >
+        {(form.whatsappFollowup || form.whatsappSessionId) && (
+          <div style={{ marginBottom: 12, maxWidth: 360 }}>
+            <Field title={t('aiCalling.agent.sendFrom')}>
+              <select
+                className="input"
+                style={full}
+                value={form.whatsappSessionId ?? ''}
+                onChange={e => set('whatsappSessionId', e.target.value || null)}
+              >
+                <option value="">{t('aiCalling.agent.firstConnected')}</option>
+                {form.whatsappSessionId && !sessions.some(s => s.id === form.whatsappSessionId) && (
+                  <option value={form.whatsappSessionId}>{form.whatsappSessionId}</option>
+                )}
+                {sessions.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.phone ? ` (${s.phone})` : ''}
+                    {s.status !== 'ready' ? ` — ${t('aiCalling.agent.notConnected')}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        )}
+        <Field title={t('aiCalling.agent.message')} hint={t('aiCalling.agent.messageHint')}>
           <textarea
             className="input"
             rows={3}
@@ -284,9 +356,9 @@ export function AgentTab({ agent, onSaved }: { agent: VoiceAgent; onSaved: (a: V
       </div>
 
       <div style={{ position: 'sticky', bottom: 0, padding: '10px 0', background: 'var(--bg-primary)' }}>
-        <button className="btn-primary" onClick={() => void save()} disabled={saving || !dirty}>
+        <button className="btn-primary" onClick={() => void save()} disabled={saving || !dirty || !!timeError}>
           {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}{' '}
-          {dirty ? 'Save changes' : 'Saved'}
+          {dirty ? t('aiCalling.agent.saveChanges') : t('aiCalling.agent.savedState')}
         </button>
       </div>
     </div>

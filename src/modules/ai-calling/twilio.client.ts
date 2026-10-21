@@ -117,6 +117,18 @@ export class TwilioClient {
     return { sid: String(json.sid), status: String(json.status) };
   }
 
+  /** A call's current status and duration, for when its status callback never arrived. */
+  async getCall(callSid: string): Promise<{ status: string; duration: string | null }> {
+    const res = await fetch(`${API}/Accounts/${this.config.accountSid}/Calls/${callSid}.json`, {
+      headers: { Authorization: this.auth },
+      signal: AbortSignal.timeout(10000),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok)
+      throw new TwilioApiError(typeof json.message === 'string' ? json.message : `HTTP ${res.status}`, res.status);
+    return { status: String(json.status), duration: typeof json.duration === 'string' ? json.duration : null };
+  }
+
   async hangup(callSid: string): Promise<void> {
     await this.post(`/Calls/${callSid}.json`, { Status: 'completed' });
   }

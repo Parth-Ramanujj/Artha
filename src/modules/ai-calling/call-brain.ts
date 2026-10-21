@@ -5,6 +5,30 @@ export type CallLanguage = 'gu-IN' | 'hi-IN';
 
 export const END_CALL_MARKER = '[[END_CALL]]';
 
+/**
+ * How the voice should sound for one reply, picked by the model from the customer's mood: pace is
+ * multiplied by the agent's own pace, temperature is the voice engine's expressiveness.
+ */
+export const VOICE_TONES = {
+  warm: { pace: 1, temperature: 0.6 },
+  cheerful: { pace: 1.05, temperature: 0.75 },
+  calm: { pace: 0.9, temperature: 0.45 },
+  empathetic: { pace: 0.92, temperature: 0.5 },
+  brisk: { pace: 1.1, temperature: 0.55 },
+} as const;
+
+export type VoiceTone = keyof typeof VOICE_TONES;
+
+export function isVoiceTone(value: string): value is VoiceTone {
+  return Object.prototype.hasOwnProperty.call(VOICE_TONES, value);
+}
+
+/** Voice settings for a tone, kept inside the range the voice engine accepts. */
+export function voiceStyle(tone: VoiceTone, basePace: number): { pace: number; temperature: number } {
+  const { pace, temperature } = VOICE_TONES[tone];
+  return { pace: Math.min(2, Math.max(0.5, Math.round(basePace * pace * 100) / 100)), temperature };
+}
+
 export type AgentPersona = Pick<
   VoiceAgent,
   'personaName' | 'companyName' | 'greeting' | 'script' | 'verifiedLeadCriteria' | 'defaultLanguage'
@@ -84,7 +108,16 @@ ${contactName ? `Name on our records: ${contactName}. Confirm it naturally; neve
 - If the customer speaks ${LANGUAGE_NAMES[other]}, switch to ${LANGUAGE_NAMES[other]} and stay with it. Common English words people really use (insurance, policy, premium, SIP, claim, OK) are fine inside the sentence.
 - Never write in Latin letters, never use emojis, lists, bullet points, brackets, markdown or special symbols. Write amounts and numbers the way they are said.
 
+## Your tone of voice
+- Begin EVERY reply with exactly one tone tag, then your words, e.g. "[[TONE:warm]] જી, સરસ.". The tag sets how the voice sounds and is never read aloud.
+- Tones: warm (default, friendly); cheerful (they sound happy, excited or keen); calm (they are confused, elderly, hard of hearing, or asked you to repeat or slow down); empathetic (they are upset or worried, or mention a problem such as illness, a loss, a rejected claim or a big bill); brisk (they are busy, in a hurry, or getting irritated: keep it shortest).
+- Choose from how they sound right now and change it as their mood changes during the call.
+
 ## How to sound like a real, caring person on the phone
+- Write the way people actually talk on the phone, not the way they write: short phrases, commas where you would take a breath, everyday words.
+- Now and then (not every reply) start with a soft natural filler such as "હમ્મ", "અચ્છા", "હા, બરાબર", "हम्म", "अच्छा जी". Never stack fillers.
+- Mirror the customer's own words for things: if they say "mediclaim", say "mediclaim".
+- If they interrupted you, do not restart what you were saying; answer what they said.
 - Reply in ONE or TWO short sentences (about 20 words at most). Never deliver a speech.
 - Ask only ONE question at a time, then stop and let them talk.
 - Start with a small natural acknowledgement of what they just said ("જી", "સરસ", "અચ્છા", "बिल्कुल", "समझ गई") instead of jumping straight to the next question. Vary these; do not repeat the same one.
@@ -101,32 +134,66 @@ ${contactName ? `Name on our records: ${contactName}. Confirm it naturally; neve
 - Wrong number: apologise for the disturbance and end.
 - "Do not call me": apologise, promise they will not be called again, and end.
 - Wants a human or has a complex question: say a certified advisor will call them back, confirm a time, and end.
+- Answering machine, voicemail, recorded message or automated menu ("the number you are calling", "please leave a message", "कृपया संदेश छोड़ें"): do not pitch; say one short goodbye and end.
 
 ## Hard rules
 - You are an AI assistant of ${agent.companyName}. Never claim to be a human. If asked whether you are a robot or AI, say honestly and warmly that you are the company's AI assistant and offer a call back from a human advisor.
 - Never promise prices, premiums, returns or guarantees; never give tax or legal advice.
 - Never ask for OTPs, bank, card or Aadhaar numbers, or passwords.
-- When the conversation is finished, say a short warm goodbye and put ${END_CALL_MARKER} at the very end of that last message. Use it only when you are really done.`;
+- When the conversation is finished, say a short warm goodbye and put ${END_CALL_MARKER} at the very end of that last message. Use it only when you are really done.
+- The only bracketed text you ever write is the tone tag at the start and ${END_CALL_MARKER} at the end.`;
 }
 
-/** Spoken fillers used outside the language model (silence, errors, time limit). */
+/** Spoken fillers used outside the language model (silence, errors, time limit, slow replies). */
 export const STOCK_PHRASES: Record<
   CallLanguage,
-  { stillThere: string; goodbyeSilent: string; repeat: string; timeUp: string }
+  {
+    stillThere: string;
+    goodbyeSilent: string;
+    repeat: string;
+    timeUp: string;
+    troubleGoodbye: string;
+    thinking: readonly string[];
+  }
 > = {
   'gu-IN': {
     stillThere: 'હેલો, મારો અવાજ આવે છે?',
     goodbyeSilent: 'લાગે છે અત્યારે વાત નથી થઈ શકતી. હું પછી ફોન કરીશ. આભાર!',
     repeat: 'માફ કરજો, ફરીથી કહેશો?',
     timeUp: 'તમારો સમય આપવા બદલ આભાર. અમારા સલાહકાર તમને જલ્દી ફોન કરશે. આવજો!',
+    troubleGoodbye: 'માફ કરજો, લાઇનમાં થોડી તકલીફ છે. અમારા સલાહકાર તમને થોડી વારમાં ફોન કરશે. આભાર!',
+    thinking: ['હમ્મ...', 'જી...', 'અચ્છા...'],
   },
   'hi-IN': {
     stillThere: 'हेलो, मेरी आवाज़ आ रही है?',
     goodbyeSilent: 'लगता है अभी बात नहीं हो पा रही। मैं बाद में कॉल करूँगी। धन्यवाद!',
     repeat: 'माफ़ कीजिए, फिर से बताएँगे?',
     timeUp: 'आपका समय देने के लिए धन्यवाद। हमारे सलाहकार आपको जल्दी कॉल करेंगे। नमस्ते!',
+    troubleGoodbye: 'माफ़ कीजिए, लाइन में थोड़ी दिक्कत है। हमारे सलाहकार आपको थोड़ी देर में कॉल करेंगे। धन्यवाद!',
+    thinking: ['हम्म...', 'जी...', 'अच्छा...'],
   },
 };
+
+// Words a listener says while the other person talks ("yes", "hmm", "right"); not a request to stop.
+const BACKCHANNEL_WORDS = new Set(
+  [
+    'હા હાં હં હમ હમ્મ જી ઓકે બરાબર અચ્છા સારું હાજી',
+    'हाँ हां हं हम हम्म जी ओके अच्छा ठीक है सही हाँजी',
+    'ok okay hmm hm mm haan ha ji yes yeah right acha achha',
+  ]
+    .join(' ')
+    .split(' '),
+);
+
+/** True for a short "yes / hmm / ok" said while the agent is talking, which a person would talk through. */
+export function isBackchannel(text: string): boolean {
+  const words = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length > 0 && words.length <= 3 && words.every(w => BACKCHANNEL_WORDS.has(w));
+}
 
 /**
  * Turns a token stream into speakable sentences as early as possible: a sentence is released at its
@@ -162,10 +229,11 @@ export class SentenceSplitter {
   }
 }
 
-/** Removes anything a voice engine should not read: the end marker, markdown, emojis, brackets. */
+/** Removes anything a voice engine should not read: tone/end markers, markdown, emojis, brackets. */
 export function speakable(text: string): string {
   return text
-    .replace(/\[\[END_CALL\]\]/g, '')
+    .replace(/\[\[[A-Z_]+(?::[A-Za-z]+)?]]/g, '')
+    .replace(/[[\]]/g, '')
     .replace(/[*_#`~>|]/g, '')
     .replace(/[\p{Extended_Pictographic}️]/gu, '')
     .replace(/\s*[—–]\s*/g, ', ')

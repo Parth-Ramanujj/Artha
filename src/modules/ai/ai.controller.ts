@@ -53,7 +53,6 @@ export class AiController {
     return this.aiService.updateConfig(this.getBusinessId(apiKey), dto, apiKey?.id);
   }
 
-
   @Get(['knowledge', 'documents'])
   @ApiOperation({ summary: 'List knowledge documents' })
   @ApiQuery({ name: 'limit', required: false, type: Number })

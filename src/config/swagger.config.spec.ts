@@ -85,6 +85,7 @@ describe('PUBLIC_PATHS drift guard', () => {
     'src/modules/health/health.controller.ts',
     'src/modules/infra/infra.controller.ts',
     'src/modules/integration/ingress.controller.ts',
+    'src/modules/integrations/google/google.controller.ts',
     'src/modules/metrics/metrics.controller.ts',
     'src/modules/webhook/webhook-test.controller.ts',
   ];

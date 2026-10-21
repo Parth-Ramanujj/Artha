@@ -1,18 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  BadgeCheck,
-  Bot,
-  ListChecks,
-  Loader2,
-  Mic,
-  PhoneCall,
-  PhoneForwarded,
-  RefreshCw,
-  Settings2,
-} from 'lucide-react';
+import { BadgeCheck, Bot, CircleAlert, ListChecks, Loader2, Mic, PhoneCall, RefreshCw, Settings2 } from 'lucide-react';
 import { aiCallingApi, type AiCallingSetup, type VoiceAgent } from '../services/api';
 import { PageHeader } from '../components/PageHeader';
+import { errorText } from '../components/ai-calling/callMeta';
 import { SetupPanel } from '../components/ai-calling/SetupPanel';
 import { CallsTab } from '../components/ai-calling/CallsTab';
 import { BatchesTab } from '../components/ai-calling/BatchesTab';
@@ -21,12 +12,12 @@ import { TestCallTab } from '../components/ai-calling/TestCallTab';
 
 type Tab = 'calls' | 'verified' | 'lists' | 'agent' | 'test';
 
-const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
-  { id: 'calls', label: 'Call log', icon: <PhoneCall size={15} /> },
-  { id: 'verified', label: 'Verified leads', icon: <BadgeCheck size={15} /> },
-  { id: 'lists', label: 'Call lists', icon: <ListChecks size={15} /> },
-  { id: 'agent', label: 'Agent settings', icon: <Settings2 size={15} /> },
-  { id: 'test', label: 'Test call', icon: <Mic size={15} /> },
+const TABS: { id: Tab; icon: ReactNode }[] = [
+  { id: 'calls', icon: <PhoneCall size={15} /> },
+  { id: 'verified', icon: <BadgeCheck size={15} /> },
+  { id: 'lists', icon: <ListChecks size={15} /> },
+  { id: 'agent', icon: <Settings2 size={15} /> },
+  { id: 'test', icon: <Mic size={15} /> },
 ];
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
@@ -45,11 +36,40 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
   );
 }
 
+function ErrorBox({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="alert"
+      style={{
+        display: 'flex',
+        gap: 10,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        padding: '10px 14px',
+        marginBottom: 20,
+        borderRadius: 12,
+        border: '1px solid #ef444488',
+        background: '#ef44441a',
+        fontSize: 13.5,
+      }}
+    >
+      <CircleAlert size={16} color="#ef4444" />
+      <span style={{ flex: 1 }}>{message}</span>
+      <button className="btn-secondary" onClick={onRetry}>
+        <RefreshCw size={14} /> {t('aiCalling.retry')}
+      </button>
+    </div>
+  );
+}
+
 export function AiCalling() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('calls');
   const [setup, setSetup] = useState<AiCallingSetup | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const [agent, setAgent] = useState<VoiceAgent | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -57,20 +77,26 @@ export function AiCalling() {
     aiCallingApi
       .stats()
       .then(s => setStats(s as Record<string, number>))
-      .catch(() => setStats({}));
+      .catch(() => undefined); // keep the last numbers rather than showing zeros
   }, []);
 
   const loadMeta = useCallback(() => {
+    setSetupError(null);
     aiCallingApi
       .setup()
       .then(setSetup)
-      .catch(() => setSetup(null));
+      .catch(err => setSetupError(errorText(err, t('aiCalling.setupLoadFailed'))));
+    setAgentError(null);
     aiCallingApi
       .agents()
-      .then(list => setAgent(list.find(a => a.isDefault) ?? list[0] ?? null))
-      .catch(() => setAgent(null));
+      .then(list => {
+        const found = list.find(a => a.isDefault) ?? list[0] ?? null;
+        setAgent(found);
+        if (!found) setAgentError(t('aiCalling.noAgent'));
+      })
+      .catch(err => setAgentError(errorText(err, t('aiCalling.agentLoadFailed'))));
     loadStats();
-  }, [loadStats]);
+  }, [loadStats, t]);
 
   useEffect(() => {
     loadMeta();
@@ -89,12 +115,21 @@ export function AiCalling() {
     <div style={{ padding: '24px clamp(16px, 4vw, 32px)', maxWidth: 1240, margin: '0 auto' }}>
       <PageHeader
         title={t('nav.aiCalling', 'AI Calling')}
-        subtitle="An AI agent that phones your leads in Gujarati and Hindi, logs every call and finds the verified leads"
+        subtitle={t('aiCalling.subtitle')}
         icon={<Bot size={24} />}
-        action={{ label: 'Refresh', onClick: refresh, icon: <RefreshCw size={16} /> }}
+        action={{ label: t('aiCalling.refresh'), onClick: refresh, icon: <RefreshCw size={16} /> }}
       />
 
-      {setup && !setup.readyForPhoneCalls && <SetupPanel setup={setup} onChanged={loadMeta} />}
+      {setupError ? (
+        <ErrorBox message={setupError} onRetry={loadMeta} />
+      ) : setup ? (
+        <SetupPanel setup={setup} onChanged={loadMeta} />
+      ) : (
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          <Loader2 size={14} className="animate-spin" style={{ verticalAlign: '-2px' }} />{' '}
+          {t('aiCalling.checkingSetup')}
+        </div>
+      )}
 
       <div
         style={{
@@ -104,10 +139,10 @@ export function AiCalling() {
           margin: '4px 0 20px',
         }}
       >
-        <Stat label="Talked" value={talked} color="#22c55e" />
-        <Stat label="Verified leads" value={stats.verified ?? 0} color="#8b5cf6" />
-        <Stat label="Queued or on a call" value={pending} color="#3b82f6" />
-        <Stat label="Unanswered" value={unanswered} color="#f59e0b" />
+        <Stat label={t('aiCalling.stats.talked')} value={talked} color="#22c55e" />
+        <Stat label={t('aiCalling.stats.verified')} value={stats.verified ?? 0} color="#8b5cf6" />
+        <Stat label={t('aiCalling.stats.pending')} value={pending} color="#3b82f6" />
+        <Stat label={t('aiCalling.stats.unanswered')} value={unanswered} color="#f59e0b" />
       </div>
 
       <div
@@ -140,38 +175,25 @@ export function AiCalling() {
               whiteSpace: 'nowrap',
             }}
           >
-            {item.icon} {item.label}
+            {item.icon} {t(`aiCalling.tabs.${item.id}`)}
           </button>
         ))}
       </div>
 
-      {tab === 'calls' && <CallsTab refreshKey={refreshKey} onActivity={loadStats} />}
-      {tab === 'verified' && <CallsTab verifiedOnly refreshKey={refreshKey} onActivity={loadStats} />}
-      {tab === 'lists' && <BatchesTab refreshKey={refreshKey} onActivity={loadStats} />}
+      {tab === 'calls' && <CallsTab setup={setup} refreshKey={refreshKey} onActivity={loadStats} />}
+      {tab === 'verified' && <CallsTab verifiedOnly setup={setup} refreshKey={refreshKey} onActivity={loadStats} />}
+      {tab === 'lists' && <BatchesTab setup={setup} refreshKey={refreshKey} onActivity={loadStats} />}
       {tab === 'agent' &&
         (agent ? (
           <AgentTab agent={agent} onSaved={setAgent} />
+        ) : agentError ? (
+          <ErrorBox message={agentError} onRetry={loadMeta} />
         ) : (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
             <Loader2 size={26} className="animate-spin" />
           </div>
         ))}
-      {tab === 'test' && <TestCallTab agentId={agent?.id} />}
-
-      {tab === 'calls' && setup?.readyForPhoneCalls === false && (
-        <div
-          style={{
-            fontSize: 12.5,
-            color: 'var(--text-secondary)',
-            marginTop: 12,
-            display: 'flex',
-            gap: 6,
-            alignItems: 'center',
-          }}
-        >
-          <PhoneForwarded size={14} /> Calls stay queued until the setup above is complete; nothing is lost.
-        </div>
-      )}
+      {tab === 'test' && <TestCallTab agentId={agent?.id} setup={setup} />}
     </div>
   );
 }

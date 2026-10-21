@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Headphones, Loader2, Mic, PhoneOff, PhoneCall } from 'lucide-react';
-import { aiCallingApi, apiWebSocketUrl, type AiCall, type AiCallTurn } from '../../services/api';
+import { aiCallingApi, apiWebSocketUrl, type AiCall, type AiCallingSetup, type AiCallTurn } from '../../services/api';
 import { useToast } from '../Toast';
 import { BrowserCall, type BrowserCallState } from './browserCall';
 import { CallDrawer } from './CallDrawer';
-import { errorText, panel } from './callMeta';
+import { ACTIVE_STATUSES, errorText, panel } from './callMeta';
 
 /** Talk to the agent through the browser microphone: same conversation engine, no phone line needed. */
-export function TestCallTab({ agentId }: { agentId?: string }) {
+export function TestCallTab({ agentId, setup }: { agentId?: string; setup?: AiCallingSetup | null }) {
+  const { t } = useTranslation();
   const toast = useToast();
   const [state, setState] = useState<BrowserCallState | 'idle'>('idle');
   const [turns, setTurns] = useState<AiCallTurn[]>([]);
@@ -30,7 +32,9 @@ export function TestCallTab({ agentId }: { agentId?: string }) {
       aiCallingApi
         .call(callId)
         .then(c => {
-          if (c.summary || tries > 15) {
+          // Done once the call has ended on the server and the analysis (or an error) is in.
+          const settled = !ACTIVE_STATUSES.includes(c.status) && (c.summary || c.error);
+          if (settled || tries > 15) {
             setResult(c);
             window.clearInterval(timer);
           }
@@ -59,11 +63,16 @@ export function TestCallTab({ agentId }: { agentId?: string }) {
       await browserCall.start();
     } catch (err) {
       setState('error');
-      toast.error(errorText(err, 'Could not start the test call'));
+      toast.error(errorText(err, t('aiCalling.test.startFailed')));
     }
   };
 
   const live = state === 'connecting' || state === 'live';
+  const missing = setup
+    ? [!setup.sarvamKey && t('aiCalling.setup.sarvam.title'), !setup.groqKey && t('aiCalling.setup.groq.title')].filter(
+        Boolean,
+      )
+    : [];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
       <div
@@ -98,37 +107,42 @@ export function TestCallTab({ agentId }: { agentId?: string }) {
         </div>
         <div style={{ fontWeight: 700 }}>
           {state === 'connecting'
-            ? 'Connecting…'
+            ? t('aiCalling.test.connecting')
             : state === 'live'
               ? agentSpeaking
-                ? 'Agent is speaking'
-                : 'Listening — speak now'
-              : 'Test the agent with your voice'}
+                ? t('aiCalling.test.speaking')
+                : t('aiCalling.test.listening')
+              : t('aiCalling.test.idle')}
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 340 }}>
-          <Headphones size={13} style={{ verticalAlign: '-2px' }} /> Use headphones so the agent does not hear itself.
-          Talk in Gujarati or Hindi and interrupt it any time, like a real customer.
+          <Headphones size={13} style={{ verticalAlign: '-2px' }} /> {t('aiCalling.test.headphones')}
         </div>
         {live ? (
           <button className="btn-danger" onClick={() => call.current?.hangup()}>
-            <PhoneOff size={16} /> Hang up
+            <PhoneOff size={16} /> {t('aiCalling.test.hangUp')}
           </button>
         ) : (
-          <button className="btn-primary" onClick={() => void start()}>
-            <PhoneCall size={16} /> Start test call
+          <button className="btn-primary" onClick={() => void start()} disabled={missing.length > 0}>
+            <PhoneCall size={16} /> {t('aiCalling.test.start')}
           </button>
+        )}
+        {!live && missing.length > 0 && (
+          <div style={{ fontSize: 12.5, color: '#f59e0b' }}>
+            {t('aiCalling.test.missing', { items: missing.join(', ') })}
+          </div>
         )}
         {state === 'ended' && !result && (
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            <Loader2 size={14} className="animate-spin" style={{ verticalAlign: '-2px' }} /> Analysing the call…
+            <Loader2 size={14} className="animate-spin" style={{ verticalAlign: '-2px' }} />{' '}
+            {t('aiCalling.test.analysing')}
           </div>
         )}
       </div>
 
       <div style={{ ...panel, minHeight: 320, maxHeight: 520, overflowY: 'auto' }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Live transcript</div>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>{t('aiCalling.test.transcript')}</div>
         {turns.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>The conversation appears here as you talk.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('aiCalling.test.transcriptEmpty')}</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {turns.map((turn, i) => (

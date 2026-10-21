@@ -19,11 +19,25 @@ import {
   Send,
   Zap,
   Globe,
+  Mail,
+  Cloud,
+  LogIn,
 } from 'lucide-react';
+import {
+  EMPTY_EMAIL_FORM,
+  EmailIntegrationFields,
+  type EmailFormValues,
+} from '../components/integrations/EmailIntegrationFields';
+import {
+  GOOGLE_TYPE_SERVICE,
+  GoogleServiceFields,
+  isGoogleType,
+  type GoogleServiceChoice,
+} from '../components/integrations/GoogleServiceFields';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
-import { integrationApi } from '../services/api';
+import { googleApi, integrationApi } from '../services/api';
 import './Integrations.css';
 
 interface IntegrationType {
@@ -72,6 +86,7 @@ export function Integrations() {
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; missing: string[] } | null>(null);
 
   // Test Results Map
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
@@ -87,14 +102,21 @@ export function Integrations() {
     webhookUrl: '',
     apiKey: '',
     environment: 'production',
+    ...EMPTY_EMAIL_FORM,
+    connectedAs: '',
   });
 
   const load = async () => {
     setLoading(true);
     try {
-      const [list, typesList] = await Promise.all([integrationApi.list(), integrationApi.types()]);
+      const [list, typesList, google] = await Promise.all([
+        integrationApi.list(),
+        integrationApi.types(),
+        googleApi.status().catch(() => null),
+      ]);
       setIntegrations(list as Integration[]);
       setTypes(typesList);
+      setGoogleStatus(google);
     } catch {
       toast.addToast({ type: 'error', title: t('common.error') });
     }
@@ -105,6 +127,18 @@ export function Integrations() {
     load();
   }, []);
 
+  // Google sends the browser back to this page with the result of the sign-in.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('google');
+    if (!result) return;
+    if (result === 'connected') toast.success(t('common.success'), 'Google account connected');
+    else toast.error(t('common.error'), params.get('message') || 'Google sign-in failed');
+    window.history.replaceState({}, '', window.location.pathname);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openCreate = (initialType?: string, initialName?: string) => {
     setEditingId(null);
     setForm({
@@ -113,11 +147,14 @@ export function Integrations() {
       webhookUrl: '',
       apiKey: '',
       environment: 'production',
+      ...EMPTY_EMAIL_FORM,
+      connectedAs: '',
     });
     setShowModal(true);
   };
 
   const openEdit = (item: Integration) => {
+    const cfg = (item.config ?? {}) as Record<string, unknown>;
     setEditingId(item.id);
     setForm({
       type: item.type,
@@ -125,6 +162,14 @@ export function Integrations() {
       webhookUrl: item.config?.webhookUrl || item.config?.url || item.config?.apiUrl || '',
       apiKey: item.config?.apiKey || '',
       environment: item.config?.environment || 'production',
+      smtpHost: String(cfg.host ?? ''),
+      smtpPort: String(cfg.port ?? '587'),
+      smtpSecure: cfg.secure === true || cfg.secure === 'true',
+      smtpUser: String(cfg.username ?? ''),
+      smtpPassword: String(cfg.password ?? ''),
+      fromAddress: String(cfg.fromAddress ?? ''),
+      fromName: String(cfg.fromName ?? ''),
+      connectedAs: String(cfg.accountEmail ?? ''),
     });
     setShowModal(true);
   };
@@ -132,6 +177,19 @@ export function Integrations() {
   const handleSave = async () => {
     const selectedType = types.find(t => t.type === form.type);
     const finalName = form.name.trim() || selectedType?.label || form.type;
+
+    const emailConfig =
+      form.type === 'email_smtp'
+        ? {
+            host: form.smtpHost.trim(),
+            port: Number(form.smtpPort),
+            secure: form.smtpSecure,
+            username: form.smtpUser.trim(),
+            password: form.smtpPassword,
+            fromAddress: form.fromAddress.trim(),
+            fromName: form.fromName.trim() || undefined,
+          }
+        : {};
 
     const payload = {
       type: form.type,
@@ -141,6 +199,7 @@ export function Integrations() {
         url: form.webhookUrl.trim() || undefined,
         apiKey: form.apiKey.trim() || undefined,
         environment: form.environment,
+        ...emailConfig,
       },
     };
 
@@ -175,7 +234,7 @@ export function Integrations() {
       if (res.success) {
         toast.success(
           'Connection Verified',
-          `Target endpoint reachable in ${res.latencyMs || 0}ms (HTTP ${res.statusCode || 200})`
+          `Target endpoint reachable in ${res.latencyMs || 0}ms (HTTP ${res.statusCode || 200})`,
         );
       } else {
         toast.error('Connection Check Failed', res.message || 'Could not verify target endpoint');
@@ -185,6 +244,64 @@ export function Integrations() {
       toast.error('Test Failed', err instanceof Error ? err.message : 'Connection test timed out or failed');
     } finally {
       setTestingId(null);
+    }
+  };
+
+  /** Sign in with Google for this integration's own service (one integration = one service). */
+  const handleGoogleSignIn = async (service: GoogleServiceChoice) => {
+    try {
+      const { url } = await googleApi.start({ services: [service], integrationId: editingId });
+      window.location.assign(url);
+    } catch (err: unknown) {
+      toast.error(t('common.error'), err instanceof Error ? err.message : 'Could not start Google sign-in');
+    }
+  };
+
+  /**
+   * "Continue with Google" in one click: opens Google's account picker and permission page for this
+   * integration's service. Saved integrations reconnect in place; new ones are created on return.
+   */
+  const continueWithGoogle = async (type: string, integrationId: string | null) => {
+    const service = GOOGLE_TYPE_SERVICE[type];
+    if (!service) return;
+    if (googleStatus && !googleStatus.configured) {
+      toast.error(
+        t('common.error'),
+        `Google sign-in is not set up yet. Add ${googleStatus.missing.join(', ')} to the server .env and restart.`,
+      );
+      return;
+    }
+    try {
+      const { url } = await googleApi.start({ services: [service], integrationId });
+      window.location.assign(url);
+    } catch (err: unknown) {
+      toast.error(t('common.error'), err instanceof Error ? err.message : 'Could not start Google sign-in');
+    }
+  };
+
+  const handleGoogleConnectItem = (id: string) => {
+    const item = integrations.find(i => i.id === id);
+    if (item) void continueWithGoogle(item.type, id);
+  };
+
+  const handleGoogleTest = async (
+    id: string,
+    body: { service?: GoogleServiceChoice; to?: string; spreadsheetId?: string; range?: string },
+  ) => {
+    try {
+      const res = await googleApi.test(id, body);
+      toast.success(t('common.success'), res.message || 'Google test succeeded');
+    } catch (err: unknown) {
+      toast.error(t('common.error'), err instanceof Error ? err.message : 'Google test failed');
+    }
+  };
+
+  const handleSendTestEmail = async (id: string, to: string) => {
+    try {
+      await integrationApi.testEmail(id, to);
+      toast.success(t('common.success'), `Test email sent to ${to}`);
+    } catch (err: unknown) {
+      toast.error(t('common.error'), err instanceof Error ? err.message : 'Could not send the test email');
     }
   };
 
@@ -235,7 +352,7 @@ export function Integrations() {
       if (res.success) {
         toast.success(
           'Payload Dispatched',
-          `Event "${simEvent}" successfully processed by target (${res.latencyMs || 0}ms)`
+          `Event "${simEvent}" successfully processed by target (${res.latencyMs || 0}ms)`,
         );
         setSimulatorItem(null);
       } else {
@@ -256,6 +373,10 @@ export function Integrations() {
         return <ShoppingBag size={16} color="#10b981" />;
       case 'calendar':
         return <Calendar size={16} color="#f59e0b" />;
+      case 'email':
+        return <Mail size={16} color="#ef4444" />;
+      case 'google':
+        return <Cloud size={16} color="#4285f4" />;
       default:
         return <Layers size={16} color="#8b5cf6" />;
     }
@@ -300,7 +421,9 @@ export function Integrations() {
         categoryFilter === 'all' ||
         (categoryFilter === 'crm' && typeDef?.category === 'crm') ||
         (categoryFilter === 'ecommerce' && typeDef?.category === 'ecommerce') ||
-        (categoryFilter === 'calendar' && typeDef?.category === 'calendar');
+        (categoryFilter === 'calendar' && typeDef?.category === 'calendar') ||
+        (categoryFilter === 'email' && typeDef?.category === 'email') ||
+        (categoryFilter === 'google' && typeDef?.category === 'google');
 
       return matchSearch && matchCategory;
     });
@@ -313,9 +436,15 @@ export function Integrations() {
         categoryFilter === 'all' ||
         (categoryFilter === 'crm' && t.category === 'crm') ||
         (categoryFilter === 'ecommerce' && t.category === 'ecommerce') ||
-        (categoryFilter === 'calendar' && t.category === 'calendar')
+        (categoryFilter === 'calendar' && t.category === 'calendar') ||
+        (categoryFilter === 'email' && t.category === 'email') ||
+        (categoryFilter === 'google' && t.category === 'google')
       ) {
-        if (!searchTerm || t.label.toLowerCase().includes(searchTerm.toLowerCase()) || t.description.toLowerCase().includes(searchTerm.toLowerCase())) {
+        if (
+          !searchTerm ||
+          t.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.description.toLowerCase().includes(searchTerm.toLowerCase())
+        ) {
           (acc[t.category] = acc[t.category] || []).push(t);
         }
       }
@@ -356,7 +485,9 @@ export function Integrations() {
             <CheckCircle2 size={24} />
           </div>
           <div>
-            <div className="int-stat-value" style={{ color: '#10b981' }}>{connectedCount}</div>
+            <div className="int-stat-value" style={{ color: '#10b981' }}>
+              {connectedCount}
+            </div>
             <div className="int-stat-label">Active & Connected</div>
           </div>
         </div>
@@ -380,6 +511,8 @@ export function Integrations() {
             { id: 'crm', label: 'CRM & Pipeline' },
             { id: 'ecommerce', label: 'E-Commerce' },
             { id: 'calendar', label: 'Calendars & Scheduling' },
+            { id: 'email', label: 'Email' },
+            { id: 'google', label: 'Google' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -421,8 +554,18 @@ export function Integrations() {
         {filteredIntegrations.length === 0 ? (
           <div className="int-empty-state">
             <Plug size={40} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
-            <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 6, color: 'var(--text-primary)' }}>No Matching Integrations</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, maxWidth: 460, margin: '0 auto 20px', lineHeight: 1.5 }}>
+            <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 6, color: 'var(--text-primary)' }}>
+              No Matching Integrations
+            </h3>
+            <p
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 13.5,
+                maxWidth: 460,
+                margin: '0 auto 20px',
+                lineHeight: 1.5,
+              }}
+            >
               Connect Zoho CRM, HubSpot, Google Calendar, or Webhook to automatically sync WhatsApp leads.
             </p>
             <button className="btn btn-primary" onClick={() => openCreate()}>
@@ -441,14 +584,17 @@ export function Integrations() {
                   <div>
                     <div className="int-card-top">
                       <div className="int-card-identity">
-                        <div className="int-avatar">
-                          {getCategoryIcon(typeDef?.category || '')}
-                        </div>
+                        <div className="int-avatar">{getCategoryIcon(typeDef?.category || '')}</div>
                         <div>
                           <div className="int-card-name">{item.name}</div>
-                          <div className="int-card-type-label">
-                            {typeDef?.label || item.type}
-                          </div>
+                          <div className="int-card-type-label">{typeDef?.label || item.type}</div>
+                          {isGoogleType(item.type) && (
+                            <div className="int-card-type-label" style={{ textTransform: 'none' }}>
+                              {String(
+                                (item.config as Record<string, unknown> | null)?.accountEmail ?? 'Not signed in yet',
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {statusBadge(item.status)}
@@ -459,9 +605,7 @@ export function Integrations() {
                       <div className="int-endpoint-row">
                         <span className="int-endpoint-label">Endpoint URL:</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span className="int-endpoint-val">
-                            {targetUrl || 'Snapshot Only'}
-                          </span>
+                          <span className="int-endpoint-val">{targetUrl || 'Snapshot Only'}</span>
                           {targetUrl && (
                             <button
                               className="int-copy-btn"
@@ -487,17 +631,15 @@ export function Integrations() {
                       <div className={`int-test-pill ${test.success ? 'success' : 'fail'}`}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                           <Activity size={13} />
-                          {test.success ? `⚡ ${test.latencyMs}ms (HTTP ${test.statusCode || 200})` : 'Connection Failed'}
+                          {test.success
+                            ? `⚡ ${test.latencyMs}ms (HTTP ${test.statusCode || 200})`
+                            : 'Connection Failed'}
                         </span>
                         <span style={{ fontSize: 11, opacity: 0.85 }}>Tested at {test.testedAt}</span>
                       </div>
                     )}
 
-                    {item.lastError && (
-                      <div className="int-error-pill">
-                        {item.lastError}
-                      </div>
-                    )}
+                    {item.lastError && <div className="int-error-pill">{item.lastError}</div>}
                   </div>
 
                   {/* Actions bar */}
@@ -528,19 +670,20 @@ export function Integrations() {
 
                     <div style={{ display: 'flex', gap: 6 }}>
                       {item.status !== 'connected' ? (
-                        <button className="btn btn-sm btn-primary" onClick={() => handleConnect(item.id)}>
-                          Connect
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() =>
+                            isGoogleType(item.type) ? handleGoogleConnectItem(item.id) : handleConnect(item.id)
+                          }
+                        >
+                          {isGoogleType(item.type) ? 'Continue with Google' : 'Connect'}
                         </button>
                       ) : (
                         <button className="btn btn-sm btn-secondary" onClick={() => handleDisconnect(item.id)}>
                           Pause
                         </button>
                       )}
-                      <button
-                        className="btn btn-sm btn-secondary"
-                        onClick={() => openEdit(item)}
-                        title="Edit Settings"
-                      >
+                      <button className="btn btn-sm btn-secondary" onClick={() => openEdit(item)} title="Edit Settings">
                         <Edit2 size={13} />
                       </button>
                       <button
@@ -583,9 +726,7 @@ export function Integrations() {
                   <div key={typ.type} className="int-catalog-card">
                     <div>
                       <div className="int-catalog-title">{typ.label}</div>
-                      <div className="int-catalog-desc">
-                        {typ.description}
-                      </div>
+                      <div className="int-catalog-desc">{typ.description}</div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
@@ -594,10 +735,22 @@ export function Integrations() {
                       ) : (
                         <button
                           className="btn btn-sm btn-primary"
-                          onClick={() => openCreate(typ.type, typ.label)}
+                          onClick={() =>
+                            isGoogleType(typ.type)
+                              ? void continueWithGoogle(typ.type, null)
+                              : openCreate(typ.type, typ.label)
+                          }
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         >
-                          <Plus size={14} /> Setup Connection
+                          {isGoogleType(typ.type) ? (
+                            <>
+                              <LogIn size={14} /> Continue with Google
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} /> Setup Connection
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -616,7 +769,16 @@ export function Integrations() {
           onClose={() => setShowModal(false)}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
               Service Type
               <select
                 className="input"
@@ -640,7 +802,16 @@ export function Integrations() {
               </select>
             </label>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
               Integration Display Name
               <input
                 className="input"
@@ -651,54 +822,103 @@ export function Integrations() {
               />
             </label>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-              Webhook / API Endpoint URL
-              <input
-                className="input"
-                style={{ width: '100%' }}
-                placeholder="https://api.yourcrm.com/v2/leads/webhook"
-                value={form.webhookUrl}
-                onChange={e => setForm(f => ({ ...f, webhookUrl: e.target.value }))}
+            {isGoogleType(form.type) ? (
+              <GoogleServiceFields
+                service={GOOGLE_TYPE_SERVICE[form.type]}
+                onSignIn={() => handleGoogleSignIn(GOOGLE_TYPE_SERVICE[form.type])}
+                integrationId={editingId}
+                connectedAs={form.connectedAs || null}
+                onRunTest={handleGoogleTest}
+                configStatus={googleStatus}
               />
-              <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 400 }}>
-                Target endpoint receiving WhatsApp events. Leave blank to run as local staging adapter.
-              </span>
-            </label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                Environment
-                <select
-                  className="input"
-                  value={form.environment}
-                  onChange={e => setForm(f => ({ ...f, environment: e.target.value }))}
-                  style={{ width: '100%' }}
+            ) : form.type === 'email_smtp' ? (
+              <EmailIntegrationFields
+                values={form as EmailFormValues}
+                onChange={patch => setForm(f => ({ ...f, ...patch }))}
+                integrationId={editingId}
+                onSendTest={handleSendTestEmail}
+              />
+            ) : (
+              <>
+                <label
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--text-primary)',
+                  }}
                 >
-                  <option value="production">Production</option>
-                  <option value="sandbox">Sandbox / Staging</option>
-                </select>
-              </label>
+                  Webhook / API Endpoint URL
+                  <input
+                    className="input"
+                    style={{ width: '100%' }}
+                    placeholder="https://api.yourcrm.com/v2/leads/webhook"
+                    value={form.webhookUrl}
+                    onChange={e => setForm(f => ({ ...f, webhookUrl: e.target.value }))}
+                  />
+                  <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 400 }}>
+                    Target endpoint receiving WhatsApp events. Leave blank to run as local staging adapter.
+                  </span>
+                </label>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                API Key / Secret Token
-                <input
-                  type="password"
-                  className="input"
-                  style={{ width: '100%' }}
-                  placeholder="Optional auth token"
-                  value={form.apiKey}
-                  onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
-                />
-              </label>
-            </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    Environment
+                    <select
+                      className="input"
+                      value={form.environment}
+                      onChange={e => setForm(f => ({ ...f, environment: e.target.value }))}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="production">Production</option>
+                      <option value="sandbox">Sandbox / Staging</option>
+                    </select>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    API Key / Secret Token
+                    <input
+                      type="password"
+                      className="input"
+                      style={{ width: '100%' }}
+                      placeholder="Optional auth token"
+                      value={form.apiKey}
+                      onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
                 {t('common.cancel')}
               </button>
-              <button className="btn btn-primary" onClick={handleSave}>
-                {editingId ? 'Update Integration' : 'Create & Save'}
-              </button>
+              {!isGoogleType(form.type) && (
+                <button className="btn btn-primary" onClick={handleSave}>
+                  {editingId ? 'Update Integration' : 'Create & Save'}
+                </button>
+              )}
             </div>
           </div>
         </Modal>
@@ -706,12 +926,18 @@ export function Integrations() {
 
       {/* Modal: Webhook Payload Simulator */}
       {simulatorItem && (
-        <Modal
-          title={`Test Webhook Event: ${simulatorItem.name}`}
-          onClose={() => setSimulatorItem(null)}
-        >
+        <Modal title={`Test Webhook Event: ${simulatorItem.name}`} onClose={() => setSimulatorItem(null)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
               Select Event Type
               <select
                 className="input"
@@ -728,17 +954,21 @@ export function Integrations() {
             <div>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)' }}>Payload Preview:</span>
               <pre className="int-json-preview">
-{JSON.stringify({
-  event: simEvent,
-  timestamp: new Date().toISOString(),
-  businessId: "default",
-  lead: {
-    name: "Sadhu Parth",
-    phone: "+919227102108",
-    source: "whatsapp_inbound",
-    inquiry: "Term Insurance & Mediclaim"
-  }
-}, null, 2)}
+                {JSON.stringify(
+                  {
+                    event: simEvent,
+                    timestamp: new Date().toISOString(),
+                    businessId: 'default',
+                    lead: {
+                      name: 'Sadhu Parth',
+                      phone: '+919227102108',
+                      source: 'whatsapp_inbound',
+                      inquiry: 'Term Insurance & Mediclaim',
+                    },
+                  },
+                  null,
+                  2,
+                )}
               </pre>
             </div>
 

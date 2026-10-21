@@ -57,6 +57,7 @@ import {
   ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
 import type { ChatKind } from '../identity/wa-id';
+import { CATALOG_MAX, formatPrice } from './catalog-format';
 
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -1109,24 +1110,120 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
   // Catalog
   // ============================================================================
 
+  /**
+   * The Commerce Manager catalog connected to this WhatsApp Business account. Needs the WABA id and a
+   * token with catalog_management; null when the account has no catalog.
+   */
   async getCatalog(): Promise<Catalog | null> {
-    throw new EngineNotSupportedError('getCatalog');
+    const catalog = await this.commerceCatalog();
+    if (!catalog) return null;
+    return {
+      id: catalog.id,
+      name: catalog.name ?? 'Catalog',
+      productCount: catalog.product_count ?? (await this.loadCatalogProducts(catalog.id)).length,
+      url: `https://wa.me/c/${(this.phoneNumber ?? '').replace(/\D/g, '')}`,
+    };
   }
 
-  async getProducts(_options?: ProductQueryOptions): Promise<PaginatedProducts> {
-    throw new EngineNotSupportedError('getProducts');
+  async getProducts(options?: ProductQueryOptions): Promise<PaginatedProducts> {
+    const catalog = await this.commerceCatalog();
+    const all = catalog ? await this.loadCatalogProducts(catalog.id) : [];
+    const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
+    const page = Math.max(1, options?.page ?? 1);
+    return {
+      products: all.slice((page - 1) * limit, page * limit),
+      pagination: { page, limit, total: all.length, totalPages: Math.ceil(all.length / limit) },
+    };
   }
 
-  async getProduct(_productId: string): Promise<Product | null> {
-    throw new EngineNotSupportedError('getProduct');
+  async getProduct(productId: string): Promise<Product | null> {
+    const catalog = await this.commerceCatalog();
+    if (!catalog) return null;
+    return (
+      (await this.loadCatalogProducts(catalog.id)).find(p => p.id === productId || p.retailerId === productId) ?? null
+    );
   }
 
-  async sendProduct(_chatId: string, _productId: string, _body?: string): Promise<MessageResult> {
-    throw new EngineNotSupportedError('sendProduct');
+  /** Single-product message; Meta identifies the product by its retailer id (content id) in the catalog. */
+  async sendProduct(chatId: string, productId: string, body?: string): Promise<MessageResult> {
+    const catalog = await this.commerceCatalog();
+    if (!catalog) throw new Error('This WhatsApp Business account has no catalog connected');
+    const product = await this.getProduct(productId);
+    if (!product?.retailerId) throw new Error(`Product ${productId} is not in the connected catalog`);
+    return this.sendInteractiveMessage(chatId, {
+      type: 'product',
+      ...(body ? { body: { text: body } } : {}),
+      action: { catalog_id: catalog.id, product_retailer_id: product.retailerId },
+    });
   }
 
-  async sendCatalog(_chatId: string, _body?: string): Promise<MessageResult> {
-    throw new EngineNotSupportedError('sendCatalog');
+  /** Catalog message: a "View catalog" button that opens the business's catalog in WhatsApp. */
+  async sendCatalog(chatId: string, body?: string): Promise<MessageResult> {
+    return this.sendInteractiveMessage(chatId, {
+      type: 'catalog_message',
+      body: { text: body?.trim() || 'Browse our catalog' },
+      action: { name: 'catalog_message' },
+    });
+  }
+
+  private catalogInfo?: { id: string; name?: string; product_count?: number } | null;
+
+  private async commerceCatalog(): Promise<{ id: string; name?: string; product_count?: number } | null> {
+    this.ensureReady();
+    if (this.catalogInfo !== undefined) return this.catalogInfo;
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is needed to read the catalog');
+    const res = await this.graphRequest<{ data?: Array<{ id: string; name?: string; product_count?: number }> }>(
+      'GET',
+      `/${this.wabaId}/product_catalogs?fields=id,name,product_count`,
+    );
+    this.catalogInfo = res.data?.[0] ?? null;
+    return this.catalogInfo;
+  }
+
+  // shortcut: reads the whole catalog (up to CATALOG_MAX) on every call; cache it if catalogs get large.
+  private async loadCatalogProducts(catalogId: string): Promise<Product[]> {
+    type GraphProduct = {
+      id: string;
+      name?: string;
+      description?: string;
+      price?: string;
+      currency?: string;
+      image_url?: string;
+      url?: string;
+      availability?: string;
+      retailer_id?: string;
+    };
+    const fields = 'id,name,description,price,currency,image_url,url,availability,retailer_id';
+    const out: Product[] = [];
+    let after: string | undefined;
+    do {
+      const page = await this.graphRequest<{
+        data?: GraphProduct[];
+        paging?: { cursors?: { after?: string }; next?: string };
+      }>(
+        'GET',
+        `/${catalogId}/products?fields=${fields}&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`,
+      );
+      for (const p of page.data ?? []) {
+        // Graph returns the price already formatted ("₹1,499.00"); the number is read back out of it.
+        const price = Number((p.price ?? '').replace(/[^\d.]/g, '')) || 0;
+        const currency = p.currency ?? '';
+        out.push({
+          id: p.id,
+          name: p.name ?? p.retailer_id ?? p.id,
+          ...(p.description ? { description: p.description } : {}),
+          price,
+          currency,
+          priceFormatted: p.price ?? formatPrice(price, currency),
+          ...(p.image_url ? { imageUrl: p.image_url } : {}),
+          url: p.url ?? '',
+          isAvailable: (p.availability ?? 'in stock') === 'in stock',
+          ...(p.retailer_id ? { retailerId: p.retailer_id } : {}),
+        });
+      }
+      after = page.paging?.next ? page.paging.cursors?.after : undefined;
+    } while (after && out.length < CATALOG_MAX);
+    return out;
   }
 
   // ============================================================================
@@ -1185,6 +1282,12 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     return this.sendMessage(to, { type: 'template', template });
   }
 
+  /** Puts an emoji reaction on a customer's message (the message id is the one the webhook gave us). */
+  async sendReaction(chatId: string, messageId: string, emoji: string): Promise<MessageResult> {
+    const to = this.toE164(chatId);
+    return this.sendMessage(to, { type: 'reaction', reaction: { message_id: messageId, emoji } });
+  }
+
   // ============================================================================
   // Interactive Messages (Cloud API specific)
   // ============================================================================
@@ -1192,6 +1295,33 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
   async sendInteractiveMessage(chatId: string, interactive: Record<string, unknown>): Promise<MessageResult> {
     const to = this.toE164(chatId);
     return this.sendMessage(to, { type: 'interactive', interactive });
+  }
+
+  /**
+   * The message templates of this WhatsApp Business account, with Meta's approval status. Needs the
+   * WABA id (CLOUD_API_WABA_ID); without it Meta has no account to list. First 200 templates.
+   */
+  async listMessageTemplates(): Promise<
+    Array<{
+      name: string;
+      language: string;
+      status: string;
+      category: string;
+      components: Array<Record<string, unknown>>;
+    }>
+  > {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const res = await this.graphRequest<{ data?: Array<Record<string, unknown>> }>(
+      'GET',
+      `/${this.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`,
+    );
+    return (res.data ?? []).map(t => ({
+      name: String(t.name ?? ''),
+      language: String(t.language ?? ''),
+      status: String(t.status ?? ''),
+      category: String(t.category ?? ''),
+      components: Array.isArray(t.components) ? (t.components as Array<Record<string, unknown>>) : [],
+    }));
   }
 
   // ============================================================================

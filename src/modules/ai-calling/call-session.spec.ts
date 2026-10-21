@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { CallSession, CallSessionResult, CallTransport, ChatMessage } from './call-session';
-import { FinalTranscript, SpeechFactory, SttStream, TtsOptions, TtsStream } from './sarvam';
+import { CallSession, CallSessionConfig, CallSessionResult, CallTransport, ChatMessage } from './call-session';
+import { FinalTranscript, SpeechFactory, SttStream, TtsOptions, TtsStream, VoiceStyle } from './sarvam';
 import { DEFAULT_AGENT, END_CALL_MARKER, STOCK_PHRASES } from './call-brain';
 
 class FakeStt extends EventEmitter implements SttStream {
@@ -20,6 +20,7 @@ class FakeStt extends EventEmitter implements SttStream {
 
 class FakeTts extends EventEmitter implements TtsStream {
   said: string[] = [];
+  styles: VoiceStyle[] = [];
   resets = 0;
   closed = false;
   constructor(readonly options: TtsOptions) {
@@ -32,6 +33,9 @@ class FakeTts extends EventEmitter implements TtsStream {
       this.emit('audio', Buffer.from(text));
       this.emit('spoken');
     });
+  }
+  setStyle(style: VoiceStyle): void {
+    this.styles.push(style);
   }
   reset(): void {
     this.resets++;
@@ -68,6 +72,7 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 80));
 function setup(
   reply: (messages: ChatMessage[], signal: AbortSignal) => AsyncIterable<string>,
   silenceTimeoutMs = 60_000,
+  extra: Partial<CallSessionConfig> = {},
 ) {
   const stt = new FakeStt();
   const voices: FakeTts[] = [];
@@ -87,6 +92,8 @@ function setup(
     speech,
     reply,
     silenceTimeoutMs,
+    bargeInMs: 30,
+    ...extra,
   });
   const ended = new Promise<CallSessionResult>(resolve => session.once('ended', resolve));
   session.start();
@@ -128,15 +135,102 @@ describe('CallSession', () => {
     session.finish('error');
   });
 
-  it('stops talking the moment the customer interrupts', async () => {
+  it('stops talking once the customer keeps talking over it', async () => {
     const { stt, voices, transport, session } = setup(() => tokens());
     transport.autoPlay = false; // the greeting is still playing
     await flush();
     stt.emit('speech_start');
+    expect(transport.cleared).toBe(0);
+    await flush();
     expect(transport.cleared).toBe(1);
     expect(voices[0].resets).toBe(1);
     expect(session.turns[0].interrupted).toBe(true);
     session.finish('error');
+  });
+
+  it('talks through a cough or a short noise', async () => {
+    const { stt, transport, session } = setup(() => tokens());
+    transport.autoPlay = false;
+    await flush();
+    stt.emit('speech_start');
+    stt.emit('speech_end');
+    await flush();
+    expect(transport.cleared).toBe(0);
+    session.finish('error');
+  });
+
+  it('keeps talking when the customer just says "હા" while listening', async () => {
+    let replies = 0;
+    const { stt, transport, session } = setup(() => {
+      replies++;
+      return tokens('જી.');
+    });
+    transport.autoPlay = false;
+    await flush();
+    stt.speech('હા');
+    await flush();
+    expect(transport.cleared).toBe(0);
+    expect(replies).toBe(0);
+    expect(session.turns.map(t => t.role)).toEqual(['agent']);
+    session.finish('error');
+  });
+
+  it('changes the voice to match the mood, without reading the tone tag aloud', async () => {
+    const seen: ChatMessage[][] = [];
+    const { stt, voices, session } = setup(messages => {
+      seen.push(messages);
+      return tokens('[[TO', 'NE:empathetic]] ', 'અરે, એ તો ખોટું થયું.');
+    });
+    await flush();
+    stt.speech('મારો ક્લેમ રિજેક્ટ થઈ ગયો');
+    await flush();
+    expect(voices[0].said.at(-1)).toBe('અરે, એ તો ખોટું થયું.');
+    expect(voices[0].styles.at(-1)).toEqual({ pace: 0.92, temperature: 0.5 });
+    expect(session.turns.at(-1)).toMatchObject({ role: 'agent', tone: 'empathetic' });
+    stt.speech('હવે શું કરું?');
+    await flush();
+    expect(seen[1].at(-2)).toEqual({ role: 'assistant', content: '[[TONE:empathetic]] અરે, એ તો ખોટું થયું.' });
+    session.finish('error');
+  });
+
+  it('says "hmm..." instead of leaving the line dead while a reply is slow', async () => {
+    const { stt, voices, session } = setup(
+      async function* () {
+        await new Promise(resolve => setTimeout(resolve, 60));
+        yield 'જી, બરાબર.';
+      },
+      60_000,
+      { fillerAfterMs: 10 },
+    );
+    await flush();
+    stt.speech('મારે SIP વિશે જાણવું છે');
+    await flush();
+    expect(voices[0].said.slice(1)).toEqual([STOCK_PHRASES['gu-IN'].thinking[0], 'જી, બરાબર.']);
+    expect(session.turns.at(-1)).toMatchObject({ role: 'agent', text: 'જી, બરાબર.' });
+    session.finish('error');
+  });
+
+  it('gives up politely when the language model keeps failing or hangs', async () => {
+    const { stt, voices, ended } = setup(
+      (_messages, signal) => ({
+        [Symbol.asyncIterator]: () => ({
+          next: () =>
+            new Promise<IteratorResult<string>>((_resolve, reject) =>
+              signal.addEventListener('abort', () => reject(new Error('aborted'))),
+            ),
+        }),
+      }),
+      60_000,
+      { replyTimeoutMs: 20, fillerAfterMs: 60_000 },
+    );
+    await flush();
+    stt.speech('હેલો');
+    await flush();
+    expect(voices[0].said.at(-1)).toBe(STOCK_PHRASES['gu-IN'].repeat);
+    stt.speech('હેલો?');
+    const result = await ended;
+    expect(voices[0].said.at(-1)).toBe(STOCK_PHRASES['gu-IN'].troubleGoodbye);
+    expect(result).toMatchObject({ reason: 'error', error: 'The language model did not answer' });
   });
 
   it('does not treat speech as an interruption once the agent is quiet', async () => {

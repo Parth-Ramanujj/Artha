@@ -1,0 +1,310 @@
+/* Live WhatsApp simulator drawer. Colors follow the app theme; the chat uses WhatsApp's own look. */
+.wf-sim {
+  --wa-bg: #efeae2;
+  --wa-bar: #008069;
+  --wa-in: #ffffff;
+  --wa-out: #d9fdd3;
+  --wa-text: #111b21;
+  --wa-muted: #667781;
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(400px, 92vw);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card, #1e293b);
+  border-left: 1px solid var(--border, #334155);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+  animation: wf-sim-in 0.18s ease-out;
+}
+
+[data-theme='dark'] .wf-sim {
+  --wa-bg: #0b141a;
+  --wa-in: #202c33;
+  --wa-out: #005c4b;
+  --wa-text: #e9edef;
+  --wa-muted: #8696a0;
+}
+
+@keyframes wf-sim-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-sim {
+    animation: none;
+  }
+}
+
+.wf-sim-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--wa-bar);
+  color: #fff;
+}
+
+.wf-sim-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.wf-sim-head-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  flex: 1;
+  min-width: 0;
+}
+
+.wf-sim-head-title strong {
+  font-size: 14px;
+}
+
+.wf-sim-head-title small {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.wf-sim-head button {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+}
+
+.wf-sim-head button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.wf-sim-session {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border, #334155);
+}
+
+.wf-sim-session select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #334155);
+  background: var(--bg-white, #0f172a);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.wf-sim-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  background-color: var(--wa-bg);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 0);
+  background-size: 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-sim-row {
+  display: flex;
+  max-width: 85%;
+}
+
+.wf-sim-row.in {
+  align-self: flex-start;
+}
+
+.wf-sim-row.out {
+  align-self: flex-end;
+}
+
+.wf-sim-bubble {
+  padding: 7px 10px 8px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.42;
+  color: var(--wa-text);
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wf-sim-row.in .wf-sim-bubble {
+  background: var(--wa-in);
+  border-top-left-radius: 2px;
+}
+
+.wf-sim-row.out .wf-sim-bubble {
+  background: var(--wa-out);
+  border-top-right-radius: 2px;
+}
+
+.wf-sim-note {
+  align-self: center;
+  max-width: 90%;
+  text-align: center;
+  font-size: 12px;
+  color: var(--wa-muted);
+  background: color-mix(in srgb, var(--wa-in) 70%, transparent);
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+.wf-sim-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--wa-muted) 30%, transparent);
+  padding-top: 6px;
+}
+
+.wf-sim-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px;
+  border-radius: 7px;
+  border: 0;
+  background: var(--wa-in);
+  color: #027eb5;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+}
+
+.wf-sim-btn:hover {
+  filter: brightness(0.97);
+}
+
+.wf-sim-media {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wa-muted) 16%, transparent);
+  color: var(--wa-muted);
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+
+.wf-sim-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--wa-muted);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  padding: 20px;
+}
+
+.wf-sim-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.wf-sim-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--wa-bar);
+  background: transparent;
+  color: var(--wa-bar);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wf-sim-chip:hover {
+  background: color-mix(in srgb, var(--wa-bar) 12%, transparent);
+}
+
+.wf-sim-trace {
+  align-self: center;
+  max-width: 92%;
+  font-size: 11px;
+  color: var(--wa-muted);
+}
+
+.wf-sim-trace summary {
+  cursor: pointer;
+  text-align: center;
+}
+
+.wf-sim-trace ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wf-sim-input {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border, #334155);
+  background: var(--bg-card, #1e293b);
+}
+
+.wf-sim-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #334155);
+  background: var(--bg-white, #0f172a);
+  color: var(--text-primary);
+  font-size: 13.5px;
+}
+
+.wf-sim-input input:focus {
+  outline: none;
+  border-color: var(--wa-bar);
+}
+
+.wf-sim-send {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  border: 0;
+  background: var(--wa-bar);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.wf-sim-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

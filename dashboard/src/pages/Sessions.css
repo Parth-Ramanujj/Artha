@@ -1,6 +1,8 @@
 .sessions-page {
   padding: 2rem;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -64,11 +66,26 @@
   flex: 1;
 }
 
+/* One row of session cards that scrolls sideways once there are more than fit on screen. */
 .sessions-page .sessions-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: nowrap;
   gap: 1.5rem;
   width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding-bottom: 0.75rem;
+}
+
+.sessions-page .sessions-grid > * {
+  flex: 0 0 min(340px, 85vw);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.sessions-page .sessions-grid > .empty-state {
+  flex: 1 0 100%;
 }
 
 .sessions-page .session-card {
@@ -196,22 +213,12 @@
 }
 
 @media (max-width: 1400px) {
-  .sessions-page .sessions-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 @media (max-width: 1000px) {
-  .sessions-page .sessions-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 600px) {
-  .sessions-page .sessions-grid {
-    grid-template-columns: 1fr;
-  }
-
   .sessions-page {
     padding: 1rem;
   }
@@ -775,14 +782,14 @@
 
 /* ── Engine Selector (create modal) ────────────────────────── */
 
-.engine-selector {
+.sessions-page .engine-selector {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.25rem;
 }
 
-.engine-option {
+.sessions-page .engine-option {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
@@ -795,41 +802,41 @@
     background 0.15s;
 }
 
-.engine-option:hover {
+.sessions-page .engine-option:hover {
   border-color: var(--primary);
   background: var(--bg-hover, rgba(99, 102, 241, 0.04));
 }
 
-.engine-option.selected {
+.sessions-page .engine-option.selected {
   border-color: var(--primary);
   background: var(--bg-selected, rgba(99, 102, 241, 0.08));
 }
 
-.engine-option input[type='radio'] {
+.sessions-page .engine-option input[type='radio'] {
   margin-top: 2px;
   accent-color: var(--primary);
 }
 
-.engine-option-content {
+.sessions-page .engine-option-content {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
 }
 
-.engine-option-name {
+.sessions-page .engine-option-name {
   font-weight: 600;
   font-size: 0.875rem;
   color: var(--text-primary);
 }
 
-.engine-option-desc {
+.sessions-page .engine-option-desc {
   font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
 /* ── Engine Badge (session card) ───────────────────────────── */
 
-.engine-badge {
+.sessions-page .engine-badge {
   display: inline-block;
   padding: 0.125rem 0.5rem;
   border-radius: 10px;
@@ -838,19 +845,19 @@
   letter-spacing: 0.02em;
 }
 
-.engine-badge.official {
+.sessions-page .engine-badge.official {
   background: var(--success-bg, rgba(34, 197, 94, 0.12));
   color: var(--success, #16a34a);
 }
 
-.engine-badge.unofficial {
+.sessions-page .engine-badge.unofficial {
   background: var(--warning-bg, rgba(234, 179, 8, 0.12));
   color: var(--warning, #ca8a04);
 }
 
 /* ── Cloud API Credential Fields (create modal) ────────────── */
 
-.cloud-api-fields {
+.sessions-page .cloud-api-fields {
   margin-top: 0.5rem;
   padding: 0.75rem;
   border: 1px solid var(--border);
@@ -858,10 +865,10 @@
   background: var(--bg-hover, rgba(99, 102, 241, 0.04));
 }
 
-.cloud-api-fields input {
+.sessions-page .cloud-api-fields input {
   margin-top: 0.5rem;
 }
 
-.cloud-api-fields label {
+.sessions-page .cloud-api-fields label {
   margin-top: 0;
 }

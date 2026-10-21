@@ -1,5 +1,14 @@
 import ExcelJS from 'exceljs';
-import { fillTemplate, parseAnalysis, SentenceSplitter, speakable, systemPrompt, DEFAULT_AGENT } from './call-brain';
+import {
+  fillTemplate,
+  isBackchannel,
+  parseAnalysis,
+  SentenceSplitter,
+  speakable,
+  systemPrompt,
+  voiceStyle,
+  DEFAULT_AGENT,
+} from './call-brain';
 import { AiCallOutcome } from './entities/ai-call.entity';
 import { isValidTwilioSignature, streamTwiml, twilioSignature } from './twilio.client';
 import { contactsFromRows, parseContactsFile, parseCsv, toE164 } from './contacts';
@@ -33,6 +42,24 @@ describe('call brain', () => {
 
   it('removes what a voice must not read', () => {
     expect(speakable('**જી** સરસ 😊 — ચાલો [[END_CALL]]')).toBe('જી સરસ, ચાલો');
+    expect(speakable('[[TONE:Calm]] જી, બરાબર.')).toBe('જી, બરાબર.');
+  });
+
+  it('tells a listening "yes / hmm" apart from a real answer', () => {
+    expect(isBackchannel('હા')).toBe(true);
+    expect(isBackchannel('હમ્મ, ઓકે.')).toBe(true);
+    expect(isBackchannel('हाँ जी')).toBe(true);
+    expect(isBackchannel('ठीक है')).toBe(true);
+    expect(isBackchannel('ના')).toBe(false);
+    expect(isBackchannel('હા, પણ મારે ટર્મ પ્લાન જોઈએ છે')).toBe(false);
+    expect(isBackchannel('')).toBe(false);
+  });
+
+  it('turns a tone into voice settings the engine accepts', () => {
+    expect(voiceStyle('warm', 1)).toEqual({ pace: 1, temperature: 0.6 });
+    expect(voiceStyle('calm', 1)).toEqual({ pace: 0.9, temperature: 0.45 });
+    expect(voiceStyle('brisk', 1.9).pace).toBe(2);
+    expect(voiceStyle('calm', 0.4).pace).toBe(0.5);
   });
 
   it('keeps the honesty and safety rules in every prompt', () => {

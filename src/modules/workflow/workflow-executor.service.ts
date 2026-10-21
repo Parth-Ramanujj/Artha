@@ -15,6 +15,10 @@ import {
 } from './entities/workflow-definition.entity';
 import { WorkflowRun, RunStatus, StepResult } from './entities/workflow-run.entity';
 import { WorkflowService } from './workflow.service';
+import { MessageStudioService } from '../message-studio/message-studio.service';
+import { IntegrationService } from '../integrations/integration.service';
+import { GoogleWorkspaceService } from '../integrations/google/google-workspace.service';
+import { extractPhoneFromText } from '../integrations/google/sheet-lookup';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationStatus } from '../conversation/entities/conversation.entity';
 import { MessageService } from '../message/message.service';
@@ -156,6 +160,7 @@ const CUSTOMER_MESSAGING_ACTIONS = new Set<string>([
   ActionType.DYNAMIC_PDF_GENERATOR,
   ActionType.SEND_CAROUSEL_TEMPLATE,
   ActionType.INTERACTIVE_CTA_TEMPLATE,
+  ActionType.SEND_STUDIO_MESSAGE,
   ActionType.WEBHOOK_CALL,
   ActionType.GOOGLE_SHEETS,
 ]);
@@ -277,6 +282,12 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @InjectRepository(ScheduledMessage, 'data')
     private readonly scheduledMessageRepo?: Repository<ScheduledMessage>,
+    @Optional()
+    private readonly studioService?: MessageStudioService,
+    @Optional()
+    private readonly integrationsService?: IntegrationService,
+    @Optional()
+    private readonly googleService?: GoogleWorkspaceService,
   ) {}
 
   onModuleInit(): void {
@@ -714,6 +725,12 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       case ActionType.INTERACTIVE_BUTTONS:
       case ActionType.INTERACTIVE_LIST:
         return this.actionInteractiveButtons(action, ctx, run);
+
+      case ActionType.SEND_STUDIO_MESSAGE:
+        return this.actionSendStudioMessage(action, ctx, run);
+
+      case ActionType.SHEETS_LOOKUP:
+        return this.actionSheetsLookup(action, ctx, run);
 
       case ActionType.ASK_QUESTION:
         return this.actionAskQuestion(action, ctx, run);
@@ -1226,14 +1243,13 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
       this.logger.log(`Workflow interactive buttons (simulated dry-run): chat=${ctx.chatId}`);
-      return {
-        sent: true,
-        simulated: true,
-        dryRun: true,
-        mode,
-        message,
-        buttons: buttons.map(b => b.text),
-      };
+      const base = { sent: true, simulated: true, dryRun: true, mode, message, buttons: buttons.map(b => b.text) };
+      // The live simulator pauses at the menu like a real chat (no message is actually sent).
+      if (ctx.metadata?.simulate && run) {
+        await this.waitForChoice(run, ctx, action, buttons);
+        return { ...base, suspended: true };
+      }
+      return base;
     }
 
     let sentVia = 'text_fallback';
@@ -1272,33 +1288,86 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       sentVia = 'formatted_text_menu';
     }
 
-    if (run) {
-      const choiceMap: Record<string, string> = {};
-      buttons.forEach((b, idx) => {
-        choiceMap[String(idx + 1)] = b.id;
-        choiceMap[b.text.toLowerCase().trim()] = b.id;
-        choiceMap[b.id.toLowerCase().trim()] = b.id;
-        const plain = normalizeChoice(b.text);
-        if (plain) choiceMap[plain] = b.id;
-      });
-
-      const triggerData = {
-        ...(run.triggerData || {}),
-        chatId: ctx.chatId,
-        currentNodeId: action.id,
-        waitingForInput: true,
-        expectedInputType: 'button_choice',
-        choiceMap,
-        invalidAttempts: 0,
-        pausedAt: new Date().toISOString(),
-        timeoutMinutes: Number(action.config['timeoutMinutes'] || 60),
-        timeoutAt: new Date(Date.now() + Number(action.config['timeoutMinutes'] || 60) * 60 * 1000).toISOString(),
-      };
-
-      await this.workflowService.updateRunTriggerData(run.id, triggerData);
-    }
+    if (run) await this.waitForChoice(run, ctx, action, buttons);
 
     return { sentVia, message, buttons, buttonsCount: buttons.length, suspended: Boolean(run) };
+  }
+
+  /**
+   * Pauses the run until the customer picks one of the choices; resume() then follows the edge whose
+   * handle is the chosen id. A choice matches by number, label or id.
+   */
+  private async waitForChoice(
+    run: WorkflowRun,
+    ctx: TriggerContext,
+    action: WorkflowAction,
+    choices: Array<{ id: string; text: string }>,
+  ): Promise<void> {
+    const choiceMap: Record<string, string> = {};
+    choices.forEach((b, idx) => {
+      choiceMap[String(idx + 1)] = b.id;
+      choiceMap[b.text.toLowerCase().trim()] = b.id;
+      choiceMap[b.id.toLowerCase().trim()] = b.id;
+      const plain = normalizeChoice(b.text);
+      if (plain) choiceMap[plain] = b.id;
+    });
+
+    const timeoutMinutes = Number(action.config['timeoutMinutes'] || 60);
+    const triggerData = {
+      ...(run.triggerData || {}),
+      chatId: ctx.chatId,
+      currentNodeId: action.id,
+      waitingForInput: true,
+      expectedInputType: 'button_choice',
+      choiceMap,
+      invalidAttempts: 0,
+      pausedAt: new Date().toISOString(),
+      timeoutMinutes,
+      timeoutAt: new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString(),
+    };
+
+    await this.workflowService.updateRunTriggerData(run.id, triggerData);
+  }
+
+  /**
+   * Sends a published Message Studio message. When it has quick replies or a list, the run waits for
+   * the customer's choice and branches on it, exactly like an Interactive Buttons node.
+   */
+  private async actionSendStudioMessage(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const messageId = typeof action.config['studioMessageId'] === 'string' ? action.config['studioMessageId'] : '';
+    if (!messageId) throw new Error('Choose a Message Studio message for this step');
+    if (!ctx.sessionId || !ctx.chatId) throw new Error('No session/chat context for studio message');
+    const waitForReply = action.config['waitForReply'] !== false;
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      this.logger.log(`Workflow studio message (simulated dry-run): chat=${ctx.chatId} message=${messageId}`);
+      return { sent: true, simulated: true, dryRun: true, studioMessageId: messageId, chatId: ctx.chatId };
+    }
+    if (!this.studioService) throw new Error('Message Studio is not available');
+
+    const result = await this.studioService.sendForWorkflow({
+      businessId: ctx.businessId,
+      messageId,
+      sessionId: ctx.sessionId,
+      chatId: ctx.chatId,
+      fill: text => this.interpolateVariables(text, ctx, run),
+      targetMessageId: (ctx.metadata as { messageId?: string } | undefined)?.messageId,
+    });
+    const waits = Boolean(run) && waitForReply && result.choices.length > 0;
+    if (waits && run) await this.waitForChoice(run, ctx, action, result.choices);
+
+    return {
+      sent: true,
+      studioMessageId: messageId,
+      name: result.name,
+      messageIds: result.parts.map(p => p.messageId).filter(Boolean),
+      choices: result.choices,
+      suspended: waits,
+    };
   }
 
   private async actionAskQuestion(
@@ -1318,6 +1387,25 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const maxRetries = Number(action.config['maxRetries'] || 3);
 
     if (this.isDryRun(ctx, action)) {
+      // The live simulator waits for the typed answer like a real chat (no message is actually sent).
+      if (ctx.metadata?.simulate && run) {
+        await this.workflowService.updateRunTriggerData(run.id, {
+          ...(run.triggerData || {}),
+          chatId: ctx.chatId,
+          currentNodeId: action.id,
+          waitingForInput: true,
+          expectedInputType: 'question_slot',
+          slot,
+          validation,
+          retryPrompt,
+          maxRetries,
+          attempts: 0,
+          pausedAt: new Date().toISOString(),
+          timeoutMinutes: Number(action.config['timeoutMinutes'] || 60),
+          timeoutAt: new Date(Date.now() + Number(action.config['timeoutMinutes'] || 60) * 60 * 1000).toISOString(),
+        });
+        return { simulated: true, dryRun: true, prompt, slot, validation, suspended: true };
+      }
       return { sent: true, simulated: true, dryRun: true, prompt, slot, validation };
     }
 
@@ -2239,6 +2327,66 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const rawReason = String(action.config['reason'] || 'Workflow stopped by stop node');
     const reason = this.interpolateVariables(rawReason, ctx, run);
     return { stopped: true, reason };
+  }
+
+  /**
+   * Finds the customer's row in a Google Sheet and replies with it. The key is the number the customer
+   * wrote in their message (or their own number when they wrote none). Output: `branch` is `found` or
+   * `not_found`, and the row is available as {{steps.<node>.fields.<column>}} or {{steps.<node>.rowText}}.
+   */
+  private async actionSheetsLookup(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const integrationId = String(action.config['integrationId'] ?? '');
+    const spreadsheetId = String(action.config['spreadsheetId'] ?? '').trim();
+    const sheetName = String(action.config['sheetName'] || 'Sheet1');
+    const keyColumn = String(action.config['keyColumn'] || 'Phone');
+    const configuredKey = String(action.config['keyValue'] ?? '').trim();
+    if (!integrationId) throw new Error('Choose a Google Sheets connection for this lookup');
+    if (!spreadsheetId) throw new Error('Choose the spreadsheet to search');
+
+    const value = configuredKey
+      ? this.interpolateVariables(configuredKey, ctx, run).trim()
+      : (extractPhoneFromText(ctx.messageBody ?? '') ?? (ctx.chatId ?? '').replace(/@.*$/, ''));
+
+    if (ctx.metadata?.isTest || action.config['dryRun']) {
+      this.logger.log(`Workflow sheets lookup (simulated dry-run): sheet=${spreadsheetId} key=${value}`);
+      return { simulated: true, branch: 'found', value, found: true, fields: {}, rowText: '' };
+    }
+    if (!this.integrationsService || !this.googleService) {
+      throw new Error('Google Sheets is not available on this server');
+    }
+
+    const integration = await this.integrationsService.findOne(integrationId, ctx.businessId);
+    const result = await this.googleService.lookupRow(integration, { spreadsheetId, sheetName, keyColumn, value });
+    const output: Record<string, unknown> = { ...result, value, branch: result.found ? 'found' : 'not_found' };
+
+    const template = result.found
+      ? String(action.config['replyTemplate'] ?? '{{row}}')
+      : String(action.config['notFoundMessage'] ?? '');
+    if (template.trim() && ctx.sessionId && ctx.chatId && this.messageService) {
+      const text = this.renderSheetReply(template, result, ctx, run);
+      await this.messageService.sendText(ctx.sessionId, { chatId: ctx.chatId, text });
+      output['replied'] = true;
+    }
+    return output;
+  }
+
+  /** `{{row}}` is the whole row as text, `{{column_name}}` one field, and other tokens resolve as usual. */
+  private renderSheetReply(
+    template: string,
+    result: { rowText?: string; fields?: Record<string, string> },
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): string {
+    const fields = result.fields ?? {};
+    const withRow = template.replace(/\{\{\s*row\s*\}\}/g, () => result.rowText ?? '');
+    const withFields = withRow.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/g, (match: string, key: string) =>
+      key in fields ? fields[key] : match,
+    );
+    return this.interpolateVariables(withFields, ctx, run);
   }
 
   private async actionGoogleSheets(

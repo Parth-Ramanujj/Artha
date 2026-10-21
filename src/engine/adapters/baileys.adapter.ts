@@ -62,6 +62,7 @@ import { createLogger } from '../../common/services/logger.service';
 import { BaileysAdapterConfig, BaileysLogger } from '../types/baileys.types';
 import { BaileysSessionStore } from './baileys-session-store';
 import { buildVCard } from './vcard';
+import { CATALOG_MAX, formatPrice } from './catalog-format';
 import {
   capInboundMedia,
   coerceDeclaredSize,
@@ -738,7 +739,7 @@ export class BaileysAdapter implements IWhatsAppEngine {
    * drop — and the close handler above drops the status to INITIALIZING for the whole reconnect
    * backoff, so READY + a live socket is sufficient here.
    */
-  // eslint-disable-next-line @typescript-eslint/require-await
+
   async probeLiveness(): Promise<boolean> {
     return this.status === EngineStatus.READY && this.sock != null;
   }
@@ -1193,25 +1194,21 @@ export class BaileysAdapter implements IWhatsAppEngine {
 
   // ----- Contacts & chats -----
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async getContacts(): Promise<Contact[]> {
     this.ensureReady();
     return this.sessionStore.listContacts();
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async getContactById(contactId: string): Promise<Contact | null> {
     this.ensureReady();
     return this.sessionStore.findContact(contactId);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async resolveContactPhone(contactId: string): Promise<string | null> {
     this.ensureReady();
     return this.sessionStore.resolvePhone(contactId);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async getChats(): Promise<ChatSummary[]> {
     this.ensureReady();
     return this.sessionStore.listChats();
@@ -1254,7 +1251,6 @@ export class BaileysAdapter implements IWhatsAppEngine {
   }
 
   // ----- Gated: not supported by this minimal slice (no store) -----
-  /* eslint-disable @typescript-eslint/no-unused-vars */
 
   getMessageReactions(_chatId: string, _messageId: string): Promise<MessageReaction[]> {
     return this.unsupported('getMessageReactions');
@@ -1390,22 +1386,95 @@ export class BaileysAdapter implements IWhatsAppEngine {
       },
     });
   }
-  getCatalog(): Promise<Catalog | null> {
-    return this.unsupported('getCatalog');
+
+  /** This business account's own catalog; null when the account has no products. */
+  async getCatalog(): Promise<Catalog | null> {
+    const products = await this.loadCatalog();
+    if (products.length === 0) return null;
+    const phone = this.extractPhone(this.sock?.user?.id) ?? '';
+    return {
+      id: phone,
+      name: this.pushName ?? phone,
+      productCount: products.length,
+      url: `https://wa.me/c/${phone}`,
+    };
   }
-  getProducts(_options?: ProductQueryOptions): Promise<PaginatedProducts> {
-    return this.unsupported('getProducts');
+
+  async getProducts(options?: ProductQueryOptions): Promise<PaginatedProducts> {
+    const all = await this.loadCatalog();
+    const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
+    const page = Math.max(1, options?.page ?? 1);
+    return {
+      products: all.slice((page - 1) * limit, page * limit),
+      pagination: { page, limit, total: all.length, totalPages: Math.ceil(all.length / limit) },
+    };
   }
-  getProduct(_productId: string): Promise<Product | null> {
-    return this.unsupported('getProduct');
+
+  async getProduct(productId: string): Promise<Product | null> {
+    return (await this.loadCatalog()).find(p => p.id === productId || p.retailerId === productId) ?? null;
   }
-  sendProduct(_chatId: string, _productId: string, _body?: string): Promise<MessageResult> {
-    return this.unsupported('sendProduct');
+
+  /** Sends one catalog product as a product card (image, title, price) that opens in WhatsApp. */
+  async sendProduct(chatId: string, productId: string, body?: string): Promise<MessageResult> {
+    const product = await this.getProduct(productId);
+    if (!product) throw new BadRequestException(`Product ${productId} is not in this account's catalog`);
+    if (!product.imageUrl) throw new BadRequestException('WhatsApp needs a product image to send a product card');
+    const jid = await this.toDeliverableJid(chatId);
+    const sent = await this.sock!.sendMessage(jid, {
+      product: {
+        productImage: { url: product.imageUrl },
+        productId: product.id,
+        title: product.name,
+        description: product.description,
+        currencyCode: product.currency,
+        priceAmount1000: Math.round(product.price * 1000),
+        retailerId: product.retailerId,
+        url: product.url,
+        productImageCount: 1,
+      },
+      businessOwnerJid: this.normalizedSelfJid(),
+      ...(body ? { body } : {}),
+    });
+    if (sent) void this.emitOwnSendEcho(sent);
+    return { id: sent?.key?.id ?? '', timestamp: this.toUnixSeconds(sent?.messageTimestamp) };
   }
-  sendCatalog(_chatId: string, _body?: string): Promise<MessageResult> {
-    return this.unsupported('sendCatalog');
+
+  /** WhatsApp has no catalog message type outside the Cloud API; the wa.me/c link opens the catalog in-app. */
+  async sendCatalog(chatId: string, body?: string): Promise<MessageResult> {
+    const catalog = await this.getCatalog();
+    if (!catalog) throw new BadRequestException('This WhatsApp account has no catalog products');
+    return this.sendTextMessage(chatId, body ? `${body}\n${catalog.url}` : catalog.url);
   }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
+
+  // shortcut: reads up to CATALOG_MAX products per call with no cache; add caching if catalogs grow large.
+  private async loadCatalog(): Promise<Product[]> {
+    this.ensureReady();
+    const jid = this.normalizedSelfJid();
+    const phone = this.extractPhone(this.sock?.user?.id) ?? '';
+    const out: Product[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.sock!.getCatalog({ jid, limit: 100, cursor });
+      for (const p of page.products) {
+        // WhatsApp stores catalog prices in thousandths of the currency unit (same as priceAmount1000).
+        const price = (Number(p.price) || 0) / 1000;
+        out.push({
+          id: p.id,
+          name: p.name,
+          ...(p.description ? { description: p.description } : {}),
+          price,
+          currency: p.currency,
+          priceFormatted: formatPrice(price, p.currency),
+          ...(Object.values(p.imageUrls ?? {})[0] ? { imageUrl: Object.values(p.imageUrls)[0] } : {}),
+          url: p.url || `https://wa.me/p/${p.id}/${phone}`,
+          isAvailable: !p.isHidden && p.availability === 'in stock',
+          ...(p.retailerId ? { retailerId: p.retailerId } : {}),
+        });
+      }
+      cursor = page.nextPageCursor;
+    } while (cursor && out.length < CATALOG_MAX);
+    return out;
+  }
 
   // ----- Helpers -----
 

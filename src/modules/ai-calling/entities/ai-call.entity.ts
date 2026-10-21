@@ -35,6 +35,8 @@ export interface TranscriptTurn {
   at: string;
   language?: string;
   interrupted?: boolean;
+  /** Agent turns: the voice tone the model chose (see VOICE_TONES). */
+  tone?: string;
 }
 
 export interface CallExtraction {

@@ -14,6 +14,7 @@ import { BusinessService } from '../business/business.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { Conversation, ConversationStatus } from '../conversation/entities/conversation.entity';
 import { AiService } from '../ai/ai.service';
+import { AiAgentService } from '../ai/ai-agent.service';
 import { Optional } from '@nestjs/common';
 import { isFreshPersonalMessage, WORKFLOW_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
 import { DND_TAG, hasDndTag, isOptInMessage } from '../conversation/dnd';
@@ -34,6 +35,8 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     private readonly conversationService?: ConversationService,
     @Optional()
     private readonly aiService?: AiService,
+    @Optional()
+    private readonly aiAgents?: AiAgentService,
   ) {}
 
   onModuleInit(): void {
@@ -203,7 +206,10 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     // Once a person owns the chat the assistant must not talk over them.
     if (conv?.assignedTo) return;
 
-    const outcome = await this.aiService.autoReply(sessionId, businessId, msg);
+    // A business agent whose keyword (or chat) this is answers instead of the general assistant, never both.
+    const agentOutcome = this.aiAgents ? await this.aiAgents.autoReply(sessionId, businessId, msg) : 'skipped';
+    const outcome =
+      agentOutcome === 'skipped' ? await this.aiService.autoReply(sessionId, businessId, msg) : agentOutcome;
     if (
       (outcome === 'handoff' || outcome === 'failed') &&
       conv &&

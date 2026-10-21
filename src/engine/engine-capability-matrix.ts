@@ -92,10 +92,10 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
   forwardMessage: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getCatalog: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
-    baileys: { status: 'not-available', rootCause: 'adapter-gap' },
-    cloudApi: NA,
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
     evidence:
-      'baileys Socket/business.d.ts:7 getCatalog({jid,limit,cursor}) + getCollections (business.d.ts:11) — adapter unwired (returns Product[]+cursor, not Catalog metadata; medium-confidence shape synthesis); wwjs index.d.ts has NO Client.getCatalog (0 hits) — adapter throws EngineNotSupportedError (was a phantom null stub)',
+      'baileys Socket/business.d.ts:7 getCatalog({jid,limit,cursor}) paged to the end; catalog metadata synthesized (id=own phone, url=wa.me/c). cloudApi GET /{waba}/product_catalogs (needs WABA id + catalog_management). wwjs index.d.ts has NO Client.getCatalog (0 hits) — adapter throws EngineNotSupportedError',
   },
   getChannelById: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getChannelMessages: {
@@ -167,17 +167,17 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
   },
   getProduct: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
-    baileys: { status: 'not-available', rootCause: 'adapter-gap' },
-    cloudApi: NA,
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
     evidence:
-      'baileys only getCatalog (Socket/business.d.ts:7); getProduct = getCatalog then find-by-id (compose-and-filter, loads whole page; medium-confidence); wwjs no Client.getProduct — only page-internal getProductMetadata (Utils.js:1253), not a public Client fn — adapter throws EngineNotSupportedError (was a phantom null stub)',
+      'baileys getCatalog then find by id or retailer id; cloudApi GET /{catalog}/products then find; wwjs no Client.getProduct — only page-internal getProductMetadata (Utils.js:1253) — adapter throws EngineNotSupportedError',
   },
   getProducts: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
-    baileys: { status: 'not-available', rootCause: 'adapter-gap' },
-    cloudApi: NA,
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
     evidence:
-      'baileys Socket/business.d.ts:7 getCatalog({jid,limit,cursor}) → {products, nextPageCursor} — adapter unwired; wwjs no Client.getProducts in index.d.ts (0 hits) — adapter throws EngineNotSupportedError (was a phantom empty-list stub)',
+      'baileys Socket/business.d.ts:7 getCatalog → {products, nextPageCursor}; cloudApi GET /{catalog}/products (cursor paging); wwjs no Client.getProducts in index.d.ts (0 hits) — adapter throws EngineNotSupportedError',
   },
   getProfilePicture: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
   getPushName: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
@@ -249,11 +249,11 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
     cloudApi: { status: 'supported' },
   },
   sendCatalog: {
-    wwjs: { status: 'not-available', rootCause: 'library-limitation' },
-    baileys: { status: 'not-available', rootCause: 'library-limitation' },
-    cloudApi: NA,
+    wwjs: { status: 'supported' },
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
     evidence:
-      'baileys AnyMessageContent (Types/Message.d.ts:166-210) has no catalog key — only {product} single-product + product_catalog_edit/add/delete CRUD (Socket/business.js:294-362); wwjs no Client.sendCatalog in index.d.ts (0 hits)',
+      'wwjs and baileys have no catalog message type, so the wa.me/c/<phone> link WhatsApp itself shares is sent as text; cloudApi interactive catalog_message',
   },
   sendChatState: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   sendContactMessage: {
@@ -286,10 +286,10 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
   },
   sendProduct: {
     wwjs: { status: 'not-available', rootCause: 'library-limitation' },
-    baileys: { status: 'not-available', rootCause: 'adapter-gap' },
-    cloudApi: NA,
+    baileys: { status: 'supported' },
+    cloudApi: { status: 'supported' },
     evidence:
-      'baileys AnyRegularMessageContent {product: WASendableProduct} (Types/Message.d.ts:203) built in messages.js:397 — adapter unwired (2-step: getCatalog lookup for image/title/price THEN sendMessage); wwjs no Client.sendProduct — Product/Order are inbound-only parsers',
+      'baileys AnyRegularMessageContent {product: WASendableProduct} (Types/Message.d.ts:203) after a getCatalog lookup for image/title/price; cloudApi interactive product (catalog_id + product_retailer_id); wwjs no Client.sendProduct — Product/Order are inbound-only parsers',
   },
   sendSeen: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   sendStickerMessage: {

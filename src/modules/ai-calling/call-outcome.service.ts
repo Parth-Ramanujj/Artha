@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { AiCall, AiCallOutcome } from './entities/ai-call.entity';
 import { AiCallBatch } from './entities/ai-call-batch.entity';
 import { VoiceAgent } from './entities/voice-agent.entity';
@@ -132,6 +132,7 @@ export class CallOutcomeService {
 
   /** Tags every WhatsApp chat with this number "dnd", so campaigns and follow-ups skip it too. */
   private async markDoNotCall(call: AiCall, agent: VoiceAgent): Promise<void> {
+    await this.calling.markOptedOut(call.businessId, call.phone);
     const chatId = chatIdFor(call.phone);
     const chats = await this.conversationRepo.find({ where: { businessId: call.businessId, chatId } });
     if (chats.length === 0 && this.conversations) {
@@ -145,9 +146,15 @@ export class CallOutcomeService {
     }
   }
 
-  /** The agent's WhatsApp number if set, otherwise the business's first connected one. */
+  /** The agent's WhatsApp number if set (and this business's own), otherwise the business's first connected one. */
   private async whatsappSession(businessId: string, agent: VoiceAgent): Promise<string | null> {
-    if (agent.whatsappSessionId) return agent.whatsappSessionId;
+    if (agent.whatsappSessionId) {
+      const own = await this.sessionRepo.findOne({
+        where: { id: agent.whatsappSessionId, businessId },
+        select: { id: true },
+      });
+      if (own) return own.id;
+    }
     const sessions = await this.sessionRepo.find({
       where: { businessId, status: In([SessionStatus.READY]) },
       select: { id: true },
@@ -175,8 +182,17 @@ export class CallOutcomeService {
       persona: agent.personaName,
       company: agent.companyName,
     });
-    await this.messages.sendText(sessionId, { chatId: chatIdFor(call.phone), text });
-    call.whatsappSentAt = new Date();
-    return this.callRepo.save(call);
+    // Claim the send first so the automatic follow-up and the dashboard button cannot both send it.
+    const sentAt = new Date();
+    const claim = await this.callRepo.update({ id: call.id, whatsappSentAt: IsNull() }, { whatsappSentAt: sentAt });
+    if (!claim.affected) throw new BadRequestException('The WhatsApp message was already sent');
+    try {
+      await this.messages.sendText(sessionId, { chatId: chatIdFor(call.phone), text });
+    } catch (err) {
+      await this.callRepo.update(call.id, { whatsappSentAt: null });
+      throw err;
+    }
+    call.whatsappSentAt = sentAt;
+    return call;
   }
 }

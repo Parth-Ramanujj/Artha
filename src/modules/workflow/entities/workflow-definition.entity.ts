@@ -74,6 +74,9 @@ export enum ActionType {
   SEND_CAROUSEL_TEMPLATE = 'send_carousel_template',
   INTERACTIVE_CTA_TEMPLATE = 'interactive_cta_template',
   DYNAMIC_LANGUAGE_SWITCHER = 'dynamic_language_switcher',
+  /** Sends a published Message Studio message (text, media, buttons, list, products, template…). */
+  SEND_STUDIO_MESSAGE = 'send_studio_message',
+  SHEETS_LOOKUP = 'sheets_lookup',
 }
 
 export interface WorkflowTrigger {

@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   Shield,
   MapPin,
+  Palette,
 } from 'lucide-react';
 import type { CanvasNodeType, NodePaletteItem } from './types';
 
@@ -30,7 +31,15 @@ interface NodePaletteProps {
   onAddNode: (type: CanvasNodeType, defaultConfig: Record<string, any>, label: string) => void;
 }
 
-const PALETTE_ITEMS: NodePaletteItem[] = [
+export const PALETTE_ITEMS: NodePaletteItem[] = [
+  {
+    type: 'send_studio_message',
+    title: 'Studio Message',
+    category: 'message',
+    description: 'Send a saved Message Studio message — buttons and lists branch the flow',
+    iconName: 'studio',
+    defaultConfig: { studioMessageId: '', waitForReply: true, timeoutMinutes: 60 },
+  },
   {
     type: 'send_message',
     title: 'Send Message',
@@ -182,9 +191,23 @@ const PALETTE_ITEMS: NodePaletteItem[] = [
     description: 'Assign custom variables or transform values',
     iconName: 'sliders',
     defaultConfig: {
-      assignments: [
-        { name: 'leadScore', value: '10' },
-      ],
+      assignments: [{ name: 'leadScore', value: '10' }],
+    },
+  },
+  {
+    type: 'sheets_lookup',
+    title: 'Sheets Lookup & Reply',
+    category: 'action',
+    description: 'Find the customer’s row in a Google Sheet and send it back on WhatsApp',
+    iconName: 'table',
+    defaultConfig: {
+      integrationId: '',
+      spreadsheetId: '',
+      sheetName: '',
+      keyColumn: '',
+      keyValue: '',
+      replyTemplate: '{{row}}',
+      notFoundMessage: 'Sorry, we could not find your details. Please check the number and try again.',
     },
   },
   {
@@ -271,7 +294,8 @@ const PALETTE_ITEMS: NodePaletteItem[] = [
     iconName: 'bell',
     defaultConfig: {
       recipientPhone: '',
-      templateMessage: '🚨 *NEW LEAD ALERT!*\n\n👤 *Name:* {{trigger.contactName}}\n📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n📱 *Phone:* {{trigger.phone}}\n\n👉 *Call:* tel:{{trigger.phone}}\n👉 *Chat:* https://wa.me/{{trigger.phone}}',
+      templateMessage:
+        '🚨 *NEW LEAD ALERT!*\n\n👤 *Name:* {{trigger.contactName}}\n📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n📱 *Phone:* {{trigger.phone}}\n\n👉 *Call:* tel:{{trigger.phone}}\n👉 *Chat:* https://wa.me/{{trigger.phone}}',
     },
   },
   {
@@ -353,6 +377,8 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
     switch (iconName) {
       case 'message':
         return <MessageSquare size={16} className="text-primary" />;
+      case 'studio':
+        return <Palette size={16} className="text-primary" />;
       case 'paperclip':
         return <Paperclip size={16} className="text-primary" />;
       case 'layers':

@@ -21,6 +21,10 @@ export class CallRunnerService {
   private readonly logger = createLogger('AiCallRunner');
   readonly tokens = new CallTokens();
   private readonly live = new Map<string, CallSession>();
+  /** Calls between token check and session start, so a second socket with the same token is refused. */
+  private readonly attaching = new Set<string>();
+  /** Results still being saved; shutdown waits for them. */
+  private readonly saving = new Set<Promise<void>>();
   private speech: SpeechFactory = sarvamSpeech;
 
   constructor(
@@ -35,8 +39,9 @@ export class CallRunnerService {
     this.speech = factory;
   }
 
+  /** Being set up, talking, or saving its result: no one else may touch the call's status. */
   isLive(callId: string): boolean {
-    return this.live.has(callId);
+    return this.live.has(callId) || this.attaching.has(callId);
   }
 
   get liveCount(): number {
@@ -50,9 +55,26 @@ export class CallRunnerService {
     expectedChannel: 'phone' | 'browser',
   ): Promise<boolean> {
     const callId = this.tokens.verify(token);
-    const call = callId ? await this.callRepo.findOne({ where: { id: callId } }) : null;
+    if (!callId || this.isLive(callId)) {
+      transport.hangup();
+      return false;
+    }
+    this.attaching.add(callId);
+    try {
+      return await this.start(callId, transport, expectedChannel);
+    } finally {
+      this.attaching.delete(callId);
+    }
+  }
+
+  private async start(
+    callId: string,
+    transport: CallTransport,
+    expectedChannel: 'phone' | 'browser',
+  ): Promise<boolean> {
+    const call = await this.callRepo.findOne({ where: { id: callId } });
     const startable = [AiCallStatus.DIALING, AiCallStatus.RINGING, AiCallStatus.IN_PROGRESS];
-    if (!call || call.channel !== expectedChannel || !startable.includes(call.status) || this.live.has(call.id)) {
+    if (!call || call.channel !== expectedChannel || !startable.includes(call.status)) {
       transport.hangup();
       return false;
     }
@@ -97,8 +119,12 @@ export class CallRunnerService {
     });
     session.on('ended', (result: CallSessionResult) => {
       if (saveTimer) clearTimeout(saveTimer);
-      this.live.delete(call.id);
-      void this.complete(call.id, answeredAt, result);
+      // Stays "live" until saved, so a late Twilio callback cannot overwrite the real result.
+      const saved = this.complete(call.id, answeredAt, result).finally(() => {
+        this.live.delete(call.id);
+        this.saving.delete(saved);
+      });
+      this.saving.add(saved);
     });
     session.start();
     this.logger.log(`AI call ${call.id} connected (${expectedChannel})`);
@@ -122,8 +148,9 @@ export class CallRunnerService {
     }
   }
 
-  /** Ends every live conversation, e.g. on shutdown. */
-  endAll(): void {
+  /** Ends every live conversation, e.g. on shutdown, and waits until their results are saved. */
+  async endAll(): Promise<void> {
     for (const session of this.live.values()) session.finish('error', 'Server stopped during the call');
+    await Promise.all(this.saving);
   }
 }

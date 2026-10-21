@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, HttpCode, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RequireActiveBusiness } from '../auth/guards/business-scope.guard';
-import { CurrentApiKey, RequireRole } from '../auth/decorators/auth.decorators';
+import { CurrentApiKey, RequireRole, RequireUnscopedKey } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { IntegrationService } from './integration.service';
 import { CreateIntegrationDto, UpdateIntegrationDto } from './dto/integration.dto';
@@ -54,6 +54,24 @@ export class IntegrationController {
   @ApiOperation({ summary: 'Test integration connectivity' })
   test(@CurrentApiKey() apiKey: { businessId?: string }, @Param('id') id: string) {
     return this.service.testConnection(id, this.getBusinessId(apiKey));
+  }
+
+  @Post(':id/test-email')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @RequireUnscopedKey()
+  @ApiOperation({ summary: 'Send a test email through an email integration' })
+  testEmail(
+    @CurrentApiKey() apiKey: { businessId?: string },
+    @Param('id') id: string,
+    @Body() body: { to?: string },
+  ) {
+    const to = (body?.to ?? '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new BadRequestException('Enter a valid email address');
+    return this.service.sendEmail(id, this.getBusinessId(apiKey), {
+      to,
+      subject: 'Test email from Artha',
+      text: 'This is a test email. Your email integration is working.',
+    });
   }
 
   @Post(':id/connect')

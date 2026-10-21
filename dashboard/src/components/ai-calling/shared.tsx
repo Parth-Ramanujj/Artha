@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AiCall } from '../../services/api';
-import { STATUS_META } from './callMeta';
+import { STATUS_COLOR } from './callMeta';
 
 export function Pill({ color, children, title }: { color: string; children: ReactNode; title?: string }) {
   return (
@@ -26,10 +27,10 @@ export function Pill({ color, children, title }: { color: string; children: Reac
 }
 
 export function StatusPill({ call }: { call: AiCall }) {
-  const meta = STATUS_META[call.status];
+  const { t } = useTranslation();
   return (
-    <Pill color={meta.color} title={call.error ?? undefined}>
-      {meta.label}
+    <Pill color={STATUS_COLOR[call.status]} title={call.error ?? undefined}>
+      {t(`aiCalling.status.${call.status}`)}
     </Pill>
   );
 }

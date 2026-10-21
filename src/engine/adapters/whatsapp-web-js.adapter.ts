@@ -693,7 +693,9 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
       const reason = error instanceof Error ? error.message : String(error);
       // Clean up any surviving browser process or stale lockfiles on initialize failure so the next attempt starts clean
       await killOrphanedChromiumProcesses(this.config.sessionId, this.logger).catch(() => undefined);
-      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger).catch(() => undefined);
+      await removeStaleSingletonFiles(this.config.sessionId, this.config.sessionDataPath, this.logger).catch(
+        () => undefined,
+      );
       if (isExecutionContextDestroyedError(reason)) {
         // #708: Puppeteer's "Execution context was destroyed" during inject reads like a Puppeteer bug.
         // During initialize() its dominant cause is a browser profile left stale by an upgrade that
@@ -3129,9 +3131,16 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     throw new EngineNotSupportedError('sendProduct');
   }
 
-  async sendCatalog(_chatId: string, _body?: string): Promise<MessageResult> {
+  /**
+   * whatsapp-web.js cannot read the catalog, but WhatsApp opens any business's catalog from its
+   * wa.me/c link, so the catalog is shared the way the WhatsApp app itself shares it.
+   */
+  async sendCatalog(chatId: string, body?: string): Promise<MessageResult> {
     this.ensureReady();
-    throw new EngineNotSupportedError('sendCatalog');
+    const phone = this.phoneNumber ?? this.client?.info?.wid?.user;
+    if (!phone) throw new Error('The connected WhatsApp number is not known yet; try again in a moment');
+    const link = `https://wa.me/c/${phone}`;
+    return this.sendTextMessage(chatId, body ? `${body}\n${link}` : link);
   }
 
   async getChats(): Promise<ChatSummary[]> {

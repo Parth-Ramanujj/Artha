@@ -5,10 +5,14 @@ import {
   CallLanguage,
   END_CALL_MARKER,
   fillTemplate,
+  isBackchannel,
+  isVoiceTone,
   SentenceSplitter,
   speakable,
   STOCK_PHRASES,
   systemPrompt,
+  VoiceTone,
+  voiceStyle,
 } from './call-brain';
 import { TranscriptTurn } from './entities/ai-call.entity';
 import { FinalTranscript, SpeechFactory, SttStream, TtsStream } from './sarvam';
@@ -37,6 +41,12 @@ export interface CallSessionConfig {
   speech: SpeechFactory;
   reply: ReplyStream;
   silenceTimeoutMs?: number;
+  /** How long the person must keep talking over the agent before it stops; shorter sounds are coughs or "hmm". */
+  bargeInMs?: number;
+  /** A reply slower than this gets a short "hmm..." so the line is never dead. */
+  fillerAfterMs?: number;
+  /** A reply with no first word by then counts as failed. */
+  replyTimeoutMs?: number;
 }
 
 export type CallEndReason = 'agent_ended' | 'customer_hung_up' | 'silence' | 'time_limit' | 'error';
@@ -50,6 +60,9 @@ export interface CallSessionResult {
 }
 
 const MAX_HISTORY_TURNS = 24;
+// After this many failed replies in a row the agent apologises and ends instead of asking again forever.
+const MAX_REPLY_FAILURES = 2;
+const TONE_TAG = /^\[\[TONE:([A-Za-z]+)\]\]\s*/;
 
 /**
  * One live AI conversation. Listens (speech-to-text), thinks (streamed LLM reply) and talks
@@ -73,6 +86,11 @@ export class CallSession extends EventEmitter {
   private silenceTimer?: NodeJS.Timeout;
   private limitTimer?: NodeJS.Timeout;
   private silentPrompts = 0;
+  private bargeTimer?: NodeJS.Timeout;
+  private tone: VoiceTone = 'warm';
+  private replyFailures = 0;
+  private fillers = 0;
+  private endError?: string;
   private ended = false;
   private customerSpoke = false;
   /** When the latest customer turn was transcribed, and what of its reply was already timed. */
@@ -94,6 +112,7 @@ export class CallSession extends EventEmitter {
   start(): void {
     this.stt = this.config.speech.stt({ apiKey: this.config.sarvamApiKey, languageCode: 'auto' });
     this.stt.on('speech_start', () => this.onSpeechStart());
+    this.stt.on('speech_end', () => this.onSpeechEnd());
     this.stt.on('final', (t: FinalTranscript) => this.onFinal(t));
     this.stt.on('error', (err: Error) => this.fail(err));
 
@@ -117,7 +136,7 @@ export class CallSession extends EventEmitter {
         apiKey: this.config.sarvamApiKey,
         languageCode: language,
         speaker: language === 'hi-IN' ? this.config.agent.hindiVoice : this.config.agent.gujaratiVoice,
-        pace: this.config.agent.pace,
+        ...voiceStyle(this.tone, this.config.agent.pace),
       });
       created.on('audio', (audio: Buffer) => {
         if (this.ended) return;
@@ -133,6 +152,15 @@ export class CallSession extends EventEmitter {
       stream = created;
     }
     return stream;
+  }
+
+  /** The model's read of the customer's mood changes how every voice sounds from the next sentence on. */
+  private setTone(tone: string): void {
+    const name = tone.toLowerCase();
+    if (!isVoiceTone(name) || name === this.tone) return;
+    this.tone = name;
+    const style = voiceStyle(name, this.config.agent.pace);
+    for (const stream of this.tts.values()) stream.setStyle(style);
   }
 
   /** Sends one sentence to the voice in the current language. */
@@ -185,7 +213,7 @@ export class CallSession extends EventEmitter {
     if (this.ended || this.agentTalking) return;
     this.pendingMark = null;
     if (this.endAfterSpeech) {
-      this.finish(this.endReason ?? 'agent_ended');
+      this.finish(this.endReason ?? 'agent_ended', this.endError);
       return;
     }
     this.armSilence();
@@ -196,11 +224,29 @@ export class CallSession extends EventEmitter {
   private onSpeechStart(): void {
     if (this.ended) return;
     this.clearSilence();
-    if (this.agentTalking && !this.endAfterSpeech) this.interrupt();
+    if (!this.agentTalking || this.endAfterSpeech || this.bargeTimer) return;
+    // Only sustained talk is an interruption; a cough or a "hmm" while the agent speaks is not.
+    this.bargeTimer = setTimeout(() => {
+      this.bargeTimer = undefined;
+      if (!this.ended && this.agentTalking && !this.endAfterSpeech) this.interrupt();
+    }, this.config.bargeInMs ?? 450);
+    this.bargeTimer.unref?.();
+  }
+
+  private onSpeechEnd(): void {
+    this.clearBarge();
+    // Speech that interrupted the agent but held no words must not leave the line waiting forever.
+    if (!this.ended && !this.agentTalking) this.checkIdle();
+  }
+
+  private clearBarge(): void {
+    if (this.bargeTimer) clearTimeout(this.bargeTimer);
+    this.bargeTimer = undefined;
   }
 
   /** The person talked over the agent: stop the audio and the reply at once, like a person would. */
   private interrupt(): void {
+    this.clearBarge();
     this.transport.clearAudio();
     this.generation?.abort();
     this.generation = undefined;
@@ -215,6 +261,11 @@ export class CallSession extends EventEmitter {
     if (this.ended || !t.text) return;
     this.customerSpoke = true;
     this.silentPrompts = 0;
+    // "હા" / "हम्म" while the agent talks is listening, not a turn: keep talking like a person would.
+    if (this.agentTalking && !this.endAfterSpeech && isBackchannel(t.text)) {
+      this.clearBarge();
+      return;
+    }
     if ((t.language === 'hi-IN' || t.language === 'gu-IN') && (t.confidence ?? 1) >= 0.6) {
       this.language = t.language;
     }
@@ -231,7 +282,8 @@ export class CallSession extends EventEmitter {
   private history(): ChatMessage[] {
     const turns = this.transcript.slice(-MAX_HISTORY_TURNS).map<ChatMessage>(t => ({
       role: t.role === 'agent' ? 'assistant' : 'user',
-      content: t.interrupted ? `${t.text} (the customer interrupted here)` : t.text,
+      content:
+        (t.tone ? `[[TONE:${t.tone}]] ` : '') + (t.interrupted ? `${t.text} (the customer interrupted here)` : t.text),
     }));
     return [
       { role: 'system', content: systemPrompt(this.config.agent, this.config.contactName, this.language) },
@@ -246,9 +298,39 @@ export class CallSession extends EventEmitter {
     let full = '';
     let fed = 0;
     let spokeAny = false;
+    let toneRead = false;
+    let timedOut = false;
+    let failed = false;
+    /** Aborted because the customer spoke, not because the model was too slow. */
+    const cancelled = () => generation.signal.aborted && !timedOut;
 
-    // Feeds the splitter only text the person may hear: never the end marker, nor a half-written one.
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      generation.abort();
+    }, this.config.replyTimeoutMs ?? 8000);
+    const filler = setTimeout(() => {
+      if (spokeAny || generation.signal.aborted || this.ended) return;
+      const phrases = STOCK_PHRASES[this.language].thinking;
+      this.speak(phrases[this.fillers++ % phrases.length]);
+    }, this.config.fillerAfterMs ?? 1200);
+    timeout.unref?.();
+    filler.unref?.();
+
+    // Feeds the splitter only text the person may hear: never the tone tag or end marker, nor half of one.
     const feed = (final: boolean) => {
+      if (!toneRead) {
+        const head = full.trimStart();
+        const tag = TONE_TAG.exec(head);
+        const partial =
+          head.length < 7 ? '[[TONE:'.startsWith(head) : head.startsWith('[[TONE:') && !head.includes(']]');
+        if (tag) {
+          this.setTone(tag[1]);
+          fed = full.length - head.length + tag[0].length;
+        } else if (partial && !final) {
+          return;
+        }
+        toneRead = true;
+      }
       let visibleEnd = full.length;
       const marker = full.indexOf(END_CALL_MARKER);
       if (marker >= 0) {
@@ -269,7 +351,8 @@ export class CallSession extends EventEmitter {
 
     try {
       for await (const chunk of this.config.reply(this.history(), generation.signal)) {
-        if (generation.signal.aborted) return;
+        if (generation.signal.aborted) break;
+        clearTimeout(timeout);
         if (this.turnAt && !this.turnTimed.token) {
           this.turnTimed.token = true;
           this.logger.log(`Turn latency: first reply token ${Date.now() - this.turnAt} ms`);
@@ -278,24 +361,34 @@ export class CallSession extends EventEmitter {
         feed(false);
         if (full.includes(END_CALL_MARKER)) break;
       }
-      if (generation.signal.aborted) return;
+      if (cancelled()) return;
+      if (timedOut) throw new Error('no reply in time');
       feed(true);
       const tail = splitter.flush();
       if (tail) spokeAny = this.speak(tail) || spokeAny;
     } catch (err) {
-      if (generation.signal.aborted) return;
-      this.logger.warn(`Reply failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (cancelled()) return;
+      const reason = timedOut ? 'no reply in time' : err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Reply failed: ${reason}`);
       full = '';
+      failed = true;
     } finally {
+      clearTimeout(timeout);
+      clearTimeout(filler);
       if (this.generation === generation) this.generation = undefined;
     }
-    if (generation.signal.aborted || this.ended) return;
+    if (cancelled() || this.ended) return;
 
+    this.replyFailures = failed ? this.replyFailures + 1 : 0;
     const text = speakable(full);
     // Hanging up right after asking something leaves the customer no way to answer; wait for them.
     if (full.includes(END_CALL_MARKER) && !/[?？]\s*$/.test(text)) this.endAfterSpeech = true;
     if (text && spokeAny) {
-      this.record({ role: 'agent', text });
+      this.record({ role: 'agent', text, tone: this.tone });
+    } else if (this.replyFailures >= MAX_REPLY_FAILURES) {
+      this.endReason = 'error';
+      this.endError = 'The language model did not answer';
+      this.sayTurn(STOCK_PHRASES[this.language].troubleGoodbye, true);
     } else if (!this.endAfterSpeech) {
       this.sayTurn(STOCK_PHRASES[this.language].repeat);
     }
@@ -354,6 +447,7 @@ export class CallSession extends EventEmitter {
     if (this.ended) return;
     this.ended = true;
     this.clearSilence();
+    this.clearBarge();
     if (this.limitTimer) clearTimeout(this.limitTimer);
     this.generation?.abort();
     this.stt?.close();

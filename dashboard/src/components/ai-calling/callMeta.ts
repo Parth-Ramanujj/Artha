@@ -1,39 +1,37 @@
 import type { CSSProperties } from 'react';
-import type { AiCallOutcome, AiCallStatus } from '../../services/api';
+import i18n from '../../i18n';
+import type { AiCallStatus } from '../../services/api';
 
-export const STATUS_META: Record<AiCallStatus, { label: string; color: string }> = {
-  queued: { label: 'Queued', color: '#64748b' },
-  dialing: { label: 'Dialing', color: '#3b82f6' },
-  ringing: { label: 'Ringing', color: '#3b82f6' },
-  in_progress: { label: 'On call', color: '#8b5cf6' },
-  completed: { label: 'Completed', color: '#22c55e' },
-  no_answer: { label: 'No answer', color: '#f59e0b' },
-  busy: { label: 'Busy', color: '#f59e0b' },
-  failed: { label: 'Failed', color: '#ef4444' },
-  canceled: { label: 'Cancelled', color: '#94a3b8' },
-  skipped: { label: 'Skipped (DND)', color: '#94a3b8' },
-};
-
-export const OUTCOME_LABEL: Record<AiCallOutcome, string> = {
-  interested: 'Interested',
-  callback: 'Wants a call back',
-  not_interested: 'Not interested',
-  wrong_number: 'Wrong number',
-  do_not_call: 'Do not call',
-  no_conversation: 'No conversation',
+// Labels live in the locale files under aiCalling.status.* / aiCalling.outcome.* / aiCalling.sentiment.*.
+export const STATUS_COLOR: Record<AiCallStatus, string> = {
+  queued: '#64748b',
+  dialing: '#3b82f6',
+  ringing: '#3b82f6',
+  in_progress: '#8b5cf6',
+  completed: '#22c55e',
+  no_answer: '#f59e0b',
+  busy: '#f59e0b',
+  failed: '#ef4444',
+  canceled: '#94a3b8',
+  skipped: '#94a3b8',
 };
 
 export const SENTIMENT_META = {
-  positive: { label: 'Positive', color: '#22c55e', emoji: '🙂' },
-  neutral: { label: 'Neutral', color: '#64748b', emoji: '😐' },
-  negative: { label: 'Negative', color: '#ef4444', emoji: '🙁' },
+  positive: { color: '#22c55e', emoji: '🙂' },
+  neutral: { color: '#64748b', emoji: '😐' },
+  negative: { color: '#ef4444', emoji: '🙁' },
 } as const;
 
 export const ACTIVE_STATUSES: AiCallStatus[] = ['queued', 'dialing', 'ringing', 'in_progress'];
 
 export const formatWhen = (value: string | null) =>
   value
-    ? new Date(value).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    ? new Date(value).toLocaleString(i18n.language, {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
     : '—';
 
 export const formatDuration = (seconds: number) =>

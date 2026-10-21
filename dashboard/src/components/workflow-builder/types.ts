@@ -21,6 +21,7 @@ export type CanvasNodeType =
   | 'filter'
   | 'stop_workflow'
   | 'google_sheets'
+  | 'sheets_lookup'
   | 'send_media'
   | 'search_agents'
   | 'create_lead'
@@ -38,7 +39,8 @@ export type CanvasNodeType =
   | 'dynamic_pdf_generator'
   | 'send_carousel_template'
   | 'interactive_cta_template'
-  | 'dynamic_language_switcher';
+  | 'dynamic_language_switcher'
+  | 'send_studio_message';
 
 export interface ButtonItem {
   id: string;

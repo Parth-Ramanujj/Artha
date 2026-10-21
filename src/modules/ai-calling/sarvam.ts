@@ -4,6 +4,8 @@ import WebSocket from 'ws';
 const SARVAM_WS = 'wss://api.sarvam.ai';
 // Sarvam closes an idle socket after about a minute; a customer may stay silent that long.
 const KEEPALIVE_MS = 20_000;
+// A dropped socket is reopened this many times per call before the call is given up.
+const MAX_RECONNECTS = 3;
 
 export interface FinalTranscript {
   text: string;
@@ -21,12 +23,20 @@ export interface SttStream extends EventEmitter {
   close(): void;
 }
 
+export interface VoiceStyle {
+  pace: number;
+  /** Expressiveness, 0.01–1. */
+  temperature: number;
+}
+
 /**
  * Speech synthesis for one call. say() queues a sentence; emits 'audio' (8 kHz mu-law Buffer) and
  * 'spoken' once the audio for every queued sentence has arrived, and 'error' (Error).
  */
 export interface TtsStream extends EventEmitter {
   say(text: string): void;
+  /** Changes how the next sentences sound (pace, expressiveness). */
+  setStyle(style: VoiceStyle): void;
   /** Drops queued speech (barge-in); audio for it is never emitted. */
   reset(): void;
   close(): void;
@@ -44,6 +54,7 @@ export interface TtsOptions {
   languageCode: string;
   speaker: string;
   pace?: number;
+  temperature?: number;
   model?: string;
 }
 
@@ -65,36 +76,51 @@ function errorFrom(value: unknown): Error {
 }
 
 class SarvamStt extends EventEmitter implements SttStream {
-  private readonly ws: WebSocket;
+  private ws!: WebSocket;
   private readonly pending: Buffer[] = [];
   private keepalive?: NodeJS.Timeout;
   private closed = false;
+  private reconnects = 0;
+  private lastError?: Error;
 
-  constructor(options: SttOptions) {
+  constructor(private readonly options: SttOptions) {
     super();
+    this.connect();
+  }
+
+  private connect(): void {
     const params = new URLSearchParams({
-      language_code: options.languageCode ?? 'auto',
+      language_code: this.options.languageCode ?? 'auto',
       model: 'saaras:v3-realtime',
       encoding: 'mulaw',
       sample_rate: '8000',
       stream_type: 'fast',
-      silence_duration_ms: String(options.silenceMs ?? 500),
+      silence_duration_ms: String(this.options.silenceMs ?? 500),
     });
-    this.ws = new WebSocket(`${SARVAM_WS}/speech-to-text-realtime/ws?${params.toString()}`, {
-      headers: { 'Api-Subscription-Key': options.apiKey },
+    const ws = new WebSocket(`${SARVAM_WS}/speech-to-text-realtime/ws?${params.toString()}`, {
+      headers: { 'Api-Subscription-Key': this.options.apiKey },
     });
-    this.ws.on('open', () => {
+    this.ws = ws;
+    ws.on('open', () => {
       for (const chunk of this.pending.splice(0)) this.write(chunk);
-      this.keepalive = setInterval(() => this.ws.send(JSON.stringify({ event: 'ping' })), KEEPALIVE_MS);
+      this.keepalive = setInterval(() => ws.send(JSON.stringify({ event: 'ping' })), KEEPALIVE_MS);
     });
-    this.ws.on('message', raw => this.onMessage(wsText(raw)));
-    this.ws.on('error', err => this.emit('error', errorFrom(err)));
-    this.ws.on('unexpected-response', (_req, res) => {
+    ws.on('message', raw => this.onMessage(wsText(raw)));
+    // A network error is always followed by 'close', where the socket is reopened.
+    ws.on('error', err => (this.lastError = errorFrom(err)));
+    ws.on('unexpected-response', (_req, res) => {
+      this.closed = true;
       this.emit('error', new Error(`Sarvam speech-to-text refused the connection (HTTP ${res.statusCode})`));
     });
-    this.ws.on('close', () => {
+    ws.on('close', () => {
       if (this.keepalive) clearInterval(this.keepalive);
-      if (!this.closed) this.emit('error', new Error('Sarvam speech-to-text connection closed'));
+      if (this.closed) return;
+      if (this.reconnects++ < MAX_RECONNECTS) {
+        this.connect();
+        return;
+      }
+      const reason = this.lastError ? `: ${this.lastError.message}` : '';
+      this.emit('error', new Error(`Sarvam speech-to-text connection closed${reason}`));
     });
   }
 
@@ -147,6 +173,7 @@ class SarvamStt extends EventEmitter implements SttStream {
     this.closed = true;
     if (this.keepalive) clearInterval(this.keepalive);
     if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ event: 'end' }));
+    this.ws.on('error', () => undefined);
     this.ws.close();
   }
 }
@@ -161,10 +188,35 @@ class SarvamTts extends EventEmitter implements TtsStream {
   private awaitingFinals = 0;
   private closed = false;
   private keepalive?: NodeJS.Timeout;
+  private style: VoiceStyle;
+  /** The style changed while a sentence was still being voiced; applied before the next one. */
+  private styleDirty = false;
+  private reconnects = 0;
+  private lastError?: Error;
 
   constructor(private readonly options: TtsOptions) {
     super();
+    this.style = { pace: options.pace ?? 1, temperature: options.temperature ?? 0.6 };
     this.connect();
+  }
+
+  private sendConfig(): void {
+    this.styleDirty = false;
+    this.ws.send(
+      JSON.stringify({
+        type: 'config',
+        data: {
+          language_code: this.options.languageCode,
+          speaker: this.options.speaker,
+          pace: this.style.pace,
+          temperature: this.style.temperature,
+          speech_sample_rate: 8000,
+          output_audio_codec: 'mulaw',
+          min_buffer_size: 30,
+          max_chunk_length: 150,
+        },
+      }),
+    );
   }
 
   private connect(): void {
@@ -177,20 +229,7 @@ class SarvamTts extends EventEmitter implements TtsStream {
     });
     this.ws = ws;
     ws.on('open', () => {
-      ws.send(
-        JSON.stringify({
-          type: 'config',
-          data: {
-            language_code: this.options.languageCode,
-            speaker: this.options.speaker,
-            pace: this.options.pace ?? 1,
-            speech_sample_rate: 8000,
-            output_audio_codec: 'mulaw',
-            min_buffer_size: 30,
-            max_chunk_length: 150,
-          },
-        }),
-      );
+      this.sendConfig();
       for (const text of this.queue.splice(0)) this.send(text);
       this.keepalive = setInterval(() => ws.send(JSON.stringify({ type: 'ping' })), KEEPALIVE_MS);
     });
@@ -205,25 +244,41 @@ class SarvamTts extends EventEmitter implements TtsStream {
       if (msg.type === 'audio' && msg.data?.audio) {
         this.emit('audio', Buffer.from(msg.data.audio, 'base64'));
       } else if (msg.type === 'event' && msg.data?.event_type === 'final') {
-        this.awaitingFinals = Math.max(0, this.awaitingFinals - 1);
+        if (this.awaitingFinals === 0) return;
+        this.awaitingFinals--;
         if (this.awaitingFinals === 0) this.emit('spoken');
       } else if (msg.type === 'error') {
         this.emit('error', new Error(`Sarvam text-to-speech: ${msg.data?.message ?? 'error'}`));
       }
     });
+    // A network error is always followed by 'close', where the socket is reopened.
     ws.on('error', err => {
-      if (ws === this.ws) this.emit('error', errorFrom(err));
+      if (ws === this.ws) this.lastError = errorFrom(err);
     });
     ws.on('unexpected-response', (_req, res) => {
-      if (ws === this.ws)
-        this.emit('error', new Error(`Sarvam text-to-speech refused the connection (HTTP ${res.statusCode})`));
+      if (ws !== this.ws) return;
+      this.closed = true;
+      this.emit('error', new Error(`Sarvam text-to-speech refused the connection (HTTP ${res.statusCode})`));
     });
     ws.on('close', () => {
-      if (this.keepalive && ws === this.ws) clearInterval(this.keepalive);
+      if (ws !== this.ws) return;
+      if (this.keepalive) clearInterval(this.keepalive);
+      if (this.closed) return;
+      if (this.reconnects++ >= MAX_RECONNECTS) {
+        const reason = this.lastError ? `: ${this.lastError.message}` : '';
+        this.emit('error', new Error(`Sarvam text-to-speech connection closed${reason}`));
+        return;
+      }
+      // Speech lost with the socket is skipped rather than repeated; the call carries on.
+      const lost = this.awaitingFinals > 0;
+      this.awaitingFinals = 0;
+      this.connect();
+      if (lost) this.emit('spoken');
     });
   }
 
   private send(text: string): void {
+    if (this.styleDirty && this.awaitingFinals === 0) this.sendConfig();
     this.awaitingFinals++;
     this.ws.send(JSON.stringify({ type: 'text', data: { text } }));
     this.ws.send(JSON.stringify({ type: 'flush' }));
@@ -233,6 +288,14 @@ class SarvamTts extends EventEmitter implements TtsStream {
     if (this.closed || !text.trim()) return;
     if (this.ws.readyState === WebSocket.OPEN) this.send(text);
     else this.queue.push(text);
+  }
+
+  setStyle(style: VoiceStyle): void {
+    if (style.pace === this.style.pace && style.temperature === this.style.temperature) return;
+    this.style = style;
+    // Re-sending the config flushes text the engine still holds, so only do it between sentences.
+    if (this.ws.readyState === WebSocket.OPEN && this.awaitingFinals === 0) this.sendConfig();
+    else this.styleDirty = true;
   }
 
   reset(): void {

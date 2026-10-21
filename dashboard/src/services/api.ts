@@ -2,6 +2,17 @@
 // Centralized API client with TypeScript types
 
 import { warnIfInsecureHttpUrl } from '../utils/urlSecurity';
+import type {
+  PublishedStudioMessage,
+  StudioCapabilities,
+  StudioContent,
+  StudioKind,
+  StudioMessage,
+  StudioProduct,
+  StudioTemplate,
+  StudioTestResult,
+  ValidationResult,
+} from '../types/messageStudio';
 
 // Resolve the API base URL. By default this is the same-origin relative path '/api',
 // correct when the dashboard and API are served from the same origin (the default
@@ -901,6 +912,12 @@ export const messageApi = {
       method: 'POST',
       body: JSON.stringify({ chatId, text }),
     }),
+  /** The business's WhatsApp catalog: a catalog message on Cloud API, the wa.me/c link elsewhere. */
+  sendCatalog: (sessionId: string, chatId: string, body?: string) =>
+    request<MessageResponse>(`/sessions/${sessionId}/messages/send-catalog`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, body }),
+    }),
   sendImage: (sessionId: string, chatId: string, url: string, caption?: string) =>
     request<MessageResponse>(`/sessions/${sessionId}/messages/send-image`, {
       method: 'POST',
@@ -1445,6 +1462,13 @@ export const workflowApi = {
   cancelRun: (id: string) => request<WorkflowRun>(`/workflows/runs/${id}/cancel`, { method: 'POST' }),
   test: (id: string, data: { sessionId?: string; chatId?: string; messageBody?: string }) =>
     request<WorkflowRun>(`/workflows/${id}/test`, { method: 'POST', body: JSON.stringify(data) }),
+  simulateStart: (id: string, data: { sessionId?: string; chatId?: string; messageBody: string }) =>
+    request<WorkflowRun>(`/workflows/${id}/simulate`, { method: 'POST', body: JSON.stringify(data) }),
+  simulateReply: (runId: string, reply: string) =>
+    request<{ outcome: string; run: WorkflowRun }>(`/workflows/runs/${runId}/simulate-reply`, {
+      method: 'POST',
+      body: JSON.stringify({ reply }),
+    }),
   testWebhook: (data: {
     url: string;
     method?: string;
@@ -1464,7 +1488,7 @@ export const workflowApi = {
       data?: unknown;
       error?: string;
     }>('/workflows/test-webhook', { method: 'POST', body: JSON.stringify(data) }),
-  listAgents: () => request<any[]>('/workflows/agents/list'),
+  listAgents: () => request<unknown[]>('/workflows/agents/list'),
   listLeads: () => request<Lead[]>('/workflows/leads/list'),
   seedInsuranceWorkflow: () => request<WorkflowDefinition>('/workflows/presets/seed-insurance', { method: 'POST' }),
 };
@@ -1531,12 +1555,7 @@ export type AiCallStatus =
   | 'skipped';
 
 export type AiCallOutcome =
-  | 'interested'
-  | 'callback'
-  | 'not_interested'
-  | 'wrong_number'
-  | 'do_not_call'
-  | 'no_conversation';
+  'interested' | 'callback' | 'not_interested' | 'wrong_number' | 'do_not_call' | 'no_conversation';
 
 export interface AiCallTurn {
   role: 'agent' | 'customer';
@@ -1632,6 +1651,8 @@ export interface AiCallingSetup {
   publicUrl: string | null;
   publicUrlReachable: boolean | null;
   readyForPhoneCalls: boolean;
+  /** Port the API listens on, for the tunnel command. */
+  serverPort: number;
 }
 
 export interface CallContact {
@@ -1646,8 +1667,20 @@ export const aiCallingApi = {
   stats: () => request<Partial<Record<AiCallStatus | 'verified', number>>>('/ai-calling/stats'),
   agents: () => request<VoiceAgent[]>('/ai-calling/agents'),
   updateAgent: (id: string, change: Partial<VoiceAgent>) =>
-    request<VoiceAgent>(`/ai-calling/agents/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(change) }),
-  calls: (filters: { status?: string; verified?: boolean; batchId?: string; search?: string; limit?: number; offset?: number } = {}) => {
+    request<VoiceAgent>(`/ai-calling/agents/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(change),
+    }),
+  calls: (
+    filters: {
+      status?: string;
+      verified?: boolean;
+      batchId?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== '') qs.set(k, String(v));
     const query = qs.toString();
@@ -1657,7 +1690,8 @@ export const aiCallingApi = {
   queueCall: (input: { phone: string; name?: string; agentId?: string; leadId?: string }) =>
     request<AiCall>('/ai-calling/calls', { method: 'POST', body: JSON.stringify(input) }),
   cancelCall: (id: string) => request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
-  sendWhatsapp: (id: string) => request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}/whatsapp`, { method: 'POST' }),
+  sendWhatsapp: (id: string) =>
+    request<AiCall>(`/ai-calling/calls/${encodeURIComponent(id)}/whatsapp`, { method: 'POST' }),
   previewUpload: (file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -1666,7 +1700,13 @@ export const aiCallingApi = {
       body: form,
     });
   },
-  createBatch: (input: { name: string; agentId?: string; contacts: CallContact[]; sendWhatsapp?: boolean; source?: 'upload' | 'leads' }) =>
+  createBatch: (input: {
+    name: string;
+    agentId?: string;
+    contacts: CallContact[];
+    sendWhatsapp?: boolean;
+    source?: 'upload' | 'leads';
+  }) =>
     request<AiCallBatch & { queued: number; skipped: number }>('/ai-calling/batches', {
       method: 'POST',
       body: JSON.stringify(input),
@@ -2329,6 +2369,39 @@ export const followupApi = {
     }>('/followup/stats'),
 };
 
+export const googleApi = {
+  status: () => request<{ configured: boolean; missing: string[] }>('/google/status'),
+  lookup: (id: string, data: { spreadsheetId: string; sheetName?: string; keyColumn?: string; value: string }) =>
+    request<{
+      found: boolean;
+      rowNumber?: number;
+      row?: Record<string, string>;
+      fields?: Record<string, string>;
+      rowText?: string;
+      headers?: string[];
+    }>(`/google/${id}/lookup`, { method: 'POST', body: JSON.stringify(data) }),
+  sheetPreview: (id: string, spreadsheetId: string, sheetName?: string) => {
+    const qs = new URLSearchParams({ spreadsheetId });
+    if (sheetName) qs.set('sheetName', sheetName);
+    return request<{
+      tabs: string[];
+      tab: string;
+      headers: string[];
+      sampleRows: string[][];
+      suggestedKeyColumn: string;
+    }>(`/google/${id}/sheet-preview?${qs.toString()}`);
+  },
+  spreadsheets: (id: string) =>
+    request<{ files: Array<{ id: string; name: string; modifiedTime?: string }> }>(`/google/${id}/spreadsheets`),
+  start: (data: { services: string[]; integrationId?: string | null }) =>
+    request<{ url: string }>('/google/oauth/start', { method: 'POST', body: JSON.stringify(data) }),
+  test: (id: string, data: { service?: string; to?: string; spreadsheetId?: string; range?: string }) =>
+    request<{ success: boolean; message?: string; messageId?: string }>(`/google/${id}/test`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
 export const integrationApi = {
   types: () =>
     request<Array<{ type: string; label: string; category: string; description: string }>>('/integrations/types'),
@@ -2342,6 +2415,11 @@ export const integrationApi = {
   update: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/integrations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   connect: (id: string) => request<unknown>(`/integrations/${id}/connect`, { method: 'POST' }),
+  testEmail: (id: string, to: string) =>
+    request<{ success: boolean; messageId?: string }>(`/integrations/${id}/test-email`, {
+      method: 'POST',
+      body: JSON.stringify({ to }),
+    }),
   test: (id: string) =>
     request<{ success: boolean; statusCode?: number; latencyMs?: number; message: string }>(
       `/integrations/${id}/test`,
@@ -2439,4 +2517,189 @@ export const aiAssistantApi = {
   createDocument: (data: Record<string, unknown>) =>
     request<unknown>('/ai/documents', { method: 'POST', body: JSON.stringify(data) }),
   deleteDocument: (id: string) => request<void>(`/ai/documents/${id}`, { method: 'DELETE' }),
+};
+
+export type AgentPlatform = 'flowise' | 'n8n' | 'dify' | 'langchain' | 'botpress' | 'custom';
+
+export interface AiAgent {
+  id: string;
+  name: string;
+  role: string;
+  description: string | null;
+  model: string;
+  temperature: number;
+  systemPrompt: string | null;
+  status: 'active' | 'paused' | 'draft';
+  autonomous: boolean;
+  triggerKeywords: string[];
+  sessionId: string | null;
+  conversationsHandled: number;
+  isExternal: boolean;
+  externalPlatform: AgentPlatform | null;
+  externalWebhookUrl: string | null;
+  hasAuthHeader: boolean;
+  responseJsonPath: string | null;
+  externalStatus: 'connected' | 'error' | null;
+  lastPingMs: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiAgentInput {
+  name?: string;
+  role?: string;
+  description?: string | null;
+  model?: string;
+  temperature?: number;
+  systemPrompt?: string | null;
+  status?: 'active' | 'paused' | 'draft';
+  autonomous?: boolean;
+  triggerKeywords?: string[];
+  sessionId?: string | null;
+  isExternal?: boolean;
+  externalPlatform?: AgentPlatform | null;
+  externalWebhookUrl?: string | null;
+  /** '' clears the stored header; omit to keep it. */
+  externalAuthHeader?: string;
+  responseJsonPath?: string | null;
+}
+
+export type VoiceLanguageCode = 'gu-IN' | 'hi-IN' | 'en-IN';
+
+export interface AiVoicesResponse {
+  configured: boolean;
+  languages: { code: VoiceLanguageCode; label: string; voices: { id: string; label: string }[] }[];
+}
+
+export const aiAgentsApi = {
+  list: () => request<AiAgent[]>('/ai/agents'),
+  create: (data: AiAgentInput & { name: string }) =>
+    request<AiAgent>('/ai/agents', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: AiAgentInput) =>
+    request<AiAgent>(`/ai/agents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/ai/agents/${id}`, { method: 'DELETE' }),
+  build: (prompt: string) => request<AiAgent>('/ai/agents/build', { method: 'POST', body: JSON.stringify({ prompt }) }),
+  test: (id: string, message: string, history?: { role: 'user' | 'assistant'; content: string }[]) =>
+    request<{ reply: string; latencyMs: number }>(`/ai/agents/${id}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+  ping: (id: string) =>
+    request<{ ok: boolean; latencyMs: number; reply?: string; error?: string }>(`/ai/agents/${id}/ping`, {
+      method: 'POST',
+    }),
+  voices: () => request<AiVoicesResponse>('/ai/voices'),
+  voicePreview: (data: { text: string; language: VoiceLanguageCode; voice: string }) =>
+    request<{ audio: string; mimeType: 'audio/wav' }>('/ai/voice/preview', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export type CopilotMessage = { role: 'customer' | 'agent'; text: string };
+export type CopilotTone = 'professional' | 'friendly' | 'short' | 'sales';
+
+export const aiCopilotApi = {
+  summary: (messages: CopilotMessage[], contactName?: string) =>
+    request<{ summary: string; sentiment: 'positive' | 'neutral' | 'urgent' }>('/ai/copilot', {
+      method: 'POST',
+      body: JSON.stringify({ task: 'summary', contactName, messages }),
+    }),
+  replies: (messages: CopilotMessage[], contactName?: string) =>
+    request<{ replies: { tag: string; text: string }[] }>('/ai/copilot', {
+      method: 'POST',
+      body: JSON.stringify({ task: 'replies', contactName, messages }),
+    }),
+  rewrite: (text: string, tone: CopilotTone, messages?: CopilotMessage[]) =>
+    request<{ text: string }>('/ai/copilot', {
+      method: 'POST',
+      body: JSON.stringify({ task: 'rewrite', text, tone, messages }),
+    }),
+  translate: (text: string, language: string) =>
+    request<{ text: string }>('/ai/copilot', {
+      method: 'POST',
+      body: JSON.stringify({ task: 'translate', text, language }),
+    }),
+};
+
+// =============================================================================
+// Message Studio API
+// =============================================================================
+
+export const messageStudioApi = {
+  capabilities: (sessionId?: string) =>
+    request<StudioCapabilities>(
+      `/message-studio/capabilities${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`,
+    ),
+  templates: (sessionId: string, refresh = false) =>
+    request<{ templates: StudioTemplate[] | null; reason?: string }>(
+      `/message-studio/templates?sessionId=${encodeURIComponent(sessionId)}${refresh ? '&refresh=true' : ''}`,
+    ),
+  validate: (input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
+    request<ValidationResult>('/message-studio/validate', { method: 'POST', body: JSON.stringify(input), signal }),
+  list: (
+    filters: { status?: 'draft' | 'ready' | 'archived' | 'active'; search?: string; sort?: 'updated' | 'recent' } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, v);
+    const query = qs.toString();
+    return request<StudioMessage[]>(`/message-studio/messages${query ? `?${query}` : ''}`);
+  },
+  published: () => request<PublishedStudioMessage[]>('/message-studio/messages/published'),
+  get: (id: string) => request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}`),
+  create: (input: { name: string; kind: StudioKind; content: StudioContent; presetKey?: string; sessionId?: string }) =>
+    request<StudioMessage>('/message-studio/messages', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: { name?: string; content?: StudioContent; sessionId?: string }) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  duplicate: (id: string) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}/duplicate`, { method: 'POST' }),
+  publish: (id: string, sessionId: string) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    }),
+  unpublish: (id: string) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}/unpublish`, { method: 'POST' }),
+  archive: (id: string, force = false) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    }),
+  restore: (id: string) =>
+    request<StudioMessage>(`/message-studio/messages/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
+  testSend: (id: string, input: { sessionId: string; phone: string; confirm: true }) =>
+    request<StudioTestResult>(`/message-studio/messages/${encodeURIComponent(id)}/test`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  testStatus: (id: string) =>
+    request<{ lastTest: StudioTestResult | null; statuses: Record<string, string> }>(
+      `/message-studio/messages/${encodeURIComponent(id)}/test-status`,
+    ),
+  products: (
+    filters: { search?: string; category?: string; page?: number; limit?: number; archived?: boolean } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== '') qs.set(k, String(v));
+    const query = qs.toString();
+    return request<{ items: StudioProduct[]; total: number; page: number; limit: number; categories: string[] }>(
+      `/message-studio/products${query ? `?${query}` : ''}`,
+    );
+  },
+  createProduct: (input: Partial<StudioProduct>) =>
+    request<StudioProduct>('/message-studio/products', { method: 'POST', body: JSON.stringify(input) }),
+  updateProduct: (id: string, input: Partial<StudioProduct>) =>
+    request<StudioProduct>(`/message-studio/products/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  settings: () => request<{ metaCatalogId: string | null }>('/message-studio/settings'),
+  updateSettings: (input: { metaCatalogId: string }) =>
+    request<{ metaCatalogId: string | null }>('/message-studio/settings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
 };

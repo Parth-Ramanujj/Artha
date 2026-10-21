@@ -18,6 +18,9 @@ import {
   Save,
   Play,
   FlaskConical,
+  LayoutList,
+  Map,
+  MessageCircle,
   Sparkles,
   ChevronDown,
   Loader2,
@@ -37,6 +40,13 @@ import { NodeInspector } from './NodeInspector';
 import { WORKFLOW_PRESETS, type WorkflowPreset } from './WorkflowPresets';
 import type { CanvasNodeType, WorkflowNodeData } from './types';
 import { computeUpstreamNodes } from './workflowBuilderUtils';
+import { WorkflowSimulator } from './WorkflowSimulator';
+import { layoutNodes } from './autoLayout';
+import { PALETTE_ITEMS } from './NodePalette';
+import { branchLabel, describeConnections, edgesTouching, insertNodeOnEdge } from './edgeInsert';
+import { edgeTypes } from './PlusEdge';
+import { collectWorkflowIssues, setupChecklist, type WorkflowIssue } from './workflowIssues';
+import { WorkflowChecklist } from './WorkflowChecklist';
 import { useToast } from '../Toast';
 import { Modal } from '../Modal';
 import './VisualWorkflowBuilder.css';
@@ -87,12 +97,7 @@ const DEFAULT_INITIAL_EDGES: Edge[] = [
   },
 ];
 
-function BuilderInnerCanvas({
-  workflow,
-  onClose,
-  onSaved,
-  sessions = [],
-}: VisualWorkflowBuilderProps) {
+function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: VisualWorkflowBuilderProps) {
   const toast = useToast();
   const reactFlowInstance = useReactFlow();
 
@@ -116,6 +121,8 @@ function BuilderInnerCanvas({
 
   // Test simulation modal state
   const [showTestModal, setShowTestModal] = useState(false);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(true);
   const [testSessionId, setTestSessionId] = useState(sessions[0]?.id || '');
   const [testChatId, setTestChatId] = useState('919876543210');
   const [testMessageBody, setTestMessageBody] = useState('Hello');
@@ -124,7 +131,7 @@ function BuilderInnerCanvas({
 
   // Extract initial nodes and edges from definition if available
   const initialNodes: Node[] = (() => {
-    const defNodes = (workflow?.definition as any)?.nodes;
+    const defNodes = (workflow?.definition as { nodes?: Node[] } | undefined)?.nodes;
     if (Array.isArray(defNodes) && defNodes.length > 0) {
       return defNodes.map(n => ({
         ...n,
@@ -135,7 +142,7 @@ function BuilderInnerCanvas({
   })();
 
   const initialEdges: Edge[] = (() => {
-    const defEdges = (workflow?.definition as any)?.edges;
+    const defEdges = (workflow?.definition as { edges?: Edge[] } | undefined)?.edges;
     if (Array.isArray(defEdges) && defEdges.length > 0) {
       return defEdges.map(e => ({
         ...e,
@@ -209,69 +216,123 @@ function BuilderInnerCanvas({
   const handleZoomOut = () => reactFlowInstance.zoomOut({ duration: 200 });
   const handleFitView = () => reactFlowInstance.fitView({ padding: 0.2, duration: 200 });
 
-  // Workflow Validation
+  // Tidy up: arrange every step top-to-bottom along the customer's path. Only positions change.
+  const handleTidyUp = useCallback(() => {
+    if (nodes.length === 0) return;
+    recordHistorySnapshot();
+    // Real rendered sizes, so a tall menu gets room above the steps below it.
+    const sized = nodes.map(n => ({ id: n.id, width: n.measured?.width, height: n.measured?.height }));
+    const positions = layoutNodes(sized, edges);
+    setNodes(nds => nds.map(n => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
+    setSaveStatus('dirty');
+    window.requestAnimationFrame(() => reactFlowInstance.fitView({ padding: 0.2, duration: 300 }));
+  }, [nodes, edges, recordHistorySnapshot, setNodes, reactFlowInstance]);
+
+  // Insert picker: which connection a new step is being placed on.
+  const [insertEdgeId, setInsertEdgeId] = useState<string | null>(null);
+  const [pickerQuery, setPickerQuery] = useState('');
+
+  // Connections: each arrow shows its branch name and a "+" to add a step on it. While a step is
+  // selected, the arrows that do not touch it recede so its links are easy to follow.
+  const linkedEdgeIds = useMemo(() => edgesTouching(selectedNode?.id ?? null, edges), [selectedNode, edges]);
+  const labelledEdges = useMemo(
+    () =>
+      edges.map(e => ({
+        ...e,
+        type: 'plus',
+        data: {
+          label: branchLabel(e, nodes),
+          dimmed: Boolean(selectedNode) && !linkedEdgeIds.has(e.id),
+          onInsert: (edgeId: string) => setInsertEdgeId(edgeId),
+        },
+        animated: Boolean(selectedNode) && linkedEdgeIds.has(e.id),
+      })),
+    [edges, nodes, selectedNode, linkedEdgeIds],
+  );
+
+  // Puts a chosen step on the connection. Cancel (no pick) changes nothing.
+  const insertStepOnEdge = useCallback(
+    (item: (typeof PALETTE_ITEMS)[number]) => {
+      if (!insertEdgeId) return;
+      const edge = edges.find(e => e.id === insertEdgeId);
+      const src = edge && nodes.find(n => n.id === edge.source);
+      const tgt = edge && nodes.find(n => n.id === edge.target);
+      const mid =
+        src && tgt
+          ? { x: (src.position.x + tgt.position.x) / 2, y: (src.position.y + tgt.position.y) / 2 + 60 }
+          : { x: 0, y: 0 };
+      const id = `node-${item.type}-${Date.now()}`;
+      const newNode: Node = {
+        id,
+        type: item.type,
+        position: mid,
+        data: { label: item.title, type: item.type, config: { ...item.defaultConfig } },
+      };
+      const result = insertNodeOnEdge(nodes, edges, insertEdgeId, newNode);
+      if (!result) {
+        setInsertEdgeId(null);
+        return;
+      }
+      recordHistorySnapshot();
+      setNodes(result.nodes as Node[]);
+      setEdges(result.edges as Edge[]);
+      setSelectedNode({ id, type: item.type, data: newNode.data as WorkflowNodeData });
+      setSaveStatus('dirty');
+      setInsertEdgeId(null);
+      setPickerQuery('');
+    },
+    [insertEdgeId, edges, nodes, recordHistorySnapshot, setNodes, setEdges],
+  );
+  const pickerItems = PALETTE_ITEMS.filter(i => {
+    const q = pickerQuery.trim().toLowerCase();
+    return !q || i.title.toLowerCase().includes(q) || i.description.toLowerCase().includes(q);
+  });
+  const connections = selectedNode ? describeConnections(selectedNode.id, nodes, edges) : null;
+
+  // Workflow checks: the same rules feed the live checklist and the "Check" button.
+  const liveIssues = useMemo<WorkflowIssue[]>(() => collectWorkflowIssues(nodes, edges), [nodes, edges]);
+  const checklist = useMemo(() => setupChecklist(nodes, edges, liveIssues), [nodes, edges, liveIssues]);
+
+  const focusNode = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) return;
+      setSelectedNode({ id: node.id, type: node.type || 'send_message', data: node.data as WorkflowNodeData });
+      reactFlowInstance.fitView({ nodes: [{ id: nodeId }], padding: 0.6, duration: 300 });
+    },
+    [nodes, reactFlowInstance],
+  );
+
   const handleValidateWorkflow = useCallback(() => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    const triggerNode = nodes.find(n => n.type === 'trigger');
-    if (!triggerNode) {
-      errors.push('No trigger node found in this workflow.');
-    }
-
-    nodes.forEach(n => {
-      const nodeLabel = (n.data as any)?.label || n.id;
-      const cfg = (n.data as any)?.config || {};
-
-      if (n.type === 'webhook_call' && !cfg.url) {
-        errors.push(`API / Webhook node "${nodeLabel}" is missing an endpoint URL.`);
-      }
-      if (n.type === 'send_message' && !cfg.message) {
-        warnings.push(`Message node "${nodeLabel}" has empty message text.`);
-      }
-      if (n.type === 'interactive_buttons' && (!cfg.buttons || cfg.buttons.length === 0)) {
-        errors.push(`Button node "${nodeLabel}" has no action buttons defined.`);
-      }
-      if (n.type === 'ask_question' && !cfg.prompt) {
-        warnings.push(`Question node "${nodeLabel}" has an empty prompt.`);
-      }
-
-      if (n.type !== 'trigger') {
-        const hasIncoming = edges.some(e => e.target === n.id);
-        if (!hasIncoming) {
-          warnings.push(`Node "${nodeLabel}" is not connected to any upstream trigger or action.`);
-        }
-      }
-    });
-
-    if (errors.length > 0) {
+    const errs = liveIssues.filter(i => i.level === 'error');
+    const warns = liveIssues.filter(i => i.level === 'warning');
+    if (errs.length > 0) {
       toast.error(
-        `Validation Failed (${errors.length} error${errors.length > 1 ? 's' : ''})`,
-        errors.slice(0, 2).join(' | '),
+        `${errs.length} thing${errs.length > 1 ? 's' : ''} to fix before testing`,
+        errs
+          .slice(0, 2)
+          .map(i => i.message)
+          .join(' '),
       );
-    } else if (warnings.length > 0) {
+    } else if (warns.length > 0) {
       toast.warning(
-        `Workflow Warning (${warnings.length})`,
-        warnings.slice(0, 2).join(' | '),
+        `${warns.length} suggestion${warns.length > 1 ? 's' : ''}`,
+        warns
+          .slice(0, 2)
+          .map(i => i.message)
+          .join(' '),
       );
     } else {
-      toast.success(
-        'Workflow Validated',
-        `All ${nodes.length} nodes and ${edges.length} connections are properly configured!`,
-      );
+      toast.success('Ready to test', `All ${nodes.length} steps are filled in and connected.`);
     }
-  }, [nodes, edges, toast]);
+  }, [liveIssues, nodes.length, toast]);
 
   // Handle new edge connection
   const onConnect = useCallback(
     (params: Connection) => {
       recordHistorySnapshot();
       const strokeColor =
-        params.sourceHandle === 'false'
-          ? '#ef4444'
-          : params.sourceHandle === 'fallback'
-          ? '#f59e0b'
-          : '#25d366';
+        params.sourceHandle === 'false' ? '#ef4444' : params.sourceHandle === 'fallback' ? '#f59e0b' : '#25d366';
 
       setEdges(eds =>
         addEdge(
@@ -343,7 +404,7 @@ function BuilderInnerCanvas({
 
   // Add node via click
   const handleAddNode = useCallback(
-    (type: CanvasNodeType, defaultConfig: Record<string, any>, title: string) => {
+    (type: CanvasNodeType, defaultConfig: Record<string, unknown>, title: string) => {
       recordHistorySnapshot();
       const id = `node-${type}-${Date.now()}`;
       const centerPos = reactFlowInstance.screenToFlowPosition({
@@ -374,6 +435,14 @@ function BuilderInnerCanvas({
   );
 
   // Drag and Drop from NodePalette
+  const addStartTrigger = useCallback(() => {
+    handleAddNode(
+      'trigger' as CanvasNodeType,
+      { triggerType: 'message_received', keyword: '', workingHoursOnly: false },
+      'Incoming Message',
+    );
+  }, [handleAddNode]);
+
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -395,7 +464,7 @@ function BuilderInnerCanvas({
         y: event.clientY,
       });
 
-      let config = {};
+      let config: Record<string, unknown>;
       try {
         config = JSON.parse(configRaw);
       } catch {
@@ -427,10 +496,7 @@ function BuilderInnerCanvas({
 
   // Load preset template
   const handleLoadPreset = (preset: WorkflowPreset) => {
-    if (
-      nodes.length > 2 &&
-      !window.confirm(`Load "${preset.name}" preset? This will replace the current flow.`)
-    ) {
+    if (nodes.length > 2 && !window.confirm(`Load "${preset.name}" preset? This will replace the current flow.`)) {
       return;
     }
 
@@ -465,7 +531,9 @@ function BuilderInnerCanvas({
   const constructDefinitionPayload = () => {
     // Determine trigger from trigger node if exists
     const triggerNode = nodes.find(n => n.type === 'trigger');
-    const triggerConfig: Record<string, any> = (triggerNode?.data?.config as Record<string, any>) || {};
+    const triggerConfig = (triggerNode?.data?.config as
+      | { triggerType?: string; keyword?: string; workingHoursOnly?: boolean }
+      | undefined) || {};
     const triggerType = triggerConfig.triggerType || 'message_received';
 
     // Format clean nodes and edges
@@ -541,13 +609,49 @@ function BuilderInnerCanvas({
 
       setSaveStatus('saved');
       onSaved(saved);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSaveStatus('error');
-      toast.error('Save Failed', err?.message || 'Could not save workflow');
+      toast.error('Save Failed', err instanceof Error ? err.message : 'Could not save workflow');
     } finally {
       setSaving(false);
     }
   };
+
+  // Saves the current flow (create or update) and returns its id. Shared by the simulator.
+  const saveCurrentFlow = useCallback(async (): Promise<string> => {
+    const definition = constructDefinitionPayload();
+    let targetId = workflow?.id;
+    if (!targetId) {
+      const created = await workflowApi.create({
+        name: name.trim() || 'Simulated Test Flow',
+        description: description.trim() || null,
+        definition,
+      });
+      targetId = created.id;
+      onSaved(created);
+    } else {
+      await workflowApi.update(targetId, { definition });
+    }
+    return targetId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflow?.id, name, description, nodes, edges]);
+
+  // The live simulator pauses at menus like a real chat; nothing is really sent.
+  const simulateStart = useCallback(
+    async (messageBody: string): Promise<WorkflowRun> => {
+      const targetId = await saveCurrentFlow();
+      return workflowApi.simulateStart(targetId, {
+        sessionId: testSessionId || undefined,
+        chatId: testChatId ? `${testChatId}@c.us` : undefined,
+        messageBody,
+      });
+    },
+    [saveCurrentFlow, testSessionId, testChatId],
+  );
+  const simulateReply = useCallback(
+    (simRunId: string, reply: string) => workflowApi.simulateReply(simRunId, reply),
+    [],
+  );
 
   // Run test simulation
   const handleRunSimulation = async () => {
@@ -586,8 +690,8 @@ function BuilderInnerCanvas({
       } else {
         toast.error('Simulation Failed', result.failureReason || 'Run failed');
       }
-    } catch (err: any) {
-      toast.error('Simulation Error', err?.message || 'Failed to execute test run');
+    } catch (err: unknown) {
+      toast.error('Simulation Error', err instanceof Error ? err.message : 'Failed to execute test run');
     } finally {
       setTesting(false);
     }
@@ -617,28 +721,26 @@ function BuilderInnerCanvas({
             {/* Save Status Indicator */}
             {saveStatus === 'saved' && (
               <span className="wf-save-status-indicator wf-save-status-saved" title="All edits saved to server">
-                <CheckCircle2 size={12} /> Saved
+                <CheckCircle2 size={12} /> All changes saved
               </span>
             )}
             {saveStatus === 'dirty' && (
               <span className="wf-save-status-indicator wf-save-status-dirty" title="Unsaved changes present">
-                <Clock size={12} /> Unsaved Changes
+                <Clock size={12} /> Unsaved changes
               </span>
             )}
             {saveStatus === 'saving' && (
               <span className="wf-save-status-indicator wf-save-status-saving" title="Saving workflow to server...">
-                <Loader2 size={12} className="animate-spin" /> Saving...
+                <Loader2 size={12} className="animate-spin" /> Saving…
               </span>
             )}
             {saveStatus === 'error' && (
               <span className="wf-save-status-indicator wf-save-status-error" title="Failed to save workflow">
-                <AlertTriangle size={12} /> Save Error
+                <AlertTriangle size={12} /> Save failed
               </span>
             )}
 
-            <span className={`wf-toolbar-status-badge ${status}`}>
-              {status}
-            </span>
+            <span className={`wf-toolbar-status-badge ${status}`}>{status}</span>
           </div>
         </div>
 
@@ -667,29 +769,33 @@ function BuilderInnerCanvas({
 
           {/* Zoom controls */}
           <div className="wf-toolbar-btn-group">
-            <button
-              type="button"
-              className="wf-btn-tool-icon"
-              onClick={handleZoomIn}
-              title="Zoom In"
-            >
+            <button type="button" className="wf-btn-tool-icon" onClick={handleZoomIn} title="Zoom In">
               <ZoomIn size={15} />
             </button>
+            <button type="button" className="wf-btn-tool-icon" onClick={handleZoomOut} title="Zoom Out">
+              <ZoomOut size={15} />
+            </button>
+            <button type="button" className="wf-btn-tool-icon" onClick={handleFitView} title="Fit View">
+              <Maximize2 size={15} />
+            </button>
             <button
               type="button"
-              className="wf-btn-tool-icon"
-              onClick={handleZoomOut}
-              title="Zoom Out"
+              className={`wf-btn-tool-icon${showMiniMap ? ' is-active' : ''}`}
+              onClick={() => setShowMiniMap(v => !v)}
+              title={showMiniMap ? 'Hide mini-map' : 'Show mini-map'}
+              aria-pressed={showMiniMap}
+              aria-label="Toggle mini-map"
             >
-              <ZoomOut size={15} />
+              <Map size={15} />
             </button>
             <button
               type="button"
               className="wf-btn-tool-icon"
-              onClick={handleFitView}
-              title="Fit View"
+              onClick={handleTidyUp}
+              title="Tidy up: arrange steps top to bottom"
+              aria-label="Tidy up"
             >
-              <Maximize2 size={15} />
+              <LayoutList size={15} />
             </button>
           </div>
 
@@ -705,21 +811,13 @@ function BuilderInnerCanvas({
 
           {/* Templates Preset Dropdown */}
           <div className="wf-presets-dropdown">
-            <button
-              type="button"
-              className="wf-btn-tool secondary"
-              onClick={() => setPresetsOpen(prev => !prev)}
-            >
+            <button type="button" className="wf-btn-tool secondary" onClick={() => setPresetsOpen(prev => !prev)}>
               <Sparkles size={15} /> Templates <ChevronDown size={14} />
             </button>
             {presetsOpen && (
               <div className="wf-presets-menu">
                 {WORKFLOW_PRESETS.map(preset => (
-                  <div
-                    key={preset.id}
-                    className="wf-preset-item"
-                    onClick={() => handleLoadPreset(preset)}
-                  >
+                  <div key={preset.id} className="wf-preset-item" onClick={() => handleLoadPreset(preset)}>
                     <span className="wf-preset-item-title">{preset.name}</span>
                     <span className="wf-preset-item-desc">{preset.description}</span>
                   </div>
@@ -740,6 +838,16 @@ function BuilderInnerCanvas({
             <span>Test Workflow</span>
           </button>
 
+          {/* Live WhatsApp Simulator */}
+          <button
+            type="button"
+            className={`wf-btn-tool secondary${simulatorOpen ? ' is-active' : ''}`}
+            onClick={() => setSimulatorOpen(o => !o)}
+            title="Preview the flow as a live WhatsApp chat"
+          >
+            <MessageCircle size={15} /> Simulator
+          </button>
+
           {/* Save Draft */}
           <button
             type="button"
@@ -751,12 +859,7 @@ function BuilderInnerCanvas({
           </button>
 
           {/* Save & Publish */}
-          <button
-            type="button"
-            className="wf-btn-tool primary"
-            onClick={() => void handleSave(true)}
-            disabled={saving}
-          >
+          <button type="button" className="wf-btn-tool primary" onClick={() => void handleSave(true)} disabled={saving}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} Publish Flow
           </button>
         </div>
@@ -769,35 +872,96 @@ function BuilderInnerCanvas({
 
         {/* CENTER REACT FLOW CANVAS */}
         <div className="wf-canvas-area" onDragOver={onDragOver} onDrop={onDrop}>
+          <WorkflowChecklist
+            checklist={checklist}
+            issues={liveIssues}
+            onAddTrigger={addStartTrigger}
+            onFocus={focusNode}
+          />
+          {connections && selectedNode && (
+            <div className="wf-connections-panel" role="region" aria-label="Connections of the selected step">
+              <strong>{String(nodes.find(n => n.id === selectedNode.id)?.data?.label || 'Selected step')}</strong>
+              <div className="wf-connections-cols">
+                <div>
+                  <span className="wf-connections-title">Comes from</span>
+                  {connections.incoming.length === 0 && <span className="wf-connections-none">Nothing yet</span>}
+                  {connections.incoming.map((c, i) => (
+                    <span key={`${c.nodeId}-${i}`} className="wf-connections-item">
+                      {c.name}
+                      {c.via ? <em> · {c.via}</em> : null}
+                    </span>
+                  ))}
+                </div>
+                <div>
+                  <span className="wf-connections-title">Goes to</span>
+                  {connections.outgoing.length === 0 && <span className="wf-connections-none">Nothing yet</span>}
+                  {connections.outgoing.map((c, i) => (
+                    <span key={`${c.nodeId}-${i}`} className="wf-connections-item">
+                      {c.via ? <em>{c.via} → </em> : null}
+                      {c.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <WorkflowSimulator
+            open={simulatorOpen}
+            onClose={() => setSimulatorOpen(false)}
+            onStart={simulateStart}
+            onReply={simulateReply}
+            nodes={nodes}
+            sessions={sessions}
+            sessionId={testSessionId}
+            onSessionChange={setTestSessionId}
+          />
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={labelledEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             deleteKeyCode={['Backspace', 'Delete']}
           >
             <Background gap={16} size={1} color="#64748b" />
             <Controls />
-            <MiniMap
-              nodeColor={n => {
-                switch (n.type) {
-                  case 'trigger': return '#c084fc';
-                  case 'send_message': return '#25d366';
-                  case 'interactive_buttons': return '#60a5fa';
-                  case 'ask_question': return '#fbbf24';
-                  case 'condition_branch': return '#f472b6';
-                  case 'wait': return '#fb923c';
-                  case 'ai_assistant': return '#2dd4bf';
-                  case 'handoff_to_human': return '#f87171';
-                  default: return '#94a3b8';
-                }
-              }}
-            />
+
+            {showMiniMap && (
+              <MiniMap
+                nodeColor={n => {
+                  switch (n.type) {
+                    case 'trigger':
+                      return '#c084fc';
+                    case 'send_message':
+                      return '#25d366';
+                    case 'send_studio_message':
+                      return '#25d366';
+                    case 'sheets_lookup':
+                      return '#22c55e';
+                    case 'interactive_buttons':
+                      return '#60a5fa';
+                    case 'ask_question':
+                      return '#fbbf24';
+                    case 'condition_branch':
+                      return '#f472b6';
+                    case 'wait':
+                      return '#fb923c';
+                    case 'ai_assistant':
+                      return '#2dd4bf';
+                    case 'handoff_to_human':
+                      return '#f87171';
+                    default:
+                      return '#94a3b8';
+                  }
+                }}
+              />
+            )}
           </ReactFlow>
         </div>
 
@@ -818,6 +982,47 @@ function BuilderInnerCanvas({
 
       {/* TEST SIMULATION MODAL */}
       <Modal
+        open={insertEdgeId !== null}
+        onClose={() => {
+          setInsertEdgeId(null);
+          setPickerQuery('');
+        }}
+        title="Add a step on this connection"
+        footer={
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              setInsertEdgeId(null);
+              setPickerQuery('');
+            }}
+          >
+            Cancel
+          </button>
+        }
+      >
+        <input
+          className="wf-picker-search"
+          type="search"
+          placeholder="Search steps…"
+          aria-label="Search steps"
+          value={pickerQuery}
+          onChange={e => setPickerQuery(e.target.value)}
+          autoFocus
+        />
+        <ul className="wf-picker-list">
+          {pickerItems.map(item => (
+            <li key={`${item.type}-${item.title}`}>
+              <button type="button" className="wf-picker-item" onClick={() => insertStepOnEdge(item)}>
+                <strong>{item.title}</strong>
+                <span>{item.description}</span>
+              </button>
+            </li>
+          ))}
+          {pickerItems.length === 0 && <li className="wf-picker-empty">No step matches “{pickerQuery}”.</li>}
+        </ul>
+      </Modal>
+      <Modal
         open={showTestModal}
         onClose={() => setShowTestModal(false)}
         title="Simulate WhatsApp Flow Execution"
@@ -835,11 +1040,7 @@ function BuilderInnerCanvas({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
             <label className="form-label">WhatsApp Session</label>
-            <select
-              className="form-select"
-              value={testSessionId}
-              onChange={e => setTestSessionId(e.target.value)}
-            >
+            <select className="form-select" value={testSessionId} onChange={e => setTestSessionId(e.target.value)}>
               {sessions.length === 0 ? (
                 <option value="">No Active Sessions (Mock Run)</option>
               ) : (
@@ -900,14 +1101,14 @@ function BuilderInnerCanvas({
                       testResult.status === 'completed'
                         ? 'rgba(34, 197, 94, 0.15)'
                         : testResult.status === 'paused'
-                        ? 'rgba(59, 130, 246, 0.15)'
-                        : 'rgba(239, 68, 68, 0.15)',
+                          ? 'rgba(59, 130, 246, 0.15)'
+                          : 'rgba(239, 68, 68, 0.15)',
                     color:
                       testResult.status === 'completed'
                         ? '#22c55e'
                         : testResult.status === 'paused'
-                        ? '#3b82f6'
-                        : '#ef4444',
+                          ? '#3b82f6'
+                          : '#ef4444',
                   }}
                 >
                   {testResult.status.toUpperCase()}
@@ -922,7 +1123,8 @@ function BuilderInnerCanvas({
 
               {Boolean(testResult.triggerData?.['waitingForInput']) && (
                 <div style={{ color: '#3b82f6', fontSize: '0.8rem', marginTop: '0.4rem' }}>
-                  ⏳ Flow paused: Waiting for reply on slot/choice: <strong>{String(testResult.triggerData?.['expectedInputType'])}</strong>
+                  ⏳ Flow paused: Waiting for reply on slot/choice:{' '}
+                  <strong>{String(testResult.triggerData?.['expectedInputType'])}</strong>
                 </div>
               )}
 
