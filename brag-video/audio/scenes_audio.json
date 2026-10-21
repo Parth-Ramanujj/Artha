@@ -1,0 +1,79 @@
+[
+  {
+    "id": 1,
+    "name": "scene1_hook",
+    "scene_start": 0.0,
+    "scene_end": 8.5,
+    "vo_start": 0.4,
+    "text": "Stop paying per message. Own your entire WhatsApp API infrastructure: free, self-hosted, with zero lock-in.",
+    "dur": 7.824,
+    "vo_end": 8.224,
+    "margin": 0.2759999999999998
+  },
+  {
+    "id": 2,
+    "name": "scene2_reveal",
+    "scene_start": 8.5,
+    "scene_end": 17.0,
+    "vo_start": 8.8,
+    "text": "Meet Artha: the open-source WhatsApp gateway. Docker native, powered by NestJS, built for maximum reliability.",
+    "dur": 7.728,
+    "vo_end": 16.528,
+    "margin": 0.4720000000000013
+  },
+  {
+    "id": 3,
+    "name": "scene3_sessions",
+    "scene_start": 17.0,
+    "scene_end": 25.5,
+    "vo_start": 17.3,
+    "text": "Spin up multiple sessions in seconds. Scan QR codes instantly, and monitor live messages from a sleek React dashboard.",
+    "dur": 7.992,
+    "vo_end": 25.292,
+    "margin": 0.2079999999999984
+  },
+  {
+    "id": 4,
+    "name": "scene4_developer",
+    "scene_start": 25.5,
+    "scene_end": 34.0,
+    "vo_start": 25.8,
+    "text": "Send text, media, and voice notes with unified REST APIs, secured by HMAC webhooks and full Swagger documentation.",
+    "dur": 7.896,
+    "vo_end": 33.696,
+    "margin": 0.30400000000000205
+  },
+  {
+    "id": 5,
+    "name": "scene5_ai",
+    "scene_start": 34.0,
+    "scene_end": 42.5,
+    "vo_start": 34.3,
+    "text": "Automate customer chats with AI. Connect Groq and OpenAI models, visual workflows, and autonomous voice calling.",
+    "dur": 7.824,
+    "vo_end": 42.123999999999995,
+    "margin": 0.3760000000000048
+  },
+  {
+    "id": 6,
+    "name": "scene6_integrations",
+    "scene_start": 42.5,
+    "scene_end": 51.5,
+    "vo_start": 42.8,
+    "text": "Scale with Postgres, Redis, and S3. Integrate with Chatwoot, Typebot, and n8n with zero licensing fees.",
+    "dur": 8.352,
+    "vo_end": 51.152,
+    "margin": 0.347999999999999
+  },
+  {
+    "id": 7,
+    "name": "scene7_outro",
+    "scene_start": 51.5,
+    "scene_end": 60.0,
+    "vo_start": 51.9,
+    "text": "Deploy in sixty seconds with Docker. Star Artha on GitHub and take back control of your WhatsApp infrastructure.",
+    "dur": 6.864,
+    "vo_end": 58.763999999999996,
+    "margin": 1.2360000000000042
+  }
+]
