@@ -105,6 +105,17 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
     },
   },
   {
+    type: 'schedule_followup',
+    title: 'WhatsApp Reminder',
+    category: 'action',
+    description: 'Send a WhatsApp message later (minutes, hours or days from now)',
+    iconName: 'clock',
+    defaultConfig: {
+      delayMinutes: 60,
+      message: 'Reminder: {{steps.last.reply}}',
+    },
+  },
+  {
     type: 'ai_assistant',
     title: 'AI Assistant',
     category: 'ai',
@@ -115,6 +126,18 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
       useKnowledgeBase: true,
       enableHandoff: true,
       temperature: 0.3,
+    },
+  },
+  {
+    type: 'ai_assistant',
+    title: 'AI Summary (silent)',
+    category: 'ai',
+    description: 'Summarize data with AI without replying; use the reply in a later message or email',
+    iconName: 'bot',
+    defaultConfig: {
+      sendReply: false,
+      systemPrompt: 'Summarize the data clearly and briefly for a busy business owner. Use short bullet points.',
+      prompt: 'Summarize this data:\n\n{{steps.last.rowsText}}',
     },
   },
   {
@@ -211,6 +234,14 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
     },
   },
   {
+    type: 'sheets_lookup',
+    title: 'Read Sheet for AI Summary',
+    category: 'action',
+    description: 'Read every row of a Google Sheet tab, ready for an AI summary',
+    iconName: 'table',
+    defaultConfig: { integrationId: '', spreadsheetId: '', sheetName: '', mode: 'all', replyTemplate: '' },
+  },
+  {
     type: 'google_sheets',
     title: 'Google Sheets',
     category: 'action',
@@ -288,7 +319,7 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
   },
   {
     type: 'internal_alert',
-    title: 'Notify Team (WhatsApp)',
+    title: 'Notify Team (WhatsApp / Email)',
     category: 'action',
     description: 'Instant lead alert message sent to sales manager or advisor phone',
     iconName: 'bell',
@@ -296,6 +327,20 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
       recipientPhone: '',
       templateMessage:
         '🚨 *NEW LEAD ALERT!*\n\n👤 *Name:* {{trigger.contactName}}\n📍 *Pincode:* {{steps.last.pincode || trigger.message}}\n📱 *Phone:* {{trigger.phone}}\n\n👉 *Call:* tel:{{trigger.phone}}\n👉 *Chat:* https://wa.me/{{trigger.phone}}',
+    },
+  },
+  {
+    type: 'internal_alert',
+    title: 'Send Email',
+    category: 'action',
+    description: 'Email a message (e.g. an AI summary) through your Gmail or SMTP connection',
+    iconName: 'bell',
+    defaultConfig: {
+      recipientPhone: '',
+      emailTo: '',
+      emailIntegrationId: '',
+      emailSubject: 'WhatsApp update',
+      templateMessage: '{{steps.last.reply}}',
     },
   },
   {
@@ -489,7 +534,7 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
       <div className="wf-palette-items-list">
         {filteredItems.map(item => (
           <div
-            key={item.type}
+            key={`${item.type}-${item.title}`}
             className="wf-palette-card"
             draggable
             onDragStart={e => onDragStart(e, item)}

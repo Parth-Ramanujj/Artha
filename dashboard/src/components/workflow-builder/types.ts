@@ -40,7 +40,8 @@ export type CanvasNodeType =
   | 'send_carousel_template'
   | 'interactive_cta_template'
   | 'dynamic_language_switcher'
-  | 'send_studio_message';
+  | 'send_studio_message'
+  | 'schedule_followup';
 
 export interface ButtonItem {
   id: string;

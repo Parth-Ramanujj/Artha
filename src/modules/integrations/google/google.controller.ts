@@ -1,4 +1,15 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -109,7 +120,15 @@ export class GoogleController {
   async test(
     @CurrentApiKey() apiKey: { businessId?: string },
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { service?: GoogleServiceId; to?: string; spreadsheetId?: string; range?: string },
+    @Body()
+    body: {
+      service?: GoogleServiceId;
+      to?: string;
+      spreadsheetId?: string;
+      range?: string;
+      subject?: string;
+      text?: string;
+    },
   ) {
     const businessId = apiKey.businessId ?? '';
     const integration: Integration = await this.integrations.findOne(id, businessId);
@@ -123,8 +142,8 @@ export class GoogleController {
           throw new BadRequestException('Enter a valid email address to send the test to');
         const info = await this.google.gmailSend(integration, {
           to,
-          subject: 'Test email from Artha',
-          text: 'This is a test email. Your Google (Gmail) connection is working.',
+          subject: String(body.subject || 'Test email from Artha').slice(0, 200),
+          text: String(body.text || 'This is a test email. Your Google (Gmail) connection is working.').slice(0, 20000),
         });
         return { success: true, messageId: info.id };
       }
@@ -176,13 +195,17 @@ export class GoogleOAuthCallbackController {
   ) {
     const fallback = (process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
     if (error || !code || !state) {
-      return res.redirect(`${fallback}/integrations?google=error&message=${encodeURIComponent(error ?? 'Sign-in was cancelled')}`);
+      return res.redirect(
+        `${fallback}/integrations?google=error&message=${encodeURIComponent(error ?? 'Sign-in was cancelled')}`,
+      );
     }
     try {
       const { returnTo } = await this.google.completeAuth(code, state);
       return res.redirect(`${returnTo || fallback}/integrations?google=connected`);
     } catch (err) {
-      return res.redirect(`${fallback}/integrations?google=error&message=${encodeURIComponent((err as Error).message)}`);
+      return res.redirect(
+        `${fallback}/integrations?google=error&message=${encodeURIComponent((err as Error).message)}`,
+      );
     }
   }
 }

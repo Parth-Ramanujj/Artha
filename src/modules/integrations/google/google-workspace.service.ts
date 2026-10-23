@@ -9,9 +9,17 @@ import { cellMatches, fieldKey, suggestKeyColumn } from './sheet-lookup';
 /** The Google services one account can be connected for, and the OAuth scope each one needs. */
 export const GOOGLE_SERVICES = {
   gmail: { label: 'Gmail (send email)', name: 'Gmail', scope: 'https://www.googleapis.com/auth/gmail.send' },
-  calendar: { label: 'Google Calendar', name: 'Google Calendar', scope: 'https://www.googleapis.com/auth/calendar.events' },
+  calendar: {
+    label: 'Google Calendar',
+    name: 'Google Calendar',
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+  },
   sheets: { label: 'Google Sheets', name: 'Google Sheets', scope: 'https://www.googleapis.com/auth/spreadsheets' },
-  drive: { label: 'Google Drive (files the app creates)', name: 'Google Drive', scope: 'https://www.googleapis.com/auth/drive.file' },
+  drive: {
+    label: 'Google Drive (files the app creates)',
+    name: 'Google Drive',
+    scope: 'https://www.googleapis.com/auth/drive.file',
+  },
 } as const;
 
 export type GoogleServiceId = keyof typeof GOOGLE_SERVICES;
@@ -230,11 +238,14 @@ export class GoogleWorkspaceService {
     const config = (integration.config ?? {}) as Partial<GoogleConfig>;
     if (config.refreshToken) {
       try {
-        await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decryptSecret(config.refreshToken))}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          signal: AbortSignal.timeout(10000),
-        });
+        await fetch(
+          `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(decryptSecret(config.refreshToken))}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            signal: AbortSignal.timeout(10000),
+          },
+        );
       } catch {
         // Google unreachable: the local token is still dropped below.
       }
@@ -420,6 +431,36 @@ export class GoogleWorkspaceService {
       return { found: true, rowNumber: i + 1, row, fields, rowText, headers };
     }
     return { found: false, headers };
+  }
+
+  /** Every data row of a tab as "Header: value" text, rows separated by a blank line. Feeds AI summaries. */
+  async readAllRows(
+    integration: Integration,
+    input: { spreadsheetId: string; sheetName?: string },
+  ): Promise<{ rowCount: number; rowsText: string; headers: string[] }> {
+    this.requireService(integration, 'sheets');
+    const spreadsheetId = input.spreadsheetId.trim();
+    if (!/^[\w-]{10,}$/.test(spreadsheetId)) throw new BadRequestException('Enter a valid spreadsheet ID');
+    const token = await this.accessToken(integration);
+    const range = await this.resolveTab(token, spreadsheetId, input.sheetName);
+    const res = await this.api(
+      token,
+      'GET',
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
+    );
+    const values = Array.isArray(res.values) ? (res.values as unknown[][]) : [];
+    if (values.length === 0) return { rowCount: 0, rowsText: '', headers: [] };
+    const headers = values[0].map(h => String(h ?? '').trim());
+    const rows = values
+      .slice(1)
+      .filter(cells => (cells ?? []).some(c => String(c ?? '').trim()))
+      .map(cells =>
+        headers
+          .map((h, c) => (h ? `${h}: ${String(cells[c] ?? '')}` : ''))
+          .filter(Boolean)
+          .join('\n'),
+      );
+    return { rowCount: rows.length, rowsText: rows.join('\n\n'), headers };
   }
 
   async driveFiles(integration: Integration, pageSize = 10) {

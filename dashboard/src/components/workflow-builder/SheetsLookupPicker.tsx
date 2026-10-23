@@ -54,6 +54,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
   });
   const connections = (integrations.data ?? []).filter(c => c.type === 'google_sheets');
   const connectionId: string = config.integrationId || '';
+  const readAll = config.mode === 'all';
 
   // One connection: use it without asking.
   useEffect(() => {
@@ -117,7 +118,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
 
   // Click-to-insert: every column becomes a token the reply can use.
   const insertToken = (token: string) => {
-    const current: string = config.replyTemplate ?? '{{row}}';
+    const current: string = config.replyTemplate ?? (readAll ? '' : '{{row}}');
     onChange({ replyTemplate: `${current}${current && !current.endsWith('\n') ? '\n' : ''}${token}` });
   };
 
@@ -228,6 +229,24 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
             </select>
           </div>
 
+          <div className="wf-checkbox-row">
+            <label className="wf-checkbox-label">
+              <input
+                type="checkbox"
+                checked={readAll}
+                onChange={e => onChange({ mode: e.target.checked ? 'all' : 'lookup' })}
+              />
+              <span>Read all rows (for an AI summary)</span>
+            </label>
+          </div>
+          {readAll && (
+            <span style={help}>
+              The whole tab is available as {'{{'}steps.{nodeId}.rowsText{'}}'}. Pass it to an AI node to summarize.
+            </span>
+          )}
+
+          {!readAll && (
+          <>
           <div className="wf-field-group" style={section}>
             <label className="wf-field-label" htmlFor={`sheets-key-${nodeId}`}>
               Find the row where this column matches
@@ -262,6 +281,8 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
               Empty: the first phone number in the customer&apos;s message, or their own number if there is none.
             </span>
           </div>
+          </>
+          )}
 
           <div className="wf-field-group" style={section}>
             <span className="wf-field-label">Reply when found</span>
@@ -269,7 +290,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
               className="wf-field-input"
               rows={5}
               aria-label="Reply when found"
-              value={config.replyTemplate ?? '{{row}}'}
+              value={config.replyTemplate ?? (readAll ? '' : '{{row}}')}
               onChange={e => onChange({ replyTemplate: e.target.value })}
             />
             <span style={help}>Click a column to add it to the reply. Empty = send nothing.</span>
@@ -294,7 +315,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
                 }}
               >
                 <strong style={{ display: 'block', marginBottom: 4 }}>Example from row 2</strong>
-                {(config.replyTemplate ?? '{{row}}')
+                {(config.replyTemplate ?? (readAll ? '' : '{{row}}'))
                   .replace(/\{\{\s*row\s*\}\}/g, headers.map((h, i) => `${h}: ${exampleRow[i] ?? ''}`).join('\n'))
                   .replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/g, (m: string, key: string) => {
                     const idx = headers.findIndex(h => columnToken(h) === key);
@@ -315,6 +336,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
             />
           </div>
 
+          {!readAll && (
           <div className="wf-field-group" style={section}>
             <span className="wf-field-label">Try it</span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -382,6 +404,7 @@ export function SheetsLookupPicker({ nodeId, config, onChange }: SheetsLookupPic
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </div>

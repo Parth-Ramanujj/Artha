@@ -1,4 +1,5 @@
 import { SheetsLookupPicker } from './SheetsLookupPicker';
+import { EmailConnectionSelect } from './EmailConnectionSelect';
 import { useState, useEffect, useMemo } from 'react';
 import { StudioMessagePicker } from './StudioMessagePicker';
 import {
@@ -285,6 +286,13 @@ function getNodeOutputs(node: Node): NodeOutputField[] {
       ];
     case 'sheets_lookup':
       return [
+        {
+          label: 'All rows (as text)',
+          token: `steps.${id}.rowsText`,
+          type: 'string',
+          description: 'Whole tab, when "Read all rows" is on',
+          example: 'Name: Asha Patel\nAmount: 5000',
+        },
         {
           label: 'Branch',
           token: `steps.${id}.branch`,
@@ -1972,6 +1980,47 @@ export function NodeInspector({
             )}
 
             {/* DELAY / WAIT NODE */}
+            {type === 'schedule_followup' && (
+              <div className="wf-inspector-section">
+                <label className="wf-field-label" htmlFor={`followup-delay-${id}`}>
+                  Send after (minutes)
+                </label>
+                <input
+                  id={`followup-delay-${id}`}
+                  type="number"
+                  min="1"
+                  className="wf-field-input"
+                  value={config.delayMinutes ?? 60}
+                  onChange={e => updateConfig('delayMinutes', Number(e.target.value))}
+                />
+                <div className="wf-variable-shortcuts">
+                  <button type="button" className="wf-var-chip" onClick={() => updateConfig('delayMinutes', 60)}>
+                    1 hr
+                  </button>
+                  <button type="button" className="wf-var-chip" onClick={() => updateConfig('delayMinutes', 1440)}>
+                    1 day
+                  </button>
+                  <button type="button" className="wf-var-chip" onClick={() => updateConfig('delayMinutes', 10080)}>
+                    1 week
+                  </button>
+                </div>
+                <DynamicTextarea
+                  label="Reminder message"
+                  rows={4}
+                  value={config.message || ''}
+                  onChange={val => updateConfig('message', val)}
+                  onOpenVariablePicker={handleOpenVariablePicker}
+                />
+                <DynamicInput
+                  label="Send to (optional)"
+                  placeholder="Empty = this chat. Or 919876543210@c.us"
+                  value={config.chatId || ''}
+                  onChange={val => updateConfig('chatId', val)}
+                  onOpenVariablePicker={handleOpenVariablePicker}
+                />
+              </div>
+            )}
+
             {type === 'wait' && (
               <div className="wf-inspector-section">
                 <label className="wf-field-label">Wait Duration (Seconds)</label>
@@ -2002,6 +2051,32 @@ export function NodeInspector({
             {/* AI ASSISTANT NODE */}
             {type === 'ai_assistant' && (
               <div className="wf-inspector-section">
+                <DynamicTextarea
+                  label="Prompt"
+                  rows={4}
+                  placeholder="e.g. Summarize today's orders: {{steps.sheet.rowsText}}"
+                  value={config.prompt || ''}
+                  onChange={val => updateConfig('prompt', val)}
+                  onOpenVariablePicker={handleOpenVariablePicker}
+                  description="Empty = the customer's message."
+                />
+
+                <div className="wf-checkbox-row">
+                  <label className="wf-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={config.sendReply ?? true}
+                      onChange={e => updateConfig('sendReply', e.target.checked)}
+                    />
+                    <span>Send the AI reply in the chat</span>
+                  </label>
+                </div>
+                {config.sendReply === false && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Silent: use {`{{steps.${id}.reply}}`} in a later Message, Alert (email) or Follow-up step.
+                  </p>
+                )}
+
                 <DynamicTextarea
                   label="AI System Instructions"
                   rows={4}
@@ -2974,6 +3049,29 @@ export function NodeInspector({
                 <p className="text-xs text-slate-400 mt-1">
                   Dispatches an immediate alert to your internal team WhatsApp without interrupting the customer's chat.
                 </p>
+                <DynamicInput
+                  label="Also email to (optional)"
+                  placeholder="owner@example.com"
+                  value={config.emailTo || ''}
+                  onChange={val => updateConfig('emailTo', val)}
+                  onOpenVariablePicker={handleOpenVariablePicker}
+                />
+                {config.emailTo !== undefined && (
+                  <>
+                    <EmailConnectionSelect
+                      nodeId={id}
+                      value={config.emailIntegrationId || ''}
+                      onChange={val => updateConfig('emailIntegrationId', val)}
+                    />
+                    <DynamicInput
+                      label="Email subject"
+                      placeholder="WhatsApp update"
+                      value={config.emailSubject || ''}
+                      onChange={val => updateConfig('emailSubject', val)}
+                      onOpenVariablePicker={handleOpenVariablePicker}
+                    />
+                  </>
+                )}
               </div>
             )}
 

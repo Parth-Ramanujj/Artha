@@ -11,7 +11,8 @@ export const DelayNode = memo(function DelayNode({
   data: WorkflowNodeData;
   selected?: boolean;
 }) {
-  const seconds = Number(data.config?.seconds || 5);
+  const reminder = data.config?.delayMinutes !== undefined;
+  const seconds = reminder ? Number(data.config?.delayMinutes) * 60 : Number(data.config?.seconds || 5);
   const displayTime =
     seconds >= 3600
       ? `${(seconds / 3600).toFixed(1)} hr`
@@ -28,14 +29,14 @@ export const DelayNode = memo(function DelayNode({
           <Clock size={16} />
         </div>
         <div className="wf-node-title-box">
-          <span className="wf-node-badge delay-badge">DELAY / TIMER</span>
-          <h4 className="wf-node-title">{data.label || 'Wait Duration'}</h4>
+          <span className="wf-node-badge delay-badge">{reminder ? 'REMINDER' : 'DELAY / TIMER'}</span>
+          <h4 className="wf-node-title">{data.label || (reminder ? 'WhatsApp Reminder' : 'Wait Duration')}</h4>
         </div>
       </div>
 
       <div className="wf-node-body">
         <div className="wf-delay-display">
-          <span>⏳ Wait for {displayTime}</span>
+          <span>{reminder ? `⏰ Sends in ${displayTime}` : `⏳ Wait for ${displayTime}`}</span>
         </div>
       </div>
 

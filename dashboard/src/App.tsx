@@ -48,6 +48,7 @@ const AiCalling = lazy(() => import('./pages/AiCalling').then(m => ({ default: m
 const SalesPipeline = lazy(() => import('./pages/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
 const AiAgents = lazy(() => import('./pages/AiAgents').then(m => ({ default: m.AiAgents })));
 const ShopifyCommerce = lazy(() => import('./pages/ShopifyCommerce').then(m => ({ default: m.ShopifyCommerce })));
+const WaPricingRules = lazy(() => import('./pages/WaPricingRules').then(m => ({ default: m.WaPricingRules })));
 const RolesManagement = lazy(() => import('./pages/RolesManagement').then(m => ({ default: m.RolesManagement })));
 
 const queryClient = new QueryClient({
@@ -177,6 +178,7 @@ function AppContent() {
               <Route path="ai-calling" element={<AiCalling />} />
               <Route path="message-studio" element={<MessageStudio />} />
               <Route path="message-studio/:id" element={<MessageComposer />} />
+              <Route path="wa-pricing" element={<WaPricingRules />} />
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />

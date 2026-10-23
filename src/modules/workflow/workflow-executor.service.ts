@@ -17,6 +17,7 @@ import { WorkflowRun, RunStatus, StepResult } from './entities/workflow-run.enti
 import { WorkflowService } from './workflow.service';
 import { MessageStudioService } from '../message-studio/message-studio.service';
 import { IntegrationService } from '../integrations/integration.service';
+import { IntegrationType } from '../integrations/entities/integration.entity';
 import { GoogleWorkspaceService } from '../integrations/google/google-workspace.service';
 import { extractPhoneFromText } from '../integrations/google/sheet-lookup';
 import { ConversationService } from '../conversation/conversation.service';
@@ -1547,6 +1548,21 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const rawPrompt = action.config['prompt'] || action.config['message'];
     const message = rawPrompt ? this.interpolateVariables(String(rawPrompt), ctx, run) : ctx.messageBody || '';
 
+    // Silent mode: a plain completion (e.g. a sheet summary) that later steps send by WhatsApp or email
+    if (action.config['sendReply'] === false) {
+      const system = action.config['systemPrompt']
+        ? this.interpolateVariables(String(action.config['systemPrompt']), ctx, run)
+        : 'Summarize the data clearly and briefly for a busy business owner. Use short bullet points.';
+      const { content } = await this.aiService.complete(
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: message },
+        ],
+        { maxTokens: 1500, temperature: 0.3 },
+      );
+      return { reply: content, text: content, replyLength: content.length };
+    }
+
     const res = await this.aiService.chat({
       businessId: ctx.businessId,
       sessionId: ctx.sessionId,
@@ -2360,11 +2376,21 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     const integration = await this.integrationsService.findOne(integrationId, ctx.businessId);
-    const result = await this.googleService.lookupRow(integration, { spreadsheetId, sheetName, keyColumn, value });
-    const output: Record<string, unknown> = { ...result, value, branch: result.found ? 'found' : 'not_found' };
+    const readAll = action.config['mode'] === 'all';
+    let result: { found: boolean; rowText?: string; fields?: Record<string, string> };
+    let output: Record<string, unknown>;
+    if (readAll) {
+      const all = await this.googleService.readAllRows(integration, { spreadsheetId, sheetName });
+      // {{row}} in the reply template is the whole sheet in this mode
+      result = { found: all.rowCount > 0, rowText: all.rowsText, fields: {} };
+      output = { ...all, rowText: all.rowsText, found: result.found, branch: result.found ? 'found' : 'not_found' };
+    } else {
+      result = await this.googleService.lookupRow(integration, { spreadsheetId, sheetName, keyColumn, value });
+      output = { ...result, value, branch: result.found ? 'found' : 'not_found' };
+    }
 
     const template = result.found
-      ? String(action.config['replyTemplate'] ?? '{{row}}')
+      ? String(action.config['replyTemplate'] ?? (readAll ? '' : '{{row}}'))
       : String(action.config['notFoundMessage'] ?? '');
     if (template.trim() && ctx.sessionId && ctx.chatId && this.messageService) {
       const text = this.renderSheetReply(template, result, ctx, run);
@@ -2839,7 +2865,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     const delayMinutes = Number(action.config.delayMinutes ?? action.config.delay ?? 60);
     const message = this.interpolateVariables(String(action.config.message ?? ''), ctx, run);
-    const chatId = this.interpolateVariables(String(action.config.chatId ?? ctx.chatId ?? ''), ctx, run);
+    const chatId = this.interpolateVariables(String(action.config.chatId || ctx.chatId || ''), ctx, run);
     // Always the number this conversation is on: a configured session id could belong to another business.
     const sessionId = ctx.sessionId ?? '';
     const configuredSession = action.config.sessionId ? String(action.config.sessionId) : '';
@@ -3054,11 +3080,12 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       action.config['recipientPhone'] || action.config['managerPhone'] || action.config['phone'] || '',
     );
     const cleanPhone = this.interpolateVariables(rawRecipient, ctx, run).replace(/[^0-9]/g, '');
-    if (!cleanPhone) {
-      return { alerted: false, reason: 'No recipient phone provided for internal alert' };
+    const emailTo = this.interpolateVariables(String(action.config['emailTo'] ?? ''), ctx, run).trim();
+    if (!cleanPhone && !emailTo) {
+      return { alerted: false, reason: 'No recipient phone or email provided for internal alert' };
     }
 
-    const alertChatId = `${cleanPhone}@c.us`;
+    const alertChatId = cleanPhone ? `${cleanPhone}@c.us` : undefined;
     const defaultTemplate =
       '🚨 *NEW LEAD ALERT!*\n\n' +
       '👤 *Name:* {{trigger.contactName}}\n' +
@@ -3072,18 +3099,44 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const message = this.interpolateVariables(rawMsg, ctx, run);
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
-      return { alerted: true, simulated: true, recipient: alertChatId, message };
+      return { alerted: true, simulated: true, recipient: alertChatId, emailedTo: emailTo || undefined, message };
     }
+
+    if (emailTo) {
+      const subject = this.interpolateVariables(String(action.config['emailSubject'] || 'WhatsApp update'), ctx, run);
+      await this.sendWorkflowEmail(String(action.config['emailIntegrationId'] ?? ''), ctx.businessId, {
+        to: emailTo,
+        subject,
+        text: message,
+      });
+    }
+    if (!alertChatId) return { alerted: true, emailed: true, emailedTo: emailTo, message };
 
     if (this.messageService) {
       await this.messageService.sendText(ctx.sessionId, {
         chatId: alertChatId,
         text: message,
       });
-      return { alerted: true, recipient: alertChatId, message };
+      return { alerted: true, recipient: alertChatId, emailed: !!emailTo, emailedTo: emailTo || undefined, message };
     }
 
     throw new Error('No messaging service available to send the internal alert');
+  }
+
+  /** Sends through an SMTP connection, or a Google connection that has Gmail enabled. */
+  private async sendWorkflowEmail(
+    integrationId: string,
+    businessId: string,
+    msg: { to: string; subject: string; text: string },
+  ): Promise<void> {
+    if (!integrationId) throw new Error('Choose an email connection (SMTP or Gmail) for this alert');
+    if (!this.integrationsService || !this.googleService) throw new Error('Email is not available on this server');
+    const integration = await this.integrationsService.findOne(integrationId, businessId);
+    if (integration.type === IntegrationType.EMAIL_SMTP) {
+      await this.integrationsService.sendEmail(integrationId, businessId, msg);
+    } else {
+      await this.googleService.gmailSend(integration, msg);
+    }
   }
 
   private async actionABTestSplit(

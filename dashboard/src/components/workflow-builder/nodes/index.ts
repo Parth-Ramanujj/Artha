@@ -35,6 +35,7 @@ export const nodeTypes = {
   ask_question: QuestionNode,
   condition_branch: BranchNode,
   wait: DelayNode,
+  schedule_followup: DelayNode,
   ai_assistant: AiNode,
   handoff_to_human: HandoffNode,
   add_tag: TagNode,
