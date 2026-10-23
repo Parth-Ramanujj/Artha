@@ -173,7 +173,7 @@ describe('WorkflowTriggerService', () => {
 
     expect(workflowService.createRun).toHaveBeenCalledWith(
       mockWorkflow,
-      expect.any(Object),
+      expect.objectContaining({ messageBody: expect.any(String) }),
       'sess-1',
       expect.any(String),
       '919876543210@c.us',

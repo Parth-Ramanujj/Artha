@@ -1451,10 +1451,11 @@ export const workflowApi = {
   publish: (id: string) => request<WorkflowDefinition>(`/workflows/${id}/publish`, { method: 'POST' }),
   disable: (id: string) => request<WorkflowDefinition>(`/workflows/${id}/disable`, { method: 'POST' }),
   delete: (id: string) => request<void>(`/workflows/${id}`, { method: 'DELETE' }),
-  listRuns: (params?: { limit?: number; workflowId?: string }) => {
+  listRuns: (params?: { limit?: number; workflowId?: string; status?: string }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set('limit', String(params.limit));
     if (params?.workflowId) query.set('workflowId', params.workflowId);
+    if (params?.status) query.set('status', params.status);
     const qs = query.toString();
     return request<WorkflowRun[]>(`/workflows/runs/list${qs ? `?${qs}` : ''}`);
   },

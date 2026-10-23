@@ -173,7 +173,8 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
 
       const run = await this.workflowService.createRun(
         workflow,
-        ctx.metadata ?? {},
+        // the message text makes a run findable in Execution History ("who wrote report?")
+        { ...(ctx.metadata ?? {}), messageBody: (ctx.messageBody ?? '').slice(0, 500) },
         sessionId,
         idempotencyKey,
         msg.chatId,

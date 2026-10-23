@@ -407,3 +407,161 @@
   font-size: 0.8rem;
   margin: 0.3rem 0 0 0;
 }
+
+/* Execution History log */
+.workflows-page .run-log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.workflows-page .run-log-filters .form-select {
+  width: auto;
+  min-width: 160px;
+}
+
+.workflows-page .run-log-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 260px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-light, var(--bg-tertiary));
+  color: var(--text-secondary);
+}
+
+.workflows-page .run-log-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.workflows-page .run-log-when {
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.workflows-page .run-log-message {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflows-page .run-log-test {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+}
+
+.workflows-page .run-log-stop {
+  display: flex;
+  flex-direction: column;
+  max-width: 280px;
+  font-size: 0.8rem;
+}
+
+.workflows-page .run-log-stop strong {
+  color: #ef4444;
+}
+
+.workflows-page .run-log-stop span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.workflows-page .sr-only,
+.run-log-detail .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.run-log-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.run-log-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.run-log-meta dt {
+  color: var(--text-secondary);
+}
+
+.run-log-meta dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.run-log-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.run-log-step .step-item-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.run-log-step .step-item-title small {
+  color: var(--text-secondary);
+}
+
+.run-log-duration {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.run-log-step.failed {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.run-log-step.not-run {
+  opacity: 0.55;
+}
+
+.run-log-step details summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 0.3rem;
+}
+
+.workflows-page .run-status-badge.paused,
+.workflows-page .run-status-badge.timed_out,
+.workflows-page .run-status-badge.cancelled,
+.run-log-detail .run-status-badge.paused,
+.run-log-detail .run-status-badge.timed_out,
+.run-log-detail .run-status-badge.cancelled {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+}

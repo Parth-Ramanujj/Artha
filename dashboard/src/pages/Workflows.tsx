@@ -33,6 +33,7 @@ import { useRole } from '../hooks/useRole';
 import { useToast } from '../components/Toast';
 import { VisualWorkflowBuilder } from '../components/workflow-builder/VisualWorkflowBuilder';
 import { parseWorkflowFile, toWorkflowFile, workflowFileName } from '../utils/workflowShare';
+import { WorkflowRunLog } from '../components/workflows/WorkflowRunLog';
 import './Workflows.css';
 
 type ActionStep = {
@@ -49,9 +50,7 @@ export function Workflows() {
 
   const [activeTab, setActiveTab] = useState<'workflows' | 'runs'>('workflows');
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
-  const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingRuns, setLoadingRuns] = useState(false);
 
   // Sessions for template lookup & testing
   const { data: sessions = [] } = useSessionsQuery();
@@ -83,7 +82,6 @@ export function Workflows() {
   const [testResult, setTestResult] = useState<WorkflowRun | null>(null);
 
   // Run Inspector Modal State
-  const [inspectRun, setInspectRun] = useState<WorkflowRun | null>(null);
 
   useEffect(() => {
     if (sessions.length > 0 && !selectedSessionId) {
@@ -132,24 +130,8 @@ export function Workflows() {
       .finally(() => setLoading(false));
   };
 
-  const loadRuns = () => {
-    setLoadingRuns(true);
-    workflowApi
-      .listRuns({ limit: 50 })
-      .then(setRuns)
-      .catch(err => {
-        toast.error(t('common.error', 'Error'), err?.message || 'Failed to load execution runs');
-        setRuns([]);
-      })
-      .finally(() => setLoadingRuns(false));
-  };
-
   useEffect(() => {
-    if (activeTab === 'workflows') {
-      loadWorkflows();
-    } else {
-      loadRuns();
-    }
+    if (activeTab === 'workflows') loadWorkflows();
   }, [activeTab]);
 
   const handlePublish = async (id: string) => {
@@ -535,60 +517,7 @@ export function Workflows() {
           </div>
         )
       ) : (
-        /* Runs Tab */
-        loadingRuns ? (
-          <div className="loading-state">
-            <Loader2 className="animate-spin" size={24} />
-          </div>
-        ) : runs.length === 0 ? (
-          <div className="empty-state">
-            <History size={48} strokeWidth={1} />
-            <p>No execution runs recorded yet</p>
-          </div>
-        ) : (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Run ID</th>
-                  <th>Status</th>
-                  <th>Steps Run</th>
-                  <th>Executed At</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map(run => (
-                  <tr key={run.id}>
-                    <td>
-                      <span className="slug-badge">{run.id.slice(0, 8)}...</span>
-                    </td>
-                    <td>
-                      <span className={`run-status-badge ${run.status}`}>
-                        {run.status === 'completed' && <CheckCircle2 size={13} />}
-                        {run.status === 'failed' && <XCircle size={13} />}
-                        {run.status === 'running' && <Loader2 size={13} className="animate-spin" />}
-                        {run.status}
-                      </span>
-                    </td>
-                    <td>
-                      {run.steps?.length || 0} steps
-                    </td>
-                    <td>{new Date(run.createdAt).toLocaleString()}</td>
-                    <td>
-                      <button
-                        className="btn-secondary btn-sm"
-                        onClick={() => setInspectRun(run)}
-                      >
-                        Inspect Steps
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
+        <WorkflowRunLog />
       )}
 
       {/* Advanced Multi-Step Workflow Builder Modal */}
@@ -965,66 +894,6 @@ export function Workflows() {
                 </div>
               </div>
             )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Inspect Past Run Modal */}
-      {inspectRun && (
-        <Modal
-          open
-          onClose={() => setInspectRun(null)}
-          title={`Execution Run Details: ${inspectRun.id.slice(0, 8)}`}
-          closeLabel="Close"
-          footer={
-            <button className="btn-secondary" onClick={() => setInspectRun(null)}>
-              Close
-            </button>
-          }
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <strong>Status:</strong>{' '}
-                <span className={`run-status-badge ${inspectRun.status}`}>{inspectRun.status}</span>
-              </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Started: {new Date(inspectRun.createdAt).toLocaleString()}
-              </div>
-            </div>
-
-            {inspectRun.failureReason && (
-              <div className="test-error-banner">
-                <AlertCircle size={15} />
-                <span>{inspectRun.failureReason}</span>
-              </div>
-            )}
-
-            <h4 style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>Executed Steps:</h4>
-            <div className="test-steps-list">
-              {((inspectRun.steps as any[]) || []).length === 0 ? (
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No steps recorded.</p>
-              ) : (
-                ((inspectRun.steps as any[]) || []).map((st: any, i: number) => (
-                  <div key={i} className="test-step-item">
-                    <div className="step-item-title">
-                      {st.status === 'success' ? (
-                        <CheckCircle2 size={15} className="step-icon-success" />
-                      ) : (
-                        <XCircle size={15} className="step-icon-error" />
-                      )}
-                      <span>
-                        Step {i + 1}: <strong>{st.actionType}</strong>
-                      </span>
-                    </div>
-                    {st.output && (
-                      <pre className="step-output-json">{JSON.stringify(st.output, null, 2)}</pre>
-                    )}
-                    {st.error && <p className="step-error-msg">{st.error}</p>}
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         </Modal>
       )}
