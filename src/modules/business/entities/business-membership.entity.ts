@@ -24,7 +24,8 @@ export class BusinessMembership {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  // No length: the join column below takes Business.id's uuid type, and Postgres rejects length on uuid.
+  @Column({ type: 'varchar' })
   businessId: string;
 
   @Index()
