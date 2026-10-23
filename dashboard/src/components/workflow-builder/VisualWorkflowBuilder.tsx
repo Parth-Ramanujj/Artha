@@ -721,22 +721,22 @@ function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: Visua
             {/* Save Status Indicator */}
             {saveStatus === 'saved' && (
               <span className="wf-save-status-indicator wf-save-status-saved" title="All edits saved to server">
-                <CheckCircle2 size={12} /> All changes saved
+                <CheckCircle2 size={12} /> <span className="wf-save-status-text">All changes saved</span>
               </span>
             )}
             {saveStatus === 'dirty' && (
               <span className="wf-save-status-indicator wf-save-status-dirty" title="Unsaved changes present">
-                <Clock size={12} /> Unsaved changes
+                <Clock size={12} /> <span className="wf-save-status-text">Unsaved changes</span>
               </span>
             )}
             {saveStatus === 'saving' && (
               <span className="wf-save-status-indicator wf-save-status-saving" title="Saving workflow to server...">
-                <Loader2 size={12} className="animate-spin" /> Saving…
+                <Loader2 size={12} className="animate-spin" /> <span className="wf-save-status-text">Saving…</span>
               </span>
             )}
             {saveStatus === 'error' && (
               <span className="wf-save-status-indicator wf-save-status-error" title="Failed to save workflow">
-                <AlertTriangle size={12} /> Save failed
+                <AlertTriangle size={12} /> <span className="wf-save-status-text">Save failed</span>
               </span>
             )}
 
@@ -805,14 +805,22 @@ function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: Visua
             className="wf-btn-tool secondary"
             onClick={handleValidateWorkflow}
             title="Validate workflow configuration"
+            aria-label="Validate"
           >
-            <CheckCircle2 size={15} /> Validate
+            <CheckCircle2 size={15} /> <span className="wf-btn-label">Validate</span>
           </button>
 
           {/* Templates Preset Dropdown */}
           <div className="wf-presets-dropdown">
-            <button type="button" className="wf-btn-tool secondary" onClick={() => setPresetsOpen(prev => !prev)}>
-              <Sparkles size={15} /> Templates <ChevronDown size={14} />
+            <button
+              type="button"
+              className="wf-btn-tool secondary"
+              onClick={() => setPresetsOpen(prev => !prev)}
+              title="Templates"
+              aria-label="Templates"
+              aria-expanded={presetsOpen}
+            >
+              <Sparkles size={15} /> <span className="wf-btn-label">Templates</span> <ChevronDown size={14} />
             </button>
             {presetsOpen && (
               <div className="wf-presets-menu">
@@ -844,8 +852,9 @@ function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: Visua
             className={`wf-btn-tool secondary${simulatorOpen ? ' is-active' : ''}`}
             onClick={() => setSimulatorOpen(o => !o)}
             title="Preview the flow as a live WhatsApp chat"
+            aria-label="Simulator"
           >
-            <MessageCircle size={15} /> Simulator
+            <MessageCircle size={15} /> <span className="wf-btn-label">Simulator</span>
           </button>
 
           {/* Save Draft */}
@@ -854,8 +863,11 @@ function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: Visua
             className="wf-btn-tool secondary"
             onClick={() => void handleSave(false)}
             disabled={saving}
+            title="Save Draft"
+            aria-label="Save Draft"
           >
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Draft
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}{' '}
+            <span className="wf-btn-label">Save Draft</span>
           </button>
 
           {/* Save & Publish */}

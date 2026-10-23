@@ -3667,3 +3667,73 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* =============================================================================
+   TOOLBAR LAYOUT: the global button padding hid the icons, labels wrapped onto two
+   lines, and the right-hand buttons were clipped on narrow screens.
+   ============================================================================= */
+.wf-builder-toolbar {
+  height: auto;
+  min-height: 60px;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 1.25rem;
+}
+
+.wf-toolbar-left,
+.wf-toolbar-title-box {
+  min-width: 0;
+}
+
+.wf-toolbar-title-input {
+  min-width: 120px;
+  max-width: 260px;
+  text-overflow: ellipsis;
+}
+
+.wf-toolbar-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.wf-btn-tool,
+.wf-toolbar-btn-back,
+.wf-save-status-indicator,
+.wf-toolbar-status-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wf-btn-tool-icon {
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.wf-btn-tool-icon svg,
+.wf-btn-tool svg {
+  flex-shrink: 0;
+}
+
+.wf-toolbar-status-badge.disabled {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary, #94a3b8);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Medium screens: secondary buttons become icon-only so the bar stays on one line */
+@media (max-width: 1500px) {
+  .wf-btn-label {
+    display: none;
+  }
+  .wf-btn-tool.secondary {
+    padding: 0.5rem 0.65rem;
+  }
+}
+
+/* Narrower screens: the save indicator shrinks to its icon (its title still explains it) */
+@media (max-width: 1400px) {
+  .wf-save-status-text {
+    display: none;
+  }
+}
