@@ -65,7 +65,17 @@ interface PendingAuth {
   /** The dashboard address the sign-in started from; the callback sends the user back there. */
   returnTo: string;
   services: GoogleServiceId[];
+  /** The callback URL sent to Google; the token exchange must repeat it exactly. */
+  redirectUri: string;
   expiresAt: number;
+}
+
+export function isLoopback(url: string): boolean {
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 interface GoogleConfig {
@@ -109,8 +119,14 @@ export class GoogleWorkspaceService {
     businessId: string,
     input: { services?: unknown; integrationId?: string | null },
     returnTo = '',
+    serverOrigin = '',
   ): { url: string } {
-    const { clientId, redirectUri } = this.oauthConfig();
+    const { clientId, redirectUri: configured } = this.oauthConfig();
+    // A localhost callback copied into a production env would send Google's reply to the user's own PC
+    const redirectUri =
+      isLoopback(configured) && serverOrigin && !isLoopback(serverOrigin)
+        ? `${serverOrigin}/api/google/oauth/callback`
+        : configured;
     const services = parseServices(input.services);
     this.prune();
     const state = randomBytes(24).toString('base64url');
@@ -119,6 +135,7 @@ export class GoogleWorkspaceService {
       integrationId: input.integrationId ?? null,
       returnTo,
       services,
+      redirectUri,
       expiresAt: Date.now() + STATE_TTL_MS,
     });
     const scopes = [
@@ -146,12 +163,12 @@ export class GoogleWorkspaceService {
     this.pending.delete(state);
     if (!pending) throw new UnauthorizedException('This sign-in link has expired. Start the connection again.');
 
-    const { clientId, clientSecret, redirectUri } = this.oauthConfig();
+    const { clientId, clientSecret } = this.oauthConfig();
     const tokens = await this.post(TOKEN_ENDPOINT, {
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: redirectUri,
+      redirect_uri: pending.redirectUri,
       grant_type: 'authorization_code',
     });
     if (!tokens.refresh_token) {

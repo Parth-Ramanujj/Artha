@@ -47,8 +47,12 @@ describe('Google Workspace sign-in', () => {
 
   it('connects exactly one known service per integration', () => {
     expect(() => service().startAuth('biz-1', { services: [] })).toThrow(BadRequestException);
-    expect(() => service().startAuth('biz-1', { services: ['gmail', 'sheets'] })).toThrow('Connect one Google service at a time');
-    expect(() => service().startAuth('biz-1', { services: ['nonsense'] })).toThrow('Connect one Google service at a time');
+    expect(() => service().startAuth('biz-1', { services: ['gmail', 'sheets'] })).toThrow(
+      'Connect one Google service at a time',
+    );
+    expect(() => service().startAuth('biz-1', { services: ['nonsense'] })).toThrow(
+      'Connect one Google service at a time',
+    );
   });
 
   it('says what to set when the OAuth client is not configured', () => {
@@ -97,5 +101,53 @@ describe('where Google sends the user back', () => {
 
   it('falls back to DASHBOARD_URL when no origin header is sent', () => {
     expect(returnOriginFor(withOrigin())).toBe('https://app.example.com');
+  });
+});
+
+// A .env copied to Render still says localhost; Google must not send the user to their own PC.
+describe('Google sign-in on a public host with a localhost env', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { returnOriginFor, dashboardBaseFor } = require('./google.controller') as typeof import('./google.controller');
+  const onRender = (origin?: string) =>
+    ({
+      headers: { host: 'artha.onrender.com', 'x-forwarded-proto': 'https', ...(origin ? { origin } : {}) },
+      protocol: 'http',
+    }) as never;
+
+  beforeEach(() => {
+    process.env.GOOGLE_OAUTH_CLIENT_ID = 'client-id.apps.googleusercontent.com';
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'client-secret';
+    process.env.GOOGLE_OAUTH_REDIRECT_URI = 'http://localhost:2785/api/google/oauth/callback';
+    process.env.DASHBOARD_URL = 'http://localhost:2785';
+  });
+
+  afterEach(() => {
+    process.env = { ...env };
+  });
+
+  it('sends Google back to the public host, not localhost', () => {
+    const { url } = new GoogleWorkspaceService({} as never).startAuth(
+      'biz-1',
+      { services: ['sheets'] },
+      '',
+      'https://artha.onrender.com',
+    );
+    expect(new URL(url).searchParams.get('redirect_uri')).toBe('https://artha.onrender.com/api/google/oauth/callback');
+  });
+
+  it('keeps the localhost callback when the server really is local', () => {
+    const { url } = new GoogleWorkspaceService({} as never).startAuth(
+      'biz-1',
+      { services: ['sheets'] },
+      '',
+      'http://localhost:2785',
+    );
+    expect(new URL(url).searchParams.get('redirect_uri')).toBe('http://localhost:2785/api/google/oauth/callback');
+  });
+
+  it('returns the user to the public dashboard', () => {
+    expect(dashboardBaseFor(onRender())).toBe('https://artha.onrender.com');
+    expect(returnOriginFor(onRender('https://artha.onrender.com'))).toBe('https://artha.onrender.com');
+    expect(returnOriginFor(onRender('https://evil.example.net'))).toBe('https://artha.onrender.com');
   });
 });

@@ -17,7 +17,7 @@ import { RequireActiveBusiness } from '../../auth/guards/business-scope.guard';
 import { CurrentApiKey, Public, RequireRole, RequireUnscopedKey } from '../../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../../auth/entities/api-key.entity';
 import { Integration } from '../entities/integration.entity';
-import { GoogleServiceId, GoogleWorkspaceService, googleServiceForType } from './google-workspace.service';
+import { GoogleServiceId, GoogleWorkspaceService, googleServiceForType, isLoopback } from './google-workspace.service';
 import { IntegrationService } from '../integration.service';
 
 /**
@@ -25,17 +25,37 @@ import { IntegrationService } from '../integration.service';
  * configured DASHBOARD_URL. Anything else falls back to DASHBOARD_URL, so a foreign page can't redirect us.
  */
 export function returnOriginFor(req: Request): string {
-  const fallback = (process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
+  const fallback = dashboardBaseFor(req);
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
   if (!origin) return fallback;
   try {
     const u = new URL(origin);
     const configured = fallback ? new URL(fallback).origin : '';
-    const local = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
-    return local || u.origin === configured ? u.origin : fallback;
+    return isLoopback(u.origin) || u.origin === configured || u.origin === serverOriginFor(req) ? u.origin : fallback;
   } catch {
     return fallback;
   }
+}
+
+/** This server's public origin, from the proxy headers a host like Render sets. */
+export function serverOriginFor(req: Request): string {
+  const first = (v: unknown) =>
+    String(Array.isArray(v) ? v[0] : (v ?? ''))
+      .split(',')[0]
+      .trim();
+  const host = first(req.headers['x-forwarded-host']) || first(req.headers.host);
+  const proto = first(req.headers['x-forwarded-proto']) || req.protocol || 'http';
+  return host ? `${proto}://${host}` : '';
+}
+
+/**
+ * DASHBOARD_URL, unless it still says localhost while this request reached a public host (an env file
+ * copied to production): then the server's own origin, so the user is never sent to their own machine.
+ */
+export function dashboardBaseFor(req: Request): string {
+  const configured = (process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
+  const server = serverOriginFor(req);
+  return (!configured || isLoopback(configured)) && server && !isLoopback(server) ? server : configured;
 }
 
 /** Starts "Sign in with Google" and runs test calls. Admin keys only (they connect a whole account). */
@@ -110,6 +130,7 @@ export class GoogleController {
       apiKey.businessId ?? '',
       { services: body?.services, integrationId: body?.integrationId ?? null },
       returnOriginFor(req),
+      serverOriginFor(req),
     );
   }
 
@@ -191,9 +212,10 @@ export class GoogleOAuthCallbackController {
     @Query('code') code: string | undefined,
     @Query('state') state: string | undefined,
     @Query('error') error: string | undefined,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
-    const fallback = (process.env.DASHBOARD_URL ?? '').replace(/\/$/, '');
+    const fallback = dashboardBaseFor(req);
     if (error || !code || !state) {
       return res.redirect(
         `${fallback}/integrations?google=error&message=${encodeURIComponent(error ?? 'Sign-in was cancelled')}`,
