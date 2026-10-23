@@ -390,6 +390,20 @@ select:disabled {
   cursor: not-allowed;
 }
 
+/* .btn-danger comes after .btn-icon, so its padding would squeeze an icon button's icon to nothing */
+.btn-icon.btn-danger {
+  padding: 0;
+  gap: 0;
+}
+
+.btn-icon.btn-ghost.btn-danger {
+  color: var(--error, #ef4444);
+}
+
+.btn-icon.btn-ghost.btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+}
+
 /* Spin Animation */
 @keyframes spin {
   from {
