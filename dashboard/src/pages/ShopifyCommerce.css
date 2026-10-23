@@ -14,12 +14,12 @@
 .commerce-page .commerce-tabs {
   display: flex;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 0.5rem;
 }
 
 [data-theme='dark'] .commerce-page .commerce-tabs {
-  border-bottom-color: var(--border-color, #334155);
+  border-bottom-color: var(--border);
 }
 
 .commerce-page .commerce-tab-btn {
@@ -38,7 +38,7 @@
 }
 
 .commerce-page .commerce-tab-btn:hover {
-  background: var(--bg-hover, #f1f5f9);
+  background: var(--bg-tertiary);
   color: var(--text-primary, #0f172a);
 }
 
@@ -55,8 +55,8 @@
 
 /* Store Status Card */
 .commerce-page .store-status-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -68,8 +68,8 @@
 }
 
 [data-theme='dark'] .commerce-page .store-status-card {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 .commerce-page .store-info-left {
@@ -133,8 +133,8 @@
 }
 
 .commerce-page .recovery-config-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -144,8 +144,8 @@
 }
 
 [data-theme='dark'] .commerce-page .recovery-config-card {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 /* Volume Discounts Tiers */
@@ -156,8 +156,8 @@
 }
 
 .commerce-page .tier-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -180,8 +180,8 @@
 }
 
 [data-theme='dark'] .commerce-page .tier-card {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 [data-theme='dark'] .commerce-page .tier-card.featured {

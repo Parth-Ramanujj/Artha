@@ -532,8 +532,8 @@
   top: calc(100% + 8px);
   right: 0;
   width: 300px;
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   z-index: 100;
@@ -542,8 +542,8 @@
 }
 
 [data-theme='dark'] .ai-credits-topbar-dropdown {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
 

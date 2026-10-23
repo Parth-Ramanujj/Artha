@@ -11,13 +11,13 @@
 .ai-agents-page .ai-agents-nav-tabs {
   display: flex;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 0.5rem;
   overflow-x: auto;
 }
 
 [data-theme='dark'] .ai-agents-page .ai-agents-nav-tabs {
-  border-bottom-color: var(--border-color, #334155);
+  border-bottom-color: var(--border);
 }
 
 .ai-agents-page .ai-agents-tab-btn {
@@ -37,7 +37,7 @@
 }
 
 .ai-agents-page .ai-agents-tab-btn:hover {
-  background: var(--bg-hover, #f1f5f9);
+  background: var(--bg-tertiary);
   color: var(--text-primary, #0f172a);
 }
 
@@ -60,8 +60,8 @@
 }
 
 .ai-agents-page .agent-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.25rem;
   display: flex;
@@ -77,8 +77,8 @@
 }
 
 [data-theme='dark'] .ai-agents-page .agent-card {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 .ai-agents-page .agent-card-header {
@@ -164,14 +164,14 @@
   font-weight: 600;
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
-  background: var(--bg-subtle, #f8fafc);
-  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   color: var(--text-primary, #0f172a);
 }
 
 [data-theme='dark'] .ai-agents-page .meta-tag {
-  background: var(--bg-subtle, #0f172a);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-tertiary);
+  border-color: var(--border);
   color: var(--text-primary, #f8fafc);
 }
 
@@ -180,11 +180,11 @@
   align-items: center;
   justify-content: space-between;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color, #e2e8f0);
+  border-top: 1px solid var(--border);
 }
 
 [data-theme='dark'] .ai-agents-page .agent-card-footer {
-  border-top-color: var(--border-color, #334155);
+  border-top-color: var(--border);
 }
 
 .ai-agents-page .toggle-switch-container {
@@ -233,10 +233,10 @@
 .ai-agents-page .builder-prompt-textarea {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid var(--border-color, #cbd5e1);
+  border: 1px solid var(--border);
   padding: 1rem;
   font-size: 0.9375rem;
-  background: var(--bg-surface, #ffffff);
+  background: var(--bg-card);
   color: var(--text-primary, #0f172a);
   outline: none;
   resize: vertical;
@@ -244,8 +244,8 @@
 }
 
 [data-theme='dark'] .ai-agents-page .builder-prompt-textarea {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #475569);
+  background: var(--bg-card);
+  border-color: var(--border);
   color: var(--text-primary, #f8fafc);
 }
 
@@ -266,8 +266,8 @@
   font-weight: 600;
   padding: 0.375rem 0.75rem;
   border-radius: 20px;
-  border: 1px dashed var(--border-color, #cbd5e1);
-  background: var(--bg-surface, #ffffff);
+  border: 1px dashed var(--border);
+  background: var(--bg-card);
   color: var(--text-secondary, #64748b);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -280,8 +280,8 @@
 }
 
 [data-theme='dark'] .ai-agents-page .template-pill {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #475569);
+  background: var(--bg-card);
+  border-color: var(--border);
   color: var(--text-secondary, #94a3b8);
 }
 
@@ -299,8 +299,8 @@
 }
 
 .ai-agents-page .voice-ai-card {
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
   display: flex;
@@ -310,13 +310,13 @@
 }
 
 [data-theme='dark'] .ai-agents-page .voice-ai-card {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 .ai-agents-page .voice-preview-box {
-  background: var(--bg-subtle, #f8fafc);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem;
   display: flex;
@@ -325,8 +325,8 @@
 }
 
 [data-theme='dark'] .ai-agents-page .voice-preview-box {
-  background: var(--bg-subtle, #0f172a);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-tertiary);
+  border-color: var(--border);
 }
 
 .ai-agents-page .voice-play-btn {

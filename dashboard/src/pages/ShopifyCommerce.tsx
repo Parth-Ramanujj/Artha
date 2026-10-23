@@ -154,7 +154,7 @@ export function ShopifyCommerce() {
                   type="text"
                   value={storeDomain}
                   onChange={e => setStoreDomain(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
                 />
               </div>
 
@@ -166,7 +166,7 @@ export function ShopifyCommerce() {
                   type="password"
                   value={accessToken}
                   onChange={e => setAccessToken(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
                 />
               </div>
 
@@ -182,15 +182,15 @@ export function ShopifyCommerce() {
             <div className="recovery-config-card">
               <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Commerce Webhooks Health</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.875rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: 6 }}>
                   <span>checkouts/create</span>
                   <span style={{ color: '#10b981', fontWeight: 600 }}>Active (200 OK)</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: 6 }}>
                   <span>orders/fulfilled</span>
                   <span style={{ color: '#10b981', fontWeight: 600 }}>Active (200 OK)</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: 'var(--bg-tertiary)', borderRadius: 6 }}>
                   <span>inventory_levels/update</span>
                   <span style={{ color: '#10b981', fontWeight: 600 }}>Active (200 OK)</span>
                 </div>
@@ -243,7 +243,7 @@ export function ShopifyCommerce() {
                 type="text"
                 value={discountCode}
                 onChange={e => setDiscountCode(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
 
@@ -255,7 +255,7 @@ export function ShopifyCommerce() {
                 rows={4}
                 value={cartMessageTemplate}
                 onChange={e => setCartMessageTemplate(e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', resize: 'vertical' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', resize: 'vertical' }}
               />
             </div>
 
@@ -270,25 +270,25 @@ export function ShopifyCommerce() {
           <div className="recovery-config-card">
             <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Recovery Performance Analytics</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+              <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Abandoned Carts</span>
                 <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>142</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+              <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>WhatsApp Sent</span>
                 <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4, color: '#3b82f6' }}>118</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+              <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Carts Recovered</span>
                 <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4, color: '#10b981' }}>52 (44%)</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+              <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Recovered Revenue</span>
                 <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4, color: '#10b981' }}>₹2,48,500</div>
               </div>
             </div>
 
-            <div style={{ padding: 12, border: '1px dashed var(--border-color)', borderRadius: 8, fontSize: 12 }}>
+            <div style={{ padding: 12, border: '1px dashed var(--border)', borderRadius: 8, fontSize: 12 }}>
               <strong>ROI Insight:</strong> For every ₹1 spent on WhatsApp recovery messages, your Shopify store has generated <strong>₹18.40</strong> in recovered GMV!
             </div>
           </div>
@@ -370,17 +370,17 @@ export function ShopifyCommerce() {
               />
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 8 }}>
-                <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+                <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Applicable Rate</span>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>₹{currentRate} / msg</div>
                 </div>
 
-                <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+                <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Total Cost</span>
                   <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>₹{discountedCost.toLocaleString('en-IN')}</div>
                 </div>
 
-                <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8 }}>
+                <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Volume Discount Savings</span>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#6366f1' }}>
                     ₹{savings.toLocaleString('en-IN')} ({savingsPercent}%)

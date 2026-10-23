@@ -74,7 +74,7 @@ export function AgentTestModal({ agent, onClose }: { agent: AiAgent; onClose: ()
             key={i}
             style={{
               alignSelf: t.role === 'user' ? 'flex-end' : 'flex-start',
-              background: t.role === 'user' ? '#6366f1' : 'var(--bg-subtle)',
+              background: t.role === 'user' ? '#6366f1' : 'var(--bg-tertiary)',
               color: t.role === 'user' ? '#ffffff' : 'var(--text-primary)',
               padding: '8px 12px',
               borderRadius: 10,

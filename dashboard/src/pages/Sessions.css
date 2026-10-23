@@ -804,7 +804,7 @@
 
 .sessions-page .engine-option:hover {
   border-color: var(--primary);
-  background: var(--bg-hover, rgba(99, 102, 241, 0.04));
+  background: var(--bg-tertiary);
 }
 
 .sessions-page .engine-option.selected {
@@ -862,7 +862,7 @@
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--bg-hover, rgba(99, 102, 241, 0.04));
+  background: var(--bg-tertiary);
 }
 
 .sessions-page .cloud-api-fields input {

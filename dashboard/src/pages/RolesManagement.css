@@ -14,12 +14,12 @@
 .roles-page .roles-tabs{
   display: flex;
   gap: 0.5rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 0.5rem;
 }
 
 [data-theme='dark'] .roles-page .roles-tabs {
-  border-bottom-color: var(--border-color, #334155);
+  border-bottom-color: var(--border);
 }
 
 .roles-page .roles-tab-btn{
@@ -38,7 +38,7 @@
 }
 
 .roles-page .roles-tab-btn:hover{
-  background: var(--bg-hover, #f1f5f9);
+  background: var(--bg-tertiary);
   color: var(--text-primary, #0f172a);
 }
 
@@ -55,16 +55,16 @@
 
 .roles-page /* Permissions Matrix Table */
 .matrix-table-container{
-  background: var(--bg-surface, #ffffff);
-  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 [data-theme='dark'] .roles-page .matrix-table-container {
-  background: var(--bg-surface, #1e293b);
-  border-color: var(--border-color, #334155);
+  background: var(--bg-card);
+  border-color: var(--border);
 }
 
 .roles-page .matrix-table{
@@ -74,30 +74,30 @@
 }
 
 .roles-page .matrix-table th{
-  background: var(--bg-subtle, #f8fafc);
+  background: var(--bg-tertiary);
   padding: 0.875rem 1rem;
   font-size: 0.8125rem;
   font-weight: 700;
   text-transform: uppercase;
   color: var(--text-secondary, #64748b);
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   letter-spacing: 0.5px;
 }
 
 [data-theme='dark'] .roles-page .matrix-table th {
-  background: var(--bg-subtle, #0f172a);
-  border-bottom-color: var(--border-color, #334155);
+  background: var(--bg-tertiary);
+  border-bottom-color: var(--border);
 }
 
 .roles-page .matrix-table td{
   padding: 0.875rem 1rem;
   font-size: 0.875rem;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-bottom: 1px solid var(--border);
   color: var(--text-primary, #0f172a);
 }
 
 [data-theme='dark'] .roles-page .matrix-table td {
-  border-bottom-color: var(--border-color, #334155);
+  border-bottom-color: var(--border);
   color: var(--text-primary, #f8fafc);
 }
 
@@ -106,13 +106,13 @@
 }
 
 .roles-page .permission-category-row{
-  background: var(--bg-subtle, #f8fafc);
+  background: var(--bg-tertiary);
   font-weight: 700;
   color: #6366f1 !important;
 }
 
 [data-theme='dark'] .roles-page .permission-category-row {
-  background: var(--bg-subtle, #0f172a);
+  background: var(--bg-tertiary);
   color: #a5b4fc !important;
 }
 

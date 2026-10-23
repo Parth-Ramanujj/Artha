@@ -529,7 +529,7 @@ export function RolesManagement() {
                 placeholder="e.g. Diya Patel"
                 value={newMember.name}
                 onChange={e => setNewMember(prev => ({ ...prev, name: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
 
@@ -542,7 +542,7 @@ export function RolesManagement() {
                 placeholder="e.g. diya@company.com"
                 value={newMember.email}
                 onChange={e => setNewMember(prev => ({ ...prev, email: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
 
@@ -553,7 +553,7 @@ export function RolesManagement() {
               <select
                 value={newMember.role}
                 onChange={e => setNewMember(prev => ({ ...prev, role: e.target.value as TeamMember['role'] }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               >
                 <option value="admin">Super Admin / Owner</option>
                 <option value="manager">Team Manager</option>
@@ -572,7 +572,7 @@ export function RolesManagement() {
                 placeholder="e.g. +91 98765 43210"
                 value={newMember.assignedNumber}
                 onChange={e => setNewMember(prev => ({ ...prev, assignedNumber: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
           </div>

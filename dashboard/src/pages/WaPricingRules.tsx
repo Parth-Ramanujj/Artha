@@ -107,7 +107,7 @@ export function WaPricingRules() {
           </thead>
           <tbody>
             {CATEGORIES.map(c => (
-              <tr key={c.name} style={{ borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+              <tr key={c.name} style={{ borderTop: '1px solid var(--border)' }}>
                 <td style={{ padding: '0.5rem', fontWeight: 600 }}>{c.name}</td>
                 <td style={{ padding: '0.5rem' }}>{c.use}</td>
                 <td style={{ padding: '0.5rem' }}>{c.cost}</td>

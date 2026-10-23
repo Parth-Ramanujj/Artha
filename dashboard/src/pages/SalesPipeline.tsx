@@ -581,7 +581,7 @@ export function SalesPipeline() {
                 placeholder="e.g. Enterprise WhatsApp Annual Subscription"
                 value={newDeal.title || ''}
                 onChange={e => setNewDeal(prev => ({ ...prev, title: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
 
@@ -600,7 +600,7 @@ export function SalesPipeline() {
                     phone: picked ? picked.phone || prev.phone : prev.phone,
                   }));
                 }}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               >
                 <option value="">— Not linked —</option>
                 {crmContacts.map(c => (
@@ -625,7 +625,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 />
               </div>
@@ -643,7 +643,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 />
               </div>
@@ -661,7 +661,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 />
               </div>
@@ -679,7 +679,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 />
               </div>
@@ -697,7 +697,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 >
                   {STAGES.map(s => (
@@ -717,7 +717,7 @@ export function SalesPipeline() {
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                   }}
                 >
                   <option value="high">High Priority</option>
@@ -736,7 +736,7 @@ export function SalesPipeline() {
                 placeholder="Key requirements discussed with customer on WhatsApp..."
                 value={newDeal.notes || ''}
                 onChange={e => setNewDeal(prev => ({ ...prev, notes: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)' }}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)' }}
               />
             </div>
           </div>

@@ -233,7 +233,7 @@ export function TopConnectionBar() {
                   <span>Remaining Balance:</span>
                   <strong style={{ color: '#6366f1' }}>{credits.toLocaleString()} / 20,000</strong>
                 </div>
-                <div style={{ width: '100%', height: 6, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 6, background: 'var(--bg-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${Math.min(100, Math.round((credits / 20000) * 100))}%`,
