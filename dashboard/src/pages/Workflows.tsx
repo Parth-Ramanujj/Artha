@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Loader2,
@@ -22,6 +22,8 @@ import {
   ChevronUp,
   ChevronDown,
   Tag,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { workflowApi, type WorkflowDefinition, type WorkflowRun } from '../services/api';
 import { useSessionsQuery, useTemplatesQuery } from '../hooks/queries';
@@ -30,6 +32,7 @@ import { Modal } from '../components/Modal';
 import { useRole } from '../hooks/useRole';
 import { useToast } from '../components/Toast';
 import { VisualWorkflowBuilder } from '../components/workflow-builder/VisualWorkflowBuilder';
+import { parseWorkflowFile, toWorkflowFile, workflowFileName } from '../utils/workflowShare';
 import './Workflows.css';
 
 type ActionStep = {
@@ -42,6 +45,7 @@ export function Workflows() {
   const { t } = useTranslation();
   const { isAdmin, canWrite } = useRole();
   const toast = useToast();
+  const importInput = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<'workflows' | 'runs'>('workflows');
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
@@ -86,6 +90,35 @@ export function Workflows() {
       setSelectedSessionId(sessions[0].id);
     }
   }, [sessions, selectedSessionId]);
+
+  const handleExport = (wf: WorkflowDefinition) => {
+    const blob = new Blob([JSON.stringify(toWorkflowFile(wf), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = workflowFileName(wf.name);
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const shared = parseWorkflowFile(await file.text());
+      await workflowApi.create({
+        name: `${shared.name} (imported)`.slice(0, 200),
+        description: shared.description ?? undefined,
+        definition: shared.definition,
+      } as Partial<WorkflowDefinition>);
+      toast.success(
+        t('workflows.imported', 'Workflow Imported'),
+        t('workflows.importedDesc', 'Saved as a draft. Open it in the builder to connect your accounts, then publish.'),
+      );
+      loadWorkflows();
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), err instanceof Error ? err.message : 'Failed to import workflow');
+    }
+  };
 
   const loadWorkflows = () => {
     setLoading(true);
@@ -277,6 +310,21 @@ export function Workflows() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {(isAdmin || canWrite) && (
               <>
+                <button className="btn-secondary" onClick={() => importInput.current?.click()}>
+                  <Upload size={16} />
+                  {t('workflows.import', 'Import')}
+                </button>
+                <input
+                  ref={importInput}
+                  type="file"
+                  accept=".json,application/json"
+                  hidden
+                  aria-label={t('workflows.import', 'Import')}
+                  onChange={e => {
+                    void handleImport(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
                 <button className="btn-secondary" onClick={() => setShowCreateModal(true)}>
                   <Plus size={16} />
                   {t('workflows.create', 'Quick Form')}
@@ -433,6 +481,14 @@ export function Workflows() {
                               }}
                             >
                               <GitBranch size={16} />
+                            </button>
+                            <button
+                              className="btn-icon btn-ghost"
+                              title={t('workflows.export', 'Export (share as file)')}
+                              aria-label={t('workflows.export', 'Export (share as file)')}
+                              onClick={() => handleExport(wf)}
+                            >
+                              <Download size={16} />
                             </button>
                             <button
                               className="btn-icon btn-ghost btn-test"
