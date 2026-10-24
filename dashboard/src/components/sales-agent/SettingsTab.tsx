@@ -15,7 +15,7 @@ export function SettingsTab({ onChange }: { onChange: () => void }) {
   const sessions = useSessionsQuery().data ?? [];
   const [cfg, setCfg] = useState<SalesAgentConfig | null>(null);
   const [channels, setChannels] = useState<SalesChannelName[]>([]);
-  const [smtp, setSmtp] = useState<Array<{ id: string; name: string }>>([]);
+  const [smtp, setSmtp] = useState<Array<{ id: string; name: string; type: string }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -28,8 +28,14 @@ export function SettingsTab({ onChange }: { onChange: () => void }) {
         setChannels(res.channels);
         if (res.channels.includes('email')) {
           integrationApi
-            .list('email_smtp')
-            .then(list => setSmtp((list as Array<{ id: string; name: string }>).map(i => ({ id: i.id, name: i.name }))))
+            .list()
+            .then(list =>
+              setSmtp(
+                (list as Array<{ id: string; name: string; type: string }>)
+                  .filter(i => i.type === 'email_smtp' || i.type === 'google_gmail')
+                  .map(i => ({ id: i.id, name: i.name, type: i.type })),
+              ),
+            )
             .catch(() => setSmtp([]));
         }
       })
@@ -180,7 +186,7 @@ export function SettingsTab({ onChange }: { onChange: () => void }) {
           </label>
           <div className="sa-grid">
             <label>
-              SMTP account
+              Send from (Google or SMTP account)
               <select
                 className="input"
                 value={cfg.email.integrationId}
@@ -189,7 +195,7 @@ export function SettingsTab({ onChange }: { onChange: () => void }) {
                 <option value="">Choose an email integration</option>
                 {smtp.map(i => (
                   <option key={i.id} value={i.id}>
-                    {i.name}
+                    {i.name} ({i.type === 'google_gmail' ? 'Google' : 'SMTP'})
                   </option>
                 ))}
               </select>
@@ -200,7 +206,11 @@ export function SettingsTab({ onChange }: { onChange: () => void }) {
             <Text label="Opt-out line" value={cfg.email.optOutLine} onChange={optOutLine => set('email', { optOutLine })} />
             <Text label="Postal address" value={cfg.email.postalAddress} onChange={postalAddress => set('email', { postalAddress })} />
           </div>
-          <p className="sa-help">Add the SMTP account under Integrations first. IMAP uses the same login to read replies.</p>
+          <p className="sa-help">
+            Connect a Google account (Gmail) or add an SMTP account under Integrations first. With SMTP, replies are read
+            over IMAP with the same login. With Google, emails are sent but replies are not read automatically yet:
+            check the inbox yourself.
+          </p>
         </fieldset>
       ) : (
         <p className="sa-help">Email is switched off on this server (SALES_AGENT_EMAIL_ENABLED=false).</p>

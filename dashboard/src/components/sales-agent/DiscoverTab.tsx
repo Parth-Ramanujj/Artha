@@ -65,7 +65,7 @@ export function DiscoverTab({ onChange }: { onChange: () => void }) {
           />
         </label>
         <button className="btn btn-primary" type="submit" disabled={busy}>
-          <Search size={14} /> {busy ? 'Searching…' : 'Search'}
+          <Search size={14} /> {busy ? 'Searching… (up to a minute)' : 'Search'}
         </button>
       </form>
       <p className="sa-help">

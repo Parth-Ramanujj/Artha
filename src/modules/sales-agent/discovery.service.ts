@@ -11,6 +11,7 @@ const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 const MAX_PAGE_BYTES = 1_500_000;
 /** Search is limited to India: west, south, east, north. */
@@ -289,6 +290,9 @@ export class SalesDiscoveryService {
       const place = await this.findPlace(tokens.slice(-n).join(' '));
       if (place) return { what: tokens.slice(0, -n).join(' '), place };
     }
+    if (await this.findPlace(query)) {
+      throw new BadRequestException(`Add what kind of business to find, e.g. "insurance agent ${query.trim()}"`);
+    }
     if (location?.trim()) return { what: query, place: await this.geocode(location) };
     throw new BadRequestException(`Add a city or area in India, e.g. "${query} ahmedabad"`);
   }
@@ -355,23 +359,52 @@ export class SalesDiscoveryService {
     return place;
   }
 
+  /**
+   * Asks every mirror at once and takes the first answer; public Overpass servers are often slow, busy
+   * or rate-limiting (429), so a round where all of them fail is retried once after a short wait.
+   */
   private async overpass(query: string): Promise<OverpassElement[]> {
-    let lastError = '';
-    for (const mirror of OVERPASS_MIRRORS) {
+    for (let attempt = 1; ; attempt++) {
       try {
-        const res = await fetch(mirror, {
-          method: 'POST',
-          headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(query)}`,
-          signal: AbortSignal.timeout(75_000),
-        });
-        if (res.ok) return ((await res.json()) as { elements?: OverpassElement[] }).elements ?? [];
-        lastError = `${mirror} answered ${res.status}`;
+        return await this.overpassRound(query);
       } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err);
+        const reasons = err instanceof AggregateError ? err.errors.map(e => (e as Error).message) : [String(err)];
+        this.logger.warn(`Overpass attempt ${attempt} failed: ${reasons.join('; ')}`);
+        if (attempt >= 2) {
+          throw new BadRequestException(
+            'OpenStreetMap is busy right now. Try again in a minute or use a smaller radius.',
+          );
+        }
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
-    throw new BadRequestException(`OpenStreetMap search failed: ${lastError}`);
+  }
+
+  private async overpassRound(query: string): Promise<OverpassElement[]> {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 75_000);
+    try {
+      return await Promise.any(
+        OVERPASS_MIRRORS.map(async mirror => {
+          const res = await fetch(mirror, {
+            method: 'POST',
+            headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(query)}`,
+            signal: abort.signal,
+          });
+          if (!res.ok) throw new Error(`${new URL(mirror).host} answered ${res.status}`);
+          const body = (await res.json()) as { elements?: OverpassElement[]; remark?: string };
+          // A timed-out query comes back as 200 with a remark and partial or no data.
+          if (body.remark && /runtime error|timed out|out of memory/i.test(body.remark)) {
+            throw new Error(`${new URL(mirror).host}: ${body.remark}`);
+          }
+          return body.elements ?? [];
+        }),
+      );
+    } finally {
+      clearTimeout(timer);
+      abort.abort(); // stop the slower mirrors
+    }
   }
 
   private async log(businessId: string, type: string, details: Record<string, unknown>) {
