@@ -50,6 +50,7 @@ import { AiCallingModule } from './modules/ai-calling/ai-calling.module';
 import { MessageStudioModule } from './modules/message-studio/message-studio.module';
 import { WhatsAppFormModule } from './modules/whatsapp-form/whatsapp-form.module';
 import { IntegrationModule as IntegrationsModule } from './modules/integrations/integration.module';
+import { SalesAgentModule } from './modules/sales-agent/sales-agent.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -67,6 +68,13 @@ if (process.env.QUEUE_ENABLED === 'true') {
 const searchModules: Array<Type | DynamicModule> = [];
 if (process.env.SEARCH_ENABLED !== 'false') {
   searchModules.push(SearchModule);
+}
+
+// Autonomous sales agent (Harvey port). Opt-out via SALES_AGENT_ENABLED=false; its email channel alone
+// via SALES_AGENT_EMAIL_ENABLED=false (see sales-agent.module.ts). Its tables exist either way.
+const salesAgentModules: Array<Type | DynamicModule> = [];
+if (process.env.SALES_AGENT_ENABLED !== 'false') {
+  salesAgentModules.push(SalesAgentModule.register());
 }
 
 // Only mount the MCP server if explicitly enabled to avoid startup cost and
@@ -181,6 +189,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/ai-calling/**/*.entity{.ts,.js}',
             __dirname + '/modules/message-studio/**/*.entity{.ts,.js}',
             __dirname + '/modules/whatsapp-form/**/*.entity{.ts,.js}',
+            __dirname + '/modules/sales-agent/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -327,6 +336,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     IntegrationsModule, // CRM, e-commerce, and calendar integration stubs
     CloudApiWebhookModule, // Official WhatsApp Cloud API webhook receiver
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
+    ...salesAgentModules, // Sales agent: prospecting + WhatsApp/email outreach (opt-out via SALES_AGENT_ENABLED=false)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],

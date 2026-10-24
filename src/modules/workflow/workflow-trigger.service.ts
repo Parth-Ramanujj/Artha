@@ -18,6 +18,7 @@ import { AiAgentService } from '../ai/ai-agent.service';
 import { Optional } from '@nestjs/common';
 import { isFreshPersonalMessage, WORKFLOW_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
 import { DND_TAG, hasDndTag, isOptInMessage } from '../conversation/dnd';
+import { SALES_AGENT_TAG } from '../sales-agent/sales-rules';
 
 @Injectable()
 export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
@@ -205,8 +206,8 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     conv: Conversation | null,
   ): Promise<void> {
     if (!this.aiService) return;
-    // Once a person owns the chat the assistant must not talk over them.
-    if (conv?.assignedTo) return;
+    // Once a person owns the chat the assistant must not talk over them; the same for the sales agent's prospects.
+    if (conv?.assignedTo || conv?.tags?.includes(SALES_AGENT_TAG)) return;
 
     // A business agent whose keyword (or chat) this is answers instead of the general assistant, never both.
     const agentOutcome = this.aiAgents ? await this.aiAgents.autoReply(sessionId, businessId, msg) : 'skipped';

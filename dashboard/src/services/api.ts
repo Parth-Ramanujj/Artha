@@ -20,6 +20,18 @@ import type {
   WhatsAppForm,
   WhatsAppFormSubmission,
 } from '../types/whatsappForm';
+import type {
+  DiscoverResult,
+  NewProspect,
+  SalesActivity,
+  SalesAgentConfig,
+  SalesChannelName,
+  SalesCompany,
+  SalesConversation,
+  SalesOutboxItem,
+  SalesOverview,
+  SalesProspect,
+} from '../types/salesAgent';
 
 // Resolve the API base URL. By default this is the same-origin relative path '/api',
 // correct when the dashboard and API are served from the same origin (the default
@@ -2656,6 +2668,47 @@ export const whatsappFormApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+};
+
+// =============================================================================
+// Sales Agent API
+// =============================================================================
+
+const statusQuery = (status?: string) => (status ? `?status=${encodeURIComponent(status)}` : '');
+
+export const salesAgentApi = {
+  overview: () => request<SalesOverview>('/sales-agent/overview'),
+  getConfig: () => request<{ config: SalesAgentConfig; channels: SalesChannelName[] }>('/sales-agent/config'),
+  updateConfig: (input: Partial<SalesAgentConfig> & { confirm?: string }) =>
+    request<SalesAgentConfig>('/sales-agent/config', { method: 'PUT', body: JSON.stringify(input) }),
+  run: () => request<Record<string, unknown>>('/sales-agent/run', { method: 'POST' }),
+  companies: () => request<SalesCompany[]>('/sales-agent/companies'),
+  discover: (input: { query: string; location?: string; radiusKm?: number; limit?: number }) =>
+    request<DiscoverResult>('/sales-agent/discover', { method: 'POST', body: JSON.stringify(input) }),
+  prospects: (status?: string) => request<SalesProspect[]>(`/sales-agent/prospects${statusQuery(status)}`),
+  addProspects: (prospects: NewProspect[]) =>
+    request<{ added: number; skipped: number }>('/sales-agent/prospects', {
+      method: 'POST',
+      body: JSON.stringify({ prospects }),
+    }),
+  removeProspect: (id: string) =>
+    request<void>(`/sales-agent/prospects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  outbox: (status?: string) => request<SalesOutboxItem[]>(`/sales-agent/outbox${statusQuery(status)}`),
+  approve: (id: string) => request<unknown>(`/sales-agent/outbox/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  reject: (id: string) => request<unknown>(`/sales-agent/outbox/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
+  approveAll: () => request<{ approved: number; held: number }>('/sales-agent/outbox/approve-all', { method: 'POST' }),
+  edit: (id: string, input: { subject?: string; body: string }) =>
+    request<SalesOutboxItem>(`/sales-agent/outbox/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  conversations: () => request<SalesConversation[]>('/sales-agent/conversations'),
+  setConversationStatus: (id: string, status: SalesConversation['status']) =>
+    request<SalesConversation>(`/sales-agent/conversations/${encodeURIComponent(id)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+  activity: () => request<SalesActivity[]>('/sales-agent/activity'),
 };
 
 export const messageStudioApi = {

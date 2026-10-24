@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
+  Briefcase,
   LayoutDashboard,
   Smartphone,
   MessageSquare,
@@ -96,6 +97,7 @@ const allNavItems = [
   { to: '/sync', icon: RefreshCw, key: 'sync' as const, adminOnly: true },
   { to: '/followup', icon: UserSearch, key: 'followup' as const, adminOnly: false },
   { to: '/sales-pipeline', icon: TrendingUp, key: 'salesPipeline' as const, adminOnly: false },
+  { to: '/sales-agent', icon: Briefcase, key: 'salesAgent' as const, adminOnly: false },
   { to: '/leads', icon: Target, key: 'leads' as const, adminOnly: false },
   { to: '/ai-calling', icon: PhoneCall, key: 'aiCalling' as const, adminOnly: false },
   { to: '/ai-agents', icon: Sparkles, key: 'aiAgents' as const, adminOnly: false },
@@ -134,6 +136,7 @@ const navSections: { id: string; paths: string[] }[] = [
       '/campaigns',
       '/ai',
       '/ai-agents',
+      '/sales-agent',
       '/chatbot-training',
       '/assignment-rules',
       '/followup',
