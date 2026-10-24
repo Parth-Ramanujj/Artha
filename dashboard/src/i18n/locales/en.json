@@ -1304,7 +1304,7 @@
       "speaking": "Agent is speaking",
       "listening": "Listening — speak now",
       "idle": "Test the agent with your voice",
-      "headphones": "Use headphones so the agent does not hear itself. Talk in Gujarati or Hindi and interrupt it any time, like a real customer.",
+      "headphones": "Talk in Gujarati or Hindi like a real customer. Your microphone pauses while the agent speaks, so wait for it to finish before you reply.",
       "hangUp": "Hang up",
       "start": "Start test call",
       "analysing": "Analysing the call…",

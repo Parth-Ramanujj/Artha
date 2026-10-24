@@ -1,6 +1,8 @@
 import type { AiCallTurn } from '../../services/api';
 
 const PHONE_RATE = 8000;
+/** Room echo lingers a moment after the last agent audio ends. */
+const ECHO_TAIL_S = 0.25;
 const MULAW_BIAS = 0x84;
 const MULAW_CLIP = 32635;
 
@@ -120,10 +122,14 @@ export class BrowserCall {
       const input = e.inputBuffer.getChannelData(0);
       const low = downsample(input, ctx.sampleRate);
       const bytes = new Uint8Array(low.length);
+      // Phone speakers leak the agent's voice into the mic (Android does not cancel Web Audio echo),
+      // which the server heard as "okay / thank you" turns; send silence while the agent plays.
+      const muted = this.playing.length > 0 || ctx.currentTime < this.playUntil + ECHO_TAIL_S;
       let peak = 0;
       for (let i = 0; i < low.length; i++) {
-        bytes[i] = encodeMulaw(low[i]);
-        peak = Math.max(peak, Math.abs(low[i]));
+        const sample = muted ? 0 : low[i];
+        bytes[i] = encodeMulaw(sample);
+        peak = Math.max(peak, Math.abs(sample));
       }
       this.handlers.onLevel?.(peak);
       this.ws.send(JSON.stringify({ type: 'audio', audio: toBase64(bytes) }));
