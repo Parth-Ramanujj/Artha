@@ -32,6 +32,13 @@ import type {
   SalesOverview,
   SalesProspect,
 } from '../types/salesAgent';
+import type {
+  GbpConfig,
+  GbpLocation,
+  GbpOverview,
+  GbpReview,
+  GbpSyncSummary,
+} from '../types/googleBusiness';
 
 // Resolve the API base URL. By default this is the same-origin relative path '/api',
 // correct when the dashboard and API are served from the same origin (the default
@@ -2709,6 +2716,69 @@ export const salesAgentApi = {
       body: JSON.stringify({ status }),
     }),
   activity: () => request<SalesActivity[]>('/sales-agent/activity'),
+};
+
+export const googleBusinessApi = {
+  overview: () => request<GbpOverview>('/google-business/overview'),
+  getConfig: () =>
+    request<{ config: GbpConfig; connections: Array<{ id: string; name: string; status: string }> }>(
+      '/google-business/config',
+    ),
+  updateConfig: (input: Partial<GbpConfig>) =>
+    request<GbpConfig>('/google-business/config', { method: 'PUT', body: JSON.stringify(input) }),
+  accounts: (integrationId: string) =>
+    request<Array<{ name: string; accountName: string; type: string }>>(
+      `/google-business/accounts?integrationId=${encodeURIComponent(integrationId)}`,
+    ),
+  locations: (integrationId: string, account: string) =>
+    request<GbpLocation[]>(
+      `/google-business/locations?integrationId=${encodeURIComponent(integrationId)}&account=${encodeURIComponent(account)}`,
+    ),
+  sync: () => request<GbpSyncSummary>('/google-business/sync', { method: 'POST' }),
+  reviews: (filter: { status?: string; stars?: number; location?: string; search?: string } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, String(v));
+    const query = qs.toString();
+    return request<GbpReview[]>(`/google-business/reviews${query ? `?${query}` : ''}`);
+  },
+  redraft: (id: string) =>
+    request<GbpReview>(`/google-business/reviews/${encodeURIComponent(id)}/draft`, { method: 'POST' }),
+  saveDraft: (id: string, text: string) =>
+    request<GbpReview>(`/google-business/reviews/${encodeURIComponent(id)}/draft`, {
+      method: 'PUT',
+      body: JSON.stringify({ text }),
+    }),
+  publish: (id: string, text?: string) =>
+    request<GbpReview>(`/google-business/reviews/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(text === undefined ? {} : { text }),
+    }),
+  publishAll: () =>
+    request<{ published: number; failed: number }>('/google-business/reviews/publish-all', { method: 'POST' }),
+  deleteReply: (id: string) =>
+    request<GbpReview>(`/google-business/reviews/${encodeURIComponent(id)}/reply`, { method: 'DELETE' }),
+  skip: (id: string, skipped: boolean) =>
+    request<GbpReview>(`/google-business/reviews/${encodeURIComponent(id)}/skip`, {
+      method: 'POST',
+      body: JSON.stringify({ skipped }),
+    }),
+  requestReviews: (input: {
+    sessionId: string;
+    locationName?: string;
+    message?: string;
+    contacts: Array<{ name?: string; phone: string }>;
+  }) =>
+    request<{ sent: number; failed: Array<{ phone: string; error: string }> }>('/google-business/review-requests', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  writePost: (topic: string) =>
+    request<{ summary: string }>('/google-business/posts/write', { method: 'POST', body: JSON.stringify({ topic }) }),
+  createPost: (input: { summary: string; url?: string; locationNames?: string[] }) =>
+    request<{ posted: string[]; failed: Array<{ location: string; error: string }> }>('/google-business/posts', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
 
 export const messageStudioApi = {

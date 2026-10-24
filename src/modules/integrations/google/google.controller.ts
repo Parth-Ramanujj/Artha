@@ -190,6 +190,10 @@ export class GoogleController {
           message: `Test row added to ${String((res.updates as { updatedRange?: string })?.updatedRange ?? range)}`,
         };
       }
+      case 'business': {
+        const accounts = await this.google.gbpAccounts(integration);
+        return { success: true, message: `Found ${accounts.length} Business Profile account(s)` };
+      }
       default:
         throw new BadRequestException('Unknown Google service');
     }

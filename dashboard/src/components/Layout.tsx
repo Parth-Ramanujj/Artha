@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Briefcase,
+  Store,
   LayoutDashboard,
   Smartphone,
   MessageSquare,
@@ -98,6 +99,7 @@ const allNavItems = [
   { to: '/followup', icon: UserSearch, key: 'followup' as const, adminOnly: false },
   { to: '/sales-pipeline', icon: TrendingUp, key: 'salesPipeline' as const, adminOnly: false },
   { to: '/sales-agent', icon: Briefcase, key: 'salesAgent' as const, adminOnly: false },
+  { to: '/google-business', icon: Store, key: 'googleBusiness' as const, adminOnly: false },
   { to: '/leads', icon: Target, key: 'leads' as const, adminOnly: false },
   { to: '/ai-calling', icon: PhoneCall, key: 'aiCalling' as const, adminOnly: false },
   { to: '/ai-agents', icon: Sparkles, key: 'aiAgents' as const, adminOnly: false },
@@ -137,6 +139,7 @@ const navSections: { id: string; paths: string[] }[] = [
       '/ai',
       '/ai-agents',
       '/sales-agent',
+      '/google-business',
       '/chatbot-training',
       '/assignment-rules',
       '/followup',

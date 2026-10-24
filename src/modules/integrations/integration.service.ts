@@ -317,6 +317,12 @@ export class IntegrationService {
         category: 'google',
         description: 'Files this app creates in your Google Drive',
       },
+      {
+        type: IntegrationType.GOOGLE_BUSINESS,
+        label: 'Google Business Profile',
+        category: 'google',
+        description: 'Read reviews, reply to them and publish posts',
+      },
     ];
   }
 }

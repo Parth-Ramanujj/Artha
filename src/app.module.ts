@@ -51,6 +51,7 @@ import { MessageStudioModule } from './modules/message-studio/message-studio.mod
 import { WhatsAppFormModule } from './modules/whatsapp-form/whatsapp-form.module';
 import { IntegrationModule as IntegrationsModule } from './modules/integrations/integration.module';
 import { SalesAgentModule } from './modules/sales-agent/sales-agent.module';
+import { GoogleBusinessModule } from './modules/google-business/google-business.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -75,6 +76,12 @@ if (process.env.SEARCH_ENABLED !== 'false') {
 const salesAgentModules: Array<Type | DynamicModule> = [];
 if (process.env.SALES_AGENT_ENABLED !== 'false') {
   salesAgentModules.push(SalesAgentModule.register());
+}
+
+// Google Business Profile reviews/replies/posts. Opt-out via GOOGLE_BUSINESS_ENABLED=false; its tables exist either way.
+const googleBusinessModules: Array<Type | DynamicModule> = [];
+if (process.env.GOOGLE_BUSINESS_ENABLED !== 'false') {
+  googleBusinessModules.push(GoogleBusinessModule);
 }
 
 // Only mount the MCP server if explicitly enabled to avoid startup cost and
@@ -190,6 +197,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/message-studio/**/*.entity{.ts,.js}',
             __dirname + '/modules/whatsapp-form/**/*.entity{.ts,.js}',
             __dirname + '/modules/sales-agent/**/*.entity{.ts,.js}',
+            __dirname + '/modules/google-business/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -337,6 +345,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     CloudApiWebhookModule, // Official WhatsApp Cloud API webhook receiver
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...salesAgentModules, // Sales agent: prospecting + WhatsApp/email outreach (opt-out via SALES_AGENT_ENABLED=false)
+    ...googleBusinessModules, // Google Business Profile: review replies, alerts, review requests, posts
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],

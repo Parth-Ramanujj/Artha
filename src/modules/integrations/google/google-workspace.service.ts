@@ -20,6 +20,11 @@ export const GOOGLE_SERVICES = {
     name: 'Google Drive',
     scope: 'https://www.googleapis.com/auth/drive.file',
   },
+  business: {
+    label: 'Google Business Profile (reviews and posts)',
+    name: 'Google Business Profile',
+    scope: 'https://www.googleapis.com/auth/business.manage',
+  },
 } as const;
 
 export type GoogleServiceId = keyof typeof GOOGLE_SERVICES;
@@ -36,6 +41,7 @@ export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceId> = {
   [IntegrationType.GOOGLE_CALENDAR]: 'calendar',
   [IntegrationType.GOOGLE_SHEETS]: 'sheets',
   [IntegrationType.GOOGLE_DRIVE]: 'drive',
+  [IntegrationType.GOOGLE_BUSINESS]: 'business',
 };
 
 const GOOGLE_TYPE_BY_SERVICE: Record<GoogleServiceId, IntegrationType> = {
@@ -43,6 +49,7 @@ const GOOGLE_TYPE_BY_SERVICE: Record<GoogleServiceId, IntegrationType> = {
   calendar: IntegrationType.GOOGLE_CALENDAR,
   sheets: IntegrationType.GOOGLE_SHEETS,
   drive: IntegrationType.GOOGLE_DRIVE,
+  business: IntegrationType.GOOGLE_BUSINESS,
 };
 
 export function isGoogleType(type: string): boolean {
@@ -52,6 +59,9 @@ export function isGoogleType(type: string): boolean {
 export function googleServiceForType(type: string): GoogleServiceId | null {
   return GOOGLE_TYPE_SERVICE[type] ?? null;
 }
+
+const GBP_LOCATION_RE = /^accounts\/[\w-]+\/locations\/[\w-]+$/;
+const GBP_REVIEW_RE = /^accounts\/[\w-]+\/locations\/[\w-]+\/reviews\/[\w-]+$/;
 
 const IDENTITY_SCOPES = ['openid', 'email', 'profile'];
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -489,6 +499,98 @@ export class GoogleWorkspaceService {
     return this.api(token, 'GET', url.toString());
   }
 
+  /** Business Profile accounts this Google login manages (personal and location groups). */
+  async gbpAccounts(integration: Integration): Promise<Array<{ name: string; accountName: string; type: string }>> {
+    this.requireService(integration, 'business');
+    const token = await this.accessToken(integration);
+    const res = await this.api(token, 'GET', 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts');
+    const accounts = Array.isArray(res.accounts) ? (res.accounts as Array<Record<string, unknown>>) : [];
+    return accounts.map(a => ({
+      name: String(a.name ?? ''),
+      accountName: String(a.accountName ?? a.name ?? ''),
+      type: String(a.type ?? ''),
+    }));
+  }
+
+  /** Locations of one account, with the write-a-review link Google gives each one. */
+  async gbpLocations(
+    integration: Integration,
+    account: string,
+  ): Promise<Array<{ name: string; title: string; address: string; reviewUrl: string; mapsUrl: string }>> {
+    this.requireService(integration, 'business');
+    if (!/^accounts\/[\w-]+$/.test(account)) throw new BadRequestException('Pick a valid Business Profile account');
+    const token = await this.accessToken(integration);
+    const out: Array<{ name: string; title: string; address: string; reviewUrl: string; mapsUrl: string }> = [];
+    let pageToken = '';
+    do {
+      const url = new URL(`https://mybusinessbusinessinformation.googleapis.com/v1/${account}/locations`);
+      url.searchParams.set('readMask', 'name,title,storefrontAddress,metadata');
+      url.searchParams.set('pageSize', '100');
+      if (pageToken) url.searchParams.set('pageToken', pageToken);
+      const res = await this.api(token, 'GET', url.toString());
+      for (const l of (Array.isArray(res.locations) ? res.locations : []) as Array<Record<string, unknown>>) {
+        const addr = (l.storefrontAddress ?? {}) as { addressLines?: string[]; locality?: string };
+        const meta = (l.metadata ?? {}) as { newReviewUri?: string; mapsUri?: string };
+        out.push({
+          // v4 review endpoints want the full accounts/x/locations/y path
+          name: `${account}/${String(l.name ?? '')}`,
+          title: String(l.title ?? ''),
+          address: [...(addr.addressLines ?? []), addr.locality].filter(Boolean).join(', '),
+          reviewUrl: meta.newReviewUri ?? '',
+          mapsUrl: meta.mapsUri ?? '',
+        });
+      }
+      pageToken = typeof res.nextPageToken === 'string' ? res.nextPageToken : '';
+    } while (pageToken && out.length < 500);
+    return out;
+  }
+
+  /** One page of a location's reviews, newest first, plus Google's own average and total. */
+  async gbpReviews(integration: Integration, location: string, pageToken = '') {
+    this.requireService(integration, 'business');
+    if (!GBP_LOCATION_RE.test(location)) throw new BadRequestException('Invalid Business Profile location');
+    const token = await this.accessToken(integration);
+    const url = new URL(`https://mybusiness.googleapis.com/v4/${location}/reviews`);
+    url.searchParams.set('pageSize', '50');
+    url.searchParams.set('orderBy', 'updateTime desc');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+    const res = await this.api(token, 'GET', url.toString());
+    return {
+      reviews: (Array.isArray(res.reviews) ? res.reviews : []) as Array<Record<string, unknown>>,
+      averageRating: Number(res.averageRating) || 0,
+      totalReviewCount: Number(res.totalReviewCount) || 0,
+      nextPageToken: typeof res.nextPageToken === 'string' ? res.nextPageToken : '',
+    };
+  }
+
+  /** Posts (or replaces) the owner's public reply to a review. */
+  async gbpReply(integration: Integration, review: string, comment: string) {
+    this.requireService(integration, 'business');
+    if (!GBP_REVIEW_RE.test(review)) throw new BadRequestException('Invalid review');
+    const token = await this.accessToken(integration);
+    return this.api(token, 'PUT', `https://mybusiness.googleapis.com/v4/${review}/reply`, { comment });
+  }
+
+  async gbpDeleteReply(integration: Integration, review: string) {
+    this.requireService(integration, 'business');
+    if (!GBP_REVIEW_RE.test(review)) throw new BadRequestException('Invalid review');
+    const token = await this.accessToken(integration);
+    return this.api(token, 'DELETE', `https://mybusiness.googleapis.com/v4/${review}/reply`);
+  }
+
+  /** Publishes an update ("What's new" post) on a location's profile. */
+  async gbpCreatePost(integration: Integration, location: string, post: { summary: string; url?: string }) {
+    this.requireService(integration, 'business');
+    if (!GBP_LOCATION_RE.test(location)) throw new BadRequestException('Invalid Business Profile location');
+    const token = await this.accessToken(integration);
+    return this.api(token, 'POST', `https://mybusiness.googleapis.com/v4/${location}/localPosts`, {
+      languageCode: 'en',
+      topicType: 'STANDARD',
+      summary: post.summary,
+      ...(post.url ? { callToAction: { actionType: 'LEARN_MORE', url: post.url } } : {}),
+    });
+  }
+
   readConfig(integration: Integration): GoogleConfig {
     const c = (integration.config ?? {}) as Partial<GoogleConfig>;
     if (!c.refreshToken || !Array.isArray(c.services)) {
@@ -528,7 +630,7 @@ export class GoogleWorkspaceService {
 
   private async api(
     token: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
     body?: unknown,
   ): Promise<Record<string, unknown>> {

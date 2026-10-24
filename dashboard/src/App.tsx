@@ -45,6 +45,7 @@ const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads }
 const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
 const WhatsAppForms = lazy(() => import('./pages/WhatsAppForms').then(m => ({ default: m.WhatsAppForms })));
 const SalesAgent = lazy(() => import('./pages/SalesAgent').then(m => ({ default: m.SalesAgent })));
+const GoogleBusiness = lazy(() => import('./pages/GoogleBusiness').then(m => ({ default: m.GoogleBusiness })));
 const WhatsAppFormBuilder = lazy(() => import('./pages/WhatsAppFormBuilder').then(m => ({ default: m.WhatsAppFormBuilder })));
 const MessageComposer = lazy(() => import('./pages/MessageComposer').then(m => ({ default: m.MessageComposer })));
 const AiCalling = lazy(() => import('./pages/AiCalling').then(m => ({ default: m.AiCalling })));
@@ -186,6 +187,7 @@ function AppContent() {
               <Route path="wa-pricing" element={<WaPricingRules />} />
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="sales-agent" element={<SalesAgent />} />
+              <Route path="google-business" element={<GoogleBusiness />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />
               {role === 'admin' && <Route path="roles" element={<RolesManagement />} />}

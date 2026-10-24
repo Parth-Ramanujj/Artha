@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ExternalLink, FileSpreadsheet, Play } from 'lucide-react';
 import { googleApi } from '../../services/api';
 
-export type GoogleServiceChoice = 'gmail' | 'calendar' | 'sheets' | 'drive';
+export type GoogleServiceChoice = 'gmail' | 'calendar' | 'sheets' | 'drive' | 'business';
 
 /** Which Google service each integration type connects. */
 export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceChoice> = {
@@ -10,6 +10,7 @@ export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceChoice> = {
   google_calendar: 'calendar',
   google_sheets: 'sheets',
   google_drive: 'drive',
+  google_business: 'business',
 };
 
 export function isGoogleType(type: string): boolean {
@@ -21,6 +22,7 @@ const SERVICE_HINT: Record<GoogleServiceChoice, string> = {
   calendar: 'Reads upcoming events and creates bookings in your calendar.',
   sheets: 'Adds rows to a spreadsheet you choose.',
   drive: 'Works with files this app creates in your Drive.',
+  business: 'Reads your Google reviews, replies to them and publishes posts. Set it up under Google Business.',
 };
 
 interface GoogleServiceFieldsProps {
@@ -142,6 +144,17 @@ export function GoogleServiceFields({
               onClick={() => run(() => onRunTest(integrationId, { service: 'calendar' }))}
             >
               <Play size={14} /> Read upcoming events
+            </button>
+          )}
+
+          {service === 'business' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => run(() => onRunTest(integrationId, { service: 'business' }))}
+            >
+              <Play size={14} /> Check Business Profile access
             </button>
           )}
 
