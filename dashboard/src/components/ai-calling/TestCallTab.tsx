@@ -21,7 +21,10 @@ export function TestCallTab({ agentId, setup }: { agentId?: string; setup?: AiCa
   const transcriptEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => call.current?.hangup(), []);
-  useEffect(() => transcriptEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), [turns]);
+  // Braces matter: newer Chrome returns a Promise from scrollIntoView, which React would call as the cleanup.
+  useEffect(() => {
+    transcriptEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [turns]);
 
   // The analysis runs right after the call; fetch it once it is there.
   useEffect(() => {
