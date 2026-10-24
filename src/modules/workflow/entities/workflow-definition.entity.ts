@@ -76,6 +76,8 @@ export enum ActionType {
   DYNAMIC_LANGUAGE_SWITCHER = 'dynamic_language_switcher',
   /** Sends a published Message Studio message (text, media, buttons, list, products, template…). */
   SEND_STUDIO_MESSAGE = 'send_studio_message',
+  /** Sends a published WhatsApp Form and (by default) waits for the customer to submit it. */
+  SEND_WHATSAPP_FORM = 'send_whatsapp_form',
   SHEETS_LOOKUP = 'sheets_lookup',
 }
 

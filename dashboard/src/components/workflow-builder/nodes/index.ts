@@ -26,12 +26,14 @@ import { PaymentLinkNode } from './PaymentLinkNode';
 import { AiOcrNode } from './AiOcrNode';
 import { CarouselTemplateNode } from './CarouselTemplateNode';
 import { StudioMessageNode } from './StudioMessageNode';
+import { WhatsAppFormNode } from './WhatsAppFormNode';
 
 export const nodeTypes = {
   trigger: TriggerNode,
   send_message: MessageNode,
   interactive_buttons: ButtonsNode,
   send_studio_message: StudioMessageNode,
+  send_whatsapp_form: WhatsAppFormNode,
   ask_question: QuestionNode,
   condition_branch: BranchNode,
   wait: DelayNode,

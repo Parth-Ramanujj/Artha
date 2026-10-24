@@ -24,6 +24,7 @@ import { ConversationModule } from '../conversation/conversation.module';
 import { MessageModule } from '../message/message.module';
 import { AiModule } from '../ai/ai.module';
 import { MessageStudioModule } from '../message-studio/message-studio.module';
+import { WhatsAppFormModule } from '../whatsapp-form/whatsapp-form.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { MessageStudioModule } from '../message-studio/message-studio.module';
     MessageModule,
     AiModule,
     MessageStudioModule,
+    WhatsAppFormModule,
     GoogleIntegrationsModule,
   ],
   controllers: [WorkflowController, WorkflowAnalyticsController, AbTestController],

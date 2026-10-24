@@ -41,6 +41,7 @@ export type CanvasNodeType =
   | 'interactive_cta_template'
   | 'dynamic_language_switcher'
   | 'send_studio_message'
+  | 'send_whatsapp_form'
   | 'schedule_followup';
 
 export interface ButtonItem {

@@ -139,6 +139,7 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
         const outcome = await this.executor.resume(pausedWf, activePausedRun, ctx, msg.body || '', {
           id: msg.id,
           timestamp: msg.timestamp,
+          flowReply: msg.flowReply,
         });
         // 'restart' ("menu", "hi"…) ended the wait; let the message start workflows like a new chat.
         if (outcome !== 'restart') return;

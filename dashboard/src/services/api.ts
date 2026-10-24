@@ -13,6 +13,13 @@ import type {
   StudioTestResult,
   ValidationResult,
 } from '../types/messageStudio';
+import type {
+  FlowCategory,
+  FormDefinition,
+  PublishResult,
+  WhatsAppForm,
+  WhatsAppFormSubmission,
+} from '../types/whatsappForm';
 
 // Resolve the API base URL. By default this is the same-origin relative path '/api',
 // correct when the dashboard and API are served from the same origin (the default
@@ -2626,6 +2633,30 @@ export const aiCopilotApi = {
 // =============================================================================
 // Message Studio API
 // =============================================================================
+
+// WhatsApp Forms API
+// =============================================================================
+
+export const whatsappFormApi = {
+  list: () => request<WhatsAppForm[]>('/whatsapp-forms'),
+  get: (id: string) => request<WhatsAppForm>(`/whatsapp-forms/${encodeURIComponent(id)}`),
+  create: (input: { name: string; category: FlowCategory; definition: FormDefinition }) =>
+    request<WhatsAppForm>('/whatsapp-forms', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: { name?: string; category?: FlowCategory; definition?: FormDefinition }) =>
+    request<WhatsAppForm>(`/whatsapp-forms/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
+  remove: (id: string) => request<void>(`/whatsapp-forms/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  submissions: (id: string) => request<WhatsAppFormSubmission[]>(`/whatsapp-forms/${encodeURIComponent(id)}/submissions`),
+  publish: (id: string, sessionId: string) =>
+    request<PublishResult>(`/whatsapp-forms/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    }),
+  send: (id: string, input: { sessionId: string; phone: string; bodyText?: string }) =>
+    request<{ messageId: string }>(`/whatsapp-forms/${encodeURIComponent(id)}/send`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+};
 
 export const messageStudioApi = {
   capabilities: (sessionId?: string) =>

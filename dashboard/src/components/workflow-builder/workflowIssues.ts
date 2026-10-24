@@ -46,6 +46,9 @@ export function collectWorkflowIssues(nodes: CanvasNodeLike[], edges: CanvasEdge
     if (n.type === 'send_studio_message' && !cfg.studioMessageId) {
       error(`"${label}" needs a saved message chosen.`, n.id);
     }
+    if (n.type === 'send_whatsapp_form' && !cfg.formId) {
+      error(`"${label}" needs a published WhatsApp Form chosen.`, n.id);
+    }
     if (n.type === 'interactive_buttons' && (!Array.isArray(cfg.buttons) || cfg.buttons.length === 0)) {
       error(`"${label}" needs at least one button.`, n.id);
     }

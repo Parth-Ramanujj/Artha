@@ -2,6 +2,7 @@ import { SheetsLookupPicker } from './SheetsLookupPicker';
 import { EmailConnectionSelect } from './EmailConnectionSelect';
 import { useState, useEffect, useMemo } from 'react';
 import { StudioMessagePicker } from './StudioMessagePicker';
+import { WhatsAppFormPicker } from './WhatsAppFormPicker';
 import {
   X,
   Trash2,
@@ -22,6 +23,7 @@ import {
   Search,
   HelpCircle,
   Send,
+  FileText,
   Bot,
   GitBranch,
   CheckCircle2,
@@ -75,6 +77,8 @@ function getNodeIcon(nodeType: string) {
       return <Send size={13} />;
     case 'send_studio_message':
       return <Send size={13} />;
+    case 'send_whatsapp_form':
+      return <FileText size={13} />;
     case 'set_fields':
       return <Sliders size={13} />;
     case 'filter':
@@ -1715,6 +1719,7 @@ export function NodeInspector({
 
             {/* MESSAGE STUDIO NODE */}
             {type === 'send_studio_message' && <StudioMessagePicker config={config} onChange={updateConfigPatch} />}
+            {type === 'send_whatsapp_form' && <WhatsAppFormPicker config={config} onChange={updateConfigPatch} />}
             {type === 'sheets_lookup' && (
               <SheetsLookupPicker nodeId={id} config={config} onChange={updateConfigPatch} />
             )}

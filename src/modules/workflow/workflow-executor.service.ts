@@ -16,6 +16,7 @@ import {
 import { WorkflowRun, RunStatus, StepResult } from './entities/workflow-run.entity';
 import { WorkflowService } from './workflow.service';
 import { MessageStudioService } from '../message-studio/message-studio.service';
+import { WhatsAppFormService } from '../whatsapp-form/whatsapp-form.service';
 import { IntegrationService } from '../integrations/integration.service';
 import { IntegrationType } from '../integrations/entities/integration.entity';
 import { GoogleWorkspaceService } from '../integrations/google/google-workspace.service';
@@ -162,9 +163,20 @@ const CUSTOMER_MESSAGING_ACTIONS = new Set<string>([
   ActionType.SEND_CAROUSEL_TEMPLATE,
   ActionType.INTERACTIVE_CTA_TEMPLATE,
   ActionType.SEND_STUDIO_MESSAGE,
+  ActionType.SEND_WHATSAPP_FORM,
   ActionType.WEBHOOK_CALL,
   ActionType.GOOGLE_SHEETS,
 ]);
+
+/**
+ * A submitted form's answers as workflow variables, one per field: checkbox picks joined with ", ",
+ * everything else as text, so {{field_name}} reads naturally in a later message.
+ */
+export function formAnswerVariables(answers: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(answers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value)]),
+  );
+}
 
 /** A menu button id stored as a lead value: "btn_mutual_fund" → "mutual_fund", "btn_cat_health" → "health". */
 export function menuChoiceValue(value: string): string {
@@ -289,6 +301,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     private readonly integrationsService?: IntegrationService,
     @Optional()
     private readonly googleService?: GoogleWorkspaceService,
+    @Optional()
+    private readonly whatsappForms?: WhatsAppFormService,
   ) {}
 
   onModuleInit(): void {
@@ -729,6 +743,9 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
       case ActionType.SEND_STUDIO_MESSAGE:
         return this.actionSendStudioMessage(action, ctx, run);
+
+      case ActionType.SEND_WHATSAPP_FORM:
+        return this.actionSendWhatsAppForm(action, ctx, run);
 
       case ActionType.SHEETS_LOOKUP:
         return this.actionSheetsLookup(action, ctx, run);
@@ -1369,6 +1386,63 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       choices: result.choices,
       suspended: waits,
     };
+  }
+
+  /**
+   * Sends a published WhatsApp Form. By default the run waits for the customer to submit it, then
+   * each answer becomes a variable named after its field ({{full_name}}) and the flow continues.
+   */
+  private async actionSendWhatsAppForm(
+    action: WorkflowAction,
+    ctx: TriggerContext,
+    run?: WorkflowRun,
+  ): Promise<Record<string, unknown>> {
+    const formId = typeof action.config['formId'] === 'string' ? action.config['formId'] : '';
+    if (!formId) throw new Error('Choose a WhatsApp Form for this step');
+    if (!ctx.sessionId || !ctx.chatId) throw new Error('No session/chat context for WhatsApp Form');
+    const waitForSubmit = action.config['waitForSubmit'] !== false;
+
+    if (this.isDryRun(ctx, action)) {
+      this.logger.log(`Workflow WhatsApp form (simulated dry-run): chat=${ctx.chatId} form=${formId}`);
+      return {
+        sent: true,
+        simulated: true,
+        dryRun: true,
+        formId,
+        formName: action.config['formName'],
+        chatId: ctx.chatId,
+      };
+    }
+    if (!this.whatsappForms) throw new Error('WhatsApp Forms is not available');
+
+    const rawBody = action.config['bodyText'];
+    const sent = await this.whatsappForms.sendForWorkflow({
+      businessId: ctx.businessId,
+      formId,
+      sessionId: ctx.sessionId,
+      chatId: ctx.chatId,
+      bodyText:
+        typeof rawBody === 'string' && rawBody.trim() ? this.interpolateVariables(rawBody, ctx, run) : undefined,
+    });
+
+    const waits = Boolean(run) && waitForSubmit;
+    if (waits && run) {
+      const timeoutMinutes = Number(action.config['timeoutMinutes'] || 1440);
+      await this.workflowService.updateRunTriggerData(run.id, {
+        ...(run.triggerData || {}),
+        chatId: ctx.chatId,
+        currentNodeId: action.id,
+        waitingForInput: true,
+        expectedInputType: 'whatsapp_form',
+        formId,
+        flowToken: sent.flowToken,
+        pausedAt: new Date().toISOString(),
+        timeoutMinutes,
+        timeoutAt: new Date(Date.now() + timeoutMinutes * 60 * 1000).toISOString(),
+      });
+    }
+
+    return { sent: true, formId, formName: sent.formName, messageId: sent.messageId, suspended: waits };
   }
 
   private async actionAskQuestion(
@@ -2052,7 +2126,11 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     run: WorkflowRun,
     ctx: TriggerContext,
     userReply: string,
-    message: { id?: string; timestamp?: number } = {},
+    message: {
+      id?: string;
+      timestamp?: number;
+      flowReply?: { flowToken: string; answers: Record<string, unknown> };
+    } = {},
   ): Promise<ResumeOutcome> {
     const triggerData = (run.triggerData || {}) as Record<string, any>;
     if (!triggerData.waitingForInput) return 'ignored';
@@ -2065,9 +2143,24 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const pausedAtSec = Math.floor(Date.parse(String(triggerData.pausedAt ?? '')) / 1000);
     if (message.timestamp && Number.isFinite(pausedAtSec) && message.timestamp < pausedAtSec) return 'ignored';
 
+    // A run waiting for a form takes only that form's submission. Other messages pass it by, except
+    // the stop / restart words, which still end the wait.
+    if (triggerData.expectedInputType === 'whatsapp_form') {
+      if (message.flowReply) {
+        if (message.flowReply.flowToken !== triggerData.flowToken) return 'ignored';
+        triggerData.formAnswers = message.flowReply.answers;
+      } else {
+        const word = userReply
+          .trim()
+          .toLowerCase()
+          .replace(/[\s!.]+$/, '');
+        if (!STOP_WORDS.has(word) && !RESTART_WORDS.has(word)) return 'ignored';
+      }
+    }
+
     const reply = userReply.trim();
     // Stickers, voice notes and captionless media carry no answer; stay quiet instead of "Invalid choice".
-    if (!reply) return 'ignored';
+    if (!reply && !message.flowReply) return 'ignored';
 
     if (!(await this.workflowService.claimPausedRun(run.id))) return 'ignored';
 
@@ -2217,6 +2310,19 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           }
         }
       }
+    }
+
+    if (inputType === 'whatsapp_form') {
+      const answers = (triggerData.formAnswers || {}) as Record<string, unknown>;
+      const captured = (triggerData.capturedVariables || {}) as Record<string, unknown>;
+      const outputs = triggerData.stepOutputs as Record<string, unknown>;
+      const nodeId = triggerData.currentNodeId as string | undefined;
+      delete triggerData.formAnswers;
+      triggerData.waitingForInput = false;
+      triggerData.capturedVariables = { ...captured, ...formAnswerVariables(answers) };
+      const formOutput = { submitted: true, formId: triggerData.formId as string, answers };
+      if (nodeId) outputs[nodeId] = formOutput;
+      outputs['last'] = formOutput;
     }
 
     await this.workflowService.updateRunTriggerData(run.id, triggerData);

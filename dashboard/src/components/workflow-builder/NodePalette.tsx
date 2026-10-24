@@ -24,6 +24,7 @@ import {
   Shield,
   MapPin,
   Palette,
+  FileText,
 } from 'lucide-react';
 import type { CanvasNodeType, NodePaletteItem } from './types';
 
@@ -39,6 +40,14 @@ export const PALETTE_ITEMS: NodePaletteItem[] = [
     description: 'Send a saved Message Studio message — buttons and lists branch the flow',
     iconName: 'studio',
     defaultConfig: { studioMessageId: '', waitForReply: true, timeoutMinutes: 60 },
+  },
+  {
+    type: 'send_whatsapp_form',
+    title: 'WhatsApp Form',
+    category: 'message',
+    description: 'Send a published WhatsApp Form and use the answers as variables, e.g. {{full_name}}',
+    iconName: 'form',
+    defaultConfig: { formId: '', formName: '', bodyText: '', waitForSubmit: true, timeoutMinutes: 1440 },
   },
   {
     type: 'send_message',
@@ -424,6 +433,8 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
         return <MessageSquare size={16} className="text-primary" />;
       case 'studio':
         return <Palette size={16} className="text-primary" />;
+      case 'form':
+        return <FileText size={16} className="text-primary" />;
       case 'paperclip':
         return <Paperclip size={16} className="text-primary" />;
       case 'layers':

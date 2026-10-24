@@ -18,6 +18,14 @@ import { basename as pathBasename, join } from 'path';
  */
 const ALLOWLIST = new Map<string, string>([
   ['audit.controller.ts :: findAll', 'scope-filters rows via resolveSessionScope'],
+  ['whatsapp-form.controller.ts :: list', 'business-scoped via businessId(apiKey); forms are not per session'],
+  ['whatsapp-form.controller.ts :: create', 'business-scoped via businessId(apiKey); forms are not per session'],
+  ['whatsapp-form.controller.ts :: get', 'business-scoped via businessId(apiKey); forms are not per session'],
+  ['whatsapp-form.controller.ts :: update', 'business-scoped via businessId(apiKey); forms are not per session'],
+  ['whatsapp-form.controller.ts :: remove', 'business-scoped via businessId(apiKey); forms are not per session'],
+  ['whatsapp-form.controller.ts :: listSubmissions', 'business-scoped via businessId(apiKey); not per session'],
+  ['whatsapp-form.controller.ts :: publish', 'business-scoped; the session is checked with assertSession'],
+  ['whatsapp-form.controller.ts :: send', 'business-scoped; the session is checked with assertSession'],
   ['webhooks-list.controller.ts :: findAll', 'scope-filters rows via the calling key'],
   ['webhooks-list.controller.ts :: deliveryFailures', 'scope-filters rows via the calling key'],
   ['search.controller.ts :: search', 'scope-filters results via the calling key'],

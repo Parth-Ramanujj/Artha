@@ -23,6 +23,7 @@
 import { EventEmitter } from 'events';
 import * as https from 'https';
 import * as http from 'http';
+import { randomUUID } from 'crypto';
 import { createLogger } from '../../common/services/logger.service';
 import { EngineNotSupportedError } from '../../common/errors/engine-not-supported.error';
 import {
@@ -60,6 +61,30 @@ import type { ChatKind } from '../identity/wa-id';
 import { CATALOG_MAX, formatPrice } from './catalog-format';
 
 const GRAPH_API_VERSION = 'v21.0';
+
+/**
+ * A WhatsApp Form submission (`nfm_reply`): "field: value" lines for the inbox, plus the flow token
+ * and answers for code that tracks submissions. A reply with unreadable JSON keeps Meta's own text.
+ */
+export function parseFlowResponse(reply: Record<string, unknown> | undefined): {
+  body: string;
+  flowReply?: { flowToken: string; answers: Record<string, unknown> };
+} {
+  const fallback = typeof reply?.body === 'string' ? reply.body : '';
+  try {
+    const raw = typeof reply?.response_json === 'string' ? reply.response_json : '';
+    const { flow_token: flowToken, ...answers } = JSON.parse(raw) as Record<string, unknown>;
+    const lines = Object.entries(answers).map(
+      ([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`,
+    );
+    return {
+      body: lines.length ? lines.join('\n') : fallback,
+      ...(typeof flowToken === 'string' ? { flowReply: { flowToken, answers } } : {}),
+    };
+  } catch {
+    return { body: fallback };
+  }
+}
 
 export interface CloudApiAdapterConfig {
   sessionId: string;
@@ -143,7 +168,6 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
   }
 
   private graphRequestRaw<T = unknown>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
-    const url = `${this.graphBase}${path}`;
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.accessToken}`,
     };
@@ -152,6 +176,44 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       headers['Content-Type'] = 'application/json';
       payload = JSON.stringify(body);
     }
+    return this.graphSend<T>(method, path, headers, payload);
+  }
+
+  /** Multipart upload for the Graph endpoints that take a file (Flow JSON assets). */
+  private graphMultipart<T = unknown>(
+    path: string,
+    fields: Record<string, string>,
+    file: { filename: string; contentType: string; data: Buffer },
+  ): Promise<T> {
+    const boundary = `----openwa${randomUUID()}`;
+    const crlf = '\r\n';
+    const parts: Uint8Array[] = Object.entries(fields).map(([name, value]) =>
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="${name}"${crlf}${crlf}${value}${crlf}`),
+    );
+    parts.push(
+      Buffer.from(
+        `--${boundary}${crlf}Content-Disposition: form-data; name="file"; filename="${file.filename}"${crlf}` +
+          `Content-Type: ${file.contentType}${crlf}${crlf}`,
+      ),
+      file.data,
+      Buffer.from(`${crlf}--${boundary}--${crlf}`),
+    );
+    return this.graphSend<T>(
+      'POST',
+      path,
+      { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+      Buffer.concat(parts),
+    );
+  }
+
+  private graphSend<T = unknown>(
+    method: string,
+    path: string,
+    headers: Record<string, string>,
+    payload?: string | Uint8Array,
+  ): Promise<T> {
+    const url = `${this.graphBase}${path}`;
+    if (payload) headers['Content-Length'] = String(Buffer.byteLength(payload));
 
     return new Promise<T>((resolve, reject) => {
       const parsedUrl = new URL(url);
@@ -535,6 +597,10 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
           const listReply = interactive?.list_reply as Record<string, unknown>;
           const listId = (listReply?.id as string) ?? '';
           base.body = (listId || (listReply?.title as string)) ?? '';
+        } else if (interactiveType === 'nfm_reply') {
+          const parsed = parseFlowResponse(interactive?.nfm_reply as Record<string, unknown> | undefined);
+          base.body = parsed.body;
+          if (parsed.flowReply) base.flowReply = parsed.flowReply;
         }
         break;
       }
@@ -1322,6 +1388,34 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       category: String(t.category ?? ''),
       components: Array.isArray(t.components) ? (t.components as Array<Record<string, unknown>>) : [],
     }));
+  }
+
+  // ============================================================================
+  // WhatsApp Flows (WhatsApp Forms)
+  // ============================================================================
+
+  /** Creates an empty draft flow on this WhatsApp Business account. Returns its id. */
+  async createFlow(name: string, categories: string[]): Promise<string> {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const res = await this.graphRequest<{ id: string }>('POST', `/${this.wabaId}/flows`, { name, categories });
+    return res.id;
+  }
+
+  /** Uploads a flow's JSON. Returns Meta's validation errors; an empty list means the JSON was accepted. */
+  async uploadFlowJson(
+    flowId: string,
+    flowJson: Record<string, unknown>,
+  ): Promise<Array<{ error?: string; message?: string }>> {
+    const res = await this.graphMultipart<{ validation_errors?: Array<{ error?: string; message?: string }> }>(
+      `/${flowId}/assets`,
+      { name: 'flow.json', asset_type: 'FLOW_JSON' },
+      { filename: 'flow.json', contentType: 'application/json', data: Buffer.from(JSON.stringify(flowJson)) },
+    );
+    return res.validation_errors ?? [];
+  }
+
+  async publishFlow(flowId: string): Promise<void> {
+    await this.graphRequest('POST', `/${flowId}/publish`);
   }
 
   // ============================================================================

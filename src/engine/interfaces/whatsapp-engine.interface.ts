@@ -108,6 +108,8 @@ export interface IncomingMessage {
   senderPhone?: string | null;
   /** Sender contact info, best-effort from the WhatsApp Web cache. Sync fields only (no network). */
   contact?: MessageContact;
+  /** A submitted WhatsApp Form (Cloud API `nfm_reply`): the flow token it was sent with and the answers. */
+  flowReply?: { flowToken: string; answers: Record<string, unknown> };
   /** Styling of a text status/story: background as `#RRGGBB`. Only set by engines that expose it. */
   backgroundColor?: string;
   /** Styling of a text status/story: the WhatsApp font index. Only set by engines that expose it. */

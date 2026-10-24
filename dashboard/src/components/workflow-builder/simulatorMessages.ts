@@ -54,6 +54,12 @@ function stepToBubbles(step: StepLike, index: number): SimBubble[] {
       return [{ key, kind: 'note', text: name ? `Sends the saved message “${name}”.` : 'Sends a saved Studio message.' }];
     }
 
+    case 'send_whatsapp_form': {
+      // A simulated run cannot open or submit the form, so it notes the send and moves on.
+      const name = str(out.formName || out.formId);
+      return [{ key, kind: 'note', text: name ? `Sends the WhatsApp Form “${name}”.` : 'Sends a WhatsApp Form.' }];
+    }
+
     case 'ask_question':
       return out.prompt || out.question ? [{ key, kind: 'text', text: str(out.prompt || out.question) }] : [];
 

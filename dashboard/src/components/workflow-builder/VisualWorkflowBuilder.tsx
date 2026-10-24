@@ -953,6 +953,7 @@ function BuilderInnerCanvas({ workflow, onClose, onSaved, sessions = [] }: Visua
                     case 'send_message':
                       return '#25d366';
                     case 'send_studio_message':
+                    case 'send_whatsapp_form':
                       return '#25d366';
                     case 'sheets_lookup':
                       return '#22c55e';
