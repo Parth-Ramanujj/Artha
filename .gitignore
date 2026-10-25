@@ -82,3 +82,8 @@ _docs/
 .superpowers/
 # TypeScript incremental build cache (tsc writes this at repo root under the TS6 build config)
 *.tsbuildinfo
+
+# PadosiAgent Django subproject (hosted on separate repository)
+padosi_agent_aws-main/
+padosi_agent_aws-main
+simulate_wa_bot.py
