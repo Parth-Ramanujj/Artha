@@ -1787,6 +1787,19 @@ export const webhookTestApi = {
   clearRequests: () => request<{ success: boolean; message: string }>('/webhook-test/requests', { method: 'DELETE' }),
 };
 
+/**
+ * Full dynamic URL for the built-in webhook test receiver.
+ * Resolves against API_ORIGIN (e.g. VITE_API_URL in split setups) or the current
+ * browser origin (window.location.origin) so it works dynamically across ports,
+ * reverse proxies, LAN IPs, and custom domains.
+ */
+export function getWebhookTestUrl(subpath = 'echo'): string {
+  const origin = API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:2785');
+  const cleanSubpath = subpath ? subpath.replace(/^\/+/, '') : 'echo';
+  return `${origin}/api/webhook-test/${cleanSubpath}`;
+}
+
+
 // =============================================================================
 // Campaigns & Consent
 // =============================================================================

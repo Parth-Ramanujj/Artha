@@ -46,7 +46,7 @@ import {
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowNodeData, ButtonItem } from './types';
-import { workflowApi, type TestWebhookResult, type WorkflowRun } from '../../services/api';
+import { workflowApi, getWebhookTestUrl, type TestWebhookResult, type WorkflowRun } from '../../services/api';
 import { VariablePicker } from './VariablePicker';
 import { NodeOutputInspector } from './NodeOutputInspector';
 import { DynamicInput, DynamicTextarea } from './DynamicField';
@@ -2176,7 +2176,7 @@ export function NodeInspector({
                     <button
                       type="button"
                       className="wf-preset-btn"
-                      onClick={() => updateConfig('url', 'http://localhost:2785/api/webhook-test/echo')}
+                      onClick={() => updateConfig('url', getWebhookTestUrl('echo'))}
                       title="Use OpenWA's built-in testing endpoint"
                       style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}
                     >
@@ -2186,7 +2186,7 @@ export function NodeInspector({
                   <DynamicInput
                     required
                     type="url"
-                    placeholder="https://api.yourcrm.com/leads or http://localhost:2785/api/webhook-test/echo"
+                    placeholder={`https://api.yourcrm.com/leads or ${getWebhookTestUrl('echo')}`}
                     value={config.url || ''}
                     onChange={val => updateConfig('url', val)}
                     onOpenVariablePicker={handleOpenVariablePicker}

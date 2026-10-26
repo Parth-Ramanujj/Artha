@@ -19,6 +19,7 @@ import {
 import {
   webhookApi,
   webhookTestApi,
+  getWebhookTestUrl,
   type Webhook,
   type WebhookFilters,
   type WebhookFilterCondition,
@@ -142,6 +143,7 @@ export function Webhooks() {
   }>({ url: '', events: ['message.received'], sessionId: '', filters: null });
   const [testingId, setTestingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const defaultTestUrl = getWebhookTestUrl('echo');
 
   // Webhook Test Receiver Modal & Logs
   const [showLogsModal, setShowLogsModal] = useState(false);
@@ -351,7 +353,7 @@ export function Webhooks() {
             Use this local endpoint to receive, test, and debug webhooks without needing external services like webhook.site:
           </span>
           <code className="webhook-test-endpoint-url">
-            http://localhost:2785/api/webhook-test/echo
+            {defaultTestUrl}
           </code>
         </div>
         <div className="webhook-test-actions">
@@ -359,7 +361,7 @@ export function Webhooks() {
             type="button"
             className="btn-secondary"
             onClick={() => {
-              navigator.clipboard.writeText('http://localhost:2785/api/webhook-test/echo');
+              navigator.clipboard.writeText(defaultTestUrl);
               setToast({ type: 'success', message: 'Test webhook URL copied to clipboard!' });
             }}
           >
@@ -419,14 +421,19 @@ export function Webhooks() {
             <button
               type="button"
               className="btn-test-quick"
-              onClick={() => setNewWebhook(prev => ({ ...prev, url: 'http://localhost:2785/api/webhook-test/echo' }))}
+              onClick={() =>
+                setNewWebhook(prev => ({
+                  ...prev,
+                  url: getWebhookTestUrl(prev.sessionId ? `receiver/${prev.sessionId}` : 'echo'),
+                }))
+              }
             >
               ⚡ Use Local Test Endpoint
             </button>
           </div>
           <input
             type="url"
-            placeholder="https://... or http://localhost:2785/api/webhook-test/echo"
+            placeholder={`https://... or ${defaultTestUrl}`}
             value={newWebhook.url}
             onChange={e => setNewWebhook({ ...newWebhook, url: e.target.value })}
           />
@@ -479,13 +486,23 @@ export function Webhooks() {
             <button
               type="button"
               className="btn-test-quick"
-              onClick={() => setEditWebhook(prev => prev ? ({ ...prev, url: 'http://localhost:2785/api/webhook-test/echo' }) : null)}
+              onClick={() =>
+                setEditWebhook(prev =>
+                  prev
+                    ? {
+                        ...prev,
+                        url: getWebhookTestUrl(prev.sessionId ? `receiver/${prev.sessionId}` : 'echo'),
+                      }
+                    : null,
+                )
+              }
             >
               ⚡ Use Local Test Endpoint
             </button>
           </div>
           <input
             type="url"
+            placeholder={`https://... or ${defaultTestUrl}`}
             value={editWebhook.url}
             onChange={e => setEditWebhook({ ...editWebhook, url: e.target.value })}
           />
@@ -683,7 +700,7 @@ export function Webhooks() {
             <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>
               <p>No webhook requests captured yet.</p>
               <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                Send a webhook to <code>http://localhost:2785/api/webhook-test/echo</code> from your session, workflow, or curl to see it here!
+                Send a webhook to <code>{defaultTestUrl}</code> from your session, workflow, or curl to see it here!
               </p>
             </div>
           ) : (

@@ -1,3 +1,5 @@
+import { getWebhookTestUrl } from '../../services/api';
+
 export interface WorkflowPreset {
   id: string;
   name: string;
@@ -585,7 +587,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         data: {
           label: 'Fetch Order Details API',
           config: {
-            url: 'http://localhost:2785/api/webhook-test/echo',
+            url: getWebhookTestUrl('echo'),
             method: 'POST',
             body: {
               orderId: '{{vars.orderId}}',

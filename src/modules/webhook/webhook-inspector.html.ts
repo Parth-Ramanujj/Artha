@@ -13,6 +13,11 @@ export function renderWebhookInspectorHtml(
   const safeSelected = JSON.stringify(selectedRequest || (history.length > 0 ? history[history.length - 1] : null)).replace(/</g, '\\u003c');
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
 
+  const sampleNames = ['Rahul Sharma', 'Priya Patel', 'Alex Morgan', 'Sarah Chen', 'David Miller', 'Ananya Gupta', 'Vikram Singh'];
+  const initialName = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+  const initialPhone = `9198${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const initialOrderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -864,9 +869,9 @@ export function renderWebhookInspectorHtml(
                 </div>
               </div>
               <textarea id="test-body" class="form-textarea" placeholder='{ "phone": "919876543210", "message": "Order tracking" }'>{
-  "phone": "919876543210",
-  "name": "Parth Ramanuj",
-  "orderId": "ORD-9821",
+  "phone": "${initialPhone}",
+  "name": "${initialName}",
+  "orderId": "${initialOrderId}",
   "amount": 1499,
   "status": "shipped",
   "courier": "BlueDart"
@@ -1125,31 +1130,44 @@ export function renderWebhookInspectorHtml(
       }
     }
 
+    const SAMPLE_NAMES = [
+      'Rahul Sharma', 'Priya Patel', 'Alex Morgan', 'Sarah Chen',
+      'David Miller', 'Ananya Gupta', 'Vikram Singh', 'Neha Verma', 'Amit Patel'
+    ];
+
+    function getRandomSampleUser() {
+      const name = SAMPLE_NAMES[Math.floor(Math.random() * SAMPLE_NAMES.length)];
+      const phone = '9198' + Math.floor(10000000 + Math.random() * 90000000);
+      return { name, phone };
+    }
+
     function loadSampleBody(type) {
       const textarea = document.getElementById('test-body');
+      const sampleUser = getRandomSampleUser();
       if (type === 'order') {
         textarea.value = JSON.stringify({
           orderId: "ORD-" + Math.floor(1000 + Math.random() * 9000),
           status: "shipped",
-          total: 2499,
-          customer: { name: "Parth Ramanuj", phone: "919876543210" },
-          trackingUrl: "https://track.courier.in/102938"
+          total: Math.floor(999 + Math.random() * 4000),
+          customer: { name: sampleUser.name, phone: sampleUser.phone },
+          trackingUrl: "https://track.courier.in/" + Math.floor(100000 + Math.random() * 900000)
         }, null, 2);
       } else if (type === 'lead') {
         textarea.value = JSON.stringify({
           leadId: "lead_" + Date.now(),
-          name: "Amit Patel",
-          phone: "919825000000",
+          name: sampleUser.name,
+          phone: sampleUser.phone,
           interest: "WhatsApp Enterprise Automation",
-          budget: "₹25,000",
+          budget: "₹" + (Math.floor(15 + Math.random() * 35) * 1000).toLocaleString('en-IN'),
           source: "Website Chatbot"
         }, null, 2);
       } else if (type === 'payment') {
         textarea.value = JSON.stringify({
           paymentId: "pay_" + Math.random().toString(36).substring(2, 9),
-          orderId: "ORD-5541",
+          orderId: "ORD-" + Math.floor(1000 + Math.random() * 9000),
           status: "captured",
-          amount: 49900,
+          customer: { name: sampleUser.name, phone: sampleUser.phone },
+          amount: Math.floor(499 + Math.random() * 2500) * 100,
           currency: "INR",
           method: "upi"
         }, null, 2);
