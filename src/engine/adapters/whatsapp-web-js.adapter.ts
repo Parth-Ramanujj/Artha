@@ -566,6 +566,10 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
   }
 
   async initialize(callbacks: EngineEventCallbacks): Promise<void> {
+    return this.initializeInternal(callbacks, false);
+  }
+
+  private async initializeInternal(callbacks: EngineEventCallbacks, isRetry: boolean): Promise<void> {
     this.callbacks = callbacks;
     this.setStatus(EngineStatus.INITIALIZING);
 
@@ -587,6 +591,10 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
             '--no-first-run',
             '--no-zygote',
             '--disable-gpu',
+            '--disable-extensions',
+            '--disable-default-apps',
+            '--mute-audio',
+            '--no-default-browser-check',
           ];
 
       // Add proxy configuration if provided — but only when the URL parses to a supported scheme, so
@@ -705,14 +713,15 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         // here: sessionDataPath is a required config field already resolved in the try block above, so
         // this can't throw and mask the original error we are about to rethrow.
         this.logger.warn(
-          `"${reason}" during initialize. If this followed an OpenWA upgrade that changed the ` +
-            `Chromium/Chrome binary (v0.8.12 amd64 switched Debian Chromium → Chrome for Testing), the ` +
-            `session's browser profile is likely stale — delete the profile dir ` +
+          `"${reason}" during initialize. Clearing stale session profile at ` +
             `"${path.join(path.resolve(this.config.sessionDataPath), `session-${this.config.sessionId}`)}" ` +
-            `and start again to re-scan. If no upgrade happened, Puppeteer also raises this on a page ` +
-            `navigation or renderer crash (check for memory pressure or a WhatsApp Web reload). ` +
-            `See docs/12-troubleshooting-faq.md.`,
+            `and retrying once for a fresh QR scan...`,
         );
+        await this.clearLocalAuth();
+        if (!isRetry && !this.tearingDown) {
+          this.client = null;
+          return this.initializeInternal(callbacks, true);
+        }
       }
       this.callbacks.onError?.(reason);
       throw error;

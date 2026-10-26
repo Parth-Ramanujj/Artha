@@ -242,7 +242,27 @@ export function Sessions() {
       }
       // Poll only while a QR actually exists to refresh (qr_ready): before that the endpoint 400s
       // by design (the engine hasn't produced one), and the WS session.qr push covers first display.
-      if (currentSession?.status !== 'qr_ready') return;
+      if (currentSession?.status !== 'qr_ready') {
+        const updated = await sessionApi.get(sessionId).catch(() => null);
+        if (updated) {
+          if (updated.status === 'ready') {
+            setQrData(null);
+            currentSessionName.current = '';
+            fetchSessions();
+            return;
+          }
+          if (updated.status === 'qr_ready') {
+            sessionsRef.current = sessionsRef.current.map(s => (s.id === sessionId ? updated : s));
+            setSessions(sessionsRef.current);
+          } else if (!['initializing', 'authenticating'].includes(updated.status)) {
+            setQrData(null);
+            currentSessionName.current = '';
+            fetchSessions();
+            return;
+          }
+        }
+        if (updated?.status !== 'qr_ready') return;
+      }
       try {
         const qr = await sessionApi.getQR(sessionId);
         setQrData({ sessionId, sessionName: currentSessionName.current, qrCode: qr.qrCode });
@@ -272,7 +292,7 @@ export function Sessions() {
       currentSessionName.current = qrData.sessionName;
       qrRefreshInterval.current = setInterval(() => {
         fetchQR(qrData.sessionId);
-      }, 5000);
+      }, 2000);
     }
     return () => {
       if (qrRefreshInterval.current) clearInterval(qrRefreshInterval.current);
@@ -370,6 +390,9 @@ export function Sessions() {
       return;
     }
 
+    // Immediately open QR loading modal for instant visual feedback so user is not left waiting
+    handleShowQR(id);
+
     try {
       // Use the authoritative response instead of fabricating a status. The old code wrote a local
       // `status: 'connecting'` — a value the gateway never emits — while keeping every other field
@@ -387,6 +410,7 @@ export function Sessions() {
       // authoritative reload + QR fallback behavior.
       const code = (err as { code?: string } | null | undefined)?.code;
       if (code === 'SESSION_NAME_TEARDOWN_PENDING') {
+        setQrData(null);
         const msg = err instanceof Error && err.message ? err.message : t('sessions.start.teardownPending');
         toast.warning(t('sessions.start.teardownPendingTitle'), msg);
         await fetchSessions();
