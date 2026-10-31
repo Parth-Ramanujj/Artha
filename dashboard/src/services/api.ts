@@ -2871,3 +2871,81 @@ export const messageStudioApi = {
       body: JSON.stringify(input),
     }),
 };
+
+// =============================================================================
+// Customer care: missed-call follow-up and the WhatsApp → AI assistant link
+// =============================================================================
+
+export interface CustomerCareSettings {
+  ownerName: string;
+  missedCall: {
+    enabled: boolean;
+    sessionId: string;
+    message: string;
+    includeWhatsappCalls: boolean;
+    callOnNoReply: boolean;
+    waitMinutes: number;
+    voiceAgentId: string;
+    callGreeting: string;
+  };
+  assistant: {
+    enabled: boolean;
+    sessionId: string;
+    message: string;
+    cooldownHours: number;
+    instructions: string;
+  };
+}
+
+export interface MissedCallRow {
+  id: string;
+  phone: string;
+  name: string | null;
+  source: 'phone' | 'whatsapp';
+  status: 'new' | 'messaged' | 'replied' | 'called' | 'skipped' | 'failed';
+  messagedAt: string | null;
+  callDueAt: string | null;
+  repliedAt: string | null;
+  aiCallId: string | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface AssistantTurn {
+  role: 'user' | 'assistant';
+  content: string;
+  at: string;
+}
+
+export const customerCareApi = {
+  settings: () => request<CustomerCareSettings>('/customer-care/settings'),
+  saveSettings: (input: Partial<CustomerCareSettings>) =>
+    request<CustomerCareSettings>('/customer-care/settings', { method: 'PUT', body: JSON.stringify(input) }),
+  missedCalls: () => request<MissedCallRow[]>('/customer-care/missed-calls'),
+  reportMissedCall: (phone: string, name?: string) =>
+    request<MissedCallRow>('/customer-care/missed-calls', { method: 'POST', body: JSON.stringify({ phone, name }) }),
+};
+
+/** The customer-facing assistant page: no API key, the token in the link is the access. */
+async function assistantRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}/assistant/${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data as { message?: string } | null)?.message ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
+export const assistantApi = {
+  view: (token: string) => assistantRequest<{ title: string; transcript: AssistantTurn[] }>(encodeURIComponent(token)),
+  chat: (token: string, message: string) =>
+    assistantRequest<{ reply: string; transcript: AssistantTurn[] }>(`${encodeURIComponent(token)}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+  voice: (token: string) =>
+    assistantRequest<{ callId: string; token: string; path: string }>(`${encodeURIComponent(token)}/voice`, {
+      method: 'POST',
+    }),
+};

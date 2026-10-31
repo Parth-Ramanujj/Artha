@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Briefcase,
   Store,
+  PhoneMissed,
   LayoutDashboard,
   Smartphone,
   MessageSquare,
@@ -102,6 +103,7 @@ const allNavItems = [
   { to: '/google-business', icon: Store, key: 'googleBusiness' as const, adminOnly: false },
   { to: '/leads', icon: Target, key: 'leads' as const, adminOnly: false },
   { to: '/ai-calling', icon: PhoneCall, key: 'aiCalling' as const, adminOnly: false },
+  { to: '/customer-care', icon: PhoneMissed, key: 'customerCare' as const, adminOnly: false },
   { to: '/ai-agents', icon: Sparkles, key: 'aiAgents' as const, adminOnly: false },
   { to: '/commerce', icon: ShoppingBag, key: 'commerce' as const, adminOnly: false },
   { to: '/roles', icon: ShieldAlert, key: 'roles' as const, adminOnly: true },
@@ -119,6 +121,7 @@ const navSections: { id: string; paths: string[] }[] = [
       '/leads',
 
       '/ai-calling',
+      '/customer-care',
       '/sales-pipeline',
       '/conversations',
       '/canned-responses',

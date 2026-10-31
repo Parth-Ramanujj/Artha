@@ -82,6 +82,14 @@ export class AiCall {
   @Column({ type: 'varchar', length: 10, default: 'phone' })
   channel: string;
 
+  /** Optional opening line for this call only; the agent's greeting otherwise. */
+  @Column({ type: 'text', nullable: true })
+  greeting: string | null;
+
+  /** Optional background for this call only (why we are calling), added to the agent's prompt. */
+  @Column({ type: 'text', nullable: true })
+  briefing: string | null;
+
   @Column({ type: 'varchar', length: 20, default: AiCallStatus.QUEUED })
   status: AiCallStatus;
 

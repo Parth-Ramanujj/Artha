@@ -96,6 +96,8 @@ export class CallRunnerService {
     const session = new CallSession(transport, {
       agent,
       contactName: call.contactName,
+      greeting: call.greeting,
+      briefing: call.briefing,
       sarvamApiKey,
       speech: this.speech,
       reply: (messages: ChatMessage[], signal: AbortSignal) =>

@@ -37,6 +37,9 @@ export type ReplyStream = (messages: ChatMessage[], signal: AbortSignal) => Asyn
 export interface CallSessionConfig {
   agent: AgentPersona & { gujaratiVoice: string; hindiVoice: string; pace: number; maxCallSeconds: number };
   contactName?: string | null;
+  /** Per-call opening line and background, e.g. a missed-call follow-up; override the agent's defaults. */
+  greeting?: string | null;
+  briefing?: string | null;
   sarvamApiKey: string;
   speech: SpeechFactory;
   reply: ReplyStream;
@@ -123,7 +126,8 @@ export class CallSession extends EventEmitter {
     this.limitTimer = setTimeout(() => this.timeUp(), this.config.agent.maxCallSeconds * 1000);
     this.limitTimer.unref?.();
 
-    const { personaName, companyName, greeting } = this.config.agent;
+    const { personaName, companyName } = this.config.agent;
+    const greeting = this.config.greeting || this.config.agent.greeting;
     this.sayTurn(fillTemplate(greeting, { name: this.config.contactName, persona: personaName, company: companyName }));
   }
 
@@ -286,7 +290,10 @@ export class CallSession extends EventEmitter {
         (t.tone ? `[[TONE:${t.tone}]] ` : '') + (t.interrupted ? `${t.text} (the customer interrupted here)` : t.text),
     }));
     return [
-      { role: 'system', content: systemPrompt(this.config.agent, this.config.contactName, this.language) },
+      {
+        role: 'system',
+        content: systemPrompt(this.config.agent, this.config.contactName, this.language, this.config.briefing),
+      },
       ...turns,
     ];
   }

@@ -93,6 +93,7 @@ export function systemPrompt(
   agent: AgentPersona,
   contactName: string | null | undefined,
   language: CallLanguage,
+  briefing?: string | null,
 ): string {
   const other: CallLanguage = language === 'gu-IN' ? 'hi-IN' : 'gu-IN';
   return `You are ${agent.personaName}, a friendly phone executive calling on behalf of ${agent.companyName}. This is a live PHONE CALL: everything you write is spoken aloud by a voice engine, word for word.
@@ -102,7 +103,14 @@ ${agent.script}
 
 ## The person you are calling
 ${contactName ? `Name on our records: ${contactName}. Confirm it naturally; never insist if they correct you.` : 'Name not known yet.'}
-
+${
+  briefing
+    ? `
+## Why you are calling this person (this comes first, before the usual goal above)
+${briefing}
+`
+    : ''
+}
 ## Language
 - Right now speak ${LANGUAGE_NAMES[language]}${language === 'gu-IN' ? ' in Gujarati script' : ' in Devanagari script'}, the everyday spoken kind, not formal or bookish.
 - If the customer speaks ${LANGUAGE_NAMES[other]}, switch to ${LANGUAGE_NAMES[other]} and stay with it. Common English words people really use (insurance, policy, premium, SIP, claim, OK) are fine inside the sentence.

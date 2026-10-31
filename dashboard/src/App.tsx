@@ -45,6 +45,8 @@ const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads }
 const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
 const WhatsAppForms = lazy(() => import('./pages/WhatsAppForms').then(m => ({ default: m.WhatsAppForms })));
 const SalesAgent = lazy(() => import('./pages/SalesAgent').then(m => ({ default: m.SalesAgent })));
+const CustomerCare = lazy(() => import('./pages/CustomerCare').then(m => ({ default: m.CustomerCare })));
+const AssistantChat = lazy(() => import('./pages/AssistantChat').then(m => ({ default: m.AssistantChat })));
 const GoogleBusiness = lazy(() => import('./pages/GoogleBusiness').then(m => ({ default: m.GoogleBusiness })));
 const WhatsAppFormBuilder = lazy(() => import('./pages/WhatsAppFormBuilder').then(m => ({ default: m.WhatsAppFormBuilder })));
 const MessageComposer = lazy(() => import('./pages/MessageComposer').then(m => ({ default: m.MessageComposer })));
@@ -188,6 +190,7 @@ function AppContent() {
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="sales-agent" element={<SalesAgent />} />
               <Route path="google-business" element={<GoogleBusiness />} />
+              <Route path="customer-care" element={<CustomerCare />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />
               {role === 'admin' && <Route path="roles" element={<RolesManagement />} />}
@@ -200,7 +203,19 @@ function AppContent() {
   );
 }
 
+/** Token of the public assistant page (/assistant/:token), which customers open without logging in. */
+const assistantToken = /^\/assistant\/([\w-]{10,64})\/?$/.exec(window.location.pathname)?.[1];
+
 function App() {
+  if (assistantToken) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          <AssistantChat token={assistantToken} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

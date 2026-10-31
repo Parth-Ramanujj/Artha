@@ -33,6 +33,6 @@ import { AiCallingController, AiCallingTwilioController } from './ai-calling.con
   ],
   controllers: [AiCallingController, AiCallingTwilioController],
   providers: [AiCallingService, CallOutcomeService, CallRunnerService, DialerService, MediaGatewayService],
-  exports: [AiCallingService],
+  exports: [AiCallingService, CallRunnerService],
 })
 export class AiCallingModule {}

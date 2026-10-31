@@ -266,6 +266,8 @@ export class AiCallingService {
       agentId?: string | null;
       leadId?: string | null;
       batchId?: string | null;
+      greeting?: string | null;
+      briefing?: string | null;
     },
   ): Promise<AiCall> {
     const phone = toE164(input.phone);
@@ -285,6 +287,8 @@ export class AiCallingService {
         phone,
         contactName: input.name?.trim().slice(0, 120) || null,
         channel: 'phone',
+        greeting: input.greeting ?? null,
+        briefing: input.briefing ?? null,
         status: blocked ? AiCallStatus.SKIPPED : AiCallStatus.QUEUED,
         error: blocked ? 'Contact opted out (DND)' : null,
         nextAttemptAt: blocked ? null : new Date(),
@@ -453,7 +457,11 @@ export class AiCallingService {
   }
 
   /** A browser test call: logged like a call but never dialled, never a lead, never messaged. */
-  async createTestCall(businessId: string, agentId?: string | null): Promise<AiCall> {
+  async createTestCall(
+    businessId: string,
+    agentId?: string | null,
+    extra: { contactName?: string | null; greeting?: string | null; briefing?: string | null } = {},
+  ): Promise<AiCall> {
     const agent = await this.getAgent(businessId, agentId);
     this.logger.log(`Browser test call started for agent ${agent.id}`);
     return this.callRepo.save(
@@ -461,7 +469,9 @@ export class AiCallingService {
         businessId,
         agentId: agent.id,
         phone: 'browser',
-        contactName: null,
+        contactName: extra.contactName?.trim().slice(0, 120) || null,
+        greeting: extra.greeting ?? null,
+        briefing: extra.briefing ?? null,
         channel: 'browser',
         status: AiCallStatus.DIALING,
         startedAt: new Date(),
