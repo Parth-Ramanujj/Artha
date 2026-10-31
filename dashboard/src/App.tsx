@@ -45,10 +45,14 @@ const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads }
 const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
 const WhatsAppForms = lazy(() => import('./pages/WhatsAppForms').then(m => ({ default: m.WhatsAppForms })));
 const SalesAgent = lazy(() => import('./pages/SalesAgent').then(m => ({ default: m.SalesAgent })));
+const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Library })));
 const CustomerCare = lazy(() => import('./pages/CustomerCare').then(m => ({ default: m.CustomerCare })));
 const AssistantChat = lazy(() => import('./pages/AssistantChat').then(m => ({ default: m.AssistantChat })));
+const Growth = lazy(() => import('./pages/Growth').then(m => ({ default: m.Growth })));
 const GoogleBusiness = lazy(() => import('./pages/GoogleBusiness').then(m => ({ default: m.GoogleBusiness })));
-const WhatsAppFormBuilder = lazy(() => import('./pages/WhatsAppFormBuilder').then(m => ({ default: m.WhatsAppFormBuilder })));
+const WhatsAppFormBuilder = lazy(() =>
+  import('./pages/WhatsAppFormBuilder').then(m => ({ default: m.WhatsAppFormBuilder })),
+);
 const MessageComposer = lazy(() => import('./pages/MessageComposer').then(m => ({ default: m.MessageComposer })));
 const AiCalling = lazy(() => import('./pages/AiCalling').then(m => ({ default: m.AiCalling })));
 const SalesPipeline = lazy(() => import('./pages/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
@@ -190,7 +194,9 @@ function AppContent() {
               <Route path="sales-pipeline" element={<SalesPipeline />} />
               <Route path="sales-agent" element={<SalesAgent />} />
               <Route path="google-business" element={<GoogleBusiness />} />
+              <Route path="library" element={<Library />} />
               <Route path="customer-care" element={<CustomerCare />} />
+              <Route path="growth" element={<Growth />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />
               {role === 'admin' && <Route path="roles" element={<RolesManagement />} />}

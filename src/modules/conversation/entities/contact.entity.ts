@@ -32,6 +32,13 @@ export class Contact {
   @Column({ type: jsonColumnType(), nullable: true })
   metadata: Record<string, unknown> | null;
 
+  /** MM-DD, so "whose birthday is today" is a plain equality query. */
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  birthday: string | null;
+
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  anniversary: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

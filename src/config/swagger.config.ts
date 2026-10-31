@@ -25,6 +25,17 @@ export const PUBLIC_PATHS = [
   '/api/ingress/{pluginId}/{instanceId}/{path}',
   // Google redirects the browser here after sign-in; the one-time state value is the check.
   '/api/google/oauth/callback',
+  // Click-to-chat QR / website widget: the 8-hex ref is the only input, the redirect target is stored.
+  '/api/g/{ref}',
+  '/api/g/{ref}/widget.js',
+  // Twilio callbacks: every request must carry Twilio's signature (or the per-call key).
+  '/api/ai-calling/twilio/twiml',
+  '/api/ai-calling/twilio/stream-status',
+  '/api/ai-calling/twilio/status',
+  // Customer AI assistant page: the unguessable link token is the only key.
+  '/api/assistant/{token}',
+  '/api/assistant/{token}/chat',
+  '/api/assistant/{token}/voice',
 ];
 
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'trace', 'search'] as const;

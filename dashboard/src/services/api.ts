@@ -32,13 +32,25 @@ import type {
   SalesOverview,
   SalesProspect,
 } from '../types/salesAgent';
+import type { GbpConfig, GbpLocation, GbpOverview, GbpReview, GbpSyncSummary } from '../types/googleBusiness';
 import type {
-  GbpConfig,
-  GbpLocation,
-  GbpOverview,
-  GbpReview,
-  GbpSyncSummary,
-} from '../types/googleBusiness';
+  LibraryAutomation,
+  LibraryAutomationInput,
+  LibraryItem,
+  LibraryItemInput,
+  LibraryOverview,
+  LibraryRun,
+  LibraryTarget,
+} from '../types/library';
+import type {
+  ComplianceReport,
+  GreetingLogEntry,
+  GrowthLink,
+  GrowthLinkInput,
+  GrowthSettings,
+  GrowthSettingsInput,
+  SummaryPreview,
+} from '../types/growth';
 
 // Resolve the API base URL. By default this is the same-origin relative path '/api',
 // correct when the dashboard and API are served from the same origin (the default
@@ -1394,6 +1406,9 @@ export interface BusinessContact {
   email: string | null;
   notes: string | null;
   tags: string[] | null;
+  /** MM-DD */
+  birthday?: string | null;
+  anniversary?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1798,7 +1813,6 @@ export function getWebhookTestUrl(subpath = 'echo'): string {
   const cleanSubpath = subpath ? subpath.replace(/^\/+/, '') : 'echo';
   return `${origin}/api/webhook-test/${cleanSubpath}`;
 }
-
 
 // =============================================================================
 // Campaigns & Consent
@@ -2677,7 +2691,8 @@ export const whatsappFormApi = {
   update: (id: string, input: { name?: string; category?: FlowCategory; definition?: FormDefinition }) =>
     request<WhatsAppForm>(`/whatsapp-forms/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(input) }),
   remove: (id: string) => request<void>(`/whatsapp-forms/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  submissions: (id: string) => request<WhatsAppFormSubmission[]>(`/whatsapp-forms/${encodeURIComponent(id)}/submissions`),
+  submissions: (id: string) =>
+    request<WhatsAppFormSubmission[]>(`/whatsapp-forms/${encodeURIComponent(id)}/submissions`),
   publish: (id: string, sessionId: string) =>
     request<PublishResult>(`/whatsapp-forms/${encodeURIComponent(id)}/publish`, {
       method: 'POST',
@@ -2714,7 +2729,8 @@ export const salesAgentApi = {
   removeProspect: (id: string) =>
     request<void>(`/sales-agent/prospects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   outbox: (status?: string) => request<SalesOutboxItem[]>(`/sales-agent/outbox${statusQuery(status)}`),
-  approve: (id: string) => request<unknown>(`/sales-agent/outbox/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  approve: (id: string) =>
+    request<unknown>(`/sales-agent/outbox/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
   reject: (id: string) => request<unknown>(`/sales-agent/outbox/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
   approveAll: () => request<{ approved: number; held: number }>('/sales-agent/outbox/approve-all', { method: 'POST' }),
   edit: (id: string, input: { subject?: string; body: string }) =>
@@ -2792,6 +2808,60 @@ export const googleBusinessApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+};
+
+export const growthApi = {
+  settings: () => request<GrowthSettings>('/growth/settings'),
+  saveSettings: (input: GrowthSettingsInput) =>
+    request<GrowthSettings>('/growth/settings', { method: 'PUT', body: JSON.stringify(input) }),
+  links: () => request<GrowthLink[]>('/growth/links'),
+  saveLink: (input: GrowthLinkInput, id?: string) =>
+    request<GrowthLink>(id ? `/growth/links/${encodeURIComponent(id)}` : '/growth/links', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(input),
+    }),
+  deleteLink: (id: string) => request<void>(`/growth/links/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  linkQr: (id: string, base: string) =>
+    requestBlob(`/growth/links/${encodeURIComponent(id)}/qr.svg?base=${encodeURIComponent(base)}`),
+  greetings: () => request<GreetingLogEntry[]>('/growth/greetings'),
+  previewSummary: () => request<SummaryPreview>('/growth/summary/preview'),
+  sendSummary: () => request<{ text: string }>('/growth/summary/send', { method: 'POST' }),
+  compliance: (days: number) => request<ComplianceReport>(`/growth/compliance?days=${days}`),
+};
+
+export const libraryApi = {
+  overview: () => request<LibraryOverview>('/library/overview'),
+  items: () => request<LibraryItem[]>('/library/items'),
+  saveItem: (input: LibraryItemInput, id?: string) =>
+    request<LibraryItem>(id ? `/library/items/${encodeURIComponent(id)}` : '/library/items', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(input),
+    }),
+  deleteItem: (id: string) => request<void>(`/library/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  itemMedia: (id: string) => requestBlob(`/library/items/${encodeURIComponent(id)}/media`),
+  postNow: (id: string, target: LibraryTarget) =>
+    request<LibraryRun>(`/library/items/${encodeURIComponent(id)}/post`, {
+      method: 'POST',
+      body: JSON.stringify(target),
+    }),
+  write: (input: { topic: string; language?: string; format?: 'status' | 'message'; tone?: string }) =>
+    request<{ text: string }>('/library/write', { method: 'POST', body: JSON.stringify(input) }),
+  automations: () => request<LibraryAutomation[]>('/library/automations'),
+  saveAutomation: (input: LibraryAutomationInput, id?: string) =>
+    request<LibraryAutomation>(id ? `/library/automations/${encodeURIComponent(id)}` : '/library/automations', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(input),
+    }),
+  toggleAutomation: (id: string, enabled: boolean) =>
+    request<LibraryAutomation>(`/library/automations/${encodeURIComponent(id)}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    }),
+  runAutomation: (id: string) =>
+    request<LibraryRun>(`/library/automations/${encodeURIComponent(id)}/run`, { method: 'POST' }),
+  deleteAutomation: (id: string) =>
+    request<void>(`/library/automations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  runs: () => request<LibraryRun[]>('/library/runs'),
 };
 
 export const messageStudioApi = {

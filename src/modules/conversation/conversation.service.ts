@@ -207,6 +207,8 @@ export class ConversationService {
     if (dto.email !== undefined) contact.email = dto.email;
     if (dto.notes !== undefined) contact.notes = dto.notes;
     if (dto.tags !== undefined) contact.tags = dto.tags;
+    if (dto.birthday !== undefined) contact.birthday = dto.birthday;
+    if (dto.anniversary !== undefined) contact.anniversary = dto.anniversary;
 
     return this.contactRepo.save(contact);
   }

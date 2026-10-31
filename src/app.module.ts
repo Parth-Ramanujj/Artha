@@ -52,7 +52,9 @@ import { WhatsAppFormModule } from './modules/whatsapp-form/whatsapp-form.module
 import { IntegrationModule as IntegrationsModule } from './modules/integrations/integration.module';
 import { SalesAgentModule } from './modules/sales-agent/sales-agent.module';
 import { GoogleBusinessModule } from './modules/google-business/google-business.module';
+import { LibraryModule } from './modules/library/library.module';
 import { CustomerCareModule } from './modules/customer-care/customer-care.module';
+import { GrowthModule } from './modules/growth/growth.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -199,7 +201,9 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/whatsapp-form/**/*.entity{.ts,.js}',
             __dirname + '/modules/sales-agent/**/*.entity{.ts,.js}',
             __dirname + '/modules/google-business/**/*.entity{.ts,.js}',
+            __dirname + '/modules/library/**/*.entity{.ts,.js}',
             __dirname + '/modules/customer-care/**/*.entity{.ts,.js}',
+            __dirname + '/modules/growth/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -348,7 +352,9 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     ...searchModules, // Global message search (opt-out via SEARCH_ENABLED=false; default ON)
     ...salesAgentModules, // Sales agent: prospecting + WhatsApp/email outreach (opt-out via SALES_AGENT_ENABLED=false)
     ...googleBusinessModules, // Google Business Profile: review replies, alerts, review requests, posts
+    LibraryModule, // Library: reusable posts, scheduled/recurring WhatsApp Status posts and messages
     CustomerCareModule, // Missed-call WhatsApp + AI call follow-up, and the WhatsApp → web AI assistant link
+    GrowthModule, // Growth: QR/widget links, greetings, owner summary, compliance, voice-note actions
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],

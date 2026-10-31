@@ -33,7 +33,7 @@ import { Lead } from './entities/lead.entity';
 import { ScheduledMessage, ScheduledMessageStatus } from '../campaign/entities/scheduled-message.entity';
 import { createLogger } from '../../common/services/logger.service';
 import { containsKeyword, parseKeywords } from './keyword-match';
-import { DND_TAG } from '../conversation/dnd';
+import { DND_TAG, OPT_OUT_KEYWORDS } from '../conversation/dnd';
 import {
   isSsrfProtectionEnabled,
   redactSsrfError,
@@ -3276,9 +3276,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     const rawText = (ctx.messageBody || '').toLowerCase().trim();
-    const defaultKeywords = ['stop', 'unsubscribe', 'bandh', 'rad', 'રદ', 'બંધ', 'dnd'];
     const customKeywords = (action.config['keywords'] as string[]) || [];
-    const allKeywords = [...defaultKeywords, ...customKeywords.map(k => k.toLowerCase().trim())];
+    const allKeywords = [...OPT_OUT_KEYWORDS, ...customKeywords.map(k => k.toLowerCase().trim())];
 
     // Whole words only: a prefix test opted out every "Radhe…" because it starts with "rad".
     const isMatch = allKeywords.some(kw => kw && containsKeyword(rawText, kw));

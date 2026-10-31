@@ -58,7 +58,7 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
    * True when the contact opted out: a DND tag on its chat in this session (set by a workflow's opt-out
    * step) or an opted-out consent record. Checked right before each send, since a campaign runs for hours.
    */
-  private async isOptedOut(businessId: string, sessionId: string, chatId: string): Promise<boolean> {
+  async isOptedOut(businessId: string, sessionId: string, chatId: string): Promise<boolean> {
     const phone = chatId.replace(/@.*$/, '');
     const ids = [...new Set([chatId, phone, `${phone}@c.us`])];
     const consent = await this.consentRepo.findOne({

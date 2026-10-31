@@ -424,7 +424,7 @@ export class AiService implements OnModuleInit {
         .slice(-historyLimit)
         .filter(m => m && typeof m.content === 'string' && m.content.trim())
         .map(m => ({
-          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          role: m.role === 'assistant' ? ('assistant' as const) : ('user' as const),
           content: m.content.trim(),
         }));
       messages.push(...trimHistory(validHistory));
@@ -523,6 +523,50 @@ export class AiService implements OnModuleInit {
     }
 
     throw lastError ?? new Error('All Groq keys failed to process request');
+  }
+
+  /** Speech to text (Groq Whisper) over the same key pool; used for WhatsApp voice notes. */
+  async transcribe(audio: Buffer, mimetype: string, timeoutMs = 15000): Promise<string> {
+    const keys = this.getGroqApiKeys();
+    if (keys.length === 0) throw new Error('No Groq API keys configured. Set GROQ_API_KEY in .env or settings.');
+    const ext = mimetype.includes('ogg')
+      ? 'ogg'
+      : mimetype.includes('mpeg')
+        ? 'mp3'
+        : mimetype.includes('mp4')
+          ? 'm4a'
+          : 'webm';
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const keyIndex = (this.groqKeyIndex + attempt) % keys.length;
+      try {
+        const form = new FormData();
+        form.append('file', new Blob([new Uint8Array(audio)], { type: mimetype.split(';')[0] }), `voice.${ext}`);
+        form.append('model', process.env.GROQ_TRANSCRIBE_MODEL || 'whisper-large-v3-turbo');
+        form.append('response_format', 'json');
+        const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${keys[keyIndex]}` },
+          body: form,
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        if (response.status === 429) continue;
+        if (!response.ok) {
+          const errText = await response.text();
+          if (response.status === 413 || response.status === 400) {
+            throw new NonRetryableAiError(`Groq HTTP ${response.status}: ${errText}`);
+          }
+          throw new Error(`Groq HTTP ${response.status}: ${errText}`);
+        }
+        this.groqKeyIndex = (keyIndex + 1) % keys.length;
+        return (((await response.json()) as { text?: string }).text ?? '').trim();
+      } catch (err) {
+        if (err instanceof NonRetryableAiError) throw err;
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+    throw lastError ?? new Error('All Groq keys failed to transcribe');
   }
 
   /**
@@ -641,7 +685,7 @@ export class AiService implements OnModuleInit {
           max_tokens: config.maxTokens || 1000,
         }),
       });
-      const data = (await res.json()) as any;
+      const data = await res.json();
       const reply = data.choices?.[0]?.message?.content || data.reply || data.message || 'No response';
       return {
         reply,

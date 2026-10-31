@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, IsArray, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsArray, Matches, MaxLength } from 'class-validator';
 import { ConversationStatus } from '../entities/conversation.entity';
 
 export class UpdateConversationDto {
@@ -73,4 +73,13 @@ export class UpdateContactDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  /** MM-DD, or null to clear. */
+  @IsOptional()
+  @Matches(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, { message: 'birthday must be MM-DD' })
+  birthday?: string | null;
+
+  @IsOptional()
+  @Matches(/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, { message: 'anniversary must be MM-DD' })
+  anniversary?: string | null;
 }

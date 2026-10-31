@@ -1,6 +1,9 @@
 /** Conversation tag set when a customer opts out; automated outreach must skip these chats. */
 export const DND_TAG = 'dnd';
 
+/** Default words that opt a customer out (whole-word match); shared by the workflow DND step and auto-STOP. */
+export const OPT_OUT_KEYWORDS = ['stop', 'unsubscribe', 'bandh', 'rad', 'રદ', 'બંધ', 'dnd'];
+
 /** Words that undo an opt-out, as promised in the opt-out confirmation ("send START"). */
 const OPT_IN_WORDS = new Set(['start', 'શરૂ', 'चालू', 'शुरू']);
 

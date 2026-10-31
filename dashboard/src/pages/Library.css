@@ -1,0 +1,112 @@
+/* Library page; builds on the shared .sa-* styles in SalesAgent.css. */
+
+.sa-page .lib-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.sa-page .lib-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sa-page .lib-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.sa-page .lib-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.sa-page .lib-thumb-text {
+  padding: 0.75rem;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.sa-page .lib-caption {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sa-page .lib-preview {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+  align-self: flex-start;
+}
+
+.sa-page .lib-file {
+  position: relative;
+  cursor: pointer;
+}
+
+.sa-page .lib-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sa-page .lib-file:focus-within {
+  outline: 2px solid var(--primary);
+}
+
+.sa-page .lib-search {
+  flex: 1 1 200px;
+  width: auto;
+}
+
+.sa-page .lib-filter {
+  width: auto;
+}
+
+.sa-page .lib-pick {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sa-page .lib-error-cell {
+  white-space: pre-wrap;
+  color: #dc2626;
+  font-size: 0.8rem;
+}
+
+.sa-page .lib-square {
+  aspect-ratio: 1 / 1;
+}
+
+.sa-page .lib-brand {
+  background: var(--bg-secondary);
+}
