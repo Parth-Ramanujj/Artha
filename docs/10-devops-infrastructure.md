@@ -458,7 +458,7 @@ WEBHOOK_DISPATCH_MAX_QUEUED=1000
 # ===========================================
 # Three global per-IP windows (short/medium/long); defaults shown
 RATE_LIMIT_MEDIUM_TTL=60000
-RATE_LIMIT_MEDIUM_LIMIT=100
+RATE_LIMIT_MEDIUM_LIMIT=1200
 ```
 
 ### Configuration Service
@@ -518,11 +518,11 @@ export default () => ({
   api: {
     rateLimit: {
       shortTtl: parseInt(process.env.RATE_LIMIT_SHORT_TTL || '1000', 10),
-      shortLimit: parseInt(process.env.RATE_LIMIT_SHORT_LIMIT || '10', 10),
+      shortLimit: parseInt(process.env.RATE_LIMIT_SHORT_LIMIT || '50', 10),
       mediumTtl: parseInt(process.env.RATE_LIMIT_MEDIUM_TTL || '60000', 10),
-      mediumLimit: parseInt(process.env.RATE_LIMIT_MEDIUM_LIMIT || '100', 10),
+      mediumLimit: parseInt(process.env.RATE_LIMIT_MEDIUM_LIMIT || '1200', 10),
       longTtl: parseInt(process.env.RATE_LIMIT_LONG_TTL || '3600000', 10),
-      longLimit: parseInt(process.env.RATE_LIMIT_LONG_LIMIT || '1000', 10),
+      longLimit: parseInt(process.env.RATE_LIMIT_LONG_LIMIT || '30000', 10),
     },
   },
 });

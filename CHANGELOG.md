@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Raised the default per-IP API rate limits to 50/s, 1200/min and 30000/h (were 10/s, 100/min,
+  1000/h). The dashboard's 8 s connection poll alone is 450 requests/hour per open tab, so two or three
+  dashboard users behind one office IP hit the old hourly cap. Override with `RATE_LIMIT_*_LIMIT`.
+
 ## [0.12.3] - 2026-08-01
 
 ### Fixed

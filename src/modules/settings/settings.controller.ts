@@ -44,7 +44,7 @@ export class SettingsController {
         debugMode: this.configService.get<boolean>('database.logging', false),
       },
       api: {
-        rateLimit: this.configService.get<number>('api.rateLimit.mediumLimit', 100),
+        rateLimit: this.configService.get<number>('api.rateLimit.mediumLimit', 1200),
         rateLimitWindow: this.configService.get<number>('api.rateLimit.mediumTtl', 60000),
         // Reflect the REAL ENABLE_SWAGGER gate (off by default in production), not a hardcoded `true`
         // — otherwise the panel reports docs enabled in production where they are actually disabled.

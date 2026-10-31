@@ -251,9 +251,9 @@ flowchart LR
     RL -->|Over Limit| ERR[429 Too Many Requests]
 
     subgraph Limits["Global windows (per client IP)"]
-        T1[short: 10 / 1s]
-        T2[medium: 100 / 60s]
-        T3[long: 1000 / 1h]
+        T1[short: 50 / 1s]
+        T2[medium: 1200 / 60s]
+        T3[long: 30000 / 1h]
     end
 ```
 
@@ -261,11 +261,11 @@ flowchart LR
 
 All limits are **global and per client IP** (resolved through `TRUSTED_PROXIES`), applied by a global `ThrottlerGuard`. There is **no per-endpoint limit table** — these three windows apply to every non-exempt route, and exceeding any one returns `429 Too Many Requests`:
 
-| Window   | Default limit | Window length | Env overrides                                       |
-| -------- | ------------- | ------------- | --------------------------------------------------- |
-| `short`  | 10 requests   | 1 s           | `RATE_LIMIT_SHORT_TTL` / `RATE_LIMIT_SHORT_LIMIT`   |
-| `medium` | 100 requests  | 60 s          | `RATE_LIMIT_MEDIUM_TTL` / `RATE_LIMIT_MEDIUM_LIMIT` |
-| `long`   | 1000 requests | 3600 s        | `RATE_LIMIT_LONG_TTL` / `RATE_LIMIT_LONG_LIMIT`     |
+| Window   | Default limit  | Window length | Env overrides                                       |
+| -------- | -------------- | ------------- | --------------------------------------------------- |
+| `short`  | 50 requests    | 1 s           | `RATE_LIMIT_SHORT_TTL` / `RATE_LIMIT_SHORT_LIMIT`   |
+| `medium` | 1200 requests  | 60 s          | `RATE_LIMIT_MEDIUM_TTL` / `RATE_LIMIT_MEDIUM_LIMIT` |
+| `long`   | 30000 requests | 3600 s        | `RATE_LIMIT_LONG_TTL` / `RATE_LIMIT_LONG_LIMIT`     |
 
 TTL values are in milliseconds. The `/api/metrics` and `/api/health*` routes are exempt (`@SkipThrottle`). To enforce tighter per-route limits, lower the global windows or add a limiter at your reverse proxy.
 
