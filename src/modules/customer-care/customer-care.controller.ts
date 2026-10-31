@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiPropertyOptional, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
-import { CurrentApiKey, Public, RequireRole } from '../auth/decorators/auth.decorators';
+import { CurrentApiKey, Public, RequireRole, RequireUnscopedKey } from '../auth/decorators/auth.decorators';
 import { ApiKey, ApiKeyRole } from '../auth/entities/api-key.entity';
 import { RequireActiveBusiness } from '../auth/guards/business-scope.guard';
 import { BusinessService } from '../business/business.service';
@@ -41,12 +41,14 @@ export class CustomerCareController {
   }
 
   @Get('settings')
+  @RequireUnscopedKey()
   async settings(@CurrentApiKey() apiKey: ApiKey) {
     return this.care.getSettings(await this.businessId(apiKey));
   }
 
   @Put('settings')
   @RequireRole(ApiKeyRole.OPERATOR)
+  @RequireUnscopedKey()
   async updateSettings(@CurrentApiKey() apiKey: ApiKey, @Body() dto: UpdateCustomerCareDto) {
     const saved = await this.care.updateSettings(await this.businessId(apiKey), dto);
     await this.assistant.refresh();
@@ -54,12 +56,14 @@ export class CustomerCareController {
   }
 
   @Get('missed-calls')
+  @RequireUnscopedKey()
   async list(@CurrentApiKey() apiKey: ApiKey, @Query('limit') limit?: string) {
     return this.care.list(await this.businessId(apiKey), Number(limit) || 50);
   }
 
   @Post('missed-calls')
   @RequireRole(ApiKeyRole.OPERATOR)
+  @RequireUnscopedKey()
   @ApiOperation({
     summary: 'Report a missed call from a phone call log (Android app / automation); sends the WhatsApp follow-up',
   })
