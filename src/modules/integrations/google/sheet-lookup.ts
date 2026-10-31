@@ -3,9 +3,11 @@
  * phone number is read out of a message, and how a column header becomes a safe token name.
  */
 
+import { scalarToString } from '../../../common/utils/scalar-string';
+
 /** Digits only: "+91 98765-43210" → "919876543210". */
 export function digitsOf(value: unknown): string {
-  return String(value ?? '').replace(/\D/g, '');
+  return scalarToString(value).replace(/\D/g, '');
 }
 
 /**
@@ -20,7 +22,7 @@ export function phoneKey(value: unknown): string {
 /** A phone-like value is 7–15 digits once separators are removed. */
 export function looksLikePhone(value: unknown): boolean {
   const digits = digitsOf(value);
-  return digits.length >= 7 && digits.length <= 15 && /^[\s+\-()\d]+$/.test(String(value ?? '').trim());
+  return digits.length >= 7 && digits.length <= 15 && /^[\s+\-()\d]+$/.test(scalarToString(value).trim());
 }
 
 /** The first phone number written in a message, or null. */
@@ -39,7 +41,7 @@ export function cellMatches(cell: unknown, wanted: string): boolean {
     const k = phoneKey(w);
     return k.length > 0 && phoneKey(cell) === k;
   }
-  return String(cell ?? '').trim().toLowerCase() === w.toLowerCase();
+  return scalarToString(cell).trim().toLowerCase() === w.toLowerCase();
 }
 
 /** "Order No." → "order_no". Used for the fields that workflow tokens can reference. */

@@ -1,5 +1,6 @@
 import { IsString, IsOptional, IsArray, IsInt, Min, ValidateNested, IsNumber, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ToStrictNumber } from '../../../common/utils/strict-boolean';
 
 class VariantDto {
   @IsString()
@@ -8,6 +9,7 @@ class VariantDto {
   @IsString()
   name: string;
 
+  @ToStrictNumber()
   @IsNumber()
   @Min(0)
   weight: number;

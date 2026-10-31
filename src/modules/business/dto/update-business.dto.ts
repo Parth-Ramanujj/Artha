@@ -1,6 +1,7 @@
 import { IsString, IsOptional, IsBoolean, MaxLength, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class UpdateBusinessDto {
   @ApiPropertyOptional({ description: 'Business display name' })
@@ -8,7 +9,7 @@ export class UpdateBusinessDto {
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   name?: string;
 
   @ApiPropertyOptional({ description: 'URL-safe slug' })
@@ -17,7 +18,11 @@ export class UpdateBusinessDto {
   @MaxLength(100)
   @Transform(({ value }) => {
     if (typeof value !== 'string') return undefined;
-    const clean = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const clean = value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
     return clean.length > 0 ? clean : undefined;
   })
   slug?: string;
@@ -30,6 +35,7 @@ export class UpdateBusinessDto {
 
   @ApiPropertyOptional({ description: 'Whether the business is active' })
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   isActive?: boolean;
 

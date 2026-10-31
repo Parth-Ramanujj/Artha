@@ -220,14 +220,14 @@ export function ChatbotTraining() {
       const [d, c] = await Promise.all([chatbotApi.listDocs(), chatbotApi.getConfig()]);
       const rawDocs = Array.isArray(d) ? d : [];
       setDocs(
-        rawDocs.map((item: any) => ({
+        (rawDocs as KnowledgeDoc[]).map(item => ({
           ...item,
           type: item.type || item.fileType || 'faq',
           enabled: item.status === 'ready' || item.enabled !== false,
         }))
       );
       if (c) {
-        const conf = c as any;
+        const conf = c as AiConfig;
         setConfig({
           ...conf,
           temperature: typeof conf.temperature === 'number' ? conf.temperature : 0.7,

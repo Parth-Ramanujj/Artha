@@ -5,12 +5,8 @@ export class AddConversationsAndContacts1786200000001 implements MigrationInterf
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     const isPostgres = queryRunner.dataSource.options.type === 'postgres';
-    const uuidDefault = isPostgres
-      ? `DEFAULT gen_random_uuid()`
-      : '';
-    const timestampDefault = isPostgres
-      ? `DEFAULT NOW()`
-      : `DEFAULT (datetime('now'))`;
+    const uuidDefault = isPostgres ? `DEFAULT gen_random_uuid()` : '';
+    const timestampDefault = isPostgres ? `DEFAULT NOW()` : `DEFAULT (datetime('now'))`;
 
     await queryRunner.query(`
       CREATE TABLE "contacts" (

@@ -68,6 +68,7 @@ describe('SessionController — create() response contract', () => {
       updatedAt: entity.updatedAt,
       lastError: null,
       engineLoaded: false,
+      engineType: null,
     });
   });
 

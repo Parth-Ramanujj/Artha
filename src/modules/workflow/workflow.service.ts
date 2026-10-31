@@ -368,7 +368,8 @@ export class WorkflowService implements OnModuleInit, OnModuleDestroy {
   }
 
   async updateRunTriggerData(runId: string, triggerData: Record<string, unknown>): Promise<void> {
-    await this.runRepo.update(runId, { triggerData: triggerData as any });
+    const update: Record<string, unknown> = { triggerData };
+    await this.runRepo.update(runId, update);
   }
 
   // ── Validation ──

@@ -1,6 +1,7 @@
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsEnum, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DealStage, DealPriority } from '../entities/deal.entity';
+import { ToStrictNumber } from '../../../common/utils/strict-boolean';
 
 export class CreateDealDto {
   @ApiProperty({ description: 'Title or opportunity name' })
@@ -29,6 +30,7 @@ export class CreateDealDto {
   contactPhone?: string;
 
   @ApiPropertyOptional({ description: 'Estimated deal value in INR / USD' })
+  @ToStrictNumber()
   @IsNumber()
   @IsOptional()
   amount?: number;
@@ -86,6 +88,7 @@ export class UpdateDealDto {
   contactPhone?: string;
 
   @ApiPropertyOptional()
+  @ToStrictNumber()
   @IsNumber()
   @IsOptional()
   amount?: number;

@@ -34,13 +34,28 @@ import { useToast } from '../components/Toast';
 import { VisualWorkflowBuilder } from '../components/workflow-builder/VisualWorkflowBuilder';
 import { parseWorkflowFile, toWorkflowFile, workflowFileName } from '../utils/workflowShare';
 import { WorkflowRunLog } from '../components/workflows/WorkflowRunLog';
+import type { NodeConfig } from '../components/workflow-builder/types';
 import './Workflows.css';
 
 type ActionStep = {
   id: string;
   type: 'send_message' | 'send_template' | 'wait' | 'webhook_call' | 'handoff_to_human' | 'add_tag';
-  config: Record<string, any>;
+  config: NodeConfig;
 };
+
+/** The parts of a stored workflow definition this list view reads (legacy step pipeline or visual graph). */
+interface StoredDefinition {
+  trigger?: { type?: string; config?: { keyword?: string } };
+  actions?: Array<{ id?: string; type?: string }>;
+  nodes?: unknown[];
+}
+
+interface TestStep {
+  status?: string;
+  actionType?: string;
+  output?: unknown;
+  error?: string;
+}
 
 export function Workflows() {
   const { t } = useTranslation();
@@ -124,7 +139,7 @@ export function Workflows() {
       .list({ limit: 50 })
       .then(setWorkflows)
       .catch(err => {
-        toast.error(t('common.error', 'Error'), err?.message || 'Failed to load workflows');
+        toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load workflows');
         setWorkflows([]);
       })
       .finally(() => setLoading(false));
@@ -139,8 +154,8 @@ export function Workflows() {
       await workflowApi.publish(id);
       toast.success(t('workflows.published', 'Workflow Published'), t('workflows.publishedDesc', 'Workflow is now active and listening.'));
       loadWorkflows();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to publish workflow');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to publish workflow');
     }
   };
 
@@ -149,8 +164,8 @@ export function Workflows() {
       await workflowApi.disable(id);
       toast.info(t('workflows.disabled', 'Workflow Disabled'), t('workflows.disabledDesc', 'Workflow execution is paused.'));
       loadWorkflows();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to disable workflow');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to disable workflow');
     }
   };
 
@@ -160,8 +175,8 @@ export function Workflows() {
       await workflowApi.delete(id);
       toast.success(t('workflows.deleted', 'Workflow Deleted'), t('workflows.deletedDesc', 'Workflow was deleted.'));
       loadWorkflows();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to delete workflow');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to delete workflow');
     }
   };
 
@@ -187,7 +202,7 @@ export function Workflows() {
 
   const updateActionType = (index: number, newType: ActionStep['type']) => {
     const updated = [...actions];
-    let config: Record<string, any> = {};
+    let config: NodeConfig = {};
     if (newType === 'send_message') config = { message: '' };
     else if (newType === 'send_template') config = { templateName: templates[0]?.name || '', vars: {} };
     else if (newType === 'wait') config = { seconds: 5 };
@@ -198,7 +213,7 @@ export function Workflows() {
     setActions(updated);
   };
 
-  const updateActionConfig = (index: number, key: string, value: any) => {
+  const updateActionConfig = (index: number, key: string, value: unknown) => {
     const updated = [...actions];
     updated[index] = {
       ...updated[index],
@@ -212,7 +227,7 @@ export function Workflows() {
     setSaving(true);
     try {
       const triggerConfig = triggerType === 'keyword_match' && keywords.trim() ? { keyword: keywords.trim() } : {};
-      const conditions: any[] = [];
+      const conditions: Array<{ type: string; config: Record<string, unknown> }> = [];
       if (workingHoursOnly) {
         conditions.push({
           type: 'working_hours',
@@ -246,8 +261,8 @@ export function Workflows() {
       setWorkingHoursOnly(false);
       setActions([{ id: 'step-1', type: 'send_message', config: { message: 'Hello!' } }]);
       loadWorkflows();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to create workflow');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to create workflow');
     } finally {
       setSaving(false);
     }
@@ -276,8 +291,8 @@ export function Workflows() {
       } else {
         toast.error(t('workflows.testFailed', 'Test Stopped'), result.failureReason || 'One or more steps failed');
       }
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to execute test run');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to execute test run');
     } finally {
       setTesting(false);
     }
@@ -384,7 +399,7 @@ export function Workflows() {
               </thead>
               <tbody>
                 {workflows.map(wf => {
-                  const def = wf.definition as any;
+                  const def = wf.definition as StoredDefinition;
                   const trigger = def?.trigger;
                   const actionsList = def?.actions || [];
 
@@ -430,7 +445,7 @@ export function Workflows() {
                           </span>
                         ) : (
                           <div className="pipeline-steps-preview">
-                            {actionsList.map((step: any, idx: number) => (
+                            {actionsList.map((step, idx) => (
                               <span key={step.id || idx} className="pipeline-chip">
                                 {step.type === 'send_message' && <MessageSquare size={13} />}
                                 {step.type === 'send_template' && <FileText size={13} />}
@@ -576,7 +591,7 @@ export function Workflows() {
                 <select
                   className="form-select"
                   value={triggerType}
-                  onChange={e => setTriggerType(e.target.value as any)}
+                  onChange={e => setTriggerType(e.target.value as typeof triggerType)}
                 >
                   <option value="message_received">Any Incoming Message</option>
                   <option value="keyword_match">Keyword Match (Specific words in customer message)</option>
@@ -628,7 +643,7 @@ export function Workflows() {
                       <select
                         className="form-select step-type-select"
                         value={act.type}
-                        onChange={e => updateActionType(index, e.target.value as any)}
+                        onChange={e => updateActionType(index, e.target.value as ActionStep['type'])}
                       >
                         <option value="send_message">💬 Send Text Message</option>
                         <option value="send_template">📑 Send Template Message</option>
@@ -873,7 +888,7 @@ export function Workflows() {
                   </div>
                 )}
                 <div className="test-steps-list">
-                  {((testResult.steps as any[]) || []).map((st: any, i: number) => (
+                  {((testResult.steps as TestStep[]) || []).map((st, i) => (
                     <div key={i} className="test-step-item">
                       <div className="step-item-title">
                         {st.status === 'success' ? (
@@ -885,7 +900,7 @@ export function Workflows() {
                           Step {i + 1}: <strong>{st.actionType}</strong>
                         </span>
                       </div>
-                      {st.output && (
+                      {Boolean(st.output) && (
                         <pre className="step-output-json">{JSON.stringify(st.output, null, 2)}</pre>
                       )}
                       {st.error && <p className="step-error-msg">{st.error}</p>}

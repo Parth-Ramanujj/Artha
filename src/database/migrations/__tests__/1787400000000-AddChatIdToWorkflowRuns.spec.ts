@@ -32,10 +32,9 @@ describe('AddChatIdToWorkflowRuns migration', () => {
     await expect(new AddChatIdToWorkflowRuns1787400000000().up(runner)).resolves.toBeUndefined();
     await runner.release();
 
-    const rows = (await ds.query(`SELECT "id", "chatId" FROM "workflow_runs" ORDER BY "id"`)) as {
-      id: string;
-      chatId: string | null;
-    }[];
+    const rows = await ds.query<{ id: string; chatId: string | null }[]>(
+      `SELECT "id", "chatId" FROM "workflow_runs" ORDER BY "id"`,
+    );
     expect(rows).toEqual([
       { id: 'broken', chatId: null },
       { id: 'done', chatId: null },

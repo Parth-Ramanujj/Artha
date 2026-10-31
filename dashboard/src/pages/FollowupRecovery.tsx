@@ -300,8 +300,8 @@ export function FollowupRecovery() {
       } else {
         toast.error(`Failed: ${result.reason || 'Unknown error'}`);
       }
-    } catch (err: any) {
-      toast.error('Failed to send follow-up: ' + (err?.message || 'Network error'));
+    } catch (err) {
+      toast.error('Failed to send follow-up: ' + ((err instanceof Error && err.message) || 'Network error'));
     } finally {
       setIsSendingFollowup(false);
     }

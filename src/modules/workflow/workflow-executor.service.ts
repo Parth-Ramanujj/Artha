@@ -9,7 +9,6 @@ import {
   ActionType,
   ConditionType,
   TriggerType,
-  VisualWorkflowNode,
   VisualWorkflowEdge,
   WorkflowStatus,
 } from './entities/workflow-definition.entity';
@@ -61,6 +60,16 @@ const GENERIC_HANDLES = new Set(['out', 'default']);
 const FAILURE_HANDLES = new Set(['false', 'fallback', 'invalid_pincode']);
 
 const MAX_HTTP_RESPONSE_BYTES = 1024 * 1024;
+
+type CarouselSender = (chatId: string, cards: unknown[]) => Promise<{ messageId?: string } | undefined>;
+
+/** String(v) for untyped config values; objects become JSON instead of "[object Object]". */
+function str(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) return v.map(str).join(',');
+  if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+  return String(v);
+}
 
 interface GuardedHttpResponse {
   ok: boolean;
@@ -416,10 +425,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     answer: unknown,
   ): string {
     const configured = action.config[key];
-    if (configured !== undefined && configured !== null && String(configured).trim() !== '') {
-      return this.interpolateVariables(String(configured), ctx, run).trim();
+    if (configured !== undefined && configured !== null && str(configured).trim() !== '') {
+      return this.interpolateVariables(str(configured), ctx, run).trim();
     }
-    return answer !== undefined && answer !== null ? String(answer).trim() : '';
+    return answer !== undefined && answer !== null ? str(answer).trim() : '';
   }
 
   // Test runs and dry-run nodes must never reach a real customer.
@@ -506,7 +515,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
             steps,
             actionCount,
-            failureReason: `Workflow filtered at node ${action.id}: ${String(step.output?.['reason'] || 'Filter condition not met')}`,
+            failureReason: `Workflow filtered at node ${action.id}: ${str(step.output?.['reason'] || 'Filter condition not met')}`,
           });
           return;
         }
@@ -515,7 +524,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
             steps,
             actionCount,
-            failureReason: `Workflow terminated at node ${action.id}: ${String(step.output?.['reason'] || 'Workflow stopped')}`,
+            failureReason: `Workflow terminated at node ${action.id}: ${str(step.output?.['reason'] || 'Workflow stopped')}`,
           });
           return;
         }
@@ -576,7 +585,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         return ctx.sessionId === cond.config.sessionId;
 
       case ConditionType.KEYWORD_EXACT: {
-        const raw = String(cond.config['keyword'] ?? '')
+        const raw = str(cond.config['keyword'] ?? '')
           .toLowerCase()
           .trim();
         const body = (ctx.messageBody ?? '').toLowerCase().trim();
@@ -591,7 +600,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       }
 
       case ConditionType.KEYWORD_CONTAINS: {
-        const raw = String(cond.config['keyword'] ?? '')
+        const raw = str(cond.config['keyword'] ?? '')
           .toLowerCase()
           .trim();
         const body = (ctx.messageBody ?? '').toLowerCase().trim();
@@ -609,7 +618,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         return ctx.conversationStatus === cond.config.status;
 
       case ConditionType.CONTACT_TAG: {
-        const tag = String(cond.config['tag'] ?? '')
+        const tag = str(cond.config['tag'] ?? '')
           .trim()
           .toLowerCase();
         if (!tag) return false;
@@ -940,7 +949,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         const subPath = expr.slice(8);
         const val = this.extractJsonPath(triggerObj, subPath);
         if (val !== undefined && val !== null) {
-          return typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return typeof val === 'object' ? JSON.stringify(val) : str(val);
         }
         return '';
       }
@@ -953,7 +962,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           // e.g. {{steps.api_1}}
           const nodeOutput = stepOutputs[sub];
           if (nodeOutput !== undefined && nodeOutput !== null) {
-            return typeof nodeOutput === 'object' ? JSON.stringify(nodeOutput) : String(nodeOutput);
+            return typeof nodeOutput === 'object' ? JSON.stringify(nodeOutput) : str(nodeOutput);
           }
           return '';
         }
@@ -964,7 +973,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         if (nodeOutput !== undefined && nodeOutput !== null) {
           const val = this.extractJsonPath(nodeOutput, path);
           if (val !== undefined && val !== null) {
-            return typeof val === 'object' ? JSON.stringify(val) : String(val);
+            return typeof val === 'object' ? JSON.stringify(val) : str(val);
           }
         }
         return '';
@@ -977,7 +986,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         if (lastOutput !== undefined && lastOutput !== null) {
           const val = this.extractJsonPath(lastOutput, subPath);
           if (val !== undefined && val !== null) {
-            return typeof val === 'object' ? JSON.stringify(val) : String(val);
+            return typeof val === 'object' ? JSON.stringify(val) : str(val);
           }
         }
         return '';
@@ -988,7 +997,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         const subPath = expr.replace(/^(vars|variables)\./, '');
         const val = this.extractJsonPath(captured, subPath);
         if (val !== undefined && val !== null) {
-          return typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return typeof val === 'object' ? JSON.stringify(val) : str(val);
         }
         return '';
       }
@@ -997,7 +1006,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (expr in triggerObj) {
         const val = triggerObj[expr];
         if (val !== undefined && val !== null) {
-          return typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return typeof val === 'object' ? JSON.stringify(val) : str(val);
         }
       }
 
@@ -1005,7 +1014,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (expr in captured) {
         const val = captured[expr];
         if (val !== undefined && val !== null) {
-          return typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return typeof val === 'object' ? JSON.stringify(val) : str(val);
         }
       }
 
@@ -1013,7 +1022,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (expr.includes('.')) {
         const val = this.extractJsonPath(captured, expr);
         if (val !== undefined && val !== null) {
-          return typeof val === 'object' ? JSON.stringify(val) : String(val);
+          return typeof val === 'object' ? JSON.stringify(val) : str(val);
         }
       }
 
@@ -1085,7 +1094,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     const vars: Record<string, string> = {};
     for (const [k, v] of Object.entries(rawVars)) {
-      vars[k] = this.interpolateVariables(String(v ?? ''), ctx, run);
+      vars[k] = this.interpolateVariables(str(v ?? ''), ctx, run);
     }
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
@@ -1247,7 +1256,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     if (!ctx.sessionId || !ctx.chatId) throw new Error('No session/chat context for interactive message');
-    const rawMsg = String(action.config['message'] || action.config['text'] || 'Please choose an option:');
+    const rawMsg = str(action.config['message'] || action.config['text'] || 'Please choose an option:');
     const message = this.interpolateVariables(rawMsg, ctx, run);
     const rawButtons = (action.config['buttons'] as Array<{ id: string; text: string }>) || [
       { id: 'opt_1', text: 'Option 1' },
@@ -1257,7 +1266,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       id: b.id,
       text: this.interpolateVariables(b.text, ctx, run),
     }));
-    const mode = String(action.config['mode'] || 'auto');
+    const mode = str(action.config['mode'] || 'auto');
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
       this.logger.log(`Workflow interactive buttons (simulated dry-run): chat=${ctx.chatId}`);
@@ -1279,8 +1288,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       // Auto / Buttons mode: Attempt real native interactive buttons first
       try {
         const engine = this.engineRegistry.get(ctx.sessionId);
-        if (engine && typeof (engine as any).sendInteractiveButtons === 'function') {
-          await (engine as any).sendInteractiveButtons(ctx.chatId, message, buttons);
+        if (engine && typeof engine.sendInteractiveButtons === 'function') {
+          await engine.sendInteractiveButtons(ctx.chatId, message, buttons);
           sentVia = 'native_buttons';
         }
       } catch (err) {
@@ -1451,13 +1460,13 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     if (!ctx.sessionId || !ctx.chatId) throw new Error('No session/chat context for question');
-    const rawPrompt = String(
+    const rawPrompt = str(
       action.config['question'] || action.config['prompt'] || action.config['message'] || 'Please enter your response:',
     );
     const prompt = this.interpolateVariables(rawPrompt, ctx, run);
-    const slot = String(action.config['slot'] || 'response');
-    const validation = String(action.config['validation'] || 'any');
-    const rawRetry = String(action.config['retryPrompt'] || 'Invalid input. Please try again:');
+    const slot = str(action.config['slot'] || 'response');
+    const validation = str(action.config['validation'] || 'any');
+    const rawRetry = str(action.config['retryPrompt'] || 'Invalid input. Please try again:');
     const retryPrompt = this.interpolateVariables(rawRetry, ctx, run);
     const maxRetries = Number(action.config['maxRetries'] || 3);
 
@@ -1514,19 +1523,19 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     return { prompt, slot, validation, suspended: Boolean(run) };
   }
 
-  private async actionConditionBranch(
+  private actionConditionBranch(
     action: WorkflowAction,
     ctx: TriggerContext,
     run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const rawField = String(action.config['field'] || 'tag').trim();
-    const operator = String(action.config['operator'] || 'contains')
+  ): Record<string, unknown> {
+    const rawField = str(action.config['field'] || 'tag').trim();
+    const operator = str(action.config['operator'] || 'contains')
       .toLowerCase()
       .trim();
-    const rawTarget = String(action.config['value'] ?? '').trim();
+    const rawTarget = str(action.config['value'] ?? '').trim();
     const targetValue = this.interpolateVariables(rawTarget, ctx, run);
 
-    let actualValue = '';
+    let actualValue: string;
     if (rawField === 'tag') {
       actualValue = (ctx.contactTags || []).join(',');
     } else if (rawField === 'status') {
@@ -1544,7 +1553,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     } else {
       const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
       if (rawField in captured) {
-        actualValue = String(captured[rawField] ?? '');
+        actualValue = str(captured[rawField] ?? '');
       } else {
         actualValue = String(ctx.messageBody || '');
       }
@@ -1553,7 +1562,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const normActual = actualValue.toLowerCase().trim();
     const normTarget = targetValue.toLowerCase().trim();
 
-    let matched = false;
+    let matched: boolean;
     switch (operator) {
       case 'equals':
       case '==':
@@ -1620,12 +1629,12 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       return { status: 'ai_service_unavailable' };
     }
     const rawPrompt = action.config['prompt'] || action.config['message'];
-    const message = rawPrompt ? this.interpolateVariables(String(rawPrompt), ctx, run) : ctx.messageBody || '';
+    const message = rawPrompt ? this.interpolateVariables(str(rawPrompt), ctx, run) : ctx.messageBody || '';
 
     // Silent mode: a plain completion (e.g. a sheet summary) that later steps send by WhatsApp or email
     if (action.config['sendReply'] === false) {
       const system = action.config['systemPrompt']
-        ? this.interpolateVariables(String(action.config['systemPrompt']), ctx, run)
+        ? this.interpolateVariables(str(action.config['systemPrompt']), ctx, run)
         : 'Summarize the data clearly and briefly for a busy business owner. Use short bullet points.';
       const { content } = await this.aiService.complete(
         [
@@ -1712,9 +1721,9 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId || !ctx.chatId || !this.engineRegistry) {
       return { status: 'skipped', reason: 'No session/chat or engineRegistry' };
     }
-    const rawEmoji = String(action.config['emoji'] || '👍').trim();
+    const rawEmoji = str(action.config['emoji'] || '👍').trim();
     const emoji = this.interpolateVariables(rawEmoji, ctx, run);
-    const rawMsgId = String(action.config['messageId'] || ctx.metadata?.['messageId'] || '').trim();
+    const rawMsgId = str(action.config['messageId'] || ctx.metadata?.['messageId'] || '').trim();
     const messageId = this.interpolateVariables(rawMsgId, ctx, run);
 
     if (!messageId) {
@@ -1742,10 +1751,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId || !ctx.chatId || !this.engineRegistry) {
       return { status: 'skipped', reason: 'No session/chat or engineRegistry' };
     }
-    const latitude = Number(this.interpolateVariables(String(action.config['latitude'] || 0), ctx, run));
-    const longitude = Number(this.interpolateVariables(String(action.config['longitude'] || 0), ctx, run));
-    const name = this.interpolateVariables(String(action.config['name'] || ''), ctx, run) || undefined;
-    const address = this.interpolateVariables(String(action.config['address'] || ''), ctx, run) || undefined;
+    const latitude = Number(this.interpolateVariables(str(action.config['latitude'] || 0), ctx, run));
+    const longitude = Number(this.interpolateVariables(str(action.config['longitude'] || 0), ctx, run));
+    const name = this.interpolateVariables(str(action.config['name'] || ''), ctx, run) || undefined;
+    const address = this.interpolateVariables(str(action.config['address'] || ''), ctx, run) || undefined;
     if (this.isDryRun(ctx, action)) {
       return { sent: true, simulated: true, dryRun: true, latitude, longitude, name, address };
     }
@@ -1777,7 +1786,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const rawUrl = (action.config['url'] as string) || '';
     if (!rawUrl) throw new Error('Webhook action requires a URL');
 
-    const method = String(action.config['method'] || 'POST').toUpperCase();
+    const method = str(action.config['method'] || 'POST').toUpperCase();
     const timeoutMs = Math.min(Math.max(Number(action.config['timeoutMs'] || 10000), 1000), 30000);
 
     // 1. Interpolate base URL (values are URL-encoded, so customer text cannot add path or query parts)
@@ -1787,10 +1796,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const rawParams = action.config['queryParams'] || action.config['params'];
     const paramEntries: Array<[string, string]> = [];
     if (Array.isArray(rawParams)) {
-      for (const p of rawParams) {
+      for (const p of rawParams as Array<{ key?: unknown; value?: unknown } | null | undefined>) {
         if (p && typeof p === 'object' && p.key) {
-          const k = this.interpolateVariables(String(p.key).trim(), ctx, run);
-          const v = this.interpolateVariables(String(p.value ?? ''), ctx, run);
+          const k = this.interpolateVariables(str(p.key).trim(), ctx, run);
+          const v = this.interpolateVariables(str(p.value ?? ''), ctx, run);
           if (k) paramEntries.push([k, v]);
         }
       }
@@ -1822,10 +1831,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     };
     const rawHeaders = action.config['headers'];
     if (Array.isArray(rawHeaders)) {
-      for (const h of rawHeaders) {
+      for (const h of rawHeaders as Array<{ key?: unknown; value?: unknown } | null | undefined>) {
         if (h && typeof h === 'object' && h.key) {
-          const k = this.interpolateVariables(String(h.key).trim(), ctx, run);
-          const v = this.interpolateVariables(String(h.value ?? ''), ctx, run);
+          const k = this.interpolateVariables(str(h.key).trim(), ctx, run);
+          const v = this.interpolateVariables(str(h.value ?? ''), ctx, run);
           if (k) headers[k] = v;
         }
       }
@@ -1895,14 +1904,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (Array.isArray(responseMapping)) {
         for (const mapping of responseMapping) {
           if (mapping?.variable && typeof responseData === 'object' && responseData !== null) {
-            const val = this.extractJsonPath(responseData as Record<string, unknown>, mapping.path);
+            const val = this.extractJsonPath(responseData, mapping.path);
             if (val !== undefined) {
               captured[mapping.variable.trim()] = val;
             }
           }
         }
       } else if (action.config['saveResponseTo']) {
-        const varName = String(action.config['saveResponseTo']).trim();
+        const varName = str(action.config['saveResponseTo']).trim();
         if (varName) {
           captured[varName] = responseData;
         }
@@ -1984,10 +1993,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const rawParams = dto.queryParams;
     const paramEntries: Array<[string, string]> = [];
     if (Array.isArray(rawParams)) {
-      for (const p of rawParams) {
+      for (const p of rawParams as Array<{ key?: unknown; value?: unknown } | null | undefined>) {
         if (p && typeof p === 'object' && p.key) {
-          const k = this.interpolateVariables(String(p.key).trim(), mockCtx, undefined, testVars);
-          const v = this.interpolateVariables(String(p.value ?? ''), mockCtx, undefined, testVars);
+          const k = this.interpolateVariables(str(p.key).trim(), mockCtx, undefined, testVars);
+          const v = this.interpolateVariables(str(p.value ?? ''), mockCtx, undefined, testVars);
           if (k) paramEntries.push([k, v]);
         }
       }
@@ -2020,8 +2029,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (Array.isArray(dto.headers)) {
       for (const h of dto.headers) {
         if (h && typeof h === 'object' && h.key) {
-          const k = this.interpolateVariables(String(h.key).trim(), mockCtx, undefined, testVars);
-          const v = this.interpolateVariables(String(h.value ?? ''), mockCtx, undefined, testVars);
+          const k = this.interpolateVariables(str(h.key).trim(), mockCtx, undefined, testVars);
+          const v = this.interpolateVariables(str(h.value ?? ''), mockCtx, undefined, testVars);
           if (k) reqHeaders[k] = v;
         }
       }
@@ -2104,12 +2113,12 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const normalized = path.replace(/\[(\d+)\]/g, '.$1').replace(/\[['"](.+?)['"]\]/g, '.$1');
 
     const parts = normalized.split('.').filter(Boolean);
-    let curr: any = obj;
+    let curr: unknown = obj;
     try {
       for (const part of parts) {
         if (curr === null || curr === undefined) return undefined;
         if (typeof curr !== 'object' && typeof curr !== 'function') return undefined;
-        curr = curr[part];
+        curr = (curr as Record<string, unknown>)[part];
       }
       return curr;
     } catch {
@@ -2132,23 +2141,23 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       flowReply?: { flowToken: string; answers: Record<string, unknown> };
     } = {},
   ): Promise<ResumeOutcome> {
-    const triggerData = (run.triggerData || {}) as Record<string, any>;
-    if (!triggerData.waitingForInput) return 'ignored';
+    const triggerData = run.triggerData || {};
+    if (!triggerData['waitingForInput']) return 'ignored';
 
     // The message that started or last advanced this run, or one sent before the bot asked its
     // question (e.g. "Hi" followed by a second line), belongs to the previous step, not this answer.
-    if (message.id && (message.id === triggerData.messageId || message.id === triggerData.lastMessageId)) {
+    if (message.id && (message.id === triggerData['messageId'] || message.id === triggerData['lastMessageId'])) {
       return 'ignored';
     }
-    const pausedAtSec = Math.floor(Date.parse(String(triggerData.pausedAt ?? '')) / 1000);
+    const pausedAtSec = Math.floor(Date.parse(str(triggerData['pausedAt'] ?? '')) / 1000);
     if (message.timestamp && Number.isFinite(pausedAtSec) && message.timestamp < pausedAtSec) return 'ignored';
 
     // A run waiting for a form takes only that form's submission. Other messages pass it by, except
     // the stop / restart words, which still end the wait.
-    if (triggerData.expectedInputType === 'whatsapp_form') {
+    if (triggerData['expectedInputType'] === 'whatsapp_form') {
       if (message.flowReply) {
-        if (message.flowReply.flowToken !== triggerData.flowToken) return 'ignored';
-        triggerData.formAnswers = message.flowReply.answers;
+        if (message.flowReply.flowToken !== triggerData['flowToken']) return 'ignored';
+        triggerData['formAnswers'] = message.flowReply.answers;
       } else {
         const word = userReply
           .trim()
@@ -2166,9 +2175,9 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     try {
       const word = reply.toLowerCase().replace(/[\s!.]+$/, '');
-      const choiceMap = (triggerData.choiceMap || {}) as Record<string, string>;
+      const choiceMap = (triggerData['choiceMap'] || {}) as Record<string, string>;
       const isMenuChoice =
-        triggerData.expectedInputType === 'button_choice' &&
+        triggerData['expectedInputType'] === 'button_choice' &&
         Boolean(choiceMap[word] || choiceMap[normalizeChoice(reply)]);
       if (!isMenuChoice && (STOP_WORDS.has(word) || RESTART_WORDS.has(word))) {
         await this.workflowService.updateRunStatus(run.id, RunStatus.CANCELLED, {
@@ -2177,7 +2186,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         return STOP_WORDS.has(word) ? 'cancelled' : 'restart';
       }
 
-      triggerData.lastMessageId = message.id;
+      triggerData['lastMessageId'] = message.id;
       await this.applyReply(workflow, run, ctx, reply, triggerData);
       return 'resumed';
     } catch (err) {
@@ -2197,23 +2206,25 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     run: WorkflowRun,
     ctx: TriggerContext,
     userReply: string,
-    triggerData: Record<string, any>,
+    triggerData: Record<string, unknown>,
   ): Promise<void> {
-    const inputType = triggerData.expectedInputType;
+    const inputType = triggerData['expectedInputType'];
     let nextHandle: string | undefined;
 
-    if (!triggerData.stepOutputs) {
-      triggerData.stepOutputs = {};
+    if (!triggerData['stepOutputs']) {
+      triggerData['stepOutputs'] = {};
     }
+    const stepOutputs = triggerData['stepOutputs'] as Record<string, unknown>;
+    const currentNodeId = triggerData['currentNodeId'] as string | undefined;
 
     if (inputType === 'button_choice') {
-      const choiceMap = (triggerData.choiceMap || {}) as Record<string, string>;
+      const choiceMap = (triggerData['choiceMap'] || {}) as Record<string, string>;
       const normalized = userReply.toLowerCase().trim();
       const matchedChoiceId =
         choiceMap[normalized] || choiceMap[userReply.trim()] || choiceMap[normalizeChoice(userReply)];
 
       if (!matchedChoiceId) {
-        const invalidAttempts = Number(triggerData.invalidAttempts || 0) + 1;
+        const invalidAttempts = Number(triggerData['invalidAttempts'] || 0) + 1;
         const givingUp = invalidAttempts >= MAX_INVALID_CHOICES;
         if (this.messageService && ctx.sessionId && ctx.chatId) {
           await this.messageService.sendText(ctx.sessionId, {
@@ -2229,7 +2240,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           });
           return;
         }
-        triggerData.invalidAttempts = invalidAttempts;
+        triggerData['invalidAttempts'] = invalidAttempts;
         await this.workflowService.updateRunTriggerData(run.id, triggerData);
         await this.workflowService.updateRunStatus(run.id, RunStatus.PAUSED);
         return;
@@ -2237,9 +2248,9 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
       const selectedId = matchedChoiceId;
       nextHandle = selectedId;
-      triggerData.waitingForInput = false;
-      triggerData.capturedVariables = {
-        ...(triggerData.capturedVariables || {}),
+      triggerData['waitingForInput'] = false;
+      triggerData['capturedVariables'] = {
+        ...((triggerData['capturedVariables'] || {}) as Record<string, unknown>),
         lastChoice: selectedId,
       };
 
@@ -2250,25 +2261,25 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         answered: true,
       };
 
-      if (triggerData.currentNodeId) {
-        triggerData.stepOutputs[triggerData.currentNodeId] = buttonOutput;
+      if (currentNodeId) {
+        stepOutputs[currentNodeId] = buttonOutput;
       }
-      triggerData.stepOutputs['last'] = buttonOutput;
+      stepOutputs['last'] = buttonOutput;
     } else if (inputType === 'question_slot') {
-      const slot = triggerData.slot || 'response';
-      const validation = triggerData.validation || 'any';
-      const checked = validateAnswer(String(validation), userReply);
+      const slot = str(triggerData['slot'] || 'response');
+      const validation = str(triggerData['validation'] || 'any');
+      const checked = validateAnswer(validation, userReply);
       const isValid = checked !== null;
       const trimmed = checked ?? userReply.trim();
 
       if (!isValid) {
-        const attempts = Number(triggerData.attempts || 0) + 1;
-        triggerData.attempts = attempts;
-        if (attempts < Number(triggerData.maxRetries || 3)) {
+        const attempts = Number(triggerData['attempts'] || 0) + 1;
+        triggerData['attempts'] = attempts;
+        if (attempts < Number(triggerData['maxRetries'] || 3)) {
           if (this.messageService && ctx.sessionId && ctx.chatId) {
             await this.messageService.sendText(ctx.sessionId, {
               chatId: ctx.chatId,
-              text: triggerData.retryPrompt || 'Invalid format, please try again:',
+              text: str(triggerData['retryPrompt'] || 'Invalid format, please try again:'),
             });
           }
           await this.workflowService.updateRunTriggerData(run.id, triggerData);
@@ -2276,11 +2287,11 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           return;
         }
         nextHandle = 'fallback';
-        triggerData.waitingForInput = false;
+        triggerData['waitingForInput'] = false;
       } else {
-        triggerData.waitingForInput = false;
-        triggerData.capturedVariables = {
-          ...(triggerData.capturedVariables || {}),
+        triggerData['waitingForInput'] = false;
+        triggerData['capturedVariables'] = {
+          ...((triggerData['capturedVariables'] || {}) as Record<string, unknown>),
           [slot]: trimmed,
         };
 
@@ -2293,10 +2304,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           validation,
         };
 
-        if (triggerData.currentNodeId) {
-          triggerData.stepOutputs[triggerData.currentNodeId] = questionOutput;
+        if (currentNodeId) {
+          stepOutputs[currentNodeId] = questionOutput;
         }
-        triggerData.stepOutputs['last'] = questionOutput;
+        stepOutputs['last'] = questionOutput;
 
         if (this.conversationService && ctx.chatId) {
           const updateDto: Record<string, any> = {};
@@ -2313,14 +2324,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (inputType === 'whatsapp_form') {
-      const answers = (triggerData.formAnswers || {}) as Record<string, unknown>;
-      const captured = (triggerData.capturedVariables || {}) as Record<string, unknown>;
-      const outputs = triggerData.stepOutputs as Record<string, unknown>;
-      const nodeId = triggerData.currentNodeId as string | undefined;
-      delete triggerData.formAnswers;
-      triggerData.waitingForInput = false;
-      triggerData.capturedVariables = { ...captured, ...formAnswerVariables(answers) };
-      const formOutput = { submitted: true, formId: triggerData.formId as string, answers };
+      const answers = (triggerData['formAnswers'] || {}) as Record<string, unknown>;
+      const captured = (triggerData['capturedVariables'] || {}) as Record<string, unknown>;
+      const outputs = stepOutputs;
+      const nodeId = currentNodeId;
+      delete triggerData['formAnswers'];
+      triggerData['waitingForInput'] = false;
+      triggerData['capturedVariables'] = { ...captured, ...formAnswerVariables(answers) };
+      const formOutput = { submitted: true, formId: triggerData['formId'] as string, answers };
       if (nodeId) outputs[nodeId] = formOutput;
       outputs['last'] = formOutput;
     }
@@ -2328,9 +2339,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     await this.workflowService.updateRunTriggerData(run.id, triggerData);
     await this.workflowService.updateRunStatus(run.id, RunStatus.RUNNING);
 
-    const nodes = (workflow.definition.nodes || []) as VisualWorkflowNode[];
-    const edges = (workflow.definition.edges || []) as VisualWorkflowEdge[];
-    const currentNodeId = triggerData.currentNodeId;
+    const nodes = workflow.definition.nodes || [];
+    const edges = workflow.definition.edges || [];
 
     if (nodes.length > 0 && edges.length > 0 && currentNodeId) {
       await this.executeGraphFromNode(workflow, run, ctx, currentNodeId, nextHandle);
@@ -2339,11 +2349,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async actionSetFields(
-    action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
+  private actionSetFields(action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun): Record<string, unknown> {
     const rawAssignments = action.config['assignments'] as Array<{ name: string; value: string }> | undefined;
     const assignments = Array.isArray(rawAssignments) ? rawAssignments : [];
     const fields = (action.config['fields'] as Record<string, unknown>) || {};
@@ -2365,7 +2371,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (run) {
-      const triggerData = (run.triggerData || {}) as Record<string, unknown>;
+      const triggerData = run.triggerData || {};
       const captured = (triggerData['capturedVariables'] || {}) as Record<string, unknown>;
       Object.assign(captured, updatedVars);
       triggerData['capturedVariables'] = captured;
@@ -2375,19 +2381,15 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     return { set: true, variables: updatedVars };
   }
 
-  private async actionFilter(
-    action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const rawField = String(action.config['field'] || 'trigger.message');
-    const operator = String(action.config['operator'] || 'contains');
-    const rawTarget = String(action.config['value'] || '');
+  private actionFilter(action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun): Record<string, unknown> {
+    const rawField = str(action.config['field'] || 'trigger.message');
+    const operator = str(action.config['operator'] || 'contains');
+    const rawTarget = str(action.config['value'] || '');
 
     const resolvedFieldVal = this.interpolateVariables(`{{${rawField}}}`, ctx, run);
     const resolvedTarget = this.interpolateVariables(rawTarget, ctx, run);
 
-    let passed = false;
+    let passed: boolean;
     const fLower = resolvedFieldVal.toLowerCase();
     const tLower = resolvedTarget.toLowerCase();
 
@@ -2441,12 +2443,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     return { passed: true, filtered: false, value: resolvedFieldVal };
   }
 
-  private async actionStopWorkflow(
-    action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const rawReason = String(action.config['reason'] || 'Workflow stopped by stop node');
+  private actionStopWorkflow(action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun): Record<string, unknown> {
+    const rawReason = str(action.config['reason'] || 'Workflow stopped by stop node');
     const reason = this.interpolateVariables(rawReason, ctx, run);
     return { stopped: true, reason };
   }
@@ -2461,11 +2459,11 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    const integrationId = String(action.config['integrationId'] ?? '');
-    const spreadsheetId = String(action.config['spreadsheetId'] ?? '').trim();
-    const sheetName = String(action.config['sheetName'] || 'Sheet1');
-    const keyColumn = String(action.config['keyColumn'] || 'Phone');
-    const configuredKey = String(action.config['keyValue'] ?? '').trim();
+    const integrationId = str(action.config['integrationId'] ?? '');
+    const spreadsheetId = str(action.config['spreadsheetId'] ?? '').trim();
+    const sheetName = str(action.config['sheetName'] || 'Sheet1');
+    const keyColumn = str(action.config['keyColumn'] || 'Phone');
+    const configuredKey = str(action.config['keyValue'] ?? '').trim();
     if (!integrationId) throw new Error('Choose a Google Sheets connection for this lookup');
     if (!spreadsheetId) throw new Error('Choose the spreadsheet to search');
 
@@ -2496,8 +2494,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     const template = result.found
-      ? String(action.config['replyTemplate'] ?? (readAll ? '' : '{{row}}'))
-      : String(action.config['notFoundMessage'] ?? '');
+      ? str(action.config['replyTemplate'] ?? (readAll ? '' : '{{row}}'))
+      : str(action.config['notFoundMessage'] ?? '');
     if (template.trim() && ctx.sessionId && ctx.chatId && this.messageService) {
       const text = this.renderSheetReply(template, result, ctx, run);
       await this.messageService.sendText(ctx.sessionId, { chatId: ctx.chatId, text });
@@ -2526,7 +2524,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    const webhookUrl = String(action.config['webhookUrl'] || action.config['url'] || '');
+    const webhookUrl = str(action.config['webhookUrl'] || action.config['url'] || '');
     const rawColumns = (action.config['columns'] as Record<string, unknown>) || {};
     const columns: Record<string, unknown> = {};
 
@@ -2566,14 +2564,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for send media');
     if (!ctx.chatId) throw new Error('No chat context for send media');
 
-    const mediaType = String(action.config['mediaType'] || 'image');
-    const rawUrl = String(action.config['url'] || action.config['mediaUrl'] || '');
+    const mediaType = str(action.config['mediaType'] || 'image');
+    const rawUrl = str(action.config['url'] || action.config['mediaUrl'] || '');
     const url = this.interpolateVariables(rawUrl, ctx, run);
-    const rawCaption = String(action.config['caption'] || '');
+    const rawCaption = str(action.config['caption'] || '');
     const caption = this.interpolateVariables(rawCaption, ctx, run);
 
     // Normalize recipient / chatId to valid WhatsApp JID
-    const rawRecipient = String(action.config['recipient'] || action.config['chatId'] || ctx.chatId || '');
+    const rawRecipient = str(action.config['recipient'] || action.config['chatId'] || ctx.chatId || '');
     const targetChat = this.interpolateVariables(rawRecipient, ctx, run).trim();
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
@@ -2606,7 +2604,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
             chatId: normalizedChatId,
             caption,
             url,
-            filename: String(action.config['filename'] || 'document.pdf'),
+            filename: str(action.config['filename'] || 'document.pdf'),
             mimetype: 'application/pdf',
           });
         } else {
@@ -2618,13 +2616,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           });
         }
         return { sent: true, messageId: res?.messageId, chatId: normalizedChatId, mediaType, url, caption };
-      } catch (err: any) {
-        const errStr = String(err?.message || err);
+      } catch (err) {
+        const errStr = str((err as { message?: unknown } | undefined)?.message || err);
         if (errStr.includes('Data passed to getter must include an id property')) {
           throw new Error(
             `WhatsApp Web media engine memoization failure for recipient ${normalizedChatId}. ` +
               `Ensure recipient number is a registered WhatsApp account and session is fully loaded. ` +
               `(${errStr})`,
+            { cause: err },
           );
         }
         throw err;
@@ -2639,7 +2638,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
 
     const answer = (...keys: string[]) =>
       keys.map(k => captured[k]).find(v => v !== undefined && v !== null && v !== '');
@@ -2717,13 +2716,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (run?.triggerData) {
-      const td = run.triggerData as Record<string, any>;
-      if (!td.capturedVariables || typeof td.capturedVariables !== 'object') {
-        td.capturedVariables = {};
+      const td = run.triggerData;
+      if (!td['capturedVariables'] || typeof td['capturedVariables'] !== 'object') {
+        td['capturedVariables'] = {};
       }
-      td.capturedVariables.matchedAgentId = agents[0]?.id;
-      td.capturedVariables.matchedAgentName = agents[0]?.name;
-      td.capturedVariables.matchedAgentPhone = agents[0]?.phone;
+      const cv = td['capturedVariables'] as Record<string, unknown>;
+      cv['matchedAgentId'] = agents[0]?.id;
+      cv['matchedAgentName'] = agents[0]?.name;
+      cv['matchedAgentPhone'] = agents[0]?.phone;
     }
 
     return {
@@ -2749,7 +2749,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
 
     const field = (key: string, fallback = ''): string =>
       this.configOrAnswer(action, key, ctx, run, captured[key]) || fallback;
@@ -2762,7 +2762,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     const claimIssueType = menuChoiceValue(field('claimIssueType'));
     const insuranceCompany = field('insuranceCompany');
     const issueDescription = field('issueDescription');
-    const pincode = (field('pincode') || String(captured['residence_pincode'] ?? '')).replace(/[^0-9]/g, '');
+    const pincode = (field('pincode') || str(captured['residence_pincode'] ?? '')).replace(/[^0-9]/g, '');
 
     let matchedAgent: Agent | undefined;
     const agentId = action.config['matchedAgentId'] || captured['matchedAgentId'];
@@ -2811,29 +2811,30 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async actionValidatePincode(
+  private actionValidatePincode(
     action: WorkflowAction,
     ctx: TriggerContext,
     run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+  ): Record<string, unknown> {
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
     // The configured value is a template; a captured answer or the message is customer text, used as is.
     const configured = action.config['pincode'];
     const rawPin =
-      configured !== undefined && configured !== null && String(configured).trim() !== ''
-        ? this.interpolateVariables(String(configured), ctx, run)
-        : String(captured['pincode'] || captured['residence_pincode'] || ctx.messageBody || '');
+      configured !== undefined && configured !== null && str(configured).trim() !== ''
+        ? this.interpolateVariables(str(configured), ctx, run)
+        : str(captured['pincode'] || captured['residence_pincode'] || ctx.messageBody || '');
     const pincode = rawPin.trim().replace(/\s/g, '');
 
     const isValid = /^[1-9][0-9]{5}$/.test(pincode);
 
     if (isValid && run?.triggerData) {
-      const td = run.triggerData as Record<string, any>;
-      if (!td.capturedVariables || typeof td.capturedVariables !== 'object') {
-        td.capturedVariables = {};
+      const td = run.triggerData;
+      if (!td['capturedVariables'] || typeof td['capturedVariables'] !== 'object') {
+        td['capturedVariables'] = {};
       }
-      td.capturedVariables.pincode = pincode;
-      td.capturedVariables.residence_pincode = pincode;
+      const cv = td['capturedVariables'] as Record<string, unknown>;
+      cv['pincode'] = pincode;
+      cv['residence_pincode'] = pincode;
     }
 
     return {
@@ -2852,8 +2853,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     startNodeId?: string,
     startAttempt?: number,
   ): Promise<void> {
-    const nodes = (workflow.definition.nodes || []) as VisualWorkflowNode[];
-    const edges = (workflow.definition.edges || []) as VisualWorkflowEdge[];
+    const nodes = workflow.definition.nodes || [];
+    const edges = workflow.definition.edges || [];
     const steps: StepResult[] = (run.steps as StepResult[]) || [];
 
     const matchingEdge = startNodeId ? undefined : pickNextEdge(edges, fromNodeId, outgoingHandle);
@@ -2942,7 +2943,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (step.output?.['filtered']) {
         await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
           steps,
-          failureReason: `Workflow filtered at node ${currentNode.id}: ${String(step.output?.['reason'] || 'Filter condition not met')}`,
+          failureReason: `Workflow filtered at node ${currentNode.id}: ${str(step.output?.['reason'] || 'Filter condition not met')}`,
         });
         return;
       }
@@ -2950,7 +2951,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (step.output?.['stopped']) {
         await this.workflowService.updateRunStatus(run.id, RunStatus.COMPLETED, {
           steps,
-          failureReason: `Workflow terminated at node ${currentNode.id}: ${String(step.output?.['reason'] || 'Workflow stopped')}`,
+          failureReason: `Workflow terminated at node ${currentNode.id}: ${str(step.output?.['reason'] || 'Workflow stopped')}`,
         });
         return;
       }
@@ -2970,11 +2971,11 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!this.scheduledMessageRepo) throw new Error('Scheduled message repository not available');
 
     const delayMinutes = Number(action.config.delayMinutes ?? action.config.delay ?? 60);
-    const message = this.interpolateVariables(String(action.config.message ?? ''), ctx, run);
-    const chatId = this.interpolateVariables(String(action.config.chatId || ctx.chatId || ''), ctx, run);
+    const message = this.interpolateVariables(str(action.config.message ?? ''), ctx, run);
+    const chatId = this.interpolateVariables(str(action.config.chatId || ctx.chatId || ''), ctx, run);
     // Always the number this conversation is on: a configured session id could belong to another business.
     const sessionId = ctx.sessionId ?? '';
-    const configuredSession = action.config.sessionId ? String(action.config.sessionId) : '';
+    const configuredSession = action.config.sessionId ? str(action.config.sessionId) : '';
     if (configuredSession && configuredSession !== sessionId) {
       throw new Error('A follow-up can only be scheduled from the number this conversation is on');
     }
@@ -3014,15 +3015,15 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for send contact vCard');
     if (!ctx.chatId) throw new Error('No chat context for send contact vCard');
 
-    const nameRaw = String(action.config['displayName'] || action.config['name'] || 'Advisor');
-    const phoneRaw = String(action.config['phoneNumber'] || action.config['phone'] || action.config['number'] || '');
-    const organization = this.interpolateVariables(String(action.config['organization'] || ''), ctx, run);
-    const title = this.interpolateVariables(String(action.config['title'] || ''), ctx, run);
+    const nameRaw = str(action.config['displayName'] || action.config['name'] || 'Advisor');
+    const phoneRaw = str(action.config['phoneNumber'] || action.config['phone'] || action.config['number'] || '');
+    const organization = this.interpolateVariables(str(action.config['organization'] || ''), ctx, run);
+    const title = this.interpolateVariables(str(action.config['title'] || ''), ctx, run);
 
     const displayName = this.interpolateVariables(nameRaw, ctx, run);
     const phoneNumber = this.interpolateVariables(phoneRaw, ctx, run).replace(/[^0-9+]/g, '');
 
-    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const targetChat = this.interpolateVariables(str(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
@@ -3067,14 +3068,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for send document');
     if (!ctx.chatId) throw new Error('No chat context for send document');
 
-    const rawUrl = String(action.config['documentUrl'] || action.config['url'] || '');
+    const rawUrl = str(action.config['documentUrl'] || action.config['url'] || '');
     const url = this.interpolateVariables(rawUrl, ctx, run);
-    const rawFileName = String(action.config['fileName'] || action.config['filename'] || 'document.pdf');
+    const rawFileName = str(action.config['fileName'] || action.config['filename'] || 'document.pdf');
     const fileName = this.interpolateVariables(rawFileName, ctx, run);
-    const rawCaption = String(action.config['caption'] || '');
+    const rawCaption = str(action.config['caption'] || '');
     const caption = this.interpolateVariables(rawCaption, ctx, run);
 
-    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const targetChat = this.interpolateVariables(str(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
@@ -3105,10 +3106,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for send voice note');
     if (!ctx.chatId) throw new Error('No chat context for send voice note');
 
-    const rawUrl = String(action.config['audioUrl'] || action.config['url'] || '');
+    const rawUrl = str(action.config['audioUrl'] || action.config['url'] || '');
     const url = this.interpolateVariables(rawUrl, ctx, run);
 
-    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const targetChat = this.interpolateVariables(str(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
@@ -3129,14 +3130,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     throw new Error('No messaging service available to send the voice note');
   }
 
-  private async actionWorkingHoursGateway(
+  private actionWorkingHoursGateway(
     action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const tz = String(action.config['timezone'] || 'Asia/Kolkata');
-    const openTime = String(action.config['openTime'] || '09:00');
-    const closeTime = String(action.config['closeTime'] || '20:00');
+    _ctx: TriggerContext,
+    _run?: WorkflowRun,
+  ): Record<string, unknown> {
+    const tz = str(action.config['timezone'] || 'Asia/Kolkata');
+    const openTime = str(action.config['openTime'] || '09:00');
+    const closeTime = str(action.config['closeTime'] || '20:00');
     const rawWorkingDays = action.config['workingDays'];
     const workingDays: number[] = Array.isArray(rawWorkingDays) ? rawWorkingDays.map(Number) : [1, 2, 3, 4, 5, 6];
 
@@ -3182,11 +3183,11 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
   ): Promise<Record<string, unknown>> {
     if (!ctx.sessionId) throw new Error('No session context for internal alert');
 
-    const rawRecipient = String(
+    const rawRecipient = str(
       action.config['recipientPhone'] || action.config['managerPhone'] || action.config['phone'] || '',
     );
     const cleanPhone = this.interpolateVariables(rawRecipient, ctx, run).replace(/[^0-9]/g, '');
-    const emailTo = this.interpolateVariables(String(action.config['emailTo'] ?? ''), ctx, run).trim();
+    const emailTo = this.interpolateVariables(str(action.config['emailTo'] ?? ''), ctx, run).trim();
     if (!cleanPhone && !emailTo) {
       return { alerted: false, reason: 'No recipient phone or email provided for internal alert' };
     }
@@ -3201,7 +3202,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       '👉 *Direct Call:* tel:{{trigger.phone}}\n' +
       '👉 *Chat on WhatsApp:* https://wa.me/{{trigger.phone}}';
 
-    const rawMsg = String(action.config['templateMessage'] || action.config['message'] || defaultTemplate);
+    const rawMsg = str(action.config['templateMessage'] || action.config['message'] || defaultTemplate);
     const message = this.interpolateVariables(rawMsg, ctx, run);
 
     if (ctx.metadata?.isTest || action.config['dryRun']) {
@@ -3209,8 +3210,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (emailTo) {
-      const subject = this.interpolateVariables(String(action.config['emailSubject'] || 'WhatsApp update'), ctx, run);
-      await this.sendWorkflowEmail(String(action.config['emailIntegrationId'] ?? ''), ctx.businessId, {
+      const subject = this.interpolateVariables(str(action.config['emailSubject'] || 'WhatsApp update'), ctx, run);
+      await this.sendWorkflowEmail(str(action.config['emailIntegrationId'] ?? ''), ctx.businessId, {
         to: emailTo,
         subject,
         text: message,
@@ -3238,18 +3239,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!integrationId) throw new Error('Choose an email connection (SMTP or Gmail) for this alert');
     if (!this.integrationsService || !this.googleService) throw new Error('Email is not available on this server');
     const integration = await this.integrationsService.findOne(integrationId, businessId);
-    if (integration.type === IntegrationType.EMAIL_SMTP) {
+    if ((integration.type as IntegrationType) === IntegrationType.EMAIL_SMTP) {
       await this.integrationsService.sendEmail(integrationId, businessId, msg);
     } else {
       await this.googleService.gmailSend(integration, msg);
     }
   }
 
-  private async actionABTestSplit(
-    action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
+  private actionABTestSplit(action: WorkflowAction, ctx: TriggerContext, _run?: WorkflowRun): Record<string, unknown> {
     const splitRatio = Number(action.config['splitRatio'] ?? action.config['ratioA'] ?? 50);
     const seed = String(ctx.chatId || ctx.messageBody || Math.random());
 
@@ -3273,7 +3270,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
   private async actionDNDManager(
     action: WorkflowAction,
     ctx: TriggerContext,
-    run?: WorkflowRun,
+    _run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
     const rawText = (ctx.messageBody || '').toLowerCase().trim();
     const customKeywords = (action.config['keywords'] as string[]) || [];
@@ -3293,7 +3290,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       }
 
       if (action.config['sendConfirmation'] !== false && ctx.sessionId && ctx.chatId && !this.isDryRun(ctx, action)) {
-        const confirmMsg = String(
+        const confirmMsg = str(
           action.config['confirmationMessage'] ||
             'તમારી વિનંતી મુજબ સેવાઓ બંધ કરવામાં આવી છે. ફરી શરૂ કરવા માટે START લખીને મોકલો.',
         );
@@ -3317,17 +3314,17 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     return { optedOut: false, stopped: false };
   }
 
-  private async actionFinancialCalculator(
+  private actionFinancialCalculator(
     action: WorkflowAction,
     ctx: TriggerContext,
     run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const mode = String(action.config['mode'] || 'SIP').toUpperCase();
-    const rawAmt = String(
+  ): Record<string, unknown> {
+    const mode = str(action.config['mode'] || 'SIP').toUpperCase();
+    const rawAmt = str(
       action.config['monthlyInvestment'] || action.config['amount'] || action.config['principal'] || '5000',
     );
-    const rawYears = String(action.config['durationYears'] || action.config['years'] || '15');
-    const rawRate = String(
+    const rawYears = str(action.config['durationYears'] || action.config['years'] || '15');
+    const rawRate = str(
       action.config['expectedReturnRate'] || action.config['interestRate'] || action.config['rate'] || '13.5',
     );
 
@@ -3338,9 +3335,9 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       parseFloat(this.interpolateVariables(rawRate, ctx, run).replace(/[^0-9.]/g, '')) || 13.5,
     );
 
-    let investedAmount = 0;
-    let futureValue = 0;
-    let wealthGain = 0;
+    let investedAmount: number;
+    let futureValue: number;
+    let wealthGain: number;
     let monthlyEmi = 0;
 
     const formatRupees = (num: number) => {
@@ -3391,23 +3388,23 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for payment link');
     if (!ctx.chatId) throw new Error('No chat context for payment link');
 
-    const provider = String(action.config['provider'] || 'UPI').toUpperCase();
+    const provider = str(action.config['provider'] || 'UPI').toUpperCase();
     // Money goes to whatever payee and amount this node names, so neither may be guessed.
-    const payeeVpa = String(action.config['payeeVpa'] || '').trim();
+    const payeeVpa = str(action.config['payeeVpa'] || '').trim();
     if (!payeeVpa) throw new Error('Payment link action requires payeeVpa (the UPI ID that receives the money)');
-    const rawAmount = String(action.config['amount'] || action.config['amountInRupees'] || '');
+    const rawAmount = str(action.config['amount'] || action.config['amountInRupees'] || '');
     const amount = parseFloat(this.interpolateVariables(rawAmount, ctx, run).replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment link action requires a positive amount');
-    const rawDesc = String(action.config['description'] || 'Expert Policy Audit & Consultation');
+    const rawDesc = str(action.config['description'] || 'Expert Policy Audit & Consultation');
     const description = this.interpolateVariables(rawDesc, ctx, run);
 
-    const payeeName = String(action.config['payeeName'] || 'PadosiAgent Consultation');
+    const payeeName = str(action.config['payeeName'] || 'PadosiAgent Consultation');
     const txnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const upiLink = `upi://pay?pa=${encodeURIComponent(payeeVpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(description)}`;
 
     const paymentUrl = action.config['razorpayUrl']
-      ? this.interpolateVariables(String(action.config['razorpayUrl']), ctx, run, undefined, encodeURIComponent)
+      ? this.interpolateVariables(str(action.config['razorpayUrl']), ctx, run, undefined, encodeURIComponent)
       : null;
 
     const defaultMsg =
@@ -3419,7 +3416,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       (paymentUrl ? `🌐 *ક્રેડિટ / ડેબિટ કાર્ડ અથવા નેટબેંકિંગ માટે:* \n${paymentUrl}\n\n` : '') +
       `_પેમેન્ટ સફળ થયા પછી તુરંત તમને રસીદ મોકલવામાં આવશે._`;
 
-    const rawMessage = String(action.config['message'] || defaultMsg);
+    const rawMessage = str(action.config['message'] || defaultMsg);
     const message = this.interpolateVariables(rawMessage, ctx, run);
 
     if (action.config['sendToChat'] !== false && this.messageService && !ctx.metadata?.isTest) {
@@ -3440,14 +3437,10 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async actionAiDocumentOCR(
-    action: WorkflowAction,
-    ctx: TriggerContext,
-    run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
-    const rawUrl = String(action.config['imageUrl'] || action.config['url'] || '');
+  private actionAiDocumentOCR(action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun): Record<string, unknown> {
+    const rawUrl = str(action.config['imageUrl'] || action.config['url'] || '');
     const imageUrl = this.interpolateVariables(rawUrl, ctx, run);
-    const docType = String(action.config['documentType'] || 'AUTO').toUpperCase();
+    const docType = str(action.config['documentType'] || 'AUTO').toUpperCase();
 
     // No OCR provider is wired in, so the image is not read: numbers are only picked out of the text
     // the customer typed. Anything not found stays null — this node must never invent policy data.
@@ -3461,7 +3454,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       ocr: false,
       policyNumber: policyMatch ? policyMatch[0] : null,
       vehicleNumber: vehicleMatch ? vehicleMatch[0].toUpperCase() : null,
-      insuredName: (ctx.metadata?.['contactName'] as string) || null,
+      insuredName: ctx.metadata?.['contactName'] || null,
       insurerName: null,
       expiryDate: null,
       isValid: Boolean(policyMatch || vehicleMatch),
@@ -3474,14 +3467,14 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
-    const rawTitle = String(action.config['title'] || 'PadosiAgent Advisor Comparison & Quotation');
+    const rawTitle = str(action.config['title'] || 'PadosiAgent Advisor Comparison & Quotation');
     const title = this.interpolateVariables(rawTitle, ctx, run);
     // Nothing here renders a PDF; the node sends a document hosted elsewhere, so it must be given one
     // (it used to send a link to a file that was never created).
-    const configuredUrl = String(action.config['pdfUrl'] || '').trim();
+    const configuredUrl = str(action.config['pdfUrl'] || '').trim();
     if (!configuredUrl) throw new Error('PDF node requires pdfUrl: a link to an already generated PDF');
     const pdfUrl = this.interpolateVariables(configuredUrl, ctx, run, undefined, encodeURIComponent);
-    const fileName = String(action.config['fileName'] || `Quotation_${Date.now()}.pdf`);
+    const fileName = str(action.config['fileName'] || `Quotation_${Date.now()}.pdf`);
     const caption = `📄 *${title}*\nતમારા વિસ્તારના શ્રેષ્ઠ એડવાઈઝર્સની સરખામણી સ્લિપ.`;
 
     if (
@@ -3516,8 +3509,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for carousel template');
     if (!ctx.chatId) throw new Error('No chat context for carousel template');
 
-    const cards = (action.config['cards'] as Array<Record<string, any>>) || [];
-    const targetChat = this.interpolateVariables(String(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
+    const cards = (action.config['cards'] as Array<Record<string, unknown>>) || [];
+    const targetChat = this.interpolateVariables(str(action.config['chatId'] || ctx.chatId || ''), ctx, run).trim();
     const cleanNumber = targetChat.replace(/[^0-9]/g, '');
     const normalizedChatId = targetChat.includes('@') ? targetChat : cleanNumber ? `${cleanNumber}@c.us` : ctx.chatId;
 
@@ -3526,16 +3519,21 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (this.messageService) {
-      const engine = (this.messageService as any).getEngine?.(ctx.sessionId);
-      if (engine && typeof (engine as any).sendCarouselMessage === 'function') {
-        const res = await (engine as any).sendCarouselMessage(normalizedChatId, cards);
+      // shortcut: MessageService.getEngine is private and no engine implements sendCarouselMessage yet.
+      const engine = (
+        this.messageService as unknown as {
+          getEngine?: (sessionId: string) => { sendCarouselMessage?: CarouselSender } | undefined;
+        }
+      ).getEngine?.(ctx.sessionId);
+      if (engine && typeof engine.sendCarouselMessage === 'function') {
+        const res = await engine.sendCarouselMessage(normalizedChatId, cards);
         return { sent: true, native: true, cardCount: cards.length, messageId: res?.messageId };
       }
 
       for (const [idx, card] of cards.entries()) {
-        const title = this.interpolateVariables(String(card.title || `Advisor #${idx + 1}`), ctx, run);
-        const desc = this.interpolateVariables(String(card.description || ''), ctx, run);
-        const phone = this.interpolateVariables(String(card.phone || card.phoneNumber || ''), ctx, run).replace(
+        const title = this.interpolateVariables(str(card.title || `Advisor #${idx + 1}`), ctx, run);
+        const desc = this.interpolateVariables(str(card.description || ''), ctx, run);
+        const phone = this.interpolateVariables(str(card.phone || card.phoneNumber || ''), ctx, run).replace(
           /[^0-9]/g,
           '',
         );
@@ -3557,7 +3555,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
           await this.messageService
             .sendImage(ctx.sessionId, {
               chatId: normalizedChatId,
-              url: this.interpolateVariables(String(card.imageUrl), ctx, run),
+              url: this.interpolateVariables(str(card.imageUrl), ctx, run),
               caption: cardText,
               mimetype: 'image/jpeg',
             })
@@ -3587,18 +3585,15 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     if (!ctx.sessionId) throw new Error('No session context for CTA template');
     if (!ctx.chatId) throw new Error('No chat context for CTA template');
 
-    const body = this.interpolateVariables(String(action.config['body'] || action.config['message'] || ''), ctx, run);
-    const callPhone = this.interpolateVariables(String(action.config['callPhone'] || ''), ctx, run).replace(
-      /[^0-9]/g,
-      '',
-    );
-    const callLabel = String(action.config['callLabel'] || 'Call Advisor');
+    const body = this.interpolateVariables(str(action.config['body'] || action.config['message'] || ''), ctx, run);
+    const callPhone = this.interpolateVariables(str(action.config['callPhone'] || ''), ctx, run).replace(/[^0-9]/g, '');
+    const callLabel = str(action.config['callLabel'] || 'Call Advisor');
     const websiteUrl = this.interpolateVariables(
-      String(action.config['websiteUrl'] || action.config['url'] || ''),
+      str(action.config['websiteUrl'] || action.config['url'] || ''),
       ctx,
       run,
     );
-    const urlLabel = String(action.config['urlLabel'] || 'Visit Website');
+    const urlLabel = str(action.config['urlLabel'] || 'Visit Website');
 
     let text = body;
     if (callPhone || websiteUrl) {
@@ -3617,13 +3612,13 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     return { sent: true, body, callPhone, websiteUrl };
   }
 
-  private async actionDynamicLanguageSwitcher(
+  private actionDynamicLanguageSwitcher(
     action: WorkflowAction,
     ctx: TriggerContext,
     run?: WorkflowRun,
-  ): Promise<Record<string, unknown>> {
+  ): Record<string, unknown> {
     const rawMsg = (ctx.messageBody || '').toLowerCase();
-    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, any>) || {};
+    const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
     const prefLang = captured['language'] || captured['lang'] || action.config['defaultLanguage'] || 'gu';
 
     let resolved = prefLang;

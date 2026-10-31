@@ -21,16 +21,16 @@ describe('WorkflowController', () => {
     businessId: 'biz-1',
     role: ApiKeyRole.ADMIN,
     name: 'Admin Key',
-    maskedKey: 'test-key',
     keyHash: 'hash',
-    prefix: 'pk',
-    sessionId: null,
+    keyPrefix: 'pk',
+    allowedIps: null,
+    allowedSessions: null,
     isActive: true,
     lastUsedAt: null,
     expiresAt: null,
+    usageCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
-    session: null,
   };
 
   const mockWf = {
@@ -138,7 +138,7 @@ describe('WorkflowController', () => {
           actions: [{ id: 'a1', type: ActionType.SEND_MESSAGE }],
         },
       };
-      await controller.create(dto as any, mockApiKey);
+      await controller.create(dto, mockApiKey);
       expect(workflowService.create).toHaveBeenCalledWith('biz-1', dto, 'key-1');
     });
 
@@ -197,17 +197,21 @@ describe('WorkflowController', () => {
   });
 
   describe('Role-based access control annotations', () => {
+    // Read the handler off the instance as a plain function so the metadata lookup does not trip unbound-method.
+    const roleOf = (handler: keyof WorkflowController) =>
+      reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, (controller as unknown as Record<string, () => unknown>)[handler]);
+
     it('requires OPERATOR role for create and update', () => {
-      const createRole = reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, controller.create);
-      const updateRole = reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, controller.update);
+      const createRole = roleOf('create');
+      const updateRole = roleOf('update');
       expect(createRole).toBe(ApiKeyRole.OPERATOR);
       expect(updateRole).toBe(ApiKeyRole.OPERATOR);
     });
 
     it('requires ADMIN role for publish, disable, and remove', () => {
-      const publishRole = reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, controller.publish);
-      const disableRole = reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, controller.disable);
-      const removeRole = reflector.get<ApiKeyRole>(REQUIRED_ROLE_KEY, controller.remove);
+      const publishRole = roleOf('publish');
+      const disableRole = roleOf('disable');
+      const removeRole = roleOf('remove');
       expect(publishRole).toBe(ApiKeyRole.ADMIN);
       expect(disableRole).toBe(ApiKeyRole.ADMIN);
       expect(removeRole).toBe(ApiKeyRole.ADMIN);

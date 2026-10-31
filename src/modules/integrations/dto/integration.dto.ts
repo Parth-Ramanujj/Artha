@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean } from 'class-validator';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class CreateIntegrationDto {
   @IsString()
@@ -22,6 +23,7 @@ export class UpdateIntegrationDto {
   config?: Record<string, unknown>;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 }

@@ -250,7 +250,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
     const conversations = await this.convoRepo.find({
       where: {
         ...(businessId ? { businessId } : {}),
-        status: 'open' as any,
+        status: ConversationStatus.OPEN,
         lastMessageAt: LessThan(cutoff),
       },
       order: { lastMessageAt: 'ASC' },

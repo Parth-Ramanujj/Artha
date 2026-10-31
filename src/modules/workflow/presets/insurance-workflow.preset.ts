@@ -1,4 +1,4 @@
-import { VisualWorkflowNode, VisualWorkflowEdge, TriggerType } from '../entities/workflow-definition.entity';
+import { VisualWorkflowNode, VisualWorkflowEdge } from '../entities/workflow-definition.entity';
 
 export const INSURANCE_PRESET_NODES: VisualWorkflowNode[] = [
   // 1. START TRIGGER

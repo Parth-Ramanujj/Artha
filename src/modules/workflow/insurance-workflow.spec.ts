@@ -2,14 +2,20 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { AgentService } from './agent.service';
 import { LeadService } from './lead.service';
-import { Lead, LeadStatus } from './entities/lead.entity';
+import { Lead } from './entities/lead.entity';
 import { Agent } from './entities/agent.entity';
 import { INSURANCE_PRESET_NODES, INSURANCE_PRESET_EDGES } from './presets/insurance-workflow.preset';
 import { WorkflowExecutor, TriggerContext } from './workflow-executor.service';
 import { WorkflowService } from './workflow.service';
 import { MessageService } from '../message/message.service';
-import { ActionType, WorkflowDefinition, WorkflowStatus } from './entities/workflow-definition.entity';
-import { WorkflowRun, RunStatus } from './entities/workflow-run.entity';
+import { ActionType, WorkflowAction } from './entities/workflow-definition.entity';
+import { WorkflowRun } from './entities/workflow-run.entity';
+import { EngineRegistry } from '../../engine/engine-registry.service';
+
+// runAction is private on the executor; the spec drives actions through it directly.
+type RunAction = (action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun) => Promise<Record<string, unknown>>;
+const runAction = (ex: WorkflowExecutor, action: WorkflowAction, ctx: TriggerContext, run?: WorkflowRun) =>
+  (ex as unknown as { runAction: RunAction }).runAction(action, ctx, run);
 
 describe('Insurance & Mutual Fund Workflow Integration', () => {
   let agentService: AgentService;
@@ -21,14 +27,14 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
   let leadsDb: Lead[] = [];
 
   const mockAgentRepo = {
-    count: jest.fn().mockImplementation(async () => agentsDb.length),
-    find: jest.fn().mockImplementation(async () => agentsDb),
-    findOne: jest.fn().mockImplementation(async (query: any) => {
+    count: jest.fn().mockImplementation(() => Promise.resolve(agentsDb.length)),
+    find: jest.fn().mockImplementation(() => Promise.resolve(agentsDb)),
+    findOne: jest.fn().mockImplementation((query?: { where?: { id?: string } }) => {
       const id = query?.where?.id;
-      return agentsDb.find(a => a.id === id) || null;
+      return Promise.resolve(agentsDb.find(a => a.id === id) || null);
     }),
-    create: jest.fn().mockImplementation((dtos: any) => dtos),
-    save: jest.fn().mockImplementation(async (items: any) => {
+    create: jest.fn().mockImplementation(<T>(dtos: T) => dtos),
+    save: jest.fn().mockImplementation((items: Agent | Agent[]) => {
       const arr = Array.isArray(items) ? items : [items];
       arr.forEach(item => {
         if (!item.id) item.id = `ag_${Date.now()}_${Math.random()}`;
@@ -36,33 +42,33 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
         if (existingIdx >= 0) agentsDb[existingIdx] = item;
         else agentsDb.push(item);
       });
-      return items;
+      return Promise.resolve(items);
     }),
-    increment: jest.fn().mockImplementation(async () => {}),
+    increment: jest.fn().mockImplementation(() => Promise.resolve()),
   };
 
   const mockLeadRepo = {
-    find: jest.fn().mockImplementation(async () => leadsDb),
-    findOne: jest.fn().mockImplementation(async (query: any) => {
+    find: jest.fn().mockImplementation(() => Promise.resolve(leadsDb)),
+    findOne: jest.fn().mockImplementation((query?: { where?: { businessId?: string; customerPhone?: string } }) => {
       const where = query?.where || {};
-      return (
+      return Promise.resolve(
         leadsDb.find(l => {
           if (where.businessId && l.businessId !== where.businessId) return false;
           if (where.customerPhone && l.customerPhone !== where.customerPhone) return false;
           return true;
-        }) || null
+        }) || null,
       );
     }),
-    create: jest.fn().mockImplementation((dto: any) => ({
+    create: jest.fn().mockImplementation((dto: Partial<Lead>) => ({
       id: `lead_${Date.now()}`,
       createdAt: new Date(),
       ...dto,
     })),
-    save: jest.fn().mockImplementation(async (lead: Lead) => {
+    save: jest.fn().mockImplementation((lead: Lead) => {
       const idx = leadsDb.findIndex(l => l.id === lead.id);
       if (idx >= 0) leadsDb[idx] = lead;
       else leadsDb.push(lead);
-      return lead;
+      return Promise.resolve(lead);
     }),
   };
 
@@ -136,9 +142,10 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
       const run: WorkflowRun = {
         id: 'run-1',
         triggerData: {},
-      } as any;
+      } as unknown as WorkflowRun;
 
-      const res = await (executor as any).runAction(
+      const res = await runAction(
+        executor,
         {
           id: 'val-pin',
           type: ActionType.VALIDATE_PINCODE,
@@ -161,7 +168,8 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
         messageBody: '012345',
       };
 
-      const res = await (executor as any).runAction(
+      const res = await runAction(
+        executor,
         {
           id: 'val-pin',
           type: ActionType.VALIDATE_PINCODE,
@@ -278,16 +286,17 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
       };
 
       const customExecutor = new WorkflowExecutor(
-        mockWorkflowService as any,
+        mockWorkflowService as unknown as WorkflowService,
         undefined,
-        mockMessageService as any,
+        mockMessageService as unknown as MessageService,
         undefined,
-        mockRegistry as any,
+        mockRegistry as unknown as EngineRegistry,
         agentService,
         leadService,
       );
 
-      const res = await (customExecutor as any).runAction(
+      const res = await runAction(
+        customExecutor,
         {
           id: 'btn-step',
           type: ActionType.INTERACTIVE_BUTTONS,
@@ -326,16 +335,17 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
       };
 
       const customExecutor = new WorkflowExecutor(
-        mockWorkflowService as any,
+        mockWorkflowService as unknown as WorkflowService,
         undefined,
-        mockMessageService as any,
+        mockMessageService as unknown as MessageService,
         undefined,
-        mockRegistry as any,
+        mockRegistry as unknown as EngineRegistry,
         agentService,
         leadService,
       );
 
-      const res = await (customExecutor as any).runAction(
+      const res = await runAction(
+        customExecutor,
         {
           id: 'btn-step',
           type: ActionType.INTERACTIVE_BUTTONS,
@@ -358,7 +368,7 @@ describe('Insurance & Mutual Fund Workflow Integration', () => {
       expect(mockMessageService.sendText).toHaveBeenCalledWith(
         'sess-1',
         expect.objectContaining({
-          text: expect.stringContaining('1️⃣  *🛡️ Insurance*'),
+          text: expect.stringContaining('1️⃣  *🛡️ Insurance*') as string,
         }),
       );
     });

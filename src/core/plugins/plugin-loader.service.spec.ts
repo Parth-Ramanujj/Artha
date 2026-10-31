@@ -254,7 +254,7 @@ describe('PluginLoaderService — enable/config persistence', () => {
   });
 });
 
-describe('PluginLoaderService — engine mutual exclusion', () => {
+describe('PluginLoaderService — engine enablement', () => {
   let tmpDir: string;
   let storage: PluginStorageService;
 
@@ -281,13 +281,13 @@ describe('PluginLoaderService — engine mutual exclusion', () => {
   });
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
-  it('rejects enabling an engine that is not the configured active engine', async () => {
+  // Engines are chosen per session (Session.engineType), so every engine plugin may be enabled at once.
+  it('allows enabling an engine other than the configured default engine', async () => {
     const loader = makeLoader('whatsapp-web.js');
     loader.registerBuiltInPlugin(engineManifest('baileys'), {});
 
-    await expect(loader.enablePlugin('baileys')).rejects.toThrow(/active engine/i);
-    // Rejected up front — the plugin stays INSTALLED (not flipped to ERROR).
-    expect(loader.getPlugin('baileys')?.status).toBe(PluginStatus.INSTALLED);
+    await loader.enablePlugin('baileys');
+    expect(loader.getPlugin('baileys')?.status).toBe(PluginStatus.ENABLED);
   });
 
   it('allows enabling the configured active engine', async () => {

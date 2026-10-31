@@ -484,8 +484,7 @@
   color: var(--text-secondary);
 }
 
-.workflows-page .sr-only,
-.run-log-detail .sr-only {
+.workflows-page .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -494,13 +493,13 @@
   white-space: nowrap;
 }
 
-.run-log-detail {
+.workflows-page .run-log-detail {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
 }
 
-.run-log-meta {
+.workflows-page .run-log-meta {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.3rem 1rem;
@@ -508,16 +507,16 @@
   font-size: 0.85rem;
 }
 
-.run-log-meta dt {
+.workflows-page .run-log-meta dt {
   color: var(--text-secondary);
 }
 
-.run-log-meta dd {
+.workflows-page .run-log-meta dd {
   margin: 0;
   word-break: break-word;
 }
 
-.run-log-steps {
+.workflows-page .run-log-steps {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -526,30 +525,30 @@
   gap: 0.5rem;
 }
 
-.run-log-step .step-item-title {
+.workflows-page .run-log-step .step-item-title {
   display: flex;
   align-items: center;
   gap: 0.45rem;
 }
 
-.run-log-step .step-item-title small {
+.workflows-page .run-log-step .step-item-title small {
   color: var(--text-secondary);
 }
 
-.run-log-duration {
+.workflows-page .run-log-duration {
   margin-left: auto;
   white-space: nowrap;
 }
 
-.run-log-step.failed {
+.workflows-page .run-log-step.failed {
   border-color: rgba(239, 68, 68, 0.45);
 }
 
-.run-log-step.not-run {
+.workflows-page .run-log-step.not-run {
   opacity: 0.55;
 }
 
-.run-log-step details summary {
+.workflows-page .run-log-step details summary {
   cursor: pointer;
   font-size: 0.78rem;
   color: var(--text-secondary);
@@ -558,10 +557,7 @@
 
 .workflows-page .run-status-badge.paused,
 .workflows-page .run-status-badge.timed_out,
-.workflows-page .run-status-badge.cancelled,
-.run-log-detail .run-status-badge.paused,
-.run-log-detail .run-status-badge.timed_out,
-.run-log-detail .run-status-badge.cancelled {
+.workflows-page .run-status-badge.cancelled {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text-secondary);
 }

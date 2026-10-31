@@ -1,4 +1,4 @@
-  import {
+import {
   IsString,
   IsOptional,
   IsEnum,
@@ -14,6 +14,7 @@
   Allow,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-boolean';
 import { TriggerType, ConditionType, ActionType, WorkflowStatus } from '../entities/workflow-definition.entity';
 
 export class WorkflowTriggerDto {
@@ -33,6 +34,7 @@ export class WorkflowConditionDto {
   @IsObject()
   config?: Record<string, unknown>;
 
+  @ToStrictBoolean()
   @IsOptional()
   @IsBoolean()
   negate?: boolean;
@@ -54,6 +56,7 @@ export class WorkflowActionDto {
   @IsEnum(['stop', 'skip', 'retry'] as const)
   onError?: 'stop' | 'skip' | 'retry';
 
+  @ToStrictNumber()
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -76,18 +79,22 @@ export class VisualWorkflowNodeDto {
   @IsObject()
   data?: Record<string, unknown>;
 
+  @ToStrictNumber()
   @IsOptional()
   @IsNumber()
   width?: number;
 
+  @ToStrictNumber()
   @IsOptional()
   @IsNumber()
   height?: number;
 
+  @ToStrictBoolean()
   @IsOptional()
   @IsBoolean()
   selected?: boolean;
 
+  @ToStrictBoolean()
   @IsOptional()
   @IsBoolean()
   dragging?: boolean;
@@ -105,16 +112,17 @@ export class VisualWorkflowEdgeDto {
 
   @IsOptional()
   @IsString()
-  sourceHandle?: string;
+  sourceHandle?: string | null;
 
   @IsOptional()
   @IsString()
-  targetHandle?: string;
+  targetHandle?: string | null;
 
   @IsOptional()
   @IsString()
   label?: string;
 
+  @ToStrictBoolean()
   @IsOptional()
   @IsBoolean()
   animated?: boolean;
@@ -188,6 +196,7 @@ export class CreateWorkflowDto {
   @Max(3600)
   maxExecutionSeconds?: number;
 
+  @ToStrictNumber()
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -233,6 +242,7 @@ export class UpdateWorkflowDto {
   @Max(3600)
   maxExecutionSeconds?: number;
 
+  @ToStrictNumber()
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -271,7 +281,7 @@ export class TestWebhookDto {
   testVariables?: Record<string, string>;
 
   @IsOptional()
+  @ToStrictNumber()
   @IsInt()
   timeoutMs?: number;
 }
-

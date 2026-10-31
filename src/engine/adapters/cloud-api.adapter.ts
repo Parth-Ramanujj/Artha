@@ -59,6 +59,7 @@ import {
 } from '../interfaces/whatsapp-engine.interface';
 import type { ChatKind } from '../identity/wa-id';
 import { CATALOG_MAX, formatPrice } from './catalog-format';
+import { scalarToString } from '../../common/utils/scalar-string';
 
 const GRAPH_API_VERSION = 'v21.0';
 
@@ -1382,10 +1383,10 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       `/${this.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`,
     );
     return (res.data ?? []).map(t => ({
-      name: String(t.name ?? ''),
-      language: String(t.language ?? ''),
-      status: String(t.status ?? ''),
-      category: String(t.category ?? ''),
+      name: scalarToString(t.name),
+      language: scalarToString(t.language),
+      status: scalarToString(t.status),
+      category: scalarToString(t.category),
       components: Array.isArray(t.components) ? (t.components as Array<Record<string, unknown>>) : [],
     }));
   }

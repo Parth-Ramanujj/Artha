@@ -1,7 +1,9 @@
 import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import type { Repository } from 'typeorm';
 import { ApiKeyGuard } from './api-key.guard';
+import type { Session } from '../../session/entities/session.entity';
 import { AuthService } from '../auth.service';
 import { ApiKey, ApiKeyRole } from '../entities/api-key.entity';
 import { AuditService } from '../../audit/audit.service';
@@ -67,7 +69,7 @@ describe('ApiKeyGuard', () => {
       reflector,
       configService as ConfigService,
       auditService as AuditService,
-      sessionRepository as any,
+      sessionRepository as unknown as Repository<Session>,
     );
   }
 

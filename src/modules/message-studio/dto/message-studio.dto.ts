@@ -25,7 +25,7 @@ export class StudioMessageDto {
   name: string;
 
   @ApiProperty({ enum: STUDIO_KINDS })
-  @IsIn(STUDIO_KINDS as unknown as string[])
+  @IsIn(STUDIO_KINDS)
   kind: StudioKind;
 
   @ApiProperty({ description: 'Message content for the kind (text, media, buttons, products, …)' })
@@ -67,7 +67,7 @@ export class UpdateStudioMessageDto {
 
 export class ValidateStudioMessageDto {
   @ApiProperty({ enum: STUDIO_KINDS })
-  @IsIn(STUDIO_KINDS as unknown as string[])
+  @IsIn(STUDIO_KINDS)
   kind: StudioKind;
 
   @ApiProperty()

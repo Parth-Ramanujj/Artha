@@ -70,10 +70,7 @@ export class MessageStudioController {
 
   @Get('templates')
   @ApiOperation({ summary: 'Approved WhatsApp templates of a Cloud API number, with Meta approval status' })
-  async listTemplates(
-    @CurrentApiKey() apiKey: ApiKey,
-    @Query() query: TemplatesQueryDto,
-  ) {
+  async listTemplates(@CurrentApiKey() apiKey: ApiKey, @Query() query: TemplatesQueryDto) {
     const businessId = await this.businessId(apiKey);
     const session = await this.session(apiKey, businessId, query.sessionId);
     return this.studio.templates(session!.id, query.refresh === 'true');

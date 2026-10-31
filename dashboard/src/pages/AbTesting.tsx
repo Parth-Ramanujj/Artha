@@ -350,7 +350,7 @@ export function AbTesting() {
                         </div>
                       </div>
                       <div className="ab-variant-quote">
-                        "{(varA?.content as any)?.message || 'Welcome to our service!'}"
+                        "{(varA?.content?.message as string | undefined) || 'Welcome to our service!'}"
                       </div>
                     </div>
                     <div className="ab-variant-metrics">
@@ -376,7 +376,7 @@ export function AbTesting() {
                         </div>
                       </div>
                       <div className="ab-variant-quote">
-                        "{(varB?.content as any)?.message || 'Get instant recommendations today!'}"
+                        "{(varB?.content?.message as string | undefined) || 'Get instant recommendations today!'}"
                       </div>
                     </div>
                     <div className="ab-variant-metrics">

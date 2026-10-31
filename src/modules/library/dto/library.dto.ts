@@ -14,6 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export const MAX_CHATS_PER_POST = 200;
 
@@ -64,6 +65,7 @@ export class SaveLibraryItemDto {
 
   @ApiPropertyOptional({ description: 'Drop the current media (turns the post into text)' })
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   removeMedia?: boolean;
 }
@@ -111,6 +113,7 @@ export class LibraryTargetDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   postToStatus?: boolean;
 
@@ -143,12 +146,14 @@ export class SaveLibraryAutomationDto extends LibraryTargetDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 }
 
 export class ToggleLibraryAutomationDto {
   @ApiProperty()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled: boolean;
 }

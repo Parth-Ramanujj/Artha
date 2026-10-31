@@ -285,7 +285,9 @@ export function buildSendPlan(input: PlanInput): SendPlan {
           if (card.bodyVariableCount > 0) {
             cardParts.push({
               type: 'body',
-              parameters: (given?.variables ?? []).slice(0, card.bodyVariableCount).map(v => ({ type: 'text', text: fill(v) })),
+              parameters: (given?.variables ?? [])
+                .slice(0, card.bodyVariableCount)
+                .map(v => ({ type: 'text', text: fill(v) })),
             });
           }
           return { card_index: i, components: cardParts };

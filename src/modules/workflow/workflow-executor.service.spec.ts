@@ -42,6 +42,12 @@ import {
 import { WorkflowRun, RunStatus } from './entities/workflow-run.entity';
 import { ConversationStatus } from '../conversation/entities/conversation.entity';
 
+// steps is nullable on the entity; assert it was populated before reading it.
+function stepsOf(run: WorkflowRun): NonNullable<WorkflowRun['steps']> {
+  expect(run.steps).not.toBeNull();
+  return run.steps ?? [];
+}
+
 describe('WorkflowExecutor', () => {
   let executor: WorkflowExecutor;
   let workflowService: jest.Mocked<Partial<WorkflowService>>;
@@ -273,7 +279,7 @@ describe('WorkflowExecutor', () => {
         status: 200,
         json: () => Promise.resolve({ received: true }),
       });
-      global.fetch = mockFetch as any;
+      global.fetch = mockFetch;
 
       try {
         const wf: WorkflowDefinition = {
@@ -320,10 +326,11 @@ describe('WorkflowExecutor', () => {
           'https://example.com/api/lead',
           expect.objectContaining({
             method: 'POST',
-            headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+            headers: expect.objectContaining({ 'Content-Type': 'application/json' }) as unknown,
           }),
         );
       } finally {
+        global.fetch = originalFetch;
       }
     });
 
@@ -335,7 +342,7 @@ describe('WorkflowExecutor', () => {
         headers: new Headers({ 'content-type': 'application/json' }),
         json: () => Promise.resolve({ data: { orderId: 'ORD-999', status: 'approved' } }),
       });
-      global.fetch = mockFetch as any;
+      global.fetch = mockFetch;
 
       try {
         const wf: WorkflowDefinition = {
@@ -395,7 +402,7 @@ describe('WorkflowExecutor', () => {
             capturedVariables: expect.objectContaining({
               order_id: 'ORD-999',
               lastHttpStatus: 200,
-            }),
+            }) as unknown,
           }),
         );
       } finally {
@@ -411,7 +418,7 @@ describe('WorkflowExecutor', () => {
         headers: new Headers({ 'content-type': 'application/json' }),
         json: () => Promise.resolve({ ok: true, echo: '919876543210' }),
       });
-      global.fetch = mockFetch as any;
+      global.fetch = mockFetch;
 
       try {
         const result = await executor.testWebhookCall({
@@ -617,7 +624,7 @@ describe('WorkflowExecutor', () => {
         status: 200,
         statusText: 'OK',
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => apiResponse,
+        json: () => Promise.resolve(apiResponse),
       } as any);
 
       try {
@@ -739,8 +746,12 @@ describe('WorkflowExecutor', () => {
       await executor.execute(wf, runState, ctx);
 
       // Verify capturedVariables were updated
-      expect((runState.triggerData as any)?.capturedVariables?.customerTier).toBe('VIP-Gold');
-      expect((runState.triggerData as any)?.capturedVariables?.leadScore).toBe('95');
+      expect(
+        (runState.triggerData?.['capturedVariables'] as Record<string, unknown> | undefined)?.['customerTier'],
+      ).toBe('VIP-Gold');
+      expect((runState.triggerData?.['capturedVariables'] as Record<string, unknown> | undefined)?.['leadScore']).toBe(
+        '95',
+      );
 
       // Verify message was interpolated with captured variables
       expect(messageService.sendText).toHaveBeenCalledWith('sess-1', {
@@ -808,7 +819,7 @@ describe('WorkflowExecutor', () => {
         'run-1',
         RunStatus.COMPLETED,
         expect.objectContaining({
-          failureReason: expect.stringContaining('Workflow filtered at node step_filter'),
+          failureReason: expect.stringContaining('Workflow filtered at node step_filter') as unknown,
         }),
       );
     });
@@ -871,7 +882,7 @@ describe('WorkflowExecutor', () => {
         expect.objectContaining({
           failureReason: expect.stringContaining(
             'Workflow terminated at node step_stop: Customer requested human handover immediately',
-          ),
+          ) as unknown,
         }),
       );
     });
@@ -942,15 +953,15 @@ describe('WorkflowExecutor', () => {
       expect(messageService.sendText).not.toHaveBeenCalled();
 
       // Verify all steps completed in simulated dry-run mode
-      const sendStep = runState.steps.find(s => s.actionId === 'step_send');
+      const sendStep = stepsOf(runState).find(s => s.actionId === 'step_send');
       expect(sendStep?.output?.['simulated']).toBe(true);
       expect(sendStep?.output?.['dryRun']).toBe(true);
 
-      const mediaStep = runState.steps.find(s => s.actionId === 'step_media');
+      const mediaStep = stepsOf(runState).find(s => s.actionId === 'step_media');
       expect(mediaStep?.output?.['simulated']).toBe(true);
       expect(mediaStep?.output?.['dryRun']).toBe(true);
 
-      const sheetsStep = runState.steps.find(s => s.actionId === 'step_sheets');
+      const sheetsStep = stepsOf(runState).find(s => s.actionId === 'step_sheets');
       expect(sheetsStep?.output?.['simulated']).toBe(true);
       expect(sheetsStep?.output?.['dryRun']).toBe(true);
     });
@@ -961,7 +972,9 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         name: 'VCard Test',
         description: null,
-        status: WorkflowStatus.ACTIVE,
+        slug: 'vcard-test',
+        version: 1,
+        status: WorkflowStatus.PUBLISHED,
         definition: {
           trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
           conditions: [],
@@ -999,7 +1012,7 @@ describe('WorkflowExecutor', () => {
       };
 
       await executor.execute(wf, runState, ctx);
-      const step = runState.steps.find(s => s.actionId === 'step_vcard');
+      const step = stepsOf(runState).find(s => s.actionId === 'step_vcard');
       expect(step?.status).toBe('success');
       expect(step?.output?.['sent']).toBe(true);
       expect(step?.output?.['displayName']).toBe('Alpeshkumar Patel');
@@ -1012,7 +1025,9 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         name: 'Working Hours Test',
         description: null,
-        status: WorkflowStatus.ACTIVE,
+        slug: 'vcard-test',
+        version: 1,
+        status: WorkflowStatus.PUBLISHED,
         definition: {
           trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
           conditions: [],
@@ -1050,7 +1065,7 @@ describe('WorkflowExecutor', () => {
       };
 
       await executor.execute(wf, runState, ctx);
-      const step = runState.steps.find(s => s.actionId === 'step_hours');
+      const step = stepsOf(runState).find(s => s.actionId === 'step_hours');
       expect(step?.status).toBe('success');
       expect(step?.output?.['branch']).toBe('open');
       expect(step?.output?.['isOpen']).toBe(true);
@@ -1062,7 +1077,9 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         name: 'SIP Calc Test',
         description: null,
-        status: WorkflowStatus.ACTIVE,
+        slug: 'vcard-test',
+        version: 1,
+        status: WorkflowStatus.PUBLISHED,
         definition: {
           trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
           conditions: [],
@@ -1100,7 +1117,7 @@ describe('WorkflowExecutor', () => {
       };
 
       await executor.execute(wf, runState, ctx);
-      const step = runState.steps.find(s => s.actionId === 'step_calc');
+      const step = stepsOf(runState).find(s => s.actionId === 'step_calc');
       expect(step?.status).toBe('success');
       expect(step?.output?.['investedAmount']).toBe(900000); // 5000 * 180 months
       expect(Number(step?.output?.['futureValue'])).toBeGreaterThan(2000000);
@@ -1113,7 +1130,9 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         name: 'Payment Test',
         description: null,
-        status: WorkflowStatus.ACTIVE,
+        slug: 'vcard-test',
+        version: 1,
+        status: WorkflowStatus.PUBLISHED,
         definition: {
           trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
           conditions: [],
@@ -1152,7 +1171,7 @@ describe('WorkflowExecutor', () => {
       };
 
       await executor.execute(wf, runState, ctx);
-      const step = runState.steps.find(s => s.actionId === 'step_pay');
+      const step = stepsOf(runState).find(s => s.actionId === 'step_pay');
       expect(step?.status).toBe('success');
       expect(step?.output?.['upiLink']).toContain('upi://pay?pa=consultant%40upi');
       expect(step?.output?.['amount']).toBe(499);
@@ -1164,7 +1183,9 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         name: 'DND Test',
         description: null,
-        status: WorkflowStatus.ACTIVE,
+        slug: 'vcard-test',
+        version: 1,
+        status: WorkflowStatus.PUBLISHED,
         definition: {
           trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
           conditions: [],
@@ -1199,7 +1220,7 @@ describe('WorkflowExecutor', () => {
       };
 
       await executor.execute(wf, runState, ctx);
-      const step = runState.steps.find(s => s.actionId === 'step_dnd');
+      const step = stepsOf(runState).find(s => s.actionId === 'step_dnd');
       expect(step?.status).toBe('success');
       expect(step?.output?.['optedOut']).toBe(true);
       expect(step?.output?.['stopped']).toBe(true);

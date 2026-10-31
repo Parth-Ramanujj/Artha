@@ -11,7 +11,7 @@ export const CarouselTemplateNode = memo(function CarouselTemplateNode({
   data: WorkflowNodeData;
   selected?: boolean;
 }) {
-  const cards = (data.config?.cards as any[]) || [];
+  const cards = (data.config?.cards as unknown[]) || [];
   const cardCount = cards.length || 3;
 
   return (

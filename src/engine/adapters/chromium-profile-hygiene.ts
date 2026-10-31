@@ -30,7 +30,7 @@ export async function killProcessTree(pid: number, logger: HygieneLogger): Promi
     await new Promise<void>(resolve => {
       execFile('taskkill', ['/pid', String(pid), '/T', '/F'], error => {
         if (error) {
-          logger.debug(`taskkill on pid ${pid} returned`, { error: String(error) });
+          logger.debug(`taskkill on pid ${pid} returned`, { error: error.message });
         }
         resolve();
       });

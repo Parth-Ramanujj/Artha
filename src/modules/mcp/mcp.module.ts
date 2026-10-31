@@ -35,7 +35,6 @@ export class McpModule implements NestModule {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   configure(_consumer: MiddlewareConsumer): void {
     const httpAdapter = this.httpAdapterHost.httpAdapter;
     if (!httpAdapter) {

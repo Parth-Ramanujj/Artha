@@ -96,7 +96,7 @@ export function AssignmentRules() {
       if (editItem) {
         await assignmentRuleApi.update(editItem.id, {
           name: form.name.trim(),
-          strategy: form.strategy as any,
+          strategy: form.strategy as AssignmentRule['strategy'],
           agents,
           priority: Number(form.priority) || 1,
         });

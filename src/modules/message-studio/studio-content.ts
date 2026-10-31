@@ -499,10 +499,14 @@ function checkCarouselCards(c: Collector, info: TemplateInfo, chosen: NonNullabl
   cards.forEach((card, i) => {
     const g = given[i];
     if (card.headerFormat !== 'NONE' && !isHttpsUrl(g?.headerMediaUrl)) {
-      c.error(`template.cards.${i}.headerMediaUrl`, `Card ${i + 1} needs an https:// ${card.headerFormat === 'VIDEO' ? 'video' : 'image'} link.`);
+      c.error(
+        `template.cards.${i}.headerMediaUrl`,
+        `Card ${i + 1} needs an https:// ${card.headerFormat === 'VIDEO' ? 'video' : 'image'} link.`,
+      );
     }
     for (let v = 0; v < card.bodyVariableCount; v++) {
-      if (!g?.variables?.[v]?.trim()) c.error(`template.cards.${i}.variables.${v}`, `Card ${i + 1}: fill in variable {{${v + 1}}}.`);
+      if (!g?.variables?.[v]?.trim())
+        c.error(`template.cards.${i}.variables.${v}`, `Card ${i + 1}: fill in variable {{${v + 1}}}.`);
     }
   });
 }
@@ -773,7 +777,9 @@ export function normalizeContent(kind: StudioKind, raw: unknown): StudioContent 
               const cd = (card ?? {}) as Record<string, unknown>;
               return {
                 ...(str(cd.headerMediaUrl, 2000) ? { headerMediaUrl: str(cd.headerMediaUrl, 2000) } : {}),
-                variables: (Array.isArray(cd.variables) ? cd.variables.slice(0, 20) : []).map(v => String(v ?? '').slice(0, 1000)),
+                variables: (Array.isArray(cd.variables) ? cd.variables.slice(0, 20) : []).map(v =>
+                  String(v ?? '').slice(0, 1000),
+                ),
               };
             }),
           }

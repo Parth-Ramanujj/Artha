@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { Integration, IntegrationStatus, IntegrationType } from '../entities/integration.entity';
 import { decryptSecret, encryptSecret } from './google-token-crypto';
 import { cellMatches, fieldKey, suggestKeyColumn } from './sheet-lookup';
+import { scalarToString } from '../../../common/utils/scalar-string';
 
 /** The Google services one account can be connected for, and the OAuth scope each one needs. */
 export const GOOGLE_SERVICES = {
@@ -186,16 +187,14 @@ export class GoogleWorkspaceService {
         'Google did not return a refresh token. Remove the app at myaccount.google.com and try again.',
       );
     }
-    const grantedScopes = String(tokens.scope ?? '')
-      .split(' ')
-      .filter(Boolean);
+    const grantedScopes = scalarToString(tokens.scope).split(' ').filter(Boolean);
     const accountEmail = await this.accountEmail(String(tokens.access_token));
 
     const config: GoogleConfig = {
       services: pending.services,
       accountEmail,
       grantedScopes,
-      refreshToken: encryptSecret(String(tokens.refresh_token)),
+      refreshToken: encryptSecret(scalarToString(tokens.refresh_token)),
     };
     const service = pending.services[0];
     const type = GOOGLE_TYPE_BY_SERVICE[service];
@@ -206,7 +205,7 @@ export class GoogleWorkspaceService {
         where: { id: pending.integrationId, businessId: pending.businessId, type },
       });
       if (!existing) throw new NotFoundException('Google integration not found');
-      existing.config = { ...(existing.config ?? {}), ...config } as unknown as Record<string, unknown>;
+      existing.config = { ...(existing.config ?? {}), ...config };
       existing.status = IntegrationStatus.CONNECTED;
       existing.name = name;
       this.accessTokens.delete(existing.id);
@@ -237,7 +236,7 @@ export class GoogleWorkspaceService {
       refresh_token: decryptSecret(config.refreshToken),
       grant_type: 'refresh_token',
     });
-    const token = String(tokens.access_token ?? '');
+    const token = scalarToString(tokens.access_token);
     if (!token) throw new UnauthorizedException('Google did not give an access token. Connect the account again.');
     const ttlMs = (Number(tokens.expires_in) || 3600) * 1000;
     this.accessTokens.set(integration.id, { token, expiresAt: Date.now() + ttlMs });
@@ -279,7 +278,7 @@ export class GoogleWorkspaceService {
     }
     this.accessTokens.delete(integration.id);
     const { refreshToken: _dropped, ...rest } = config;
-    integration.config = rest as unknown as Record<string, unknown>;
+    integration.config = rest;
   }
 
   /** Checks the account still works and reports which services it is connected for. */
@@ -338,7 +337,7 @@ export class GoogleWorkspaceService {
   /** Every Google Sheet in the account (not only the ones this app created), newest first. */
   async listSpreadsheets(integration: Integration) {
     this.requireService(integration, 'sheets');
-    const granted = (this.readConfig(integration).grantedScopes ?? []) as string[];
+    const granted = this.readConfig(integration).grantedScopes ?? [];
     if (!granted.includes(LIST_SCOPE)) {
       throw new BadRequestException('Reconnect with Google once to allow listing your spreadsheets');
     }
@@ -397,8 +396,8 @@ export class GoogleWorkspaceService {
       `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
     );
     const values = Array.isArray(res.values) ? (res.values as unknown[][]) : [];
-    const headers = (values[0] ?? []).map(h => String(h ?? '').trim()).filter(Boolean);
-    const sampleRows = values.slice(1, 4).map(r => (r ?? []).map(c => String(c ?? '')));
+    const headers = (values[0] ?? []).map(h => scalarToString(h).trim()).filter(Boolean);
+    const sampleRows = values.slice(1, 4).map(r => (r ?? []).map(c => scalarToString(c)));
     return { tabs, tab: range, headers, sampleRows, suggestedKeyColumn: suggestKeyColumn(headers) };
   }
 
@@ -430,7 +429,7 @@ export class GoogleWorkspaceService {
     const values = Array.isArray(res.values) ? (res.values as unknown[][]) : [];
     if (values.length === 0) return { found: false, headers: [] };
 
-    const headers = values[0].map(h => String(h ?? '').trim());
+    const headers = values[0].map(h => scalarToString(h).trim());
     const wantedColumn = (input.keyColumn ?? '').trim().toLowerCase() || suggestKeyColumn(headers).toLowerCase();
     const keyIndex = headers.findIndex(h => h.toLowerCase() === wantedColumn);
     if (keyIndex === -1) {
@@ -446,13 +445,13 @@ export class GoogleWorkspaceService {
       const fields: Record<string, string> = {};
       headers.forEach((h, c) => {
         if (!h) return;
-        const cell = String(cells[c] ?? '');
+        const cell = scalarToString(cells[c]);
         row[h] = cell;
         const key = fieldKey(h);
         if (key) fields[key] = cell;
       });
       const rowText = headers
-        .map((h, c) => (h ? `${h}: ${String(cells[c] ?? '')}` : ''))
+        .map((h, c) => (h ? `${h}: ${scalarToString(cells[c])}` : ''))
         .filter(Boolean)
         .join('\n');
       return { found: true, rowNumber: i + 1, row, fields, rowText, headers };
@@ -477,13 +476,13 @@ export class GoogleWorkspaceService {
     );
     const values = Array.isArray(res.values) ? (res.values as unknown[][]) : [];
     if (values.length === 0) return { rowCount: 0, rowsText: '', headers: [] };
-    const headers = values[0].map(h => String(h ?? '').trim());
+    const headers = values[0].map(h => scalarToString(h).trim());
     const rows = values
       .slice(1)
-      .filter(cells => (cells ?? []).some(c => String(c ?? '').trim()))
+      .filter(cells => (cells ?? []).some(c => scalarToString(c).trim()))
       .map(cells =>
         headers
-          .map((h, c) => (h ? `${h}: ${String(cells[c] ?? '')}` : ''))
+          .map((h, c) => (h ? `${h}: ${scalarToString(cells[c])}` : ''))
           .filter(Boolean)
           .join('\n'),
       );
@@ -506,9 +505,9 @@ export class GoogleWorkspaceService {
     const res = await this.api(token, 'GET', 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts');
     const accounts = Array.isArray(res.accounts) ? (res.accounts as Array<Record<string, unknown>>) : [];
     return accounts.map(a => ({
-      name: String(a.name ?? ''),
-      accountName: String(a.accountName ?? a.name ?? ''),
-      type: String(a.type ?? ''),
+      name: scalarToString(a.name),
+      accountName: scalarToString(a.accountName ?? a.name),
+      type: scalarToString(a.type),
     }));
   }
 
@@ -533,8 +532,8 @@ export class GoogleWorkspaceService {
         const meta = (l.metadata ?? {}) as { newReviewUri?: string; mapsUri?: string };
         out.push({
           // v4 review endpoints want the full accounts/x/locations/y path
-          name: `${account}/${String(l.name ?? '')}`,
-          title: String(l.title ?? ''),
+          name: `${account}/${scalarToString(l.name)}`,
+          title: scalarToString(l.title),
           address: [...(addr.addressLines ?? []), addr.locality].filter(Boolean).join(', '),
           reviewUrl: meta.newReviewUri ?? '',
           mapsUrl: meta.mapsUri ?? '',
@@ -607,7 +606,7 @@ export class GoogleWorkspaceService {
 
   private async accountEmail(accessToken: string): Promise<string> {
     const info = await this.api(accessToken, 'GET', USERINFO_ENDPOINT);
-    return String(info.email ?? 'unknown account');
+    return scalarToString(info.email, 'unknown account');
   }
 
   private prune() {
@@ -624,7 +623,9 @@ export class GoogleWorkspaceService {
     });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok)
-      throw new UnauthorizedException(String(body.error_description ?? body.error ?? `Google returned ${res.status}`));
+      throw new UnauthorizedException(
+        scalarToString(body.error_description ?? body.error, `Google returned ${res.status}`),
+      );
     return body;
   }
 

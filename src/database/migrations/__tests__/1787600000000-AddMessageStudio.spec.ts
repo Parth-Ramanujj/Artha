@@ -32,9 +32,11 @@ describe('AddMessageStudio migration', () => {
     );
     await ds.query(`INSERT INTO "studio_products" ("id","businessId","name") VALUES ('p1','b1','Kurta')`);
     await ds.query(`INSERT INTO "studio_settings" ("id","businessId") VALUES ('s1','b1')`);
-    const [msg] = await ds.query(`SELECT "status","readiness" FROM "studio_messages"`);
+    const [msg] = await ds.query<Array<Record<string, unknown>>>(`SELECT "status","readiness" FROM "studio_messages"`);
     expect(msg).toEqual({ status: 'draft', readiness: 'needs_attention' });
-    const [product] = await ds.query(`SELECT "currency","inStock","archived","price" FROM "studio_products"`);
+    const [product] = await ds.query<Array<Record<string, unknown>>>(
+      `SELECT "currency","inStock","archived","price" FROM "studio_products"`,
+    );
     expect(product).toEqual({ currency: 'INR', inStock: 1, archived: 0, price: 0 });
     // One settings row per business.
     await expect(ds.query(`INSERT INTO "studio_settings" ("id","businessId") VALUES ('s2','b1')`)).rejects.toThrow();

@@ -45,7 +45,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
-import type { WorkflowNodeData, ButtonItem } from './types';
+import type { WorkflowNodeData, ButtonItem, FieldAssignment, NodeConfig } from './types';
 import { workflowApi, getWebhookTestUrl, type TestWebhookResult, type WorkflowRun } from '../../services/api';
 import { VariablePicker } from './VariablePicker';
 import { NodeOutputInspector } from './NodeOutputInspector';
@@ -119,7 +119,7 @@ function getNodeIcon(nodeType: string) {
 function getNodeOutputs(node: Node): NodeOutputField[] {
   const type = node.type || '';
   const id = node.id;
-  const cfg = (node.data as any)?.config || {};
+  const cfg = (node.data as Partial<WorkflowNodeData>)?.config || {};
 
   switch (type) {
     case 'trigger':
@@ -370,7 +370,7 @@ function getNodeOutputs(node: Node): NodeOutputField[] {
           description: 'All variables updated by this node',
         },
       ];
-      assignments.forEach((a: any) => {
+      assignments.forEach((a: FieldAssignment) => {
         if (a && a.name) {
           fields.push({
             label: `Variable: {{vars.${a.name}}}`,
@@ -725,21 +725,23 @@ interface NodeInspectorProps {
   onOpenWorkflowTest?: () => void;
 }
 
-export function NodeInspector({
+export function NodeInspector(props: NodeInspectorProps) {
+  // Split so the hooks in the body never run conditionally behind the null guard.
+  return props.selectedNode ? <NodeInspectorBody {...props} selectedNode={props.selectedNode} /> : null;
+}
+
+function NodeInspectorBody({
   selectedNode,
   upstreamNodes = [],
-  allNodes: _allNodes = [],
   lastRun = null,
   onUpdateNode,
   onDeleteNode,
   onClose,
   onOpenWorkflowTest,
-}: NodeInspectorProps) {
-  if (!selectedNode) return null;
-
+}: NodeInspectorProps & { selectedNode: NonNullable<NodeInspectorProps['selectedNode']> }) {
   const { id, type, data } = selectedNode;
   const [label, setLabel] = useState(data.label || '');
-  const [config, setConfig] = useState<Record<string, any>>(data.config || {});
+  const [config, setConfig] = useState<NodeConfig>(data.config || {});
 
   // Tab & Upstream Explorer state (config, outputs, upstream)
   const [activeTab, setActiveTab] = useState<'config' | 'outputs' | 'upstream'>('config');
@@ -761,7 +763,7 @@ export function NodeInspector({
     setIsVariablePickerOpen(true);
   };
 
-  const handleSelectFromPicker = (token: string, _friendlyLabel?: string) => {
+  const handleSelectFromPicker = (token: string) => {
     if (activePickerContext?.insertToken) {
       activePickerContext.insertToken(token);
     } else {
@@ -804,7 +806,7 @@ export function NodeInspector({
     setTargetField(defaultTarget);
   }, [id, data, type]);
 
-  const updateConfig = (key: string, value: any) => {
+  const updateConfig = (key: string, value: unknown) => {
     const nextConfig = { ...config, [key]: value };
     setConfig(nextConfig);
     onUpdateNode(id, { config: nextConfig });
@@ -944,7 +946,7 @@ export function NodeInspector({
     if (!searchQuery.trim()) return upstreamNodes;
     const q = searchQuery.toLowerCase().trim();
     return upstreamNodes.filter(up => {
-      const upLabel = ((up.data as any)?.label || '').toLowerCase();
+      const upLabel = ((up.data as Partial<WorkflowNodeData>)?.label || '').toLowerCase();
       const upType = (up.type || '').toLowerCase();
       const upId = up.id.toLowerCase();
       const outputs = getNodeOutputs(up);
@@ -953,7 +955,7 @@ export function NodeInspector({
           o.label.toLowerCase().includes(q) ||
           o.token.toLowerCase().includes(q) ||
           o.description.toLowerCase().includes(q) ||
-          (o.example && o.example.toLowerCase().includes(q)),
+          (Boolean(o.example) && String(o.example).toLowerCase().includes(q)),
       );
       return upLabel.includes(q) || upType.includes(q) || upId.includes(q) || hasMatchingOutput;
     });
@@ -1117,14 +1119,14 @@ export function NodeInspector({
         timeoutMs: Number(config.timeoutMs || 10000),
       });
       setTestResult(res);
-    } catch (err: any) {
+    } catch (err) {
       setTestResult({
         success: false,
         statusCode: 500,
         statusText: 'Client Error',
         durationMs: 0,
         resolvedUrl: config.url,
-        error: err?.message || 'Failed to execute test request',
+        error: (err instanceof Error && err.message) || 'Failed to execute test request',
       });
     } finally {
       setIsTestingWebhook(false);
@@ -1148,7 +1150,7 @@ export function NodeInspector({
     success: boolean;
     status: 'completed' | 'failed';
     durationMs: number;
-    output: any;
+    output: unknown;
     error?: string;
   } | null>(null);
 
@@ -1170,7 +1172,7 @@ export function NodeInspector({
         message: 'Hello, track my order 1234',
       };
 
-      let simulatedOutput: any = {};
+      let simulatedOutput: Record<string, unknown> = {};
       if (type === 'send_message') {
         const rawMsg = config.message || '';
         const rendered = rawMsg
@@ -1193,7 +1195,7 @@ export function NodeInspector({
           prompt: config.message || 'Please choose an option:',
           choice: btns[0]?.id || 'opt_1',
           userReply: btns[0]?.text || 'Option 1',
-          availableButtons: btns.map((b: any) => b.text),
+          availableButtons: btns.map((b: ButtonItem) => b.text),
         };
       } else if (type === 'ask_question') {
         const slot = config.slot || 'response';
@@ -1232,8 +1234,8 @@ export function NodeInspector({
         };
       } else if (type === 'set_fields') {
         const assignments = config.assignments || [];
-        const varsMap: Record<string, any> = {};
-        assignments.forEach((a: any) => {
+        const varsMap: Record<string, unknown> = {};
+        assignments.forEach((a: FieldAssignment) => {
           if (a?.name) varsMap[a.name] = a.value || 'test_val';
         });
         simulatedOutput = {
@@ -1322,13 +1324,13 @@ export function NodeInspector({
         durationMs,
         output: simulatedOutput,
       });
-    } catch (err: any) {
+    } catch (err) {
       setStepTestResult({
         success: false,
         status: 'failed',
         durationMs: Date.now() - start,
         output: null,
-        error: err?.message || 'Failed to simulate step',
+        error: (err instanceof Error && err.message) || 'Failed to simulate step',
       });
     } finally {
       setIsTestingStep(false);
@@ -1498,7 +1500,7 @@ export function NodeInspector({
               ) : (
                 filteredUpstreamNodes.map(upNode => {
                   const nodeOutputs = getNodeOutputs(upNode);
-                  const upLabel = (upNode.data as any)?.label || upNode.id;
+                  const upLabel = (upNode.data as Partial<WorkflowNodeData>)?.label || upNode.id;
                   const customPathVal = customPaths[upNode.id] || '';
                   const upType = upNode.type || 'default';
 
@@ -1546,9 +1548,9 @@ export function NodeInspector({
                               </div>
                               <div className="wf-var-row-bottom">
                                 <span className="wf-var-desc">{out.description}</span>
-                                {out.example && (
+                                {Boolean(out.example) && (
                                   <span className="wf-var-preview" title={`Sample preview: ${out.example}`}>
-                                    ex: {out.example}
+                                    ex: {String(out.example)}
                                   </span>
                                 )}
                               </div>
@@ -1627,7 +1629,7 @@ export function NodeInspector({
                         </div>
                         <div className="wf-var-row-bottom">
                           <span className="wf-var-desc">{b.description}</span>
-                          {b.example && <span className="wf-var-preview">ex: {b.example}</span>}
+                          {Boolean(b.example) && <span className="wf-var-preview">ex: {String(b.example)}</span>}
                         </div>
                       </div>
                     );
@@ -1910,7 +1912,7 @@ export function NodeInspector({
                     <optgroup label="Connected Upstream Variables">
                       {upstreamNodes.flatMap(upNode => {
                         const outputs = getNodeOutputs(upNode);
-                        const upLabel = (upNode.data as any)?.label || upNode.id;
+                        const upLabel = (upNode.data as Partial<WorkflowNodeData>)?.label || upNode.id;
                         return outputs.map(out => (
                           <option key={`${upNode.id}-${out.token}`} value={out.token}>
                             [{upLabel}] {out.label} → {`{{${out.token}}}`}
@@ -2647,7 +2649,7 @@ export function NodeInspector({
                   {(Array.isArray(config.assignments) && config.assignments.length > 0
                     ? config.assignments
                     : [{ name: 'customVar', value: '{{trigger.message}}' }]
-                  ).map((a: any, idx: number) => {
+                  ).map((a: FieldAssignment, idx: number) => {
                     const assignments = Array.isArray(config.assignments)
                       ? config.assignments
                       : [{ name: 'customVar', value: '{{trigger.message}}' }];
@@ -2693,7 +2695,7 @@ export function NodeInspector({
                             padding: '4px',
                           }}
                           onClick={() => {
-                            const updated = assignments.filter((_: any, i: number) => i !== idx);
+                            const updated = assignments.filter((_: FieldAssignment, i: number) => i !== idx);
                             updateConfig('assignments', updated);
                           }}
                         >

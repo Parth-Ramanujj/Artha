@@ -270,7 +270,9 @@ describe('MessageStudioService (real SQLite)', () => {
         { id: 'order', text: 'Track order' },
         { id: 'talk_to_human', text: 'Talk to us' },
       ]);
-      expect(messageService.sendText.mock.calls[0][1].text).toContain('Hi Asha, how can we help?');
+      expect((messageService.sendText.mock.calls[0] as [string, { text: string }])[1].text).toContain(
+        'Hi Asha, how can we help?',
+      );
       expect((await service.publishedForWorkflows(BIZ)).map(m => m.choices.length)).toEqual([2]);
     });
 

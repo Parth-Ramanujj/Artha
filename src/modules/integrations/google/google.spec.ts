@@ -65,11 +65,11 @@ describe('Google Workspace sign-in', () => {
   });
 
   it('checks the stored connection before any Google call', () => {
-    const notConnected = { id: 'i1', type: IntegrationType.GOOGLE_WORKSPACE, config: {} } as unknown as Integration;
+    const notConnected = { id: 'i1', type: IntegrationType.GOOGLE_GMAIL, config: {} } as unknown as Integration;
     expect(() => service().readConfig(notConnected)).toThrow('not connected yet');
     const onlyGmail = {
       id: 'i2',
-      type: IntegrationType.GOOGLE_WORKSPACE,
+      type: IntegrationType.GOOGLE_GMAIL,
       config: { services: ['gmail'], refreshToken: encryptSecret('r'), accountEmail: 'a@b.c', grantedScopes: [] },
     } as unknown as Integration;
     expect(service().readConfig(onlyGmail).services).toEqual(['gmail']);

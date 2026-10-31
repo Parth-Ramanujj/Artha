@@ -162,14 +162,16 @@ export class GoogleBusinessService implements OnModuleInit, OnModuleDestroy {
 
   /** Google Business integrations of this business, for the settings picker. */
   async connections(businessId: string): Promise<Array<{ id: string; name: string; status: string }>> {
-    const list = (await this.integrations.findAll(businessId, IntegrationType.GOOGLE_BUSINESS)) as Integration[];
+    const list = await this.integrations.findAll(businessId, IntegrationType.GOOGLE_BUSINESS);
     return list.map(i => ({ id: i.id, name: i.name, status: i.status }));
   }
 
   /** integrationId lets Settings browse a connection before it is saved. */
   async accounts(businessId: string, integrationId?: string) {
     const config = await this.getConfig(businessId);
-    return this.google.gbpAccounts(await this.integration({ businessId, integrationId: integrationId || config.integrationId }));
+    return this.google.gbpAccounts(
+      await this.integration({ businessId, integrationId: integrationId || config.integrationId }),
+    );
   }
 
   async locations(businessId: string, account: string, integrationId?: string) {
@@ -451,7 +453,7 @@ export class GoogleBusinessService implements OnModuleInit, OnModuleDestroy {
         replyText: text,
         repliedAt: new Date(),
         repliedBy: by.slice(0, 100),
-        status: 'replied' as GbpReviewStatus,
+        status: 'replied',
         draft: '',
         error: '',
       });
@@ -475,7 +477,7 @@ export class GoogleBusinessService implements OnModuleInit, OnModuleDestroy {
       replyText: '',
       repliedAt: null,
       repliedBy: '',
-      status: 'pending_review' as GbpReviewStatus,
+      status: 'pending_review',
     });
     return this.reviews.save(review);
   }

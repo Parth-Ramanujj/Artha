@@ -1,10 +1,11 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { SyncConfig, SyncProvider, SyncStatus } from './entities/sync-config.entity';
 import { CreateSyncConfigDto, UpdateSyncConfigDto } from './dto/sync-config.dto';
 import { Contact } from '../conversation/entities/contact.entity';
 import { Conversation } from '../conversation/entities/conversation.entity';
+import { scalarToString } from '../../common/utils/scalar-string';
 
 @Injectable()
 export class SyncService {
@@ -18,14 +19,10 @@ export class SyncService {
 
   async findAll(businessId: string, provider?: string) {
     const effectiveBusinessId = businessId || 'default';
-    const where: any = [
-      { businessId: effectiveBusinessId },
-      { businessId: 'default' },
-      { businessId: '' },
-    ];
-    if (provider) {
-      where.forEach((w: any) => (w.provider = provider));
-    }
+    const where: FindOptionsWhere<SyncConfig>[] = [effectiveBusinessId, 'default', ''].map(id => ({
+      businessId: id,
+      ...(provider ? { provider } : {}),
+    }));
     return this.repo.find({ where, order: { createdAt: 'DESC' } });
   }
 
@@ -70,15 +67,11 @@ export class SyncService {
     const effectiveBusinessId = businessId || 'default';
 
     // Fetch real records based on configured dataType
-    let records: Array<Record<string, unknown>> = [];
+    let records: Array<Record<string, unknown>>;
 
     if (config.dataType === 'conversations') {
       const convs = await this.convRepo.find({
-        where: [
-          { businessId: effectiveBusinessId },
-          { businessId: 'default' },
-          { businessId: '' },
-        ],
+        where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
         order: { updatedAt: 'DESC' },
         take: 500,
       });
@@ -95,11 +88,7 @@ export class SyncService {
     } else {
       // Default: contacts and leads
       let contacts = await this.contactRepo.find({
-        where: [
-          { businessId: effectiveBusinessId },
-          { businessId: 'default' },
-          { businessId: '' },
-        ],
+        where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
         order: { createdAt: 'DESC' },
         take: 500,
       });
@@ -107,11 +96,7 @@ export class SyncService {
       // If contacts table has 0 rows, extract contacts from actual conversations!
       if (contacts.length === 0) {
         const convs = await this.convRepo.find({
-          where: [
-            { businessId: effectiveBusinessId },
-            { businessId: 'default' },
-            { businessId: '' },
-          ],
+          where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
           order: { updatedAt: 'DESC' },
           take: 500,
         });
@@ -156,24 +141,21 @@ export class SyncService {
         email: c.email || '',
         notes: c.notes || '',
         tags: c.tags ? c.tags.join(', ') : '',
-        city: (c.metadata as any)?.city || (c.metadata as any)?.location || '',
+        city: c.metadata?.city || c.metadata?.location || '',
         syncedAt: new Date().toISOString(),
       }));
     }
 
     // Check if target webhook or Google Sheet script URL is configured
     const targetUrl =
-      config.config?.webhookUrl ||
-      config.config?.url ||
-      config.config?.sheetUrl ||
-      config.config?.endpoint;
+      config.config?.webhookUrl || config.config?.url || config.config?.sheetUrl || config.config?.endpoint;
 
     if (targetUrl) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       try {
-        const response = await fetch(String(targetUrl), {
+        const response = await fetch(scalarToString(targetUrl), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -201,9 +183,9 @@ export class SyncService {
 
         config.lastError = null;
         config.status = SyncStatus.ACTIVE;
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timeoutId);
-        config.lastError = `Dispatch failed: ${err.message}`;
+        config.lastError = `Dispatch failed: ${err instanceof Error ? err.message : String(err)}`;
         config.errorCount = (config.errorCount || 0) + 1;
         config.status = SyncStatus.ERROR;
         await this.repo.save(config);
@@ -232,7 +214,7 @@ export class SyncService {
       recordsSynced: records.length,
       lastSyncAt: config.lastSyncAt,
       status: config.status,
-      destination: targetUrl ? String(targetUrl) : 'Local Database Snapshot Ready',
+      destination: targetUrl ? scalarToString(targetUrl) : 'Local Database Snapshot Ready',
       sampleRecords: records.slice(0, 3),
     };
   }
@@ -243,11 +225,7 @@ export class SyncService {
 
     if (config.dataType === 'conversations') {
       const convs = await this.convRepo.find({
-        where: [
-          { businessId: effectiveBusinessId },
-          { businessId: 'default' },
-          { businessId: '' },
-        ],
+        where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
         order: { updatedAt: 'DESC' },
       });
       const records = convs.map(c => ({
@@ -261,12 +239,20 @@ export class SyncService {
       }));
 
       if (format === 'csv') {
-        const headers = ['chatId', 'customerName', 'status', 'assignedAgent', 'lastMessage', 'unreadCount', 'lastMessageAt'];
+        const headers = [
+          'chatId',
+          'customerName',
+          'status',
+          'assignedAgent',
+          'lastMessage',
+          'unreadCount',
+          'lastMessageAt',
+        ];
         const csvRows = [headers.join(',')];
         for (const r of records) {
           csvRows.push(
             headers
-              .map(h => `"${String((r as any)[h] || '').replace(/"/g, '""')}"`)
+              .map(h => `"${scalarToString((r as Record<string, unknown>)[h] || '').replace(/"/g, '""')}"`)
               .join(','),
           );
         }
@@ -277,21 +263,13 @@ export class SyncService {
 
     // Default: contacts
     let contacts = await this.contactRepo.find({
-      where: [
-        { businessId: effectiveBusinessId },
-        { businessId: 'default' },
-        { businessId: '' },
-      ],
+      where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
       order: { createdAt: 'DESC' },
     });
 
     if (contacts.length === 0) {
       const convs = await this.convRepo.find({
-        where: [
-          { businessId: effectiveBusinessId },
-          { businessId: 'default' },
-          { businessId: '' },
-        ],
+        where: [{ businessId: effectiveBusinessId }, { businessId: 'default' }, { businessId: '' }],
         order: { updatedAt: 'DESC' },
       });
       contacts = convs.map(c => {
@@ -313,7 +291,7 @@ export class SyncService {
       email: c.email || '',
       notes: c.notes || '',
       tags: c.tags ? c.tags.join('; ') : '',
-      city: (c.metadata as any)?.city || (c.metadata as any)?.location || '',
+      city: c.metadata?.city || c.metadata?.location || '',
       createdAt: c.createdAt ? c.createdAt.toISOString() : '',
     }));
 
@@ -323,7 +301,7 @@ export class SyncService {
       for (const r of records) {
         csvRows.push(
           headers
-            .map(h => `"${String((r as any)[h] || '').replace(/"/g, '""')}"`)
+            .map(h => `"${scalarToString((r as Record<string, unknown>)[h] || '').replace(/"/g, '""')}"`)
             .join(','),
         );
       }

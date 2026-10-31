@@ -30,6 +30,18 @@ import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { syncApi } from '../services/api';
 
+interface PreviewRecord {
+  customerName?: string;
+  chatId?: string;
+  status?: string;
+  lastMessage?: string;
+  unreadCount?: number;
+  name?: string;
+  phone?: string;
+  tags?: string;
+  notes?: string;
+}
+
 interface SyncConfig {
   id: string;
   provider: string;
@@ -91,7 +103,7 @@ export function SyncManager() {
   // Data Preview Modal State
   const [previewConfig, setPreviewConfig] = useState<SyncConfig | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewRecords, setPreviewRecords] = useState<any[]>([]);
+  const [previewRecords, setPreviewRecords] = useState<PreviewRecord[]>([]);
   const [previewMode, setPreviewMode] = useState<'table' | 'json'>('table');
 
   const load = async () => {
@@ -217,7 +229,7 @@ export function SyncManager() {
     try {
       const res = await syncApi.exportData(c.id, 'json');
       if (Array.isArray(res.data)) {
-        setPreviewRecords(res.data);
+        setPreviewRecords(res.data as PreviewRecord[]);
       } else {
         setPreviewRecords([]);
       }

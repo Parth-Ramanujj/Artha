@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsInt, Min, IsObject, IsBoolean } from 'class-validator';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class CreateFollowupRuleDto {
   @IsString()
@@ -71,6 +72,7 @@ export class UpdateFollowupRuleDto {
   sessionId?: string;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 }

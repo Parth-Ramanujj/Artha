@@ -65,8 +65,8 @@ export function Conversations() {
       const updated = await conversationApi.markRead(id);
       setConversations(prev => prev.map(c => (c.id === id ? updated : c)));
       toast.success(t('common.success', 'Success'), 'Marked as read');
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to mark as read');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to mark as read');
     }
   };
 
@@ -75,8 +75,8 @@ export function Conversations() {
       const updated = await conversationApi.update(id, { status: newStatus });
       setConversations(prev => prev.map(c => (c.id === id ? updated : c)));
       toast.success(t('common.success', 'Success'), `Status updated to ${newStatus}`);
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to update status');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to update status');
     }
   };
 
@@ -91,7 +91,7 @@ export function Conversations() {
     try {
       const trimmed = selectedAgentName.trim();
       const updated = await conversationApi.update(assignTarget.id, {
-        assignedTo: trimmed || null as any,
+        assignedTo: trimmed || null,
       });
       setConversations(prev => prev.map(c => (c.id === assignTarget.id ? updated : c)));
       toast.success(
@@ -99,8 +99,8 @@ export function Conversations() {
         trimmed ? `Assigned to ${trimmed}` : 'Assignment cleared'
       );
       setAssignTarget(null);
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to assign conversation');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to assign conversation');
     } finally {
       setIsAssigning(false);
     }

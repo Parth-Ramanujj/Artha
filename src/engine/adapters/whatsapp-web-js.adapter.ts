@@ -3158,11 +3158,22 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
     // Instead of transferring full Chat instances over CDP and parsing them (which causes timeouts
     // for massive accounts), we extract only the lightweight ChatSummary fields directly from the
     // browser's local store.
+    // Only the fields read below; this runs inside the page, so the types are compile-time only.
+    interface PageChatModel {
+      id?: { _serialized: string };
+      formattedTitle?: string;
+      name?: string;
+      isGroup?: boolean;
+      unreadCount?: number;
+      t?: number;
+      msgs?: { models?: Array<{ body?: string; type?: MessageTypes }> };
+    }
     const rawSummaries = await this.client!.pupPage!.evaluate(() => {
-      const chatModels = window.require('WAWebCollections').Chat.getModelsArray();
-      return chatModels.map((chat: any) => {
-        let lastMessageBody = undefined;
-        let lastMessageType = undefined;
+      const collections = window.require('WAWebCollections') as { Chat: { getModelsArray(): PageChatModel[] } };
+      const chatModels = collections.Chat.getModelsArray();
+      return chatModels.map(chat => {
+        let lastMessageBody: string | undefined;
+        let lastMessageType: MessageTypes | undefined;
 
         if (chat.msgs && chat.msgs.models && chat.msgs.models.length > 0) {
           const lastMsg = chat.msgs.models[chat.msgs.models.length - 1];

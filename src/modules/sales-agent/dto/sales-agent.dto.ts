@@ -15,14 +15,15 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 /** Partial config update; nested objects are merged key by key and sanitised in the service. */
 export class UpdateSalesAgentConfigDto {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() enabled?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() requireApproval?: boolean;
+  @ApiPropertyOptional() @IsOptional() @ToStrictBoolean() @IsBoolean() enabled?: boolean;
+  @ApiPropertyOptional() @IsOptional() @ToStrictBoolean() @IsBoolean() requireApproval?: boolean;
   /** Turning approval off (autopilot) must be confirmed by typing "autopilot". */
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) confirm?: string;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() sendingPaused?: boolean;
+  @ApiPropertyOptional() @IsOptional() @ToStrictBoolean() @IsBoolean() sendingPaused?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsObject() persona?: Record<string, unknown>;
   @ApiPropertyOptional() @IsOptional() @IsObject() product?: Record<string, unknown>;
   @ApiPropertyOptional() @IsOptional() @IsObject() icp?: Record<string, unknown>;

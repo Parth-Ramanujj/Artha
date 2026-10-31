@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MaxLength, MinLength, Matches, IsIn, IsUrl, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  MinLength,
+  Matches,
+  IsIn,
+  IsUrl,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class CloudApiConfigDto {
   @ApiPropertyOptional({ description: 'Meta Graph API access token for this session', example: 'EAAx...' })
@@ -54,6 +65,8 @@ export class SessionConfigDto {
 
   @ApiPropertyOptional({ description: 'Auto-reject incoming calls', default: false })
   @IsOptional()
+  @ToStrictBoolean()
+  @IsBoolean()
   autoRejectCalls?: boolean;
 }
 

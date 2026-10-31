@@ -68,8 +68,8 @@ export function AiSettings() {
       const res = await aiApi.chat({ message: testQuery.trim() });
       setTestResponse(res);
       setTestLatency(Math.round(performance.now() - start));
-    } catch (err: any) {
-      setTestError(err?.message || 'Failed to get response from AI');
+    } catch (err) {
+      setTestError((err instanceof Error && err.message) || 'Failed to get response from AI');
     } finally {
       setTestTesting(false);
     }
@@ -86,7 +86,7 @@ export function AiSettings() {
           syncFormFromConfig(c);
         })
         .catch(err => {
-          toast.error(t('common.error', 'Error'), err?.message || 'Failed to load AI configuration');
+          toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load AI configuration');
           setConfig(null);
         })
         .finally(() => setLoading(false));
@@ -95,7 +95,7 @@ export function AiSettings() {
         .listDocuments({ limit: 50 })
         .then(setDocuments)
         .catch(err => {
-          toast.error(t('common.error', 'Error'), err?.message || 'Failed to load knowledge documents');
+          toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load knowledge documents');
           setDocuments([]);
         })
         .finally(() => setLoading(false));
@@ -116,8 +116,8 @@ export function AiSettings() {
         updated.enabled ? t('ai.enabledTitle', 'AI Assistant Enabled') : t('ai.disabledTitle', 'AI Assistant Disabled'),
         updated.enabled ? t('ai.enabledDesc', 'AI chatbot will now respond to messages.') : t('ai.disabledDesc', 'AI chatbot responses are paused.')
       );
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to toggle AI state');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to toggle AI state');
     } finally {
       setSaving(false);
     }
@@ -144,8 +144,8 @@ export function AiSettings() {
       setSaveSuccess(true);
       toast.success(t('ai.saved', 'Settings Saved'), t('ai.savedDesc', 'AI configuration was updated successfully.'));
       setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to save AI configuration');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to save AI configuration');
     } finally {
       setSaving(false);
     }
@@ -167,8 +167,8 @@ export function AiSettings() {
       setDocTitle('');
       setDocFileType('text');
       setDocContent('');
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to add document');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to add document');
     } finally {
       setAddingDoc(false);
     }
@@ -180,8 +180,8 @@ export function AiSettings() {
       await aiApi.deleteDocument(id);
       toast.success(t('ai.docDeleted', 'Document Deleted'), t('ai.docDeletedDesc', 'Knowledge document was removed.'));
       setDocuments(prev => prev.filter(d => d.id !== id));
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to delete document');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to delete document');
     }
   };
 

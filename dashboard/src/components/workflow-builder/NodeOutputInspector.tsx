@@ -11,13 +11,21 @@ import {
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowRun } from '../../services/api';
+import type { FieldAssignment, WorkflowNodeData } from './types';
+
+interface RunStep {
+  actionId?: string;
+  status?: string;
+  durationMs?: number;
+  output?: unknown;
+}
 
 export interface OutputSchemaField {
   label: string;
   token: string;
   type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
   description: string;
-  example?: any;
+  example?: unknown;
 }
 
 interface NodeOutputInspectorProps {
@@ -31,7 +39,7 @@ interface NodeOutputInspectorProps {
 export function getNodeOutputs(node: Node): OutputSchemaField[] {
   const type = node.type || '';
   const id = node.id;
-  const cfg = (node.data as any)?.config || {};
+  const cfg = (node.data as Partial<WorkflowNodeData>)?.config || {};
 
   switch (type) {
     case 'trigger':
@@ -96,7 +104,7 @@ export function getNodeOutputs(node: Node): OutputSchemaField[] {
       const fields: OutputSchemaField[] = [
         { label: 'Updated Variables Map', token: `steps.${id}.variables`, type: 'object', description: 'All variables modified by this node' },
       ];
-      assignments.forEach((a: any) => {
+      assignments.forEach((a: FieldAssignment) => {
         if (a && a.name) {
           fields.push({
             label: `Variable: {{vars.${a.name}}}`,
@@ -143,9 +151,9 @@ export function NodeOutputInspector({
   const schemaOutputs = getNodeOutputs(node);
 
   // Look for step in lastRun
-  const stepRun = (lastRun?.steps as any[])?.find(
-    (s: any) => s && (s.actionId === node.id || (node.data as any)?.actionId === s.actionId),
-  ) as { status?: string; durationMs?: number; output?: any } | undefined;
+  const stepRun = (lastRun?.steps as RunStep[] | undefined)?.find(
+    s => s && (s.actionId === node.id || node.data?.actionId === s.actionId),
+  );
 
   const handleCopy = (token: string) => {
     const canonical = token.startsWith('{{') ? token : `{{${token}}}`;
@@ -155,7 +163,7 @@ export function NodeOutputInspector({
     setTimeout(() => setCopiedToken(null), 1800);
   };
 
-  const handleCopyOutputJson = (data: any) => {
+  const handleCopyOutputJson = (data: unknown) => {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
     setCopiedJson(true);
     setTimeout(() => setCopiedJson(false), 1800);

@@ -142,8 +142,8 @@ export class WorkflowController {
               keyword: 'hi, hello, start, insurance, mutual fund, claim, sip, policy, help, artha',
             },
           },
-          nodes: INSURANCE_PRESET_NODES as any,
-          edges: INSURANCE_PRESET_EDGES as any,
+          nodes: INSURANCE_PRESET_NODES,
+          edges: INSURANCE_PRESET_EDGES,
         },
       },
       apiKey?.id,
@@ -270,7 +270,13 @@ export class WorkflowController {
       // simulate: pause at menus/questions like a real chat; isTest: never send a real message.
       metadata: { isTest: true, simulate: true },
     };
-    const run = await this.workflowService.createRun(wf, { isTest: true, simulate: true, ...dto }, sessionId, undefined, chatId);
+    const run = await this.workflowService.createRun(
+      wf,
+      { isTest: true, simulate: true, ...dto },
+      sessionId,
+      undefined,
+      chatId,
+    );
     if (!run) throw new BadRequestException('Could not start the simulation (another run may be active)');
     await this.executor.execute(wf, run, ctx);
     return this.workflowService.findRun(run.id, this.getBusinessId(apiKey));
@@ -281,11 +287,7 @@ export class WorkflowController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Continue a paused simulation with the customer reply' })
   @ApiParam({ name: 'runId' })
-  async simulateReply(
-    @Param('runId') runId: string,
-    @Body() dto: { reply?: string },
-    @CurrentApiKey() apiKey: ApiKey,
-  ) {
+  async simulateReply(@Param('runId') runId: string, @Body() dto: { reply?: string }, @CurrentApiKey() apiKey: ApiKey) {
     const businessId = this.getBusinessId(apiKey);
     const run = await this.workflowService.findRun(runId, businessId);
     const wf = await this.workflowService.findOne(run.workflowId, businessId);

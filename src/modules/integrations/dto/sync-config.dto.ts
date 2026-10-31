@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsObject, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean } from 'class-validator';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class CreateSyncConfigDto {
   @IsString()
@@ -46,6 +47,7 @@ export class UpdateSyncConfigDto {
   status?: string;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 }

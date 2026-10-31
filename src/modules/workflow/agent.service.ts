@@ -13,6 +13,30 @@ export interface AgentMatchCriteria {
   limit?: number;
 }
 
+/** Subset of the PadosiAgent find-agents payload that we read; every field may be missing or null. */
+interface PadosiAgentRaw {
+  whatsapp_digits?: string | number | null;
+  mobile?: string | number | null;
+  display_name?: string | null;
+  fullname?: string | null;
+  average_rating?: string | number | null;
+  experience_years?: string | number | null;
+  profession?: string | null;
+  agent_city_display?: string | null;
+  review_count?: string | number | null;
+  formatted_client_base?: string | null;
+  formatted_claims_amount?: string | null;
+  agent_slug?: string | null;
+  email?: string | null;
+  profile_photo_url?: string | null;
+  insurance_segments?: string[] | null;
+}
+
+interface PadosiAgentResponse {
+  success?: boolean;
+  agents?: PadosiAgentRaw[];
+}
+
 @Injectable()
 export class AgentService implements OnModuleInit {
   private readonly logger = new Logger(AgentService.name);
@@ -44,14 +68,24 @@ export class AgentService implements OnModuleInit {
         experienceYears: 12,
         serviceArea: 'Gujarat & Western Region',
         pincodes: ['380*', '382*', '390*', '395*', '360*'], // Ahmedabad, Gandhinagar, Vadodara, Surat, Rajkot
-        supportedProducts: ['life_insurance', 'health_insurance', 'motor_insurance', 'sme_insurance', 'mutual_fund', 'sip', 'claim_support', 'audit'],
+        supportedProducts: [
+          'life_insurance',
+          'health_insurance',
+          'motor_insurance',
+          'sme_insurance',
+          'mutual_fund',
+          'sip',
+          'claim_support',
+          'audit',
+        ],
         supportedCompanies: ['HDFC Life', 'Star Health', 'ICICI Lombard', 'SBI Mutual Fund', 'Nippon India'],
         description: 'Specialist in Comprehensive Health, Term Life, and Long-Term SIP Wealth Creation.',
         isActive: true,
         leadCapacity: 100,
         currentLeadsCount: 14,
         callLink: 'tel:+919876501001',
-        whatsappLink: 'https://wa.me/919876501001?text=Hi%20Rajesh,%20I%20got%20your%20profile%20from%20the%20Insurance%20Desk',
+        whatsappLink:
+          'https://wa.me/919876501001?text=Hi%20Rajesh,%20I%20got%20your%20profile%20from%20the%20Insurance%20Desk',
       },
       {
         businessId: 'default',
@@ -62,14 +96,23 @@ export class AgentService implements OnModuleInit {
         experienceYears: 9,
         serviceArea: 'Ahmedabad & North Gujarat',
         pincodes: ['380001', '380009', '380015', '380054', '380*'],
-        supportedProducts: ['claim_support', 'health_insurance', 'life_insurance', 'mutual_fund', 'elss', 'stp', 'audit'],
+        supportedProducts: [
+          'claim_support',
+          'health_insurance',
+          'life_insurance',
+          'mutual_fund',
+          'elss',
+          'stp',
+          'audit',
+        ],
         supportedCompanies: ['Star Health', 'Care Health', 'HDFC ERGO', 'Tata AIA', 'ICICI Prudential'],
         description: 'Expert in Insurance Claim Rejections, Short-Settlement dispute resolution, and Tax-Saving ELSS.',
         isActive: true,
         leadCapacity: 80,
         currentLeadsCount: 19,
         callLink: 'tel:+919876501002',
-        whatsappLink: 'https://wa.me/919876501002?text=Hi%20Priya,%20I%20need%20help%20with%20an%20Insurance%20Claim%20or%20Portfolio',
+        whatsappLink:
+          'https://wa.me/919876501002?text=Hi%20Priya,%20I%20need%20help%20with%20an%20Insurance%20Claim%20or%20Portfolio',
       },
       {
         businessId: 'default',
@@ -87,7 +130,8 @@ export class AgentService implements OnModuleInit {
         leadCapacity: 120,
         currentLeadsCount: 22,
         callLink: 'tel:+919876501003',
-        whatsappLink: 'https://wa.me/919876501003?text=Hi%20Amitabh,%20connecting%20regarding%20Business%20Insurance%20and%20Investments',
+        whatsappLink:
+          'https://wa.me/919876501003?text=Hi%20Amitabh,%20connecting%20regarding%20Business%20Insurance%20and%20Investments',
       },
       {
         businessId: 'default',
@@ -98,14 +142,32 @@ export class AgentService implements OnModuleInit {
         experienceYears: 18,
         serviceArea: 'Pan-India Priority Support',
         pincodes: ['*'], // All India fallback
-        supportedProducts: ['life_insurance', 'health_insurance', 'motor_insurance', 'sme_insurance', 'mutual_fund', 'sip', 'stp', 'swp', 'lumpsum', 'elss', 'bonds', 'nps', 'aif_pms', 'claim_support', 'audit'],
+        supportedProducts: [
+          'life_insurance',
+          'health_insurance',
+          'motor_insurance',
+          'sme_insurance',
+          'mutual_fund',
+          'sip',
+          'stp',
+          'swp',
+          'lumpsum',
+          'elss',
+          'bonds',
+          'nps',
+          'aif_pms',
+          'claim_support',
+          'audit',
+        ],
         supportedCompanies: ['All Top 25 Life, Health & General Insurers', 'All Top 20 AMCs'],
-        description: 'Verified Direct Desk for instant quotes, policy renewals, claim assistance, and mutual fund onboarding.',
+        description:
+          'Verified Direct Desk for instant quotes, policy renewals, claim assistance, and mutual fund onboarding.',
         isActive: true,
         leadCapacity: 500,
         currentLeadsCount: 45,
         callLink: 'tel:+919227102108',
-        whatsappLink: 'https://wa.me/919227102108?text=Hi%20Advisor,%20I%20need%20assistance%20with%20Insurance%20and%20Mutual%20Funds',
+        whatsappLink:
+          'https://wa.me/919227102108?text=Hi%20Advisor,%20I%20need%20assistance%20with%20Insurance%20and%20Mutual%20Funds',
       },
     ];
 
@@ -137,7 +199,7 @@ export class AgentService implements OnModuleInit {
         return [];
       }
 
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as PadosiAgentResponse;
       if (!data.success || !Array.isArray(data.agents) || data.agents.length === 0) {
         this.logger.warn(`PadosiAgent API returned 0 agents for pincode: ${cleanPin || 'general'}`);
         return [];
@@ -205,8 +267,8 @@ export class AgentService implements OnModuleInit {
       }
 
       return agents;
-    } catch (err: any) {
-      this.logger.warn(`Failed to fetch from PadosiAgent API: ${err?.message || err}`);
+    } catch (err: unknown) {
+      this.logger.warn(`Failed to fetch from PadosiAgent API: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }
@@ -218,7 +280,9 @@ export class AgentService implements OnModuleInit {
     try {
       const liveAgents = await this.fetchLivePadosiAgents(cleanPin, criteria.limit || 3);
       if (liveAgents.length > 0) {
-        this.logger.log(`Fetched ${liveAgents.length} live advisors from PadosiAgent API for pincode ${cleanPin || 'all'}`);
+        this.logger.log(
+          `Fetched ${liveAgents.length} live advisors from PadosiAgent API for pincode ${cleanPin || 'all'}`,
+        );
         return liveAgents;
       }
     } catch (apiErr) {
@@ -230,7 +294,10 @@ export class AgentService implements OnModuleInit {
     const pinPrefix2 = cleanPin.slice(0, 2) + '*';
 
     const allAgents = await this.agentRepo.find({
-      where: [{ businessId, isActive: true }, { businessId: 'default', isActive: true }],
+      where: [
+        { businessId, isActive: true },
+        { businessId: 'default', isActive: true },
+      ],
       order: { rating: 'DESC', currentLeadsCount: 'ASC' },
     });
 
@@ -270,7 +337,7 @@ export class AgentService implements OnModuleInit {
     return matched.slice(0, criteria.limit || 3);
   }
 
-  formatSingleAgentCard(agent: Agent, index: number, total: number, customerPincode: string): string {
+  formatSingleAgentCard(agent: Agent, index: number, total: number, _customerPincode: string): string {
     const lines: string[] = [];
     const stars = '⭐'.repeat(Math.min(5, Math.max(1, Math.round(agent.rating))));
 
@@ -299,9 +366,7 @@ export class AgentService implements OnModuleInit {
   }
 
   formatIndividualAgentCards(agents: Agent[], customerPincode: string): string[] {
-    return agents.map((agent, idx) =>
-      this.formatSingleAgentCard(agent, idx + 1, agents.length, customerPincode),
-    );
+    return agents.map((agent, idx) => this.formatSingleAgentCard(agent, idx + 1, agents.length, customerPincode));
   }
 
   formatAgentProfilesMessage(agents: Agent[], customerPincode: string): string {
@@ -315,7 +380,9 @@ export class AgentService implements OnModuleInit {
     }
 
     const lines: string[] = [];
-    lines.push(`✅ *Found ${agents.length} Verified Advisor(s) serving Pincode ${customerPincode} (via PadosiAgent):*\n`);
+    lines.push(
+      `✅ *Found ${agents.length} Verified Advisor(s) serving Pincode ${customerPincode} (via PadosiAgent):*\n`,
+    );
 
     agents.forEach((agent, idx) => {
       lines.push(`*${idx + 1}. ${agent.name}* ⭐ ${agent.rating.toFixed(1)}/5`);

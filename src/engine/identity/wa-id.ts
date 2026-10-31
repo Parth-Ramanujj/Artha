@@ -148,4 +148,3 @@ export function ensureNeutralJid(chatId: string): string {
   const digits = trimmed.replace(/\D/g, '');
   return digits ? `${digits}@c.us` : trimmed;
 }
-

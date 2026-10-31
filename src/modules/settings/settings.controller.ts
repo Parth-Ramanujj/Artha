@@ -1,11 +1,9 @@
-import { Controller, Get, Put, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, NotImplementedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { RequireRole, RequireUnscopedKey } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { isSwaggerEnabled } from '../../config/bootstrap-security';
-import * as fs from 'fs';
-import * as path from 'path';
 
 interface Settings {
   general: {
@@ -25,71 +23,37 @@ interface Settings {
   };
 }
 
-interface RuntimeSettings {
-  notifications: {
-    emailEnabled?: boolean;
-    notificationEmail?: string;
-    webhookAlerts?: boolean;
-  };
-  [key: string]: unknown;
-}
-
-const RUNTIME_SETTINGS_PATH = path.resolve(process.env.DATA_DIR || './data', 'runtime-settings.json');
-
 @ApiTags('settings')
 @Controller('settings')
 export class SettingsController {
-  private envSettings: Settings;
-  private runtimeOverrides: RuntimeSettings;
+  private settings: Settings;
 
   constructor(private readonly configService: ConfigService) {
+    // Initialize with values from configuration (reads from .env)
     const port = this.configService.get<number>('port', 2785);
 
-    this.envSettings = {
+    this.settings = {
       general: {
+        // The real advertised base URL (BASE_URL — the same value the startup banner and ingress URLs
+        // use), not a hardcoded localhost guess that ignores the operator's configured host.
         apiBaseUrl: process.env.BASE_URL || `http://localhost:${port}`,
+        // The engine auto-reconnects on a transient disconnect by default (there is no global off
+        // switch; reconnection is bounded per-session by RECONNECT_MAX_ATTEMPTS). Reporting a hardcoded
+        // `false` for a non-existent `engine.autoReconnect` key was actively misleading.
         autoReconnect: true,
         debugMode: this.configService.get<boolean>('database.logging', false),
       },
       api: {
         rateLimit: this.configService.get<number>('api.rateLimit.mediumLimit', 100),
         rateLimitWindow: this.configService.get<number>('api.rateLimit.mediumTtl', 60000),
+        // Reflect the REAL ENABLE_SWAGGER gate (off by default in production), not a hardcoded `true`
+        // — otherwise the panel reports docs enabled in production where they are actually disabled.
         enableDocs: isSwaggerEnabled(process.env.ENABLE_SWAGGER, process.env.NODE_ENV),
       },
       notifications: {
         emailEnabled: false,
         notificationEmail: '',
         webhookAlerts: true,
-      },
-    };
-
-    this.runtimeOverrides = this.loadRuntimeSettings();
-  }
-
-  private loadRuntimeSettings(): RuntimeSettings {
-    try {
-      if (fs.existsSync(RUNTIME_SETTINGS_PATH)) {
-        const raw = fs.readFileSync(RUNTIME_SETTINGS_PATH, 'utf-8');
-        return JSON.parse(raw) as RuntimeSettings;
-      }
-    } catch {
-      // ignore corrupted file
-    }
-    return { notifications: {} };
-  }
-
-  private saveRuntimeSettings(): void {
-    const dir = path.dirname(RUNTIME_SETTINGS_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(RUNTIME_SETTINGS_PATH, JSON.stringify(this.runtimeOverrides, null, 2), 'utf-8');
-  }
-
-  private getMergedSettings(): Settings {
-    return {
-      ...this.envSettings,
-      notifications: {
-        ...this.envSettings.notifications,
-        ...this.runtimeOverrides.notifications,
       },
     };
   }
@@ -100,32 +64,30 @@ export class SettingsController {
   @ApiOperation({ summary: 'Get application settings' })
   @ApiResponse({ status: 200, description: 'Current settings' })
   get(): Settings {
-    return this.getMergedSettings();
+    // Settings expose environment-derived configuration (debug flag, reconnect policy, rate-limit
+    // thresholds, base URL) that describes the deployment rather than any one session. Gate the read
+    // at ADMIN and require an unrestricted key: the role check alone does not exclude a key confined
+    // to specific sessions, which has no claim on deployment-wide configuration.
+    return this.settings;
   }
 
   @Put()
   @RequireRole(ApiKeyRole.ADMIN)
   @RequireUnscopedKey()
-  @ApiOperation({ summary: 'Update runtime-configurable settings (notification preferences)' })
-  @ApiResponse({ status: 200, description: 'Updated settings' })
-  update(@Body() body: Partial<{ notifications: Partial<Settings['notifications']> }>): Settings {
-    if (body.notifications) {
-      const n = body.notifications;
-      if (n.emailEnabled !== undefined) {
-        if (typeof n.emailEnabled !== 'boolean') throw new BadRequestException('emailEnabled must be boolean');
-        this.runtimeOverrides.notifications.emailEnabled = n.emailEnabled;
-      }
-      if (n.notificationEmail !== undefined) {
-        if (typeof n.notificationEmail !== 'string') throw new BadRequestException('notificationEmail must be string');
-        this.runtimeOverrides.notifications.notificationEmail = n.notificationEmail;
-      }
-      if (n.webhookAlerts !== undefined) {
-        if (typeof n.webhookAlerts !== 'boolean') throw new BadRequestException('webhookAlerts must be boolean');
-        this.runtimeOverrides.notifications.webhookAlerts = n.webhookAlerts;
-      }
-    }
-
-    this.saveRuntimeSettings();
-    return this.getMergedSettings();
+  @ApiOperation({ summary: 'Settings are read-only at runtime (environment-derived)' })
+  @ApiResponse({
+    status: 501,
+    description: 'Settings are derived from environment configuration and cannot be changed at runtime',
+  })
+  update(): never {
+    // Every Settings field is derived from environment variables and consumed at boot /
+    // decorator-evaluation time (ThrottlerModule.forRootAsync, port, webhook timeout, DB logging),
+    // and ConfigService is immutable at runtime — so a runtime write cannot actually take effect.
+    // The previous handler mutated an in-memory copy and returned 200 'updated' while persisting
+    // nothing and applying nothing: a false success. Be honest instead of pretending it worked.
+    throw new NotImplementedException(
+      'Settings are derived from environment configuration and are read-only at runtime. ' +
+        'Change the corresponding environment variable and restart the service.',
+    );
   }
 }

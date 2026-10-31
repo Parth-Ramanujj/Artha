@@ -4302,11 +4302,7 @@ describe('WhatsAppWebJsAdapter orphaned Chromium sweep (pre-launch)', () => {
       expect.any(Object),
       expect.any(Function),
     );
-    expect(execFileSpy).toHaveBeenCalledWith(
-      'taskkill',
-      ['/pid', '1901', '/T', '/F'],
-      expect.any(Function),
-    );
+    expect(execFileSpy).toHaveBeenCalledWith('taskkill', ['/pid', '1901', '/T', '/F'], expect.any(Function));
   });
 
   it('still initializes when ps fails (best-effort, never fails the start)', async () => {

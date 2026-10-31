@@ -5,6 +5,8 @@
  * expression extraction, and client-side workflow validation rules.
  */
 
+import type { WorkflowNodeData } from './types';
+
 export interface EdgeLike {
   source: string;
   target: string;
@@ -13,7 +15,7 @@ export interface EdgeLike {
 export interface NodeLike {
   id: string;
   type?: string;
-  data?: any;
+  data?: Partial<WorkflowNodeData>;
 }
 
 /**

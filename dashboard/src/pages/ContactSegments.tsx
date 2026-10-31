@@ -61,7 +61,7 @@ export function ContactSegments() {
 
   const openEdit = (seg: ContactSegment) => {
     setEditItem(seg);
-    const tags = ((seg.filters as any)?.tags || []).join(', ');
+    const tags = ((seg.filters?.tags as string[] | undefined) || []).join(', ');
     setForm({ name: seg.name, description: seg.description || '', type: seg.type, tags });
     setShowModal(true);
   };
@@ -345,7 +345,7 @@ export function ContactSegments() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
           {filteredSegments.map(seg => {
-            const tags: string[] = (seg.filters as any)?.tags || [];
+            const tags = (seg.filters?.tags as string[] | undefined) || [];
 
             return (
               <div

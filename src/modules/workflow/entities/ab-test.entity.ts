@@ -25,7 +25,7 @@ export class AbTest {
   description: string | null;
 
   @Column({ type: 'varchar', length: 20, default: AbTestStatus.DRAFT })
-  status: string;
+  status: AbTestStatus;
 
   @Column({ type: jsonColumnType() })
   variants: Array<{ id: string; name: string; weight: number; content: Record<string, unknown> }>;

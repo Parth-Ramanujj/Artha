@@ -61,12 +61,11 @@ export class SlaService {
   async getBreachStats(businessId: string) {
     const events = await this.eventRepo.find({ where: { businessId } });
     const total = events.length;
-    const breaches = events.filter(
-      e => e.type === SlaEventType.FIRST_RESPONSE_BREACHED || e.type === SlaEventType.RESOLUTION_BREACHED,
-    ).length;
-    const met = events.filter(
-      e => e.type === SlaEventType.FIRST_RESPONSE_MET || e.type === SlaEventType.RESOLUTION_MET,
-    ).length;
+    // SlaEvent.type is a plain varchar column, so compare against the enum's string values.
+    const breachTypes = new Set<string>([SlaEventType.FIRST_RESPONSE_BREACHED, SlaEventType.RESOLUTION_BREACHED]);
+    const metTypes = new Set<string>([SlaEventType.FIRST_RESPONSE_MET, SlaEventType.RESOLUTION_MET]);
+    const breaches = events.filter(e => breachTypes.has(e.type)).length;
+    const met = events.filter(e => metTypes.has(e.type)).length;
 
     return {
       total,

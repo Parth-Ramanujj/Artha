@@ -26,10 +26,10 @@ import {
   Palette,
   FileText,
 } from 'lucide-react';
-import type { CanvasNodeType, NodePaletteItem } from './types';
+import type { CanvasNodeType, NodeConfig, NodePaletteItem } from './types';
 
 interface NodePaletteProps {
-  onAddNode: (type: CanvasNodeType, defaultConfig: Record<string, any>, label: string) => void;
+  onAddNode: (type: CanvasNodeType, defaultConfig: NodeConfig, label: string) => void;
 }
 
 export const PALETTE_ITEMS: NodePaletteItem[] = [

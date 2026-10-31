@@ -137,7 +137,7 @@ export class WebhookTestController {
       method: req.method || 'GET',
       path: req.path || '/api/webhook-test/echo',
       url: req.originalUrl || req.url || '/api/webhook-test/echo',
-      query: (req.query as Record<string, unknown>) || {},
+      query: req.query || {},
       headers,
       body: req.body ?? null,
       ip: req.ip || req.socket?.remoteAddress || 'unknown',
@@ -150,7 +150,11 @@ export class WebhookTestController {
     }
 
     // If request comes from a browser navigation (Accept: text/html) and doesn't explicitly want json
-    const rawAccept = (typeof req.get === 'function' ? req.get('accept') : undefined) || req.headers?.accept || (req.headers as any)?.Accept || '';
+    const rawAccept =
+      (typeof req.get === 'function' ? req.get('accept') : undefined) ||
+      req.headers?.accept ||
+      (req.headers as Record<string, unknown>)?.Accept ||
+      '';
     const acceptHeader = typeof rawAccept === 'string' ? rawAccept : '';
     const isBrowserHtml =
       (req.method === 'GET' || !req.method) &&
@@ -163,19 +167,14 @@ export class WebhookTestController {
       const protocol = req.protocol || 'http';
       const fullUrl = `${protocol}://${host}${req.originalUrl || req.url}`;
       const nonce = (res.locals?.cspNonce as string) || '';
-      const html = renderWebhookInspectorHtml(
-        fullUrl,
-        captured,
-        WebhookTestController.requestHistory,
-        nonce,
-      );
+      const html = renderWebhookInspectorHtml(fullUrl, captured, WebhookTestController.requestHistory, nonce);
       res.setHeader?.('Content-Type', 'text/html; charset=utf-8');
       const statusRes = res.status(HttpStatus.OK);
       if (typeof statusRes?.send === 'function') {
         return statusRes.send(html);
       }
-      if (typeof (res as any).send === 'function') {
-        return (res as any).send(html);
+      if (typeof res.send === 'function') {
+        return res.send(html);
       }
     }
 

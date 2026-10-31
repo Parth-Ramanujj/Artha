@@ -319,7 +319,9 @@ describe('carousel template', () => {
         },
         {
           card_index: 1,
-          components: [{ type: 'header', parameters: [{ type: 'image', image: { link: 'https://cdn.example.com/b.jpg' } }] }],
+          components: [
+            { type: 'header', parameters: [{ type: 'image', image: { link: 'https://cdn.example.com/b.jpg' } }] },
+          ],
         },
       ],
     });
@@ -328,7 +330,9 @@ describe('carousel template', () => {
 
 describe('new message formats', () => {
   it('audio and sticker go out as media parts', () => {
-    const audio = plan('audio', { media: { source: 'url', url: 'https://cdn.example.com/hi.ogg', mimetype: 'audio/ogg' } });
+    const audio = plan('audio', {
+      media: { source: 'url', url: 'https://cdn.example.com/hi.ogg', mimetype: 'audio/ogg' },
+    });
     expect(audio.parts[0]).toMatchObject({ type: 'media', mediaKind: 'audio', url: 'https://cdn.example.com/hi.ogg' });
     const sticker = plan('sticker', { media: { source: 'url', url: 'https://cdn.example.com/s.webp' } });
     expect(sticker.parts[0]).toMatchObject({ type: 'media', mediaKind: 'sticker', mimetype: 'image/webp' });
@@ -347,7 +351,11 @@ describe('new message formats', () => {
     const loc = plan('location_request', { text: 'Share your location' }, CLOUD);
     expect(loc.parts[0]).toEqual({
       type: 'interactive',
-      interactive: { type: 'location_request_message', body: { text: 'Share your location' }, action: { name: 'send_location' } },
+      interactive: {
+        type: 'location_request_message',
+        body: { text: 'Share your location' },
+        action: { name: 'send_location' },
+      },
     });
   });
 
@@ -366,7 +374,7 @@ describe('new message formats', () => {
   });
 
   it('a reaction goes on the target message, and needs one', () => {
-    const p = plan('reaction', { reaction: { emoji: '👍' } }, { targetMessageId: 'wamid.ABC' } as never);
+    const p = plan('reaction', { reaction: { emoji: '👍' } }, { targetMessageId: 'wamid.ABC' });
     expect(p.parts[0]).toEqual({ type: 'reaction', messageId: 'wamid.ABC', emoji: '👍' });
     expect(() => plan('reaction', { reaction: { emoji: '👍' } })).toThrow('A reaction needs a customer message');
   });

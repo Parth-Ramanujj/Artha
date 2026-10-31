@@ -11,6 +11,7 @@ import { In, Repository } from 'typeorm';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import type { IWhatsAppEngine } from '../../engine/interfaces/whatsapp-engine.interface';
 import { createLogger } from '../../common/services/logger.service';
+import { scalarToString } from '../../common/utils/scalar-string';
 import { MessageService } from '../message/message.service';
 import { Message } from '../message/entities/message.entity';
 import { EngineType, Session } from '../session/entities/session.entity';
@@ -55,7 +56,13 @@ type CloudLikeEngine = IWhatsAppEngine & {
   sendInteractiveMessage?: (chatId: string, interactive: Record<string, unknown>) => Promise<{ id: string }>;
   sendReaction?: (chatId: string, messageId: string, emoji: string) => Promise<{ id: string }>;
   listMessageTemplates?: () => Promise<
-    Array<{ name: string; language: string; status: string; category: string; components: Array<Record<string, unknown>> }>
+    Array<{
+      name: string;
+      language: string;
+      status: string;
+      category: string;
+      components: Array<Record<string, unknown>>;
+    }>
   >;
 };
 
@@ -84,7 +91,7 @@ export function toTemplateInfo(t: {
   const header = find('HEADER');
   const footer = find('FOOTER');
   const buttons = find('BUTTONS');
-  const bodyText = String(body?.text ?? '');
+  const bodyText = scalarToString(body?.text);
   return {
     name: t.name,
     language: t.language,
@@ -92,11 +99,16 @@ export function toTemplateInfo(t: {
     category: t.category,
     bodyText,
     bodyVariableCount: countTemplateVariables(bodyText),
-    headerFormat: header ? (String(header.format ?? 'TEXT').toUpperCase() as TemplateInfo['headerFormat']) : 'NONE',
-    ...(header?.text ? { headerText: String(header.text) } : {}),
-    ...(footer?.text ? { footerText: String(footer.text) } : {}),
+    headerFormat: header
+      ? (scalarToString(header.format, 'TEXT').toUpperCase() as TemplateInfo['headerFormat'])
+      : 'NONE',
+    ...(header?.text ? { headerText: scalarToString(header.text) } : {}),
+    ...(footer?.text ? { footerText: scalarToString(footer.text) } : {}),
     buttons: Array.isArray(buttons?.buttons)
-      ? (buttons.buttons as Array<Record<string, unknown>>).map(b => ({ type: String(b.type), text: String(b.text ?? '') }))
+      ? (buttons.buttons as Array<Record<string, unknown>>).map(b => ({
+          type: String(b.type),
+          text: scalarToString(b.text),
+        }))
       : [],
     isCarousel: Boolean(find('CAROUSEL')),
     ...(find('CAROUSEL') ? { carouselCards: carouselCards(find('CAROUSEL')) } : {}),
@@ -105,15 +117,15 @@ export function toTemplateInfo(t: {
 
 /** Each card's header kind and body variable count, read from Meta's CAROUSEL component. */
 function carouselCards(component: Record<string, unknown> | undefined): NonNullable<TemplateInfo['carouselCards']> {
-  const cards = Array.isArray(component?.cards) ? (component!.cards as Array<Record<string, unknown>>) : [];
+  const cards = Array.isArray(component?.cards) ? (component.cards as Array<Record<string, unknown>>) : [];
   return cards.map(card => {
     const parts = Array.isArray(card.components) ? (card.components as Array<Record<string, unknown>>) : [];
     const header = parts.find(p => String(p.type).toUpperCase() === 'HEADER');
-    const format = String(header?.format ?? '').toUpperCase();
+    const format = scalarToString(header?.format).toUpperCase();
     const body = parts.find(p => String(p.type).toUpperCase() === 'BODY');
     return {
       headerFormat: format === 'VIDEO' ? 'VIDEO' : format === 'IMAGE' ? 'IMAGE' : 'NONE',
-      bodyVariableCount: countTemplateVariables(String(body?.text ?? '')),
+      bodyVariableCount: countTemplateVariables(scalarToString(body?.text)),
     };
   });
 }
@@ -155,7 +167,7 @@ export class MessageStudioService {
     if (!session) {
       return { sessionId: '', engine: 'none', connected: false, cloudApi: false, catalogConfigured };
     }
-    const engine = this.engines.get(session.id) as CloudLikeEngine | undefined;
+    const engine: CloudLikeEngine | undefined = this.engines.get(session.id);
     // The live engine is the real answer; the stored type covers a number that is offline right now.
     const cloudApi = engine
       ? typeof engine.sendInteractiveMessage === 'function'
@@ -174,7 +186,7 @@ export class MessageStudioService {
    * connected, or no WABA id) together with the reason.
    */
   async templates(sessionId: string, refresh = false): Promise<{ templates: TemplateInfo[] | null; reason?: string }> {
-    const engine = this.engines.get(sessionId) as CloudLikeEngine | undefined;
+    const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
     if (!engine) return { templates: null, reason: 'This WhatsApp number is not connected.' };
     if (typeof engine.listMessageTemplates !== 'function') {
       return { templates: null, reason: 'Approved templates are only available on WhatsApp Cloud API numbers.' };
@@ -216,7 +228,11 @@ export class MessageStudioService {
     const templates = kind === 'template' && session ? (await this.templates(session.id)).templates : null;
     const result = checkReadiness({ kind, content, products, templates, caps });
     if (!session) {
-      result.issues.unshift({ field: 'session', message: 'Choose the WhatsApp number this message is sent from.', severity: 'error' });
+      result.issues.unshift({
+        field: 'session',
+        message: 'Choose the WhatsApp number this message is sent from.',
+        severity: 'error',
+      });
       if (result.readiness === 'ready') result.readiness = 'needs_attention';
     }
     return { ...result, content, capabilities: caps, products: [...products.values()] };
@@ -259,7 +275,12 @@ export class MessageStudioService {
     return this.messages.save(message);
   }
 
-  async update(businessId: string, id: string, dto: UpdateStudioMessageDto, session: Session | null): Promise<StudioMessage> {
+  async update(
+    businessId: string,
+    id: string,
+    dto: UpdateStudioMessageDto,
+    session: Session | null,
+  ): Promise<StudioMessage> {
     const message = await this.requireMessage(businessId, id);
     if (dto.name !== undefined) message.name = dto.name.trim();
     if (dto.content !== undefined) {
@@ -339,7 +360,9 @@ export class MessageStudioService {
     return rows
       .filter(w =>
         (w.definition?.nodes ?? []).some(
-          n => n.type === STUDIO_NODE_TYPE && (n.data?.config as Record<string, unknown> | undefined)?.studioMessageId === messageId,
+          n =>
+            n.type === STUDIO_NODE_TYPE &&
+            (n.data?.config as Record<string, unknown> | undefined)?.studioMessageId === messageId,
         ),
       )
       .map(w => ({ workflowId: w.id, name: w.name, status: w.status }));
@@ -446,19 +469,20 @@ export class MessageStudioService {
           })
         ).messageId;
       case 'contact':
-        return (await ms.sendContact(sessionId, { chatId, contactName: part.name, contactNumber: part.phone })).messageId;
+        return (await ms.sendContact(sessionId, { chatId, contactName: part.name, contactNumber: part.phone }))
+          .messageId;
       case 'interactive': {
-        const engine = this.engines.get(sessionId) as CloudLikeEngine | undefined;
+        const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
         if (!engine?.sendInteractiveMessage) throw new Error('This number cannot send interactive messages');
         return (await engine.sendInteractiveMessage(chatId, part.interactive)).id;
       }
       case 'reaction': {
-        const engine = this.engines.get(sessionId) as CloudLikeEngine | undefined;
+        const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
         if (!engine?.sendReaction) throw new Error('This number cannot send reactions');
         return (await engine.sendReaction(chatId, part.messageId, part.emoji)).id;
       }
       case 'template': {
-        const engine = this.engines.get(sessionId) as CloudLikeEngine | undefined;
+        const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
         if (!engine?.sendTemplateMessage) throw new Error('This number cannot send approved templates');
         return (await engine.sendTemplateMessage(chatId, part.name, part.language, part.components)).id;
       }
@@ -472,7 +496,8 @@ export class MessageStudioService {
       throw new BadRequestException('A reaction goes on a customer message, so it can only be sent from a workflow.');
     }
     const digits = phone.replace(/\D/g, '');
-    if (digits.length < 8 || digits.length > 15) throw new BadRequestException('Enter the phone number with country code');
+    if (digits.length < 8 || digits.length > 15)
+      throw new BadRequestException('Enter the phone number with country code');
     const chatId = `${digits}@c.us`;
     if (!this.engines.get(session.id)) throw new BadRequestException('This WhatsApp number is not connected');
     if (await this.isOptedOut(businessId, session.id, chatId)) {
@@ -502,7 +527,10 @@ export class MessageStudioService {
   }
 
   /** Live status of the last test's messages, as reported back by WhatsApp. */
-  async testStatus(businessId: string, id: string): Promise<{ lastTest: StudioTestResult | null; statuses: Record<string, string> }> {
+  async testStatus(
+    businessId: string,
+    id: string,
+  ): Promise<{ lastTest: StudioTestResult | null; statuses: Record<string, string> }> {
     const message = await this.requireMessage(businessId, id);
     const test = message.lastTest;
     const ids = (test?.parts ?? []).map(p => p.messageId).filter((x): x is string => Boolean(x));
@@ -550,7 +578,9 @@ export class MessageStudioService {
   }
 
   /** Published messages an automation can use. */
-  async publishedForWorkflows(businessId: string): Promise<Array<Pick<StudioMessage, 'id' | 'name' | 'kind'> & { choices: SendPlan['choices'] }>> {
+  async publishedForWorkflows(
+    businessId: string,
+  ): Promise<Array<Pick<StudioMessage, 'id' | 'name' | 'kind'> & { choices: SendPlan['choices'] }>> {
     const rows = await this.messages.find({
       where: { businessId, status: StudioMessageStatus.READY },
       order: { name: 'ASC' },
@@ -598,7 +628,16 @@ export class MessageStudioService {
         archived: false,
       })
       .getRawMany<{ category: string }>();
-    return { items, total, page, limit, categories: cats.map(c => c.category).filter(Boolean).sort() };
+    return {
+      items,
+      total,
+      page,
+      limit,
+      categories: cats
+        .map(c => c.category)
+        .filter(Boolean)
+        .sort(),
+    };
   }
 
   async createProduct(businessId: string, dto: ProductDto): Promise<StudioProduct> {

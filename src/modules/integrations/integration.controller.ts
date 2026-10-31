@@ -60,11 +60,7 @@ export class IntegrationController {
   @RequireRole(ApiKeyRole.ADMIN)
   @RequireUnscopedKey()
   @ApiOperation({ summary: 'Send a test email through an email integration' })
-  testEmail(
-    @CurrentApiKey() apiKey: { businessId?: string },
-    @Param('id') id: string,
-    @Body() body: { to?: string },
-  ) {
+  testEmail(@CurrentApiKey() apiKey: { businessId?: string }, @Param('id') id: string, @Body() body: { to?: string }) {
     const to = (body?.to ?? '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new BadRequestException('Enter a valid email address');
     return this.service.sendEmail(id, this.getBusinessId(apiKey), {

@@ -1,8 +1,10 @@
 import { IsString, IsOptional, IsEnum, IsInt, IsBoolean, IsArray, MaxLength, Min, Max } from 'class-validator';
 import { AiProvider } from '../entities/ai-config.entity';
+import { ToStrictBoolean } from '../../../common/utils/strict-boolean';
 
 export class UpdateAiConfigDto {
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 
@@ -38,10 +40,12 @@ export class UpdateAiConfigDto {
   maxContextMessages?: number;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   useKnowledgeBase?: boolean;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   autoHandoff?: boolean;
 
@@ -118,4 +122,3 @@ export class AiChatRequestDto {
   @IsArray()
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
-

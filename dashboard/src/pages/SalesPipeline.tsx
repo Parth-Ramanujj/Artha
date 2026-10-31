@@ -298,8 +298,8 @@ export function SalesPipeline() {
       contactName: newDeal.contactName!,
       contactPhone: newDeal.phone || '',
       amount: Number(newDeal.amount) || 0,
-      stage: (newDeal.stage || 'lead') as any,
-      priority: (newDeal.priority || 'medium') as any,
+      stage: newDeal.stage || 'lead',
+      priority: newDeal.priority || 'medium',
       assignedTo: newDeal.assignee || 'Amit Shah',
       notes: newDeal.notes || '',
     };

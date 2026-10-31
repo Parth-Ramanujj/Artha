@@ -6,11 +6,16 @@ import { IntegrationType } from '../integrations/entities/integration.entity';
 // Chat keyword -> read the whole sheet -> silent AI summary -> WhatsApp + email -> reminder later
 describe('sheet summary workflow', () => {
   const workflowService = {
-    updateRunStatus: jest.fn().mockResolvedValue(undefined),
+    updateRunStatus: jest.fn<Promise<void>, [string, RunStatus]>().mockResolvedValue(undefined),
     updateRunTriggerData: jest.fn().mockResolvedValue(undefined),
   };
   const messageService = { sendText: jest.fn().mockResolvedValue({}) };
-  const aiService = { complete: jest.fn().mockResolvedValue({ content: '• 2 orders, ₹8,000 total' }), chat: jest.fn() };
+  const aiService = {
+    complete: jest
+      .fn<Promise<unknown>, [Array<{ content: string }>]>()
+      .mockResolvedValue({ content: '• 2 orders, ₹8,000 total' }),
+    chat: jest.fn(),
+  };
   const scheduledMessageRepo = { create: jest.fn((x: unknown) => x), save: jest.fn().mockResolvedValue({ id: 's1' }) };
   const integrations: Record<string, { id: string; type: IntegrationType }> = {
     sheet: { id: 'sheet', type: IntegrationType.GOOGLE_SHEETS },
@@ -90,7 +95,7 @@ describe('sheet summary workflow', () => {
     await executor.execute(workflow, { id: 'run', steps: [], triggerData: {} } as unknown as WorkflowRun, ctx);
 
     expect(workflowService.updateRunStatus.mock.calls.at(-1)?.[1]).toBe(RunStatus.COMPLETED);
-    expect(String(aiService.complete.mock.calls[0][0][1].content)).toContain('Name: Ravi');
+    expect(aiService.complete.mock.calls[0][0][1].content).toContain('Name: Ravi');
     expect(aiService.chat).not.toHaveBeenCalled();
     // only the summary goes to the chat: no raw sheet dump, no auto AI reply
     expect(messageService.sendText).toHaveBeenCalledTimes(1);

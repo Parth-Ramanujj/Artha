@@ -953,7 +953,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
       proxyEnabled: !!session.proxyUrl,
     });
 
-    const cloudApiConfig = (session.config as Record<string, unknown>)?.cloudApi as Record<string, string> | undefined;
+    const cloudApiConfig = session.config?.cloudApi as Record<string, string> | undefined;
     const engine = this.engineFactory.create({
       sessionId: session.name,
       dbSessionId: id,

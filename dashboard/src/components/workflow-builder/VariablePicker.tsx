@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 import type { WorkflowRun } from '../../services/api';
+import type { FieldAssignment, ResponseMapping, WorkflowNodeData } from './types';
 
 export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
 
@@ -35,7 +36,7 @@ export interface VariableItem {
   friendlyPath: string;
   type: VariableType;
   description?: string;
-  example?: any;
+  example?: unknown;
   children?: VariableItem[];
 }
 
@@ -136,16 +137,16 @@ export function VariablePicker({
 
   // Extract execution results map from lastRun
   const runtimeStepOutputs = useMemo(() => {
-    const map: Record<string, any> = {};
+    const map: Record<string, Record<string, unknown>> = {};
     if (lastRun && Array.isArray(lastRun.steps)) {
-      (lastRun.steps as any[]).forEach((s: any) => {
+      (lastRun.steps as Array<{ actionId?: string; output?: Record<string, unknown> }>).forEach(s => {
         if (s && s.actionId && s.output) {
           map[s.actionId] = s.output;
         }
       });
     }
     // Also check triggerData
-    const triggerData = (lastRun?.triggerData as Record<string, any>) || {};
+    const triggerData = (lastRun?.triggerData as { stepOutputs?: Record<string, Record<string, unknown>> }) || {};
     if (triggerData.stepOutputs) {
       Object.assign(map, triggerData.stepOutputs);
     }
@@ -157,8 +158,8 @@ export function VariablePicker({
     return upstreamNodes.map(node => {
       const id = node.id;
       const type = node.type || '';
-      const label = (node.data as any)?.label || id;
-      const config = (node.data as any)?.config || {};
+      const label = (node.data as Partial<WorkflowNodeData>)?.label || id;
+      const config = (node.data as Partial<WorkflowNodeData>)?.config || {};
       const runtimeOutput = runtimeStepOutputs[id];
       const items: VariableItem[] = [];
 
@@ -272,7 +273,7 @@ export function VariablePicker({
 
           // Add configured response mappings if present
           if (Array.isArray(config.responseMapping)) {
-            config.responseMapping.forEach((m: any) => {
+            config.responseMapping.forEach((m: ResponseMapping) => {
               if (m && m.variable) {
                 items.push({
                   key: `vars.${m.variable}`,
@@ -291,7 +292,7 @@ export function VariablePicker({
 
         case 'set_fields': {
           const assignments = Array.isArray(config.assignments) ? config.assignments : [];
-          assignments.forEach((a: any) => {
+          assignments.forEach((a: FieldAssignment) => {
             if (a && a.name) {
               items.push({
                 key: a.name,

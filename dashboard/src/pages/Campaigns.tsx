@@ -113,7 +113,7 @@ export function Campaigns() {
         .list({ limit: 50 })
         .then(setCampaigns)
         .catch(err => {
-          toast.error(t('common.error', 'Error'), err?.message || 'Failed to load campaigns');
+          toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load campaigns');
           setCampaigns([]);
         })
         .finally(() => setLoading(false));
@@ -122,7 +122,7 @@ export function Campaigns() {
         .list({ limit: 50 })
         .then(setScheduled)
         .catch(err => {
-          toast.error(t('common.error', 'Error'), err?.message || 'Failed to load scheduled messages');
+          toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load scheduled messages');
           setScheduled([]);
         })
         .finally(() => setLoading(false));
@@ -151,8 +151,8 @@ export function Campaigns() {
       await campaignApi.pause(id);
       toast.info(t('campaigns.paused', 'Campaign Paused'), t('campaigns.pausedDesc', 'Campaign delivery has been paused.'));
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to pause campaign');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to pause campaign');
     }
   };
 
@@ -174,8 +174,8 @@ export function Campaigns() {
       if (recipientModalCampaign?.id === c.id) {
         setRecipientModalCampaign(null);
       }
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to start campaign');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to start campaign');
     } finally {
       setStartingCampaignId(null);
     }
@@ -228,8 +228,8 @@ export function Campaigns() {
       );
       loadRecipients(recipientModalCampaign.id);
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to add recipients');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to add recipients');
     } finally {
       setAddingRecipients(false);
     }
@@ -241,8 +241,8 @@ export function Campaigns() {
       await campaignApi.cancel(id);
       toast.success(t('campaigns.cancelled', 'Campaign Cancelled'), t('campaigns.cancelledDesc', 'Campaign was cancelled.'));
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to cancel campaign');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to cancel campaign');
     }
   };
 
@@ -252,8 +252,8 @@ export function Campaigns() {
       await scheduledMessageApi.cancel(id);
       toast.success(t('campaigns.cancelled', 'Message Cancelled'), t('campaigns.cancelledDesc', 'Scheduled message was cancelled.'));
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to cancel scheduled message');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to cancel scheduled message');
     }
   };
 
@@ -289,8 +289,8 @@ export function Campaigns() {
       setCampaignRate(10);
       setShowCreateModal(false);
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to create campaign');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to create campaign');
     } finally {
       setCreating(false);
     }
@@ -312,8 +312,8 @@ export function Campaigns() {
       setScheduleAt('');
       setShowScheduleModal(false);
       loadData();
-    } catch (err: any) {
-      toast.error(t('common.error', 'Error'), err?.message || 'Failed to schedule message');
+    } catch (err) {
+      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to schedule message');
     } finally {
       setScheduling(false);
     }

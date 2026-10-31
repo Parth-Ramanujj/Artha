@@ -15,6 +15,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-boolean';
 
 export class VoiceAgentDto {
   @IsOptional() @IsString() @MaxLength(100) name?: string;
@@ -26,16 +27,16 @@ export class VoiceAgentDto {
   @IsOptional() @IsIn(['gu-IN', 'hi-IN']) defaultLanguage?: string;
   @IsOptional() @IsString() @MaxLength(60) @Matches(/^[a-z0-9_]+$/) gujaratiVoice?: string;
   @IsOptional() @IsString() @MaxLength(60) @Matches(/^[a-z0-9_]+$/) hindiVoice?: string;
-  @IsOptional() @IsNumber() pace?: number;
+  @IsOptional() @ToStrictNumber() @IsNumber() pace?: number;
   @IsOptional() @IsString() @MaxLength(80) model?: string;
-  @IsOptional() @IsInt() maxCallSeconds?: number;
-  @IsOptional() @IsInt() concurrency?: number;
-  @IsOptional() @IsInt() maxAttempts?: number;
-  @IsOptional() @IsInt() retryAfterMinutes?: number;
+  @IsOptional() @ToStrictNumber() @IsInt() maxCallSeconds?: number;
+  @IsOptional() @ToStrictNumber() @IsInt() concurrency?: number;
+  @IsOptional() @ToStrictNumber() @IsInt() maxAttempts?: number;
+  @IsOptional() @ToStrictNumber() @IsInt() retryAfterMinutes?: number;
   @IsOptional() @IsString() callingStart?: string;
   @IsOptional() @IsString() callingEnd?: string;
   @IsOptional() @IsString() @MaxLength(50) callingTimezone?: string;
-  @IsOptional() @IsBoolean() whatsappFollowup?: boolean;
+  @IsOptional() @ToStrictBoolean() @IsBoolean() whatsappFollowup?: boolean;
   @IsOptional() @IsString() @MaxLength(1000) whatsappMessage?: string | null;
   @IsOptional() @IsString() @MaxLength(36) whatsappSessionId?: string | null;
 }
@@ -59,7 +60,7 @@ export class BatchContactDto {
 export class CreateBatchDto {
   @ApiProperty() @IsString() @MaxLength(150) name: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() agentId?: string;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() sendWhatsapp?: boolean;
+  @ApiPropertyOptional() @IsOptional() @ToStrictBoolean() @IsBoolean() sendWhatsapp?: boolean;
   @ApiPropertyOptional({ enum: ['upload', 'leads'] }) @IsOptional() @IsIn(['upload', 'leads']) source?: string;
 
   @ApiProperty({ type: [BatchContactDto] })

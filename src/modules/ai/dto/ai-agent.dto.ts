@@ -14,6 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { AgentStatus } from '../entities/ai-agent.entity';
+import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-boolean';
 
 export const AGENT_PLATFORMS = ['flowise', 'n8n', 'dify', 'langchain', 'botpress', 'custom'] as const;
 export type AgentPlatform = (typeof AGENT_PLATFORMS)[number];
@@ -23,10 +24,10 @@ export class AiAgentInputDto {
   @IsOptional() @IsString() @MaxLength(100) role?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string | null;
   @IsOptional() @IsString() @MaxLength(100) model?: string;
-  @IsOptional() @IsNumber() @Min(0) @Max(1) temperature?: number;
+  @IsOptional() @ToStrictNumber() @IsNumber() @Min(0) @Max(1) temperature?: number;
   @IsOptional() @IsString() @MaxLength(8000) systemPrompt?: string | null;
   @IsOptional() @IsIn(Object.values(AgentStatus)) status?: AgentStatus;
-  @IsOptional() @IsBoolean() autonomous?: boolean;
+  @IsOptional() @ToStrictBoolean() @IsBoolean() autonomous?: boolean;
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(30)
@@ -34,7 +35,7 @@ export class AiAgentInputDto {
   @MaxLength(50, { each: true })
   triggerKeywords?: string[];
   @IsOptional() @IsString() @MaxLength(36) sessionId?: string | null;
-  @IsOptional() @IsBoolean() isExternal?: boolean;
+  @IsOptional() @ToStrictBoolean() @IsBoolean() isExternal?: boolean;
   @IsOptional() @IsIn(AGENT_PLATFORMS) externalPlatform?: AgentPlatform | null;
   @IsOptional() @IsString() @MaxLength(500) externalWebhookUrl?: string | null;
   /** '' clears the stored header; leaving it out keeps it. */

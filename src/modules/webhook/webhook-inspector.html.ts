@@ -10,10 +10,20 @@ export function renderWebhookInspectorHtml(
   nonce: string = '',
 ): string {
   const safeHistory = JSON.stringify(history).replace(/</g, '\\u003c');
-  const safeSelected = JSON.stringify(selectedRequest || (history.length > 0 ? history[history.length - 1] : null)).replace(/</g, '\\u003c');
+  const safeSelected = JSON.stringify(
+    selectedRequest || (history.length > 0 ? history[history.length - 1] : null),
+  ).replace(/</g, '\\u003c');
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
 
-  const sampleNames = ['Rahul Sharma', 'Priya Patel', 'Alex Morgan', 'Sarah Chen', 'David Miller', 'Ananya Gupta', 'Vikram Singh'];
+  const sampleNames = [
+    'Rahul Sharma',
+    'Priya Patel',
+    'Alex Morgan',
+    'Sarah Chen',
+    'David Miller',
+    'Ananya Gupta',
+    'Vikram Singh',
+  ];
   const initialName = sampleNames[Math.floor(Math.random() * sampleNames.length)];
   const initialPhone = `9198${Math.floor(10000000 + Math.random() * 90000000)}`;
   const initialOrderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;

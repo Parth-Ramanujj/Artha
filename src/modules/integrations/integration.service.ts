@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { Integration, IntegrationType, IntegrationStatus } from './entities/integration.entity';
 import { CreateIntegrationDto, UpdateIntegrationDto } from './dto/integration.dto';
 import * as nodemailer from 'nodemailer';
+import { scalarToString } from '../../common/utils/scalar-string';
 import { GoogleWorkspaceService, isGoogleType } from './google/google-workspace.service';
 
 /** The SMTP settings an email integration keeps in its config. */
@@ -45,14 +46,10 @@ export class IntegrationService {
 
   async findAll(businessId: string, type?: string) {
     const effectiveBusinessId = businessId || 'default';
-    const where: any = [
-      { businessId: effectiveBusinessId },
-      { businessId: 'default' },
-      { businessId: '' },
-    ];
-    if (type) {
-      where.forEach((w: any) => (w.type = type));
-    }
+    const where: FindOptionsWhere<Integration>[] = [effectiveBusinessId, 'default', ''].map(id => ({
+      businessId: id,
+      ...(type ? { type } : {}),
+    }));
     return this.repo.find({ where, order: { createdAt: 'DESC' } });
   }
 
@@ -90,7 +87,7 @@ export class IntegrationService {
 
   async testConnection(id: string, businessId: string) {
     const integration = await this.findOne(id, businessId);
-    if (integration.type === IntegrationType.EMAIL_SMTP) {
+    if (integration.type === (IntegrationType.EMAIL_SMTP as string)) {
       return this.verifySmtp(integration.config);
     }
     if (isGoogleType(integration.type)) {
@@ -116,12 +113,14 @@ export class IntegrationService {
       const timeout = setTimeout(() => controller.abort(), 6000);
 
       try {
-        const res = await fetch(String(targetUrl), {
+        const res = await fetch(scalarToString(targetUrl), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'User-Agent': 'OpenWA-Integration-Probe/1.0',
-            ...(integration.config?.apiKey ? { Authorization: `Bearer ${integration.config.apiKey}` } : {}),
+            ...(integration.config?.apiKey
+              ? { Authorization: `Bearer ${scalarToString(integration.config.apiKey)}` }
+              : {}),
           },
           body: JSON.stringify({
             event: 'integration.verify',
@@ -156,10 +155,10 @@ export class IntegrationService {
             message: integration.lastError,
           };
         }
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timeout);
         integration.status = IntegrationStatus.ERROR;
-        integration.lastError = `Connection failed: ${err.message}`;
+        integration.lastError = `Connection failed: ${err instanceof Error ? err.message : String(err)}`;
         await this.repo.save(integration);
         return {
           success: false,
@@ -220,7 +219,7 @@ export class IntegrationService {
   /** Sends one email through the integration's SMTP account. */
   async sendEmail(id: string, businessId: string, msg: { to: string; subject: string; text: string }) {
     const integration = await this.findOne(id, businessId);
-    if (integration.type !== IntegrationType.EMAIL_SMTP) {
+    if (integration.type !== (IntegrationType.EMAIL_SMTP as string)) {
       throw new BadRequestException('This integration is not an email integration');
     }
     const smtp = readSmtpConfig(integration.config);

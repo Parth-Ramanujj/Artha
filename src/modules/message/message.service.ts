@@ -159,7 +159,7 @@ export class MessageService {
     const engine = this.getEngine(sessionId);
 
     // If engine natively supports template messages (e.g. Meta WhatsApp Cloud API), send natively!
-    if (typeof (engine as any).sendTemplateMessage === 'function') {
+    if (typeof engine.sendTemplateMessage === 'function') {
       const template = await this.templateService
         .resolve(sessionId, {
           templateId: dto.templateId,
@@ -185,12 +185,7 @@ export class MessageService {
               ]
             : undefined);
 
-        const result = await (engine as any).sendTemplateMessage(
-          dto.chatId,
-          templateName,
-          languageCode,
-          components,
-        );
+        const result = await engine.sendTemplateMessage(dto.chatId, templateName, languageCode, components);
 
         return {
           messageId: result.id,

@@ -1,6 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-import { jsonColumnType, dateColumnType } from '../../../common/utils/column-types';
-import { DateTransformer } from '../../../common/transformers/date.transformer';
+import { jsonColumnType } from '../../../common/utils/column-types';
 
 @Entity('sla_policies')
 export class SlaPolicy {

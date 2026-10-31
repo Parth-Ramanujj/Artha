@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsInt, Min, IsBoolean, IsObject } from 'class-validator';
+import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-boolean';
 
 export class CreateSlaPolicyDto {
   @IsString()
@@ -23,6 +24,7 @@ export class CreateSlaPolicyDto {
   conditions?: Record<string, unknown>;
 
   @IsOptional()
+  @ToStrictNumber()
   @IsInt()
   @Min(0)
   priority?: number;
@@ -52,11 +54,13 @@ export class UpdateSlaPolicyDto {
   conditions?: Record<string, unknown>;
 
   @IsOptional()
+  @ToStrictNumber()
   @IsInt()
   @Min(0)
   priority?: number;
 
   @IsOptional()
+  @ToStrictBoolean()
   @IsBoolean()
   enabled?: boolean;
 }

@@ -1,4 +1,5 @@
 import { getWebhookTestUrl } from '../../services/api';
+import type { NodeConfig } from './types';
 
 export interface WorkflowPreset {
   id: string;
@@ -10,7 +11,7 @@ export interface WorkflowPreset {
     type: string;
     data: {
       label: string;
-      config: Record<string, any>;
+      config: NodeConfig;
     };
     position: { x: number; y: number };
   }>;

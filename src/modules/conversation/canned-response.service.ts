@@ -17,7 +17,7 @@ export class CannedResponseService {
   ): Promise<CannedResponse[]> {
     const qb = this.repo.createQueryBuilder('cr');
     if (businessId) {
-      qb.where('(cr.businessId = :businessId OR cr.businessId = \'\' OR cr.businessId IS NULL)', { businessId });
+      qb.where("(cr.businessId = :businessId OR cr.businessId = '' OR cr.businessId IS NULL)", { businessId });
     }
 
     if (opts.category) qb.andWhere('cr.category = :category', { category: opts.category });

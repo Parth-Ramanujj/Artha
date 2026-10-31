@@ -11,8 +11,8 @@ describe('send_studio_message workflow step (SQLite)', () => {
   let runRepo: Repository<WorkflowRun>;
   let workflowRepo: Repository<WorkflowDefinition>;
   let service: WorkflowService;
-  let sendText: jest.Mock;
-  let sendForWorkflow: jest.Mock;
+  let sendText: jest.Mock<Promise<unknown>, [string, { text: string }]>;
+  let sendForWorkflow: jest.Mock<Promise<unknown>, [{ fill: (t: string) => string }]>;
   let executor: WorkflowExecutor;
 
   const ctx: TriggerContext = { businessId: 'biz', sessionId: 'sess', chatId: '919876543210@c.us', messageBody: 'hi' };
@@ -52,8 +52,8 @@ describe('send_studio_message workflow step (SQLite)', () => {
     runRepo = ds.getRepository(WorkflowRun);
     workflowRepo = ds.getRepository(WorkflowDefinition);
     service = new WorkflowService(workflowRepo, runRepo, {} as never);
-    sendText = jest.fn().mockResolvedValue({ messageId: 'm' });
-    sendForWorkflow = jest.fn().mockResolvedValue({
+    sendText = jest.fn<Promise<unknown>, [string, { text: string }]>().mockResolvedValue({ messageId: 'm' });
+    sendForWorkflow = jest.fn<Promise<unknown>, [{ fill: (t: string) => string }]>().mockResolvedValue({
       name: 'Shop menu',
       parts: [{ type: 'interactive', status: 'submitted', messageId: 'wamid.1' }],
       choices: [
@@ -88,7 +88,7 @@ describe('send_studio_message workflow step (SQLite)', () => {
     expect(sendForWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({ businessId: 'biz', messageId: 'msg-1', sessionId: 'sess', chatId: ctx.chatId }),
     );
-    const fill = sendForWorkflow.mock.calls[0][0].fill as (t: string) => string;
+    const fill = sendForWorkflow.mock.calls[0][0].fill;
     expect(typeof fill('Hi')).toBe('string');
     const paused = await runRepo.findOneByOrFail({ id: run.id });
     expect(paused.status).toBe(RunStatus.PAUSED);

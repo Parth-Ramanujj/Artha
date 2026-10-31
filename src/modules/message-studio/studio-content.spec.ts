@@ -338,7 +338,9 @@ describe('new message formats readiness', () => {
     expect(run('flow', ok).readiness).toBe('ready');
     expect(run('flow', ok, web).readiness).toBe('unsupported');
     expect(run('flow', { ...ok, flow: { ...ok.flow, id: 'abc' } }).issues.map(i => i.field)).toContain('flow.id');
-    expect(run('flow', { ...ok, flow: { ...ok.flow, cta: 'x'.repeat(21) } }).issues.map(i => i.field)).toContain('flow.cta');
+    expect(run('flow', { ...ok, flow: { ...ok.flow, cta: 'x'.repeat(21) } }).issues.map(i => i.field)).toContain(
+      'flow.cta',
+    );
     expect(run('flow', { ...ok, flow: { ...ok.flow, screen: '' } }).issues.map(i => i.field)).toContain('flow.screen');
   });
 

@@ -685,7 +685,11 @@ export class AiService implements OnModuleInit {
           max_tokens: config.maxTokens || 1000,
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+        reply?: string;
+        message?: string;
+      };
       const reply = data.choices?.[0]?.message?.content || data.reply || data.message || 'No response';
       return {
         reply,

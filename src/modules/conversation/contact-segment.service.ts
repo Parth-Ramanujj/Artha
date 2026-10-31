@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ContactSegment } from './entities/contact-segment.entity';
 import { Contact } from './entities/contact.entity';
 import { CreateContactSegmentDto, UpdateContactSegmentDto } from './dto/contact-segment.dto';
+import { scalarToString } from '../../common/utils/scalar-string';
 
 @Injectable()
 export class ContactSegmentService {
@@ -92,7 +93,7 @@ export class ContactSegmentService {
     if (filters['hasEmail']) qb.andWhere('c.email IS NOT NULL');
     if (filters['hasPhone']) qb.andWhere('c.phone IS NOT NULL');
     if (filters['nameContains']) {
-      qb.andWhere('c.name LIKE :name', { name: `%${String(filters['nameContains'])}%` });
+      qb.andWhere('c.name LIKE :name', { name: `%${scalarToString(filters['nameContains'])}%` });
     }
 
     qb.take(opts.limit ?? 50);

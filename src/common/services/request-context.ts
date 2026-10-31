@@ -37,7 +37,12 @@ export function getRequestId(): string | undefined {
  * action. No-op outside a request scope (e.g. worker/cron), so callers don't need to guard. The
  * guard/middleware call this once they've resolved the key; services never need to.
  */
-export function setRequestActor(actor: { apiKeyId?: string; apiKeyName?: string; ipAddress?: string; businessId?: string }): void {
+export function setRequestActor(actor: {
+  apiKeyId?: string;
+  apiKeyName?: string;
+  ipAddress?: string;
+  businessId?: string;
+}): void {
   const store = requestContextStorage.getStore();
   if (!store) return; // not in a request scope — nothing to stamp
   if (actor.apiKeyId !== undefined) store.apiKeyId = actor.apiKeyId;
@@ -47,8 +52,14 @@ export function setRequestActor(actor: { apiKeyId?: string; apiKeyName?: string;
 }
 
 /** The active request's resolved actor (API key + IP), or `undefined` outside a request scope. */
-export function getRequestActor(): { apiKeyId?: string; apiKeyName?: string; ipAddress?: string; businessId?: string } | undefined {
+export function getRequestActor():
+  { apiKeyId?: string; apiKeyName?: string; ipAddress?: string; businessId?: string } | undefined {
   const store = requestContextStorage.getStore();
   if (!store) return undefined;
-  return { apiKeyId: store.apiKeyId, apiKeyName: store.apiKeyName, ipAddress: store.ipAddress, businessId: store.businessId };
+  return {
+    apiKeyId: store.apiKeyId,
+    apiKeyName: store.apiKeyName,
+    ipAddress: store.ipAddress,
+    businessId: store.businessId,
+  };
 }

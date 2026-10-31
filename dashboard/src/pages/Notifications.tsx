@@ -106,8 +106,8 @@ export function Notifications() {
       const updated = await notificationApi.markAsRead(id);
       setItems(prev => prev.map(n => (n.id === id ? updated : n)));
       toast.success(t('common.success', 'Success'), 'Notification marked as read');
-    } catch (err: any) {
-      toast.error('Error', err?.message || 'Failed to mark as read');
+    } catch (err) {
+      toast.error('Error', (err instanceof Error && err.message) || 'Failed to mark as read');
     }
   };
 
@@ -116,8 +116,8 @@ export function Notifications() {
       await notificationApi.markAllRead();
       setItems(prev => prev.map(n => ({ ...n, read: true })));
       toast.success(t('common.success', 'Success'), 'All notifications marked as read');
-    } catch (err: any) {
-      toast.error('Error', err?.message || 'Failed to mark all as read');
+    } catch (err) {
+      toast.error('Error', (err instanceof Error && err.message) || 'Failed to mark all as read');
     }
   };
 
@@ -126,8 +126,8 @@ export function Notifications() {
       await notificationApi.delete(id);
       setItems(prev => prev.filter(n => n.id !== id));
       toast.success(t('common.success', 'Success'), 'Notification dismissed');
-    } catch (err: any) {
-      toast.error('Error', err?.message || 'Failed to delete');
+    } catch (err) {
+      toast.error('Error', (err instanceof Error && err.message) || 'Failed to delete');
     }
   };
 

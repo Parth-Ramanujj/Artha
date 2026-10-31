@@ -7,7 +7,7 @@ export class CreateBusinessDto {
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   name: string;
 
   @ApiPropertyOptional({ description: 'URL-safe slug (auto-generated from name if omitted)', example: 'acme-corp' })
@@ -16,7 +16,11 @@ export class CreateBusinessDto {
   @MaxLength(100)
   @Transform(({ value }) => {
     if (typeof value !== 'string') return undefined;
-    const clean = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const clean = value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
     return clean.length > 0 ? clean : undefined;
   })
   slug?: string;

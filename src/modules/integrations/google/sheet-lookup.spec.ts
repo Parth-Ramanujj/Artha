@@ -68,15 +68,19 @@ describe('looking up a row in a Google Sheet', () => {
     service = new GoogleWorkspaceService({} as never);
     jest.spyOn(service, 'accessToken').mockResolvedValue('token');
     // Metadata (the tab list) and the values come from two calls; answer each by its URL.
-    fetchMock = jest.fn().mockImplementation(async (url: string) => ({
-      ok: true,
-      status: 200,
-      json: async () =>
-        String(url).includes('fields=sheets')
-          ? { sheets: [{ properties: { title: 'Sheet1' } }, { properties: { title: 'Orders' } }] }
-          : sheet,
-    }));
-    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock = jest.fn().mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve(
+            String(url).includes('fields=sheets')
+              ? { sheets: [{ properties: { title: 'Sheet1' } }, { properties: { title: 'Orders' } }] }
+              : sheet,
+          ),
+      }),
+    );
+    global.fetch = fetchMock;
   });
 
   const SHEET_ID = 'abcdefghijklmnopqrstuvwxyz12';
@@ -127,7 +131,7 @@ describe('looking up a row in a Google Sheet', () => {
 
   it('reads the tab the user chose', async () => {
     await service.lookupRow(integration, { spreadsheetId: SHEET_ID, sheetName: 'Orders', value: '9876543210' });
-    const urls = fetchMock.mock.calls.map(c => String(c[0]));
+    const urls = (fetchMock.mock.calls as Array<[string]>).map(c => String(c[0]));
     expect(urls.some(u => u.includes('/values/Orders'))).toBe(true);
   });
 

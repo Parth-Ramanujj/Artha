@@ -1,9 +1,29 @@
+/**
+ * Free-form per-node-type config blob (JSON shaped by the node's type); the inspector reads it by key.
+ * Typed `any` deliberately and only here: a precise union per node type is out of scope for ~40 node kinds.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- user-defined JSON config differing per node type
+export type NodeConfig = Record<string, any>;
+
+/** One row of a `set_fields` node's `assignments` config. */
+export interface FieldAssignment {
+  name?: string;
+  value?: string;
+}
+
+/** One row of a `webhook_call` node's `responseMapping` config. */
+export interface ResponseMapping {
+  variable?: string;
+  path?: string;
+  example?: unknown;
+}
+
 export interface WorkflowNodeData {
   label: string;
   type: string;
-  config: Record<string, any>;
+  config: NodeConfig;
   description?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type CanvasNodeType =
@@ -55,5 +75,5 @@ export interface NodePaletteItem {
   category: 'message' | 'logic' | 'ai' | 'action';
   description: string;
   iconName: string;
-  defaultConfig: Record<string, any>;
+  defaultConfig: NodeConfig;
 }

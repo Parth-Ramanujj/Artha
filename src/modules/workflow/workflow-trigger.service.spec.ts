@@ -24,7 +24,7 @@ describe('WorkflowTriggerService', () => {
   let aiService: { autoReply: jest.Mock };
   let aiAgents: { autoReply: jest.Mock };
 
-  let registeredHookCallback: ((ctx: any) => Promise<any>) | undefined;
+  let registeredHookCallback: ((ctx: unknown) => Promise<unknown>) | undefined;
 
   const mockWorkflow: WorkflowDefinition = {
     id: 'wf-1',
@@ -72,10 +72,12 @@ describe('WorkflowTriggerService', () => {
 
   beforeEach(async () => {
     hookManager = {
-      register: jest.fn().mockImplementation((name, event, cb) => {
-        registeredHookCallback = cb;
-        return 'hook-id-1';
-      }),
+      register: jest
+        .fn()
+        .mockImplementation((_name: string, _event: string, cb: (ctx: unknown) => Promise<unknown>) => {
+          registeredHookCallback = cb;
+          return 'hook-id-1';
+        }),
       unregister: jest.fn(),
     };
 
@@ -173,7 +175,7 @@ describe('WorkflowTriggerService', () => {
 
     expect(workflowService.createRun).toHaveBeenCalledWith(
       mockWorkflow,
-      expect.objectContaining({ messageBody: expect.any(String) }),
+      expect.objectContaining({ messageBody: expect.any(String) as string }),
       'sess-1',
       expect.any(String),
       '919876543210@c.us',
@@ -238,7 +240,7 @@ describe('WorkflowTriggerService', () => {
       status: RunStatus.PAUSED,
       triggerData: { chatId: '919876543210@c.us', waitingForInput: true },
     };
-    workflowService.findActivePausedRun?.mockResolvedValue(pausedRun);
+    (workflowService.findActivePausedRun as jest.Mock).mockResolvedValue(pausedRun);
 
     triggerService.onModuleInit();
 
@@ -260,7 +262,7 @@ describe('WorkflowTriggerService', () => {
 
     expect(executor.resume).toHaveBeenCalledWith(mockWorkflow, pausedRun, expect.any(Object), '1', {
       id: 'msg-reply-1',
-      timestamp: expect.any(Number),
+      timestamp: expect.any(Number) as number,
     });
     expect(workflowService.createRun).not.toHaveBeenCalled();
   });

@@ -13,18 +13,18 @@ function matches(row: Row, where: Row): boolean {
     const v = row[k];
     const op = cond as { _type?: string; _value?: unknown };
     if (op && typeof op === 'object' && op._type) {
-      const val = op._value as never;
+      const val = op._value;
       switch (op._type) {
         case 'in':
           return (val as unknown[]).includes(v);
         case 'not':
           return v !== val;
         case 'lessThan':
-          return (v as Date) < val;
+          return (v as Date) < (val as Date);
         case 'lessThanOrEqual':
-          return (v as Date) <= val;
+          return (v as Date) <= (val as Date);
         case 'moreThanOrEqual':
-          return (v as Date) >= val;
+          return (v as Date) >= (val as Date);
       }
     }
     return v === cond;

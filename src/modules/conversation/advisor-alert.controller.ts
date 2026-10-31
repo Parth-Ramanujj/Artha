@@ -3,7 +3,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { RequireActiveBusiness } from '../auth/guards/business-scope.guard';
 import { CurrentApiKey, RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
-import { AdvisorAlertService, AlertConfig } from './advisor-alert.service';
+import { NotificationType } from './entities/notification.entity';
+import { AdvisorAlertService } from './advisor-alert.service';
 import { IsString, IsOptional } from 'class-validator';
 
 class RegisterAdvisorDto {
@@ -57,7 +58,7 @@ export class AdvisorAlertController {
     const businessId = this.getBusinessId(apiKey);
     await this.alertService.sendAlert(
       businessId,
-      'system' as any,
+      NotificationType.SYSTEM,
       'Test Alert',
       'This is a test alert from the Artha system.',
     );
