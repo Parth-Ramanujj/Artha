@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import Docker from 'dockerode';
 
 /**
- * The only Docker profiles OpenWA manages (and may start/stop). Used to bound teardown so a
+ * The only Docker profiles Artha manages (and may start/stop). Used to bound teardown so a
  * caller-supplied profile name can never reach stopManagedService for an unrelated container.
  */
 export const MANAGED_DOCKER_PROFILES: readonly string[] = ['postgres', 'redis', 'minio'];
@@ -123,7 +123,7 @@ export class DockerService implements OnModuleInit {
   }
 
   /**
-   * List all OpenWA-related containers
+   * List all Artha-related containers
    */
   async listContainers(): Promise<ContainerInfo[]> {
     if (!this.docker || !this.isAvailable) {
@@ -134,7 +134,7 @@ export class DockerService implements OnModuleInit {
       const containers = await this.docker.listContainers({ all: true });
       return containers
         .filter(c => {
-          // Filter by OpenWA labels or name prefix
+          // Filter by Artha labels or name prefix
           const labels = c.Labels || {};
           return labels['com.openwa.service'] || c.Names?.some(n => n.startsWith('/openwa-'));
         })
@@ -152,7 +152,7 @@ export class DockerService implements OnModuleInit {
   }
 
   /**
-   * Which bundled (OpenWA-managed) service containers are currently RUNNING, keyed by the
+   * Which bundled (Artha-managed) service containers are currently RUNNING, keyed by the
    * `com.openwa.service` label (`database` | `cache` | `storage`). Lets the dashboard show the real
    * built-in state instead of the saved intent. All false when Docker is unavailable or none run.
    */
@@ -187,7 +187,7 @@ export class DockerService implements OnModuleInit {
       }
 
       // Fallback: try by EXACT name (never a substring — a substring, and especially the empty
-      // string, would resolve an arbitrary container). OpenWA-managed containers are `openwa-<service>`.
+      // string, would resolve an arbitrary container). Artha-managed containers are `openwa-<service>`.
       const target = `openwa-${service}`;
       const allContainers = await this.docker.listContainers({ all: true });
       const match = allContainers.find(c => c.Names?.some(n => n === target || n === `/${target}`));

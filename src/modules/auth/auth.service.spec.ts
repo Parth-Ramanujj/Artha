@@ -8,9 +8,14 @@ import { FindOperator, Repository } from 'typeorm';
 import { UnauthorizedException, NotFoundException, ConflictException } from '@nestjs/common';
 import { createHash, createHmac } from 'crypto';
 import * as fs from 'fs';
-import { AuthService, resolveSeedApiKey, bannerKeyLine } from './auth.service';
+import { AuthService, NO_SESSION_SCOPE, resolveSeedApiKey, bannerKeyLine } from './auth.service';
 import { ApiKeyUsageTracker } from './api-key-usage-tracker.service';
 import { ApiKey, ApiKeyRole } from './entities/api-key.entity';
+import { Business } from '../business/entities/business.entity';
+import { Session } from '../session/entities/session.entity';
+
+const businessRepository = { findOne: jest.fn() };
+const sessionRepository = { find: jest.fn() };
 
 // Helpers
 const hashKey = (key: string) => createHash('sha256').update(key).digest('hex');
@@ -25,6 +30,7 @@ function createMockApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     allowedIps: null,
     allowedSessions: null,
     businessId: null,
+    allowedFeatures: null,
     isActive: true,
     expiresAt: null,
     lastUsedAt: null,
@@ -110,6 +116,14 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(ApiKey, 'main'),
           useValue: repository,
+        },
+        {
+          provide: getRepositoryToken(Business, 'data'),
+          useValue: businessRepository,
+        },
+        {
+          provide: getRepositoryToken(Session, 'data'),
+          useValue: sessionRepository,
         },
       ],
     }).compile();
@@ -1015,5 +1029,109 @@ describe('AuthService', () => {
       const queried = await queriedHash('owa_raw_key');
       expect(queried).toBe(createHash('sha256').update('owa_raw_key').digest('hex'));
     });
+  });
+});
+
+describe('AuthService business scoping', () => {
+  const makeService = (
+    sessions: Array<{ id: string }>,
+    business: Partial<Business> | null = { id: 'b1', isActive: true },
+  ) => {
+    const apiKeyRepo = { create: jest.fn((k: Partial<ApiKey>) => k), save: jest.fn((k: ApiKey) => Promise.resolve(k)) };
+    return new AuthService(
+      apiKeyRepo as never,
+      { findOne: jest.fn().mockResolvedValue(business) } as never,
+      { find: jest.fn().mockResolvedValue(sessions) } as never,
+      {} as never,
+      {} as never,
+    );
+  };
+
+  it('confines a customer key to its own sessions, narrowed by allowedSessions', async () => {
+    const service = makeService([{ id: 's1' }, { id: 's2' }]);
+    await expect(
+      service.effectiveSessionScope({ businessId: 'b1', allowedSessions: null, allowedFeatures: [] }),
+    ).resolves.toEqual(['s1', 's2']);
+    await expect(
+      service.effectiveSessionScope({ businessId: 'b1', allowedSessions: ['s2', 'other-tenant'], allowedFeatures: [] }),
+    ).resolves.toEqual(['s2']);
+  });
+
+  it('never returns an empty scope for a customer key ([] would mean unrestricted)', async () => {
+    const service = makeService([]);
+    await expect(
+      service.effectiveSessionScope({ businessId: 'b1', allowedSessions: null, allowedFeatures: [] }),
+    ).resolves.toEqual([NO_SESSION_SCOPE]);
+  });
+
+  it('leaves super admin / legacy keys on their stored scope', async () => {
+    const service = makeService([{ id: 's1' }]);
+    await expect(
+      service.effectiveSessionScope({ businessId: null, allowedSessions: null, allowedFeatures: null }),
+    ).resolves.toBeNull();
+    // An older business key (no approved features) keeps its stored scope, exactly as before.
+    await expect(
+      service.effectiveSessionScope({ businessId: 'b1', allowedSessions: null, allowedFeatures: null }),
+    ).resolves.toBeNull();
+  });
+
+  it('refuses admin-role business keys and unknown or deactivated businesses', async () => {
+    await expect(
+      makeService([]).createApiKey({ name: 'cust', role: ApiKeyRole.ADMIN, businessId: 'b1' }),
+    ).rejects.toThrow('A business API key cannot have the admin role');
+    await expect(makeService([], null).createApiKey({ name: 'cust', businessId: 'b1' })).rejects.toThrow(
+      'Business not found',
+    );
+    await expect(
+      makeService([], { id: 'b1', isActive: false }).createApiKey({ name: 'cust', businessId: 'b1' }),
+    ).rejects.toThrow('Business is deactivated');
+  });
+
+  it('stores business, approved features and expiry on a customer key', async () => {
+    const { apiKey } = await makeService([]).createApiKey({
+      name: 'cust',
+      businessId: 'b1',
+      allowedFeatures: ['campaigns'],
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    });
+    expect(apiKey).toEqual(
+      expect.objectContaining({ businessId: 'b1', allowedFeatures: ['campaigns'], role: ApiKeyRole.OPERATOR }),
+    );
+    expect(apiKey.expiresAt).toEqual(new Date('2030-01-01T00:00:00.000Z'));
+  });
+});
+
+describe('AuthService key expiry (minute/hour keys)', () => {
+  afterEach(() => jest.useRealTimers());
+
+  const serviceWith = (stored: ApiKey | null) =>
+    new AuthService(
+      {
+        findOne: jest.fn().mockResolvedValue(stored),
+        create: jest.fn((k: Partial<ApiKey>) => k),
+        save: jest.fn((k: ApiKey) => Promise.resolve(k)),
+      } as never,
+      { findOne: jest.fn() } as never,
+      { find: jest.fn() } as never,
+      { track: jest.fn(), record: jest.fn() } as never,
+      {} as never,
+    );
+
+  it('a 5-minute key works until its expiry instant and is rejected right after', async () => {
+    jest.useFakeTimers({ now: new Date('2026-01-01T00:00:00.000Z') });
+    const key = { isActive: true, expiresAt: new Date('2026-01-01T00:05:00.000Z'), allowedIps: null } as ApiKey;
+    const service = serviceWith(key);
+
+    jest.setSystemTime(new Date('2026-01-01T00:04:59.000Z'));
+    await expect(service.validateApiKey('raw')).resolves.toBe(key);
+
+    jest.setSystemTime(new Date('2026-01-01T00:05:00.001Z'));
+    await expect(service.validateApiKey('raw')).rejects.toThrow('API key has expired');
+  });
+
+  it('refuses to create a key whose expiry is already in the past', async () => {
+    await expect(
+      serviceWith(null).createApiKey({ name: 'late', expiresAt: new Date(Date.now() - 1000).toISOString() }),
+    ).rejects.toThrow('expiresAt must be in the future');
   });
 });

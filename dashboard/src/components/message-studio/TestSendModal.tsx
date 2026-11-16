@@ -13,7 +13,7 @@ interface TestSendModalProps {
   onSent: () => void;
 }
 
-const PHONE_KEY = 'openwa.messageStudio.testPhone';
+const PHONE_KEY = 'artha.messageStudio.testPhone';
 
 function rememberedPhone(): string {
   try {

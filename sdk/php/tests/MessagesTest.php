@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OpenWA\Tests;
+namespace Artha\Tests;
 
-use OpenWA\Exceptions\OpenWANotFoundException;
+use Artha\Exceptions\ArthaNotFoundException;
 use PHPUnit\Framework\TestCase;
 
 class MessagesTest extends TestCase
@@ -128,7 +128,7 @@ class MessagesTest extends TestCase
             'message' => 'Message not found',
             'error' => 'Not Found',
         ]);
-        $this->expectException(OpenWANotFoundException::class);
+        $this->expectException(ArthaNotFoundException::class);
         $backend->makeClient()->messages->editMessage('s1', ['chatId' => 'a@c.us', 'messageId' => 'missing', 'body' => 'x']);
     }
 

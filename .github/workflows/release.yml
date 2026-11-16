@@ -112,13 +112,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: openwa
-          POSTGRES_PASSWORD: openwa
-          POSTGRES_DB: openwa
+          POSTGRES_USER: artha
+          POSTGRES_PASSWORD: artha
+          POSTGRES_DB: artha
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U openwa"
+          --health-cmd "pg_isready -U artha"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -145,9 +145,9 @@ jobs:
           DATABASE_TYPE: postgres
           DATABASE_HOST: localhost
           DATABASE_PORT: '5432'
-          DATABASE_USERNAME: openwa
-          DATABASE_PASSWORD: openwa
-          DATABASE_NAME: openwa
+          DATABASE_USERNAME: artha
+          DATABASE_PASSWORD: artha
+          DATABASE_NAME: artha
 
       # Runtime-proves BuiltInFtsProvider on Postgres (websearch_to_tsquery + ts_headline against the
       # STORED body_ts tsvector). The spec self-skips unless DATABASE_TYPE=postgres, so it is a no-op
@@ -158,9 +158,9 @@ jobs:
           DATABASE_TYPE: postgres
           DATABASE_HOST: localhost
           DATABASE_PORT: '5432'
-          DATABASE_USERNAME: openwa
-          DATABASE_PASSWORD: openwa
-          DATABASE_NAME: openwa
+          DATABASE_USERNAME: artha
+          DATABASE_PASSWORD: artha
+          DATABASE_NAME: artha
 
   dashboard:
     name: Dashboard
@@ -311,11 +311,11 @@ jobs:
           # verify-published via job outputs, so the promoted set cannot drift from the build.
           images: |
             ghcr.io/${{ github.repository }}
-            docker.io/rmyndharis/openwa
+            docker.io/rmyndharis/artha
           tags: |
             type=semver,pattern={{version}}
             # The mutable channels (X.Y, latest) are disabled for prereleases: an rc/beta/alpha
-            # build must never become what `docker pull openwa:0.11` or `:latest` resolves to.
+            # build must never become what `docker pull artha:0.11` or `:latest` resolves to.
             # The exact prerelease tag ({{version}}) is still published.
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
@@ -375,7 +375,7 @@ jobs:
         # The image under test carries only the staging tag at this point — the release tags are
         # applied by `promote`, after this job passes. ${REPO,,} lowercases github.repository: GHCR
         # normalizes the repo name to lowercase on push and `docker run` rejects a mixed-case
-        # reference, so the pull target must be lowercase too (this repo is rmyndharis/OpenWA).
+        # reference, so the pull target must be lowercase too (this repo is rmyndharis/Artha).
         env:
           REPO: ${{ github.repository }}
         run: echo "ref=ghcr.io/${REPO,,}:smoke-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
@@ -387,11 +387,11 @@ jobs:
           exit_code=0
           for platform in linux/amd64 linux/arm64; do
             echo "::group::boot-smoke $platform"
-            docker rm -f openwa-smoke >/dev/null 2>&1 || true
+            docker rm -f artha-smoke >/dev/null 2>&1 || true
             # Deliberately NOT --rm: a container that exits on its own is auto-removed by --rm, so
             # `docker logs` below finds nothing and the failure reports no cause. The explicit
             # `docker rm -f` at the end of each iteration handles cleanup instead.
-            if ! docker run --platform "$platform" -d -p 2785:2785 --name openwa-smoke "$IMAGE" >/dev/null; then
+            if ! docker run --platform "$platform" -d -p 2785:2785 --name artha-smoke "$IMAGE" >/dev/null; then
               echo "FAIL: $platform — could not start container (image pull/run error)"
               exit_code=1
               echo "::endgroup::"
@@ -406,11 +406,11 @@ jobs:
               echo "OK: $platform — /api/health/live returned 200"
             else
               echo "FAIL: $platform — /api/health/live did not return 200 within ~200s; container logs follow:"
-              docker logs openwa-smoke 2>&1 | tail -60 || true
+              docker logs artha-smoke 2>&1 | tail -60 || true
               exit_code=1
             fi
-            docker stop openwa-smoke >/dev/null 2>&1 || true
-            docker rm -f openwa-smoke >/dev/null 2>&1 || true
+            docker stop artha-smoke >/dev/null 2>&1 || true
+            docker rm -f artha-smoke >/dev/null 2>&1 || true
             echo "::endgroup::"
           done
           exit "$exit_code"
@@ -594,7 +594,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           staging="smoke-${{ github.run_id }}"
-          version_json=$(gh api "/users/${{ github.repository_owner }}/packages/container/openwa/versions" \
+          version_json=$(gh api "/users/${{ github.repository_owner }}/packages/container/artha/versions" \
             --jq ".[] | select(.metadata.container.tags[]? == \"$staging\") | {id, tags: .metadata.container.tags}" | head -1)
           if [ -z "$version_json" ]; then
             echo "staging tag not found (docker job failed before pushing, or already cleaned up)"
@@ -604,7 +604,7 @@ jobs:
           tags=$(printf '%s' "$version_json" | jq -r '.tags | join(",")')
           tag_count=$(printf '%s' "$version_json" | jq -r '.tags | length')
           if [ "$tag_count" = "1" ]; then
-            gh api -X DELETE "/users/${{ github.repository_owner }}/packages/container/openwa/versions/$version_id" \
+            gh api -X DELETE "/users/${{ github.repository_owner }}/packages/container/artha/versions/$version_id" \
               && echo "removed staging-only version $version_id"
           else
             echo "keeping version $version_id — the release tags share it (tags: $tags)."

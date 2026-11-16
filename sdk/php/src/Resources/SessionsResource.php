@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OpenWA\Resources;
+namespace Artha\Resources;
 
-use OpenWA\Http\HttpExecutor;
+use Artha\Http\HttpExecutor;
 
 /**
  * Sessions resource — lifecycle management for WhatsApp sessions.

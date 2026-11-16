@@ -1,4 +1,4 @@
-# OpenWA - Dockerfile
+# Artha - Dockerfile
 # Multi-stage build for production-ready image
 
 # ===== Stage 1: Builder =====

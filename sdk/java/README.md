@@ -1,6 +1,6 @@
-# OpenWA Java SDK
+# Artha Java SDK
 
-Official Java client for the [OpenWA](https://github.com/rmyndharis/OpenWA)
+Official Java client for the [Artha](https://github.com/rmyndharis/Artha)
 WhatsApp API Gateway.
 
 Hand-written against the exact API surface (paths, DTOs, response shapes) and
@@ -15,7 +15,7 @@ Java 17+, one runtime dependency ([Gson](https://github.com/google/gson)).
 ```xml
 <dependency>
   <groupId>com.rmyndharis</groupId>
-  <artifactId>openwa</artifactId>
+  <artifactId>artha</artifactId>
   <version>0.1.1</version>
 </dependency>
 ```
@@ -23,24 +23,24 @@ Java 17+, one runtime dependency ([Gson](https://github.com/google/gson)).
 **Gradle**
 
 ```groovy
-implementation 'com.rmyndharis:openwa:0.1.1'
+implementation 'com.rmyndharis:artha:0.1.1'
 ```
 
 ## Quickstart
 
 ```java
-import com.rmyndharis.openwa.OpenWAClient;
-import com.rmyndharis.openwa.model.MessageResponse;
-import com.rmyndharis.openwa.model.SendTextRequest;
+import com.rmyndharis.artha.ArthaClient;
+import com.rmyndharis.artha.model.MessageResponse;
+import com.rmyndharis.artha.model.SendTextRequest;
 
-OpenWAClient client = new OpenWAClient("http://localhost:2785", "owa_k1_…");
+ArthaClient client = new ArthaClient("http://localhost:2785", "owa_k1_…");
 
 client.sessions.start("my-session");
 
 MessageResponse result = client.messages.sendText("my-session",
     SendTextRequest.builder()
         .chatId("628123456789@c.us")
-        .text("Hello from the OpenWA Java SDK!")
+        .text("Hello from the Artha Java SDK!")
         .build());
 
 System.out.println(result.messageId());
@@ -50,10 +50,10 @@ For full control over configuration (timeout, default headers, a custom
 transport), build a `ClientConfig`:
 
 ```java
-import com.rmyndharis.openwa.ClientConfig;
+import com.rmyndharis.artha.ClientConfig;
 import java.time.Duration;
 
-OpenWAClient client = new OpenWAClient(ClientConfig.builder()
+ArthaClient client = new ArthaClient(ClientConfig.builder()
     .baseUrl("https://wa.example.com")
     .apiKey("owa_k1_…")
     .timeout(Duration.ofSeconds(15))
@@ -79,30 +79,30 @@ Errors are a typed, unchecked hierarchy — branch with `instanceof` or on
 `.status()`:
 
 ```java
-import com.rmyndharis.openwa.errors.OpenWAConflictError;
-import com.rmyndharis.openwa.errors.OpenWANotFoundError;
+import com.rmyndharis.artha.errors.ArthaConflictError;
+import com.rmyndharis.artha.errors.ArthaNotFoundError;
 
 try {
     client.messages.sendText("my-session", body);
-} catch (OpenWAConflictError e) {
+} catch (ArthaConflictError e) {
     // 409 — engine not ready
-} catch (OpenWANotFoundError e) {
+} catch (ArthaNotFoundError e) {
     // 404 — session or chat not found
 }
 ```
 
 | Class                        | HTTP | Meaning                                  |
 | ---------------------------- | ---- | ---------------------------------------- |
-| `OpenWAAuthError`            | 401  | Missing or invalid API key               |
-| `OpenWAForbiddenError`       | 403  | API key role insufficient                |
-| `OpenWANotFoundError`        | 404  | Resource not found                       |
-| `OpenWAConflictError`        | 409  | Engine not ready                         |
-| `OpenWARateLimitError`       | 429  | Rate limited                             |
-| `OpenWANotImplementedError`  | 501  | Active engine does not support the call  |
-| `OpenWAApiError`             | —    | Any other non-2xx (carries `.status()`)  |
-| `OpenWATimeoutError`         | —    | Request exceeded the configured timeout  |
+| `ArthaAuthError`            | 401  | Missing or invalid API key               |
+| `ArthaForbiddenError`       | 403  | API key role insufficient                |
+| `ArthaNotFoundError`        | 404  | Resource not found                       |
+| `ArthaConflictError`        | 409  | Engine not ready                         |
+| `ArthaRateLimitError`       | 429  | Rate limited                             |
+| `ArthaNotImplementedError`  | 501  | Active engine does not support the call  |
+| `ArthaApiError`             | —    | Any other non-2xx (carries `.status()`)  |
+| `ArthaTimeoutError`         | —    | Request exceeded the configured timeout  |
 
-All extend `OpenWAError` (a `RuntimeException`).
+All extend `ArthaError` (a `RuntimeException`).
 
 ## Reliability & security
 
@@ -112,7 +112,7 @@ All extend `OpenWAError` (a `RuntimeException`).
 - **No automatic retries.** A failed request throws immediately; wrap calls in
   your own backoff if you need retries (especially for `429`). Inject a custom
   `HttpTransport` for retry or observability middleware.
-- **Redirects are never followed.** A `3xx` surfaces as an `OpenWAApiError`
+- **Redirects are never followed.** A `3xx` surfaces as an `ArthaApiError`
   rather than being followed, so the API key is never re-sent to a redirect
   target.
 - **Default per-request timeout** is 30 s (configurable). Path segments (chat /

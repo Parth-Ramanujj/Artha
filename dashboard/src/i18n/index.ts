@@ -95,7 +95,7 @@ void i18n
     interpolation: { escapeValue: false },
     detection: {
       order: ['localStorage', 'navigator'],
-      lookupLocalStorage: 'openwa_language',
+      lookupLocalStorage: 'artha_language',
       caches: ['localStorage'],
       convertDetectedLanguage: (lang: string) => resolveSupportedLanguage(lang),
     },

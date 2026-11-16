@@ -8,7 +8,7 @@
 # (/usr/local/lib/node_modules/npm/node_modules/brace-expansion). The application tree resolves
 # 5.0.8 via the root `overrides` block, and npm itself is never on the request path: the
 # entrypoint runs `node dist/main`, and npm is present only for the documented operator runbooks
-# (`docker exec openwa npm run cli …`). Reaching this code requires an operator to run an npm
+# (`docker exec artha npm run cli …`). Reaching this code requires an operator to run an npm
 # command with an attacker-chosen glob inside the container.
 #
 # npm 12 — the newest release, already installed by the Dockerfile — still bundles 5.0.7, so

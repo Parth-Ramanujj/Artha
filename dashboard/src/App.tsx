@@ -73,14 +73,14 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   // Initialize from sessionStorage to avoid setState in effect
-  const savedKey = sessionStorage.getItem('openwa_api_key');
+  const savedKey = sessionStorage.getItem('artha_api_key');
   const [isAuthenticated, setIsAuthenticated] = useState(!!savedKey);
   const [, setApiKey] = useState(savedKey || '');
-  const { setRole, role } = useRole();
+  const { setRole, role, setAllowedFeatures, allowedFeatures } = useRole();
 
   const handleLogin = async (key: string) => {
     setApiKey(key);
-    sessionStorage.setItem('openwa_api_key', key);
+    sessionStorage.setItem('artha_api_key', key);
 
     // Fetch the role from API
     try {
@@ -91,10 +91,12 @@ function AppContent() {
       if (response.ok) {
         const data = await response.json();
         setRole(data.role as UserRole);
+        setAllowedFeatures(data.allowedFeatures ?? null);
       }
     } catch {
-      // Default to viewer if we can't fetch role
+      // Default to viewer (and core features only) if we can't fetch the key's access
       setRole('viewer');
+      setAllowedFeatures([]);
     }
 
     setIsAuthenticated(true);
@@ -104,12 +106,13 @@ function AppContent() {
     setApiKey('');
     setIsAuthenticated(false);
     setRole(null);
-    sessionStorage.removeItem('openwa_api_key');
+    setAllowedFeatures(null);
+    sessionStorage.removeItem('artha_api_key');
     // Wipe the React Query cache too: it is keyed by resource, not actor, so without a full
     // clear a logout → login in the same tab with a different key/scope shows the previous
     // actor's sessions/messages/apiKeys/audit rows.
     clearActorState(queryClient);
-  }, [setRole]);
+  }, [setRole, setAllowedFeatures]);
 
   // Re-validate and refresh the role on mount if already authenticated
   useEffect(() => {
@@ -120,18 +123,20 @@ function AppContent() {
       headers: { 'X-API-Key': savedKey },
     })
       .then(async res => {
-        const decision = resolveStartupValidation(res.status, await res.json().catch(() => null));
+        const body = await res.json().catch(() => null);
+        const decision = resolveStartupValidation(res.status, body);
         if (decision.action === 'logout') {
           handleLogout();
         } else if (decision.action === 'role') {
           setRole(decision.role);
+          setAllowedFeatures((body as { allowedFeatures?: string[] | null } | null)?.allowedFeatures ?? null);
         }
       })
       .catch(() => {
         // Network failure (API unreachable): keep the cached role so a transient outage at
         // page load doesn't eject the user — an explicit 401/403 above still logs out.
       });
-  }, [savedKey, setRole, handleLogout]);
+  }, [savedKey, setRole, setAllowedFeatures, handleLogout]);
 
   const loadingFallback = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -152,7 +157,7 @@ function AppContent() {
       <BrowserRouter>
         <Suspense fallback={loadingFallback}>
           <Routes>
-            <Route path="/" element={<Layout onLogout={handleLogout} userRole={role} />}>
+            <Route path="/" element={<Layout onLogout={handleLogout} userRole={role} allowedFeatures={allowedFeatures} />}>
               <Route index element={<Dashboard />} />
               <Route path="sessions" element={<Sessions />} />
               <Route path="chats" element={<Chats />} />

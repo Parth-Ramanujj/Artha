@@ -594,7 +594,8 @@
       "role": "Role",
       "status": "Status",
       "lastUsed": "Last Used",
-      "actions": "Actions"
+      "actions": "Actions",
+      "access": "ઍક્સેસ"
     },
     "statuses": {
       "active": "Active",
@@ -616,6 +617,46 @@
       "copy": "Copy",
       "revoke": "Revoke",
       "delete": "Delete"
+    },
+    "access": {
+      "business": "ગ્રાહકનો બિઝનેસ",
+      "platform": "પ્લેટફોર્મ (સુપર એડમિન)",
+      "validity": "માન્યતા",
+      "noExpiry": "કોઈ સમયમર્યાદા નહીં",
+      "expires": "{{date}} એ પૂરી થશે",
+      "expired": "{{date}} એ પૂરી થઈ",
+      "features": "મંજૂર ફીચર્સ",
+      "featuresHint": "સેશન અને મેસેજિંગ હંમેશા સામેલ છે. ગ્રાહકે જે લીધું હોય તે જ ટિક કરો.",
+      "allFeatures": "બધા ફીચર્સ",
+      "featureCount_one": "{{count}} ફીચર",
+      "featureCount_other": "{{count}} ફીચર્સ",
+      "validityUnit": "માન્યતાનું એકમ",
+      "validityInvalid": "1 કે તેથી વધુ પૂર્ણ સંખ્યા લખો",
+      "units": {
+        "minutes": "મિનિટ",
+        "hours": "કલાક",
+        "days": "દિવસ",
+        "never": "કોઈ સમયમર્યાદા નહીં"
+      }
+    },
+    "featureNames": {
+      "webhooks": "વેબહૂક્સ",
+      "templates": "ટેમ્પલેટ્સ",
+      "messageStudio": "મેસેજ સ્ટુડિયો",
+      "whatsappForms": "WhatsApp ફોર્મ્સ",
+      "conversations": "ઇનબોક્સ અને CRM",
+      "support": "SLA, એલર્ટ અને ફીડબેક",
+      "followup": "ફોલો-અપ રિકવરી",
+      "workflows": "વર્કફ્લો અને A/B ટેસ્ટ",
+      "campaigns": "કેમ્પેઇન",
+      "ai": "AI અને AI એજન્ટ",
+      "aiCalling": "AI કોલિંગ",
+      "customerCare": "કસ્ટમર કેર",
+      "salesAgent": "સેલ્સ એજન્ટ",
+      "googleBusiness": "Google Business",
+      "library": "લાઇબ્રેરી",
+      "growth": "ગ્રોથ",
+      "integrations": "ઇન્ટિગ્રેશન"
     }
   },
   "logs": {

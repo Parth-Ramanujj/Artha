@@ -1,12 +1,12 @@
-# Contributing to OpenWA
+# Contributing to Artha
 
-Thanks for your interest in improving OpenWA! This guide covers how to get set up, the
+Thanks for your interest in improving Artha! This guide covers how to get set up, the
 conventions we follow, and how to get a change merged. Contributions of all sizes are
 welcome — bug fixes, features, docs, and tests.
 
 ## Project layout
 
-OpenWA is a NestJS (backend) + React/Vite (dashboard) project:
+Artha is a NestJS (backend) + React/Vite (dashboard) project:
 
 - `src/` — the NestJS API. Feature modules under `src/modules/` (session, message,
   webhook, queue, audit, settings, infra, …), the WhatsApp engine abstraction under
@@ -18,7 +18,7 @@ See `docs/03-system-architecture.md` for the bigger picture.
 
 ## Getting started
 
-OpenWA targets **Node.js 22+**.
+Artha targets **Node.js 22+**.
 
 ```bash
 # backend
@@ -81,13 +81,13 @@ vulnerabilities, see [`SECURITY.md`](SECURITY.md) — please do **not** open a p
 ### Issues vs. Discussions — pick the right channel
 
 A large share of opened issues turn out to be configuration, provider, or environment
-questions rather than defects in OpenWA. Routing them correctly upfront saves everyone
+questions rather than defects in Artha. Routing them correctly upfront saves everyone
 (time to answer, time to triage, cleaner issue history). When in doubt, open a Discussion
 first — it can always be promoted to an Issue if a real defect is confirmed.
 
 | Open an **Issue** (here)                                                 | Open a **Discussion**                                                       |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| Reproducible defect in OpenWA code with clear steps, expected vs. actual | Setup / configuration help ("my proxy doesn't work, how do I configure X?") |
+| Reproducible defect in Artha code with clear steps, expected vs. actual | Setup / configuration help ("my proxy doesn't work, how do I configure X?") |
 | Crash, panic, wrong API response, regression after upgrade               | Provider-specific quirks (webshare, IPRoyal, brightdata, Twilio, etc.)      |
 | Documented behavior contradicted by actual behavior                      | "Is X possible?" / "What's the best way to Y?"                              |
 | Security issue (use `SECURITY.md` instead)                               | Hosting-platform / network / firewall questions                             |

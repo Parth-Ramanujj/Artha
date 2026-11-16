@@ -25,6 +25,7 @@ describe('WorkflowController', () => {
     keyPrefix: 'pk',
     allowedIps: null,
     allowedSessions: null,
+    allowedFeatures: null,
     isActive: true,
     lastUsedAt: null,
     expiresAt: null,

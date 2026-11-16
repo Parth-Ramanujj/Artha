@@ -244,9 +244,9 @@ function PluginConfigUi({ plugin, sessionId }: { plugin: Plugin; sessionId?: str
   const [handshakeError, setHandshakeError] = useState<string | null>(null);
 
   const hardenConfigUiHtml = (source: string): string => {
-    const nonce = document.querySelector<HTMLMetaElement>('meta[name="openwa-csp-nonce"]')?.content ?? '';
+    const nonce = document.querySelector<HTMLMetaElement>('meta[name="artha-csp-nonce"]')?.content ?? '';
     const doc = new DOMParser().parseFromString(source, 'text/html');
-    if (nonce && nonce !== '__OPENWA_CSP_NONCE__') {
+    if (nonce && nonce !== '__ARTHA_CSP_NONCE__') {
       // Vite development has no production CSP, so there is nothing to stamp. Config UIs are
       // required to be self-contained. Nonce only inline scripts; a plugin-supplied external
       // `src` must still satisfy the parent's host allow-list rather than bypassing it via nonce.

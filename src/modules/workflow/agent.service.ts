@@ -189,7 +189,7 @@ export class AgentService implements OnModuleInit {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'OpenWA-Artha-Workflow/1.0',
+          'User-Agent': 'Artha-Artha-Workflow/1.0',
         },
       });
       clearTimeout(timeoutId);

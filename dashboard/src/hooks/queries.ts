@@ -188,8 +188,7 @@ export function useApiKeysQuery() {
 export function useCreateApiKeyMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; role: string; allowedIps?: string[]; allowedSessions?: string[]; expiresAt?: string }) =>
-      apiKeyApi.create(data),
+    mutationFn: (data: Parameters<typeof apiKeyApi.create>[0]) => apiKeyApi.create(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys });
     },

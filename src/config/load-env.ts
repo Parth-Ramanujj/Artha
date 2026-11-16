@@ -67,7 +67,7 @@ export function loadEnvironment(): void {
   } else {
     console.log('[Bootstrap] First run detected, creating default configuration...');
     // Create minimal .env.generated with sensible defaults
-    const minimalConfig = `# OpenWA Configuration
+    const minimalConfig = `# Artha Configuration
 # Generated automatically on first run
 # Edit via Dashboard > Infrastructure or modify this file directly.
 # Note: values in process env or project .env take precedence over this file.

@@ -21,7 +21,7 @@ describe('WebhookTestController', () => {
       path: '/api/webhook-test/echo',
       originalUrl: '/api/webhook-test/echo?test=123',
       query: { test: '123' },
-      headers: { 'content-type': 'application/json', 'x-custom': 'openwa' },
+      headers: { 'content-type': 'application/json', 'x-custom': 'artha' },
       body: { message: 'hello world' },
       ip: '127.0.0.1',
     } as unknown as Request;
@@ -106,7 +106,7 @@ describe('WebhookTestController', () => {
     controller.handleEchoWebhook(mockReq, mockRes);
     expect(responseStatus).toBe(200);
     expect(htmlOutput).toContain('<!DOCTYPE html>');
-    expect(htmlOutput).toContain('OpenWA Webhook Echo & Live Inspector');
+    expect(htmlOutput).toContain('Artha Webhook Echo & Live Inspector');
   });
 
   it('renders HTML UI via handleInspectorUi directly', () => {
@@ -132,6 +132,6 @@ describe('WebhookTestController', () => {
     } as unknown as Response;
 
     controller.handleInspectorUi(mockReq, mockRes);
-    expect(htmlOutput).toContain('OpenWA Webhook Echo & Live Inspector');
+    expect(htmlOutput).toContain('Artha Webhook Echo & Live Inspector');
   });
 });

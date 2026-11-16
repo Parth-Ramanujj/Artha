@@ -12,7 +12,13 @@ export class AuthValidateController {
   @ApiHeader({ name: 'X-API-Key', description: 'API key to validate' })
   @ApiResponse({ status: 200, description: 'API key is valid' })
   @ApiResponse({ status: 401, description: 'Invalid or missing API key' })
-  validate(@CurrentApiKey() apiKey?: ApiKey): { valid: boolean; role?: string } {
+  validate(@CurrentApiKey() apiKey?: ApiKey): {
+    valid: boolean;
+    role?: string;
+    businessId?: string | null;
+    allowedFeatures?: string[] | null;
+    expiresAt?: Date | null;
+  } {
     // This route is behind the global API-key guard, so only a validated key reaches this handler
     // (a missing/invalid key 401s first). The guard has already verified the key — including its
     // client-IP and session-scope restrictions — and attached it to the request. Re-validating here
@@ -23,6 +29,13 @@ export class AuthValidateController {
     if (!apiKey) {
       return { valid: false };
     }
-    return { valid: true, role: apiKey.role };
+    // The dashboard uses these to hide features the key is not approved for (the guard still enforces).
+    return {
+      valid: true,
+      role: apiKey.role,
+      businessId: apiKey.businessId ?? null,
+      allowedFeatures: apiKey.allowedFeatures ?? null,
+      expiresAt: apiKey.expiresAt ?? null,
+    };
   }
 }

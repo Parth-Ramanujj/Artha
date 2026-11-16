@@ -25,13 +25,13 @@
 | **Per-session config** | ✅ Implemented | Per-session config overrides shallow-merged over the base config at hook time |
 | **Built-in plugins** | ✅ Implemented | The two engine adapters (`whatsapp-web.js`, `baileys`) register as in-process built-ins |
 | **Plugin install / catalog** | ✅ Implemented | Install a `.zip` by upload or URL, or from the remote catalog |
-| **@openwa/plugin-sdk** | 🔜 Planned | NPM package not yet published; plugins implement `IPlugin` directly today |
+| **@artha/plugin-sdk** | 🔜 Planned | NPM package not yet published; plugins implement `IPlugin` directly today |
 
 ---
 
 ## 19.1 Overview
 
-The plugin architecture enables OpenWA extensibility without modifying the core codebase. Plugins can add new features, integrate with external services, or customize behavior.
+The plugin architecture enables Artha extensibility without modifying the core codebase. Plugins can add new features, integrate with external services, or customize behavior.
 
 ### Design Goals
 
@@ -119,7 +119,7 @@ a host version, except for the SDK-major check applied to a manifest that declar
   "name": "My Awesome Plugin",
   "version": "1.0.0",
   "type": "extension",
-  "description": "An awesome plugin for OpenWA",
+  "description": "An awesome plugin for Artha",
   "author": "Your Name",
   "license": "MIT",
 
@@ -201,7 +201,7 @@ is read from `ctx.config`.
 ```typescript
 // plugins/my-plugin/index.ts
 
-import type { IPlugin, PluginContext } from '@openwa/plugin-sdk'; // shape only; implement IPlugin
+import type { IPlugin, PluginContext } from '@artha/plugin-sdk'; // shape only; implement IPlugin
 
 interface MyPluginConfig {
   greeting: string;
@@ -245,7 +245,7 @@ export default class MyAwesomePlugin implements IPlugin {
 
 ## 19.4 Plugin SDK
 
-> Plugins implement the `IPlugin` interface directly. An `@openwa/plugin-sdk` npm package is planned
+> Plugins implement the `IPlugin` interface directly. An `@artha/plugin-sdk` npm package is planned
 > but not yet published; the interfaces below are the live runtime contract from
 > `src/core/plugins/plugin.interfaces.ts`.
 
@@ -379,7 +379,7 @@ export interface PluginStorage {
 
 ```mermaid
 sequenceDiagram
-    participant Core as OpenWA Core
+    participant Core as Artha Core
     participant HM as Hook Manager
     participant P1 as Plugin 1
     participant P2 as Plugin 2
@@ -503,7 +503,7 @@ the one version gate is `validateIngressManifest`, which refuses a manifest decl
 decision across a restart; the decision is persisted separately as `enabledByOperator`. On
 `onApplicationBootstrap` — after the rest of the app is wired — the loader re-enables every non-built-in
 plugin carrying that flag, so an upgrade, host reboot or container restart no longer silently switches
-off every extension ([#856](https://github.com/rmyndharis/OpenWA/issues/856)). Restoring is best-effort
+off every extension ([#856](https://github.com/rmyndharis/Artha/issues/856)). Restoring is best-effort
 and sequential: a plugin that fails is logged (`plugin_restore_failed`), left in `ERROR`, and never
 holds up startup. Built-ins are skipped — `EngineFactory` enables the engine named by `engine.type`.
 
@@ -565,7 +565,7 @@ facade. This auto-reply sketch needs only `messages:send` in its manifest `permi
 
 ```typescript
 // plugins/auto-reply/index.ts
-import type { IPlugin, PluginContext } from '@openwa/plugin-sdk'; // shape only; implement IPlugin
+import type { IPlugin, PluginContext } from '@artha/plugin-sdk'; // shape only; implement IPlugin
 
 interface AutoReplyConfig {
   enabled?: boolean;

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="logo/openwa_logo.webp" alt="OpenWA Logo" width="200"/>
+  <img src="logo/artha_logo.webp" alt="Artha Logo" width="200"/>
 </p>
 
-<h1 align="center">OpenWA Documentation</h1>
+<h1 align="center">Artha Documentation</h1>
 <p align="center">
   <strong>Open Source WhatsApp API Gateway</strong>
 </p>
@@ -16,12 +16,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/package-json/v/rmyndharis/OpenWA?label=version&color=blue" alt="Version"/>
+  <img src="https://img.shields.io/github/package-json/v/rmyndharis/Artha?label=version&color=blue" alt="Version"/>
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"/>
   <img src="https://img.shields.io/badge/node-22_LTS-brightgreen.svg" alt="Node"/>
-  <img src="https://img.shields.io/github/package-json/dependency-version/rmyndharis/OpenWA/@nestjs/core?label=NestJS&color=red" alt="NestJS"/>
+  <img src="https://img.shields.io/github/package-json/dependency-version/rmyndharis/Artha/@nestjs/core?label=NestJS&color=red" alt="NestJS"/>
   <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker"/>
-  <img src="https://img.shields.io/github/package-json/dependency-version/rmyndharis/OpenWA/dev/typescript?label=TypeScript&color=3178C6" alt="TypeScript"/>
+  <img src="https://img.shields.io/github/package-json/dependency-version/rmyndharis/Artha/dev/typescript?label=TypeScript&color=3178C6" alt="TypeScript"/>
 </p>
 
 ---
@@ -53,8 +53,8 @@
 | 19  | [Plugin Architecture](./19-plugin-architecture.md)               | Extensibility concepts                            |
 | 20  | [Community Guidelines](./20-community-guidelines.md)             | Contribution and governance                       |
 | 21  | [Glossary](./21-glossary.md)                                     | Terms and definitions                             |
-| 22  | [n8n Integration](./22-n8n-integration.md)                       | n8n community nodes for OpenWA                    |
-| 23  | [Community Integrations](./23-community-integrations.md)         | Third-party adapters built on the OpenWA API      |
+| 22  | [n8n Integration](./22-n8n-integration.md)                       | n8n community nodes for Artha                    |
+| 23  | [Community Integrations](./23-community-integrations.md)         | Third-party adapters built on the Artha API      |
 | 24  | [MCP Integration](./24-mcp-integration.md)                       | Model Context Protocol tools and auth model       |
 | 25  | [Integration Fabric](./25-integration-fabric.md)                | Inbound webhook substrate for plugin integrations |
 | 26  | [Global Search](./26-global-search.md)                          | Cross-session message search and the provider model |
@@ -69,8 +69,8 @@
 | ------- | ----------- |
 | [Session Phone-Number Pairing](./examples/session-phone-number-pairing.md) | Link an existing WhatsApp account by phone number instead of scanning QR |
 | [Chat History Limits](./examples/chat-history-limits.md) | Understand local message history vs bounded live WhatsApp history |
-| [Webhook Signature Verification](./examples/webhook-signature-verification.md) | Verify signed OpenWA webhook deliveries in Node.js and Python |
-| [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md) | Build an appointment-booking flow with OpenWA and n8n |
+| [Webhook Signature Verification](./examples/webhook-signature-verification.md) | Verify signed Artha webhook deliveries in Node.js and Python |
+| [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md) | Build an appointment-booking flow with Artha and n8n |
 
 ## Quick Start
 
@@ -78,8 +78,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/rmyndharis/OpenWA.git
-cd OpenWA
+git clone https://github.com/rmyndharis/Artha.git
+cd Artha
 
 # Install the locked dependencies & configure
 npm ci
@@ -102,8 +102,8 @@ Access:
 
 ```bash
 # Clone repository
-git clone https://github.com/rmyndharis/OpenWA.git
-cd OpenWA
+git clone https://github.com/rmyndharis/Artha.git
+cd Artha
 
 # Start services
 docker compose up -d
@@ -117,7 +117,7 @@ Access (the dashboard is bundled into the API and served on the same port):
 
 ### API Key
 
-OpenWA seeds a default API key on first run and writes it to:
+Artha seeds a default API key on first run and writes it to:
 
 - `data/.api-key` (development)
 - `/app/data/.api-key` inside the API container when using Docker
@@ -150,7 +150,7 @@ curl http://localhost:2785/api/sessions/{sessionId}/qr \
 curl -X POST http://localhost:2785/api/sessions/{sessionId}/messages/send-text \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
-  -d '{"chatId": "628123456789@c.us", "text": "Hello from OpenWA!"}'
+  -d '{"chatId": "628123456789@c.us", "text": "Hello from Artha!"}'
 ```
 
 ## WebSocket Example (Socket.IO)
@@ -218,7 +218,7 @@ socket.on('message', msg => {
 ## Project Structure
 
 ```
-OpenWA/
+Artha/
 ├── src/                    # Backend source code
 ├── dashboard/              # Frontend dashboard
 ├── docker-compose.yml      # API (serves bundled dashboard) + optional datastores
@@ -241,6 +241,6 @@ MIT License.
 
 **Start Reading: [01 - Project Overview](./01-project-overview.md)**
 
-_OpenWA Documentation · Last updated: 2026-07-28_
+_Artha Documentation · Last updated: 2026-07-28_
 
 </div>

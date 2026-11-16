@@ -142,13 +142,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: openwa
-          POSTGRES_PASSWORD: openwa
-          POSTGRES_DB: openwa
+          POSTGRES_USER: artha
+          POSTGRES_PASSWORD: artha
+          POSTGRES_DB: artha
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U openwa"
+          --health-cmd "pg_isready -U artha"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -175,9 +175,9 @@ jobs:
           DATABASE_TYPE: postgres
           DATABASE_HOST: localhost
           DATABASE_PORT: '5432'
-          DATABASE_USERNAME: openwa
-          DATABASE_PASSWORD: openwa
-          DATABASE_NAME: openwa
+          DATABASE_USERNAME: artha
+          DATABASE_PASSWORD: artha
+          DATABASE_NAME: artha
 
       # Runtime-proves BuiltInFtsProvider on Postgres (websearch_to_tsquery + ts_headline against the
       # STORED body_ts tsvector). The spec self-skips unless DATABASE_TYPE=postgres, so it is a no-op
@@ -188,9 +188,9 @@ jobs:
           DATABASE_TYPE: postgres
           DATABASE_HOST: localhost
           DATABASE_PORT: '5432'
-          DATABASE_USERNAME: openwa
-          DATABASE_PASSWORD: openwa
-          DATABASE_NAME: openwa
+          DATABASE_USERNAME: artha
+          DATABASE_PASSWORD: artha
+          DATABASE_NAME: artha
 
   dashboard:
     name: Dashboard

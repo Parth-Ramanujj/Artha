@@ -246,7 +246,7 @@ export function isHttpUrl(value: string): boolean {
 
 /**
  * Detect Puppeteer's "Execution context was destroyed" error. During `Client.inject()` this is most
- * often a persistent browser profile left stale by an OpenWA upgrade that changed the Chromium/Chrome
+ * often a persistent browser profile left stale by an Artha upgrade that changed the Chromium/Chrome
  * binary (e.g. the v0.8.12 amd64 Debian Chromium → Chrome for Testing switch, #663 / #708) — but it is
  * not exclusively that: Puppeteer also raises it on a page navigation or a renderer crash (see
  * puppeteer-core `ExecutionContext` / `IsolatedWorld`), so the caller advises rather than asserts.
@@ -621,7 +621,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
 
       // Marker arg: Chromium silently ignores unknown flags, so this exists purely as a label that
       // lets killOrphanedChromiumProcesses() identify this session's browser processes in `ps`
-      // output later (after a hard kill of the OpenWA process orphaned them).
+      // output later (after a hard kill of the Artha process orphaned them).
       puppeteerArgs.push(`--openwa-session=${this.config.sessionId}`);
 
       // Pin the WA-Web version (fixes the 1.34.x "stuck at authenticating" hang on some setups,
@@ -676,7 +676,7 @@ export class WhatsAppWebJsAdapter extends EventEmitter implements IWhatsAppEngin
         this.setStatus(EngineStatus.DISCONNECTED);
         return;
       }
-      // Kill any Chromium that survived a hard kill of a previous OpenWA process lifetime (its
+      // Kill any Chromium that survived a hard kill of a previous Artha process lifetime (its
       // Puppeteer exit hook never ran, leaving an orphaned browser holding the profile). Safe here
       // for the same reason as the Singleton cleanup below: this runs only at engine (re)start,
       // before this lifetime's browser exists, so it cannot kill a live browser.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# OpenWA restore.
+# Artha restore.
 #
 # Restores the always-SQLite auth/audit database, a SQLite data store, engine authentication, local
 # media, installed plugins, and bootstrap configuration from an archive produced by scripts/backup.sh.
@@ -23,7 +23,7 @@
 #   SESSION_DATA_PATH, BAILEYS_AUTH_DIR, STORAGE_LOCAL_PATH, PLUGINS_DIR
 #                     override the corresponding state directories
 #
-# Stop the OpenWA app before restoring. A snapshot of the current data dir is taken
+# Stop the Artha app before restoring. A snapshot of the current data dir is taken
 # first so a bad restore can be undone.
 #
 set -euo pipefail

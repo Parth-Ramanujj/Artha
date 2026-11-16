@@ -570,7 +570,8 @@
       "role": "Role",
       "status": "Status",
       "lastUsed": "Last Used",
-      "actions": "Actions"
+      "actions": "Actions",
+      "access": "Access"
     },
     "statuses": {
       "active": "Active",
@@ -592,6 +593,46 @@
       "copy": "Copy",
       "revoke": "Revoke",
       "delete": "Delete"
+    },
+    "access": {
+      "business": "Customer business",
+      "platform": "Platform (super admin)",
+      "validity": "Valid for",
+      "noExpiry": "No expiry",
+      "expires": "Expires {{date}}",
+      "expired": "Expired {{date}}",
+      "features": "Approved features",
+      "featuresHint": "Sessions and messaging are always included. Tick only what this customer paid for.",
+      "allFeatures": "All features",
+      "featureCount_one": "{{count}} feature",
+      "featureCount_other": "{{count}} features",
+      "validityUnit": "Validity unit",
+      "validityInvalid": "Enter a whole number of 1 or more",
+      "units": {
+        "minutes": "Minutes",
+        "hours": "Hours",
+        "days": "Days",
+        "never": "No expiry"
+      }
+    },
+    "featureNames": {
+      "webhooks": "Webhooks",
+      "templates": "Templates",
+      "messageStudio": "Message Studio",
+      "whatsappForms": "WhatsApp Forms",
+      "conversations": "Inbox & CRM",
+      "support": "SLA, alerts & feedback",
+      "followup": "Follow-up recovery",
+      "workflows": "Workflows & A/B tests",
+      "campaigns": "Campaigns",
+      "ai": "AI & AI agents",
+      "aiCalling": "AI calling",
+      "customerCare": "Customer care",
+      "salesAgent": "Sales agent",
+      "googleBusiness": "Google Business",
+      "library": "Library",
+      "growth": "Growth",
+      "integrations": "Integrations"
     }
   },
   "logs": {

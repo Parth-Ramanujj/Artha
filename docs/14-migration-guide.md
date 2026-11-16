@@ -2,7 +2,7 @@
 
 ## 14.1 Overview
 
-This document provides a comprehensive guide for migrating OpenWA, including:
+This document provides a comprehensive guide for migrating Artha, including:
 
 - Database migration (SQLite → PostgreSQL)
 - Version upgrades within the 0.x line
@@ -91,7 +91,7 @@ flowchart TD
 
 ### API-Based Migration (Recommended for v0.2+)
 
-OpenWA v0.2+ includes built-in migration API endpoints that leverage the **Dual-Database Architecture**:
+Artha v0.2+ includes built-in migration API endpoints that leverage the **Dual-Database Architecture**:
 
 ```bash
 # Step 1: Export all Data DB tables
@@ -116,7 +116,7 @@ curl -X POST 'http://localhost:2785/api/infra/import-data' \
 > [!NOTE]
 > **Dual-Database Architecture**
 >
-> OpenWA separates databases:
+> Artha separates databases:
 >
 > - **Main DB** (SQLite): API keys, audit logs - never migrated, always local
 > - **Data DB** (Pluggable): Sessions, webhooks, messages - this is what gets migrated
@@ -168,7 +168,7 @@ curl -X POST 'http://localhost:2785/api/infra/import-data' \
 
 ### Storage Migration (Local ↔ S3/MinIO)
 
-OpenWA v0.2+ supports migrating media files between storage backends:
+Artha v0.2+ supports migrating media files between storage backends:
 
 ```bash
 # Step 1: Check current storage file count
@@ -207,7 +207,7 @@ curl -X POST 'http://localhost:2785/api/infra/storage/import' \
 
 ### Redis Migration (Cache)
 
-Redis in OpenWA holds only **ephemeral** state: TTL-based cache entries, BullMQ jobs (see below), and — when `REDIS_ENABLED` — the rate-limit hit counters. Cache data automatically regenerates from the database.
+Redis in Artha holds only **ephemeral** state: TTL-based cache entries, BullMQ jobs (see below), and — when `REDIS_ENABLED` — the rate-limit hit counters. Cache data automatically regenerates from the database.
 
 **No migration API needed** - just change configuration:
 
@@ -279,11 +279,11 @@ docker compose up -d
 > the export/import API above, which always covers the full table set.
 >
 > It uses the standalone `sqlite3` npm package, which is no longer part of
-> OpenWA's dependencies (the app itself uses `better-sqlite3`). Install it ad hoc before running:
+> Artha's dependencies (the app itself uses `better-sqlite3`). Install it ad hoc before running:
 > `npm install --no-save sqlite3`.
 >
 > The `SQLITE_PATH` / `DATABASE_URL` variables below are inputs to this standalone script only —
-> they are **not** OpenWA configuration. The application itself reads `DATABASE_TYPE` plus
+> they are **not** Artha configuration. The application itself reads `DATABASE_TYPE` plus
 > `DATABASE_NAME` / `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_USERNAME` / `DATABASE_PASSWORD`
 > (see `src/config/configuration.ts`).
 
@@ -446,8 +446,8 @@ function getSqliteTables(db: sqlite3.Database): Promise<string[]> {
 
 // CLI Entry point
 const config: MigrationConfig = {
-  sqlitePath: process.env.SQLITE_PATH || './data/openwa.sqlite',
-  postgresUrl: process.env.DATABASE_URL || 'postgresql://user:pass@localhost:5432/openwa',
+  sqlitePath: process.env.SQLITE_PATH || './data/artha.sqlite',
+  postgresUrl: process.env.DATABASE_URL || 'postgresql://user:pass@localhost:5432/artha',
   batchSize: parseInt(process.env.BATCH_SIZE || '1000'),
 };
 
@@ -469,7 +469,7 @@ migrateSqliteToPostgres(config)
 ### Step-by-Step Migration
 
 ```bash
-# Step 1: Stop OpenWA
+# Step 1: Stop Artha
 docker compose down
 
 # Step 2: Backup current data (both databases + session auth + media)
@@ -486,7 +486,7 @@ npx ts-node migrate-sqlite-to-postgres.ts
 export DATABASE_TYPE=postgres
 export DATABASE_HOST=localhost
 export DATABASE_PORT=5432
-export DATABASE_NAME=openwa
+export DATABASE_NAME=artha
 export DATABASE_USERNAME=user
 export DATABASE_PASSWORD=pass
 
@@ -565,32 +565,32 @@ Method 2. Copying rows between SQLite files by hand is not supported: the `sessi
 columns the copy would have to reproduce exactly, and a mismatch corrupts the row.
 
 Under the shipped compose the data directory lives in a named Docker volume
-(`openwa-data:/app/data`), not a host bind mount, so the profile is copied through the container
+(`artha-data:/app/data`), not a host bind mount, so the profile is copied through the container
 with `docker compose cp` rather than straight off the host filesystem. `APP_DIR` is the directory
 holding `docker-compose.yml` on each server; `SESSION_NAME` is the session `name` (resolve it via
 `GET /api/sessions/{id}` — the on-disk directory is keyed by name, not by the REST id).
 
 ```bash
-APP_DIR=/srv/openwa            # docker compose project directory on both hosts
+APP_DIR=/srv/artha            # docker compose project directory on both hosts
 SESSION_NAME=my-session
 
 # 1. Stop the app on both hosts. Use `stop`, not `down`: a running engine holds the profile open,
 #    but `down` removes the container that step 2 copies through.
-ssh old-server "cd $APP_DIR && docker compose stop openwa-api"
-ssh new-server "cd $APP_DIR && docker compose stop openwa-api"
+ssh old-server "cd $APP_DIR && docker compose stop artha-api"
+ssh new-server "cd $APP_DIR && docker compose stop artha-api"
 
 # 2. Copy the auth profile out of the source container, to the target host, and back in.
 #    whatsapp-web.js: /app/data/sessions/session-<name>.
 #    Baileys:         /app/data/baileys/<name> (no "session-" prefix).
 ssh old-server "cd $APP_DIR && docker compose cp \
-    openwa-api:/app/data/sessions/session-$SESSION_NAME ./session-$SESSION_NAME"
+    artha-api:/app/data/sessions/session-$SESSION_NAME ./session-$SESSION_NAME"
 rsync -avz --progress "old-server:$APP_DIR/session-$SESSION_NAME/" \
     "new-server:$APP_DIR/session-$SESSION_NAME/"
 ssh new-server "cd $APP_DIR && docker compose cp \
-    ./session-$SESSION_NAME openwa-api:/app/data/sessions/session-$SESSION_NAME"
+    ./session-$SESSION_NAME artha-api:/app/data/sessions/session-$SESSION_NAME"
 
 # 3. Start the target back up.
-ssh new-server "cd $APP_DIR && docker compose start openwa-api"
+ssh new-server "cd $APP_DIR && docker compose start artha-api"
 ```
 
 Delete the staging copies (`$APP_DIR/session-$SESSION_NAME` on both hosts) afterwards — they hold
@@ -614,9 +614,9 @@ curl -X POST 'http://new-server:2785/api/infra/import-data' \
   -d @data-backup.json
 
 # 2. Move the engine auth state with both instances stopped (Method 1), keyed by session NAME.
-#    OLD_DIR/NEW_DIR are each host's OpenWA working directory; SESSION_DATA_PATH defaults to
+#    OLD_DIR/NEW_DIR are each host's Artha working directory; SESSION_DATA_PATH defaults to
 #    ./data/sessions and BAILEYS_AUTH_DIR to ./data/baileys, relative to it. The production
-#    docker-compose.yml keeps /app/data in the named volume `openwa_openwa-data` rather than on the
+#    docker-compose.yml keeps /app/data in the named volume `artha_artha-data` rather than on the
 #    host, so on that layout copy through the container (`docker cp`) instead of a host path.
 rsync -avz "old-server:${OLD_DIR}/data/sessions/" "${NEW_DIR}/data/sessions/"
 rsync -avz "old-server:${OLD_DIR}/data/baileys/" "${NEW_DIR}/data/baileys/"   # Baileys sessions only
@@ -629,7 +629,7 @@ fresh QR code.
 
 ### Upgrade Matrix
 
-OpenWA is pre-1.0 — every release to date is on the `0.x` line. Under the project's SemVer 0.x policy a
+Artha is pre-1.0 — every release to date is on the `0.x` line. Under the project's SemVer 0.x policy a
 breaking change bumps the **minor** (`0.10.x` → `0.11.0`) and everything else is a patch, so a minor bump
 is the one that warrants reading the release notes closely.
 
@@ -666,7 +666,7 @@ docker compose down
 # 3. Move to the new version
 #    The repo's compose file BUILDS the API image from source:
 git pull && docker compose up -d --build
-#    Deployments pinned to a published image instead (ghcr.io/rmyndharis/openwa:<version>)
+#    Deployments pinned to a published image instead (ghcr.io/rmyndharis/artha:<version>)
 #    bump the tag in their compose file, then: docker compose pull && docker compose up -d
 
 # 4. Wait for health — every route lives under the /api prefix
@@ -694,7 +694,7 @@ Migrations can also be run explicitly against a stopped app — useful when a lo
 outlast an orchestrator's liveness grace:
 
 ```bash
-docker compose run --rm openwa-api npm run migration:run:prod
+docker compose run --rm artha-api npm run migration:run:prod
 ```
 
 > [!WARNING]
@@ -743,7 +743,7 @@ if [ -f "$BACKUP_DIR/database.sql" ]; then
     psql -h "$DATABASE_HOST" -U "$DATABASE_USERNAME" -d "$DATABASE_NAME" < "$BACKUP_DIR/database.sql"
 else
     # SQLite
-    cp "$BACKUP_DIR/openwa.sqlite" ./data/
+    cp "$BACKUP_DIR/artha.sqlite" ./data/
 fi
 
 # 3. Restore auth sessions (SESSION_DATA_PATH + BAILEYS_AUTH_DIR)
@@ -817,7 +817,7 @@ migration:
       command: |
         # Schema migrations run at boot, so a removed store is recreated from scratch
         docker compose down
-        rm -f ./data/openwa.sqlite
+        rm -f ./data/artha.sqlite
         docker compose up -d
 
     - name: Import into staging
@@ -832,7 +832,7 @@ migration:
         curl -X POST 'http://staging-host:2785/api/sessions/{sessionId}/webhooks' \
           -H "X-API-Key: $STAGING_API_KEY" \
           -H 'Content-Type: application/json' \
-          -d '{"url":"https://staging-webhook.example.com/openwa","events":["message.received"]}'
+          -d '{"url":"https://staging-webhook.example.com/artha","events":["message.received"]}'
 
     - name: Set staging rate limits
       note: |
@@ -1063,14 +1063,14 @@ async function fullImport(options: ImportOptions): Promise<void> {
 
 **Cause:** a deployment previously bootstrapped with `DATABASE_SYNCHRONIZE=true` on PostgreSQL has native `uuid` `id`/FK columns (TypeORM derives them from `@PrimaryGeneratedColumn('uuid')`), while the migration chain assumes `varchar`. The two are incompatible, and migrations run unconditionally on the Postgres data connection (`migrationsRun: true`), so boot cannot complete (issue #690).
 
-**Fix (automatic for most deployments):** OpenWA ships a guard migration (`NormalizeSynchronizeUuidColumns`, ordered before the first collision) that converts the affected `uuid` columns to `varchar` on the next boot. For small-to-medium databases this is transparent — upgrade and restart.
+**Fix (automatic for most deployments):** Artha ships a guard migration (`NormalizeSynchronizeUuidColumns`, ordered before the first collision) that converts the affected `uuid` columns to `varchar` on the next boot. For small-to-medium databases this is transparent — upgrade and restart.
 
 **Large-database maintenance window:** the conversion rewrites `messages` and `message_batches` in full under an exclusive lock. If either table is large (millions of rows) and your orchestrator's liveness/readiness grace is tight, run the migration against the stopped app during a planned window:
 
 ```bash
 docker compose down
 DATABASE_TYPE=postgres DATABASE_HOST=... DATABASE_USERNAME=... \
-  DATABASE_PASSWORD=... DATABASE_NAME=openwa npm run migration:run
+  DATABASE_PASSWORD=... DATABASE_NAME=artha npm run migration:run
 docker compose up -d
 ```
 
@@ -1082,14 +1082,14 @@ docker compose up -d
 
 ```bash
 # Check database integrity
-sqlite3 ./data/openwa.sqlite "PRAGMA integrity_check;"
+sqlite3 ./data/artha.sqlite "PRAGMA integrity_check;"
 
 # Verify auth session files (directories are named after the session NAME)
 ls -la ./data/sessions/session-*/
 ls -la ./data/baileys/          # Baileys engine
 
 # Check file permissions
-stat ./data/openwa.sqlite
+stat ./data/artha.sqlite
 stat ./data/sessions
 
 # Verify PostgreSQL connection

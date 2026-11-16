@@ -46,7 +46,7 @@ import { randomUUID } from 'crypto';
 import { generatedEnvPath, readGeneratedEnv } from './generated-env';
 
 interface InfraStatus {
-  // `builtIn` reflects whether OpenWA's own bundled container is actually running and backing this
+  // `builtIn` reflects whether Artha's own bundled container is actually running and backing this
   // service (detected live from the labeled container), not merely the saved intent. Falls back to the
   // saved flag when Docker is unavailable. (#488)
   database: { connected: boolean; type: string; host: string; builtIn: boolean };
@@ -979,7 +979,7 @@ export class InfraController implements OnApplicationBootstrap {
         .sort()
         .map(key => `${key}=${merged[key]}`);
       const contents = [
-        '# OpenWA Configuration',
+        '# Artha Configuration',
         `# Generated at ${new Date().toISOString()}`,
         '# Managed via Dashboard > Infrastructure. Values in process env or project .env take precedence.',
         '',
@@ -1058,7 +1058,7 @@ export class InfraController implements OnApplicationBootstrap {
       // otherwise tear down the very backend the app is running on. (Known minor limitation: switching
       // away from a built-in backend and then reloading the page before restarting can leave the old
       // container running until the next explicit change.)
-      // Only ever tear down OpenWA-managed services. An arbitrary profile name (or the empty string)
+      // Only ever tear down Artha-managed services. An arbitrary profile name (or the empty string)
       // would otherwise reach stopManagedService and, via container-name matching, could stop an unrelated
       // container — so constrain teardown to the managed allowlist and drop anything else.
       const requested = profilesToRemove.filter(p => !profiles.includes(p));

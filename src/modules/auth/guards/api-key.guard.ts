@@ -9,6 +9,7 @@ import { ApiKeyRole } from '../entities/api-key.entity';
 import { Session } from '../../session/entities/session.entity';
 import { REQUIRED_ROLE_KEY, PUBLIC_KEY, SESSION_SCOPED_KEY, UNSCOPED_KEY } from '../decorators/auth.decorators';
 import { resolveClientIp } from '../../../common/utils/ip';
+import { canUseFeature, featureOfController, isCustomerKey } from '../features';
 import { setRequestActor } from '../../../common/services/request-context';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
@@ -79,10 +80,21 @@ export class ApiKeyGuard implements CanActivate {
     const clientIp = this.getClientIp(request);
 
     // Validate API key
-    const apiKey = await this.authService.validateApiKey(apiKeyHeader, clientIp, sessionId);
+    let apiKey = await this.authService.validateApiKey(apiKeyHeader, clientIp, sessionId);
 
     if (requiredRole && !this.authService.hasPermission(apiKey, requiredRole)) {
       throw new ForbiddenException(`Insufficient permissions. Required: ${requiredRole}`);
+    }
+
+    // Admin routes are server-wide (key management, infra, settings…), so a customer key never uses
+    // them, even if its stored role says admin (creation already refuses that).
+    if (requiredRole === ApiKeyRole.ADMIN && isCustomerKey(apiKey)) {
+      throw new ForbiddenException('Super admin API key required');
+    }
+
+    const feature = featureOfController(context.getClass());
+    if (!canUseFeature(apiKey.allowedFeatures ?? null, feature)) {
+      throw new ForbiddenException(`Feature not enabled for this API key: ${feature ?? 'unclassified'}`);
     }
 
     // Routes marked @RequireUnscopedKey carry no session dimension, so the allowedSessions check
@@ -102,9 +114,21 @@ export class ApiKeyGuard implements CanActivate {
         where: { id: sessionId },
         select: { id: true, businessId: true },
       });
-      if (session && session.businessId && session.businessId !== apiKey.businessId) {
+      // A customer key only reaches its own business's sessions — not other tenants', and not the
+      // super admin's unassigned (businessId null) ones. Older business keys keep legacy access to
+      // unassigned sessions.
+      const foreign = isCustomerKey(apiKey)
+        ? session && session.businessId !== apiKey.businessId
+        : session && session.businessId && session.businessId !== apiKey.businessId;
+      if (foreign) {
         throw new ForbiddenException('API key not authorized for this business session');
       }
+    }
+
+    // Confine a customer key's list/search/stats reads to its own sessions (after the unscoped-key
+    // check above, which is about the key's stored scope). A copy, so the stored key is untouched.
+    if (isCustomerKey(apiKey)) {
+      apiKey = { ...apiKey, allowedSessions: await this.authService.effectiveSessionScope(apiKey) };
     }
 
     // Attach API key to request for use in controllers

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OpenWA\Tests;
+namespace Artha\Tests;
 
-use OpenWA\Exceptions\OpenWANotFoundException;
+use Artha\Exceptions\ArthaNotFoundException;
 use PHPUnit\Framework\TestCase;
 
 class ProfileCallsTest extends TestCase
@@ -56,7 +56,7 @@ class ProfileCallsTest extends TestCase
             'message' => 'Call not found or no longer ringing',
             'error' => 'Not Found',
         ]);
-        $this->expectException(OpenWANotFoundException::class);
+        $this->expectException(ArthaNotFoundException::class);
         $backend->makeClient()->calls->rejectCall('s', 'missing');
     }
 }

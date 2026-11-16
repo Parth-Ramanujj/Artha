@@ -19,7 +19,7 @@ const OK = { status: 0, signal: null, error: null };
 
 /** Bare temp dir optionally holding a dashboard/ and/or the patch script. */
 function makeRoot({ dashboard = false, patcher = false, previewPatcher = false, mediaPatcher = false } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'openwa-postinstall-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'artha-postinstall-'));
   if (dashboard) fs.mkdirSync(path.join(root, 'dashboard'));
   if (patcher || previewPatcher || mediaPatcher) {
     fs.mkdirSync(path.join(root, 'scripts'));

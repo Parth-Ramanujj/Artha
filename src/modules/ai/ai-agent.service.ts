@@ -174,7 +174,7 @@ export class AiAgentService {
   ): Promise<{ reply: string; latencyMs: number }> {
     const agent = await this.find(businessId, id);
     const started = Date.now();
-    const reply = await this.replyFor(agent, message, history, 'openwa-test-chat', 'test');
+    const reply = await this.replyFor(agent, message, history, 'artha-test-chat', 'test');
     return { reply, latencyMs: Date.now() - started };
   }
 
@@ -190,9 +190,9 @@ export class AiAgentService {
     try {
       const reply = await this.callExternal(
         agent,
-        'Hello, this is a connection test from OpenWA.',
+        'Hello, this is a connection test from Artha.',
         [],
-        'openwa-test-chat',
+        'artha-test-chat',
         'test',
       );
       result = { ok: true, latencyMs: Date.now() - started, reply };

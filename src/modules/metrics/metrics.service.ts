@@ -10,7 +10,7 @@ import {
 import { renderHttpRequestMetrics } from '../../common/metrics/request-metrics';
 
 /**
- * Prometheus exposition for OpenWA. Kept dependency-free (no prom-client) — the
+ * Prometheus exposition for Artha. Kept dependency-free (no prom-client) — the
  * surface is small and the text format (v0.0.4) is trivial to emit by hand.
  *
  * Scraping is gated by METRICS_TOKEN: when it is unset the endpoint is disabled entirely
@@ -77,7 +77,7 @@ export class MetricsService {
       lines.push(`${name}${labels} ${value}`);
     };
 
-    gauge('openwa_up', 'Whether the OpenWA process is up (always 1 when scraped).', 1);
+    gauge('openwa_up', 'Whether the Artha process is up (always 1 when scraped).', 1);
     gauge('openwa_process_uptime_seconds', 'Process uptime in seconds.', Math.round(process.uptime()));
     gauge('openwa_process_resident_memory_bytes', 'Resident set size in bytes.', mem.rss);
     gauge('openwa_process_heap_used_bytes', 'V8 heap used in bytes.', mem.heapUsed);

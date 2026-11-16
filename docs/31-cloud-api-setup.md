@@ -1,6 +1,6 @@
 # WhatsApp Cloud API Setup Guide
 
-Step-by-step guide to connect Artha (OpenWA) with the **official WhatsApp Cloud API** (Meta Graph API). This engine uses Meta's own infrastructure — no Chromium, no QR code, no ban risk.
+Step-by-step guide to connect Artha (Artha) with the **official WhatsApp Cloud API** (Meta Graph API). This engine uses Meta's own infrastructure — no Chromium, no QR code, no ban risk.
 
 ---
 

@@ -1,4 +1,4 @@
-# OpenWA - Local smoke / quick-start compose
+# Artha - Local smoke / quick-start compose
 #
 # This builds and runs the PRODUCTION image (same Dockerfile) against a local SQLite DB
 # with a bind-mounted ./data — it is a single-container local smoke test, NOT a
@@ -67,7 +67,7 @@ services:
       - SESSION_DATA_PATH=${SESSION_DATA_PATH:-/app/data/sessions}
       - PUPPETEER_HEADLESS=${PUPPETEER_HEADLESS:-true}
       - PUPPETEER_ARGS=${PUPPETEER_ARGS:---no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu}
-      # Optional WhatsApp Web version override. DEFAULT (empty, "latest", or "auto"): OpenWA auto-resolves a
+      # Optional WhatsApp Web version override. DEFAULT (empty, "latest", or "auto"): Artha auto-resolves a
       # settled build from the third-party wppconnect-team/wa-version registry and pins its remote HTML
       # (fetched into the web.whatsapp.com origin without an integrity check). Set "off" to disable pinning
       # and use the first-party build served by WhatsApp, or an exact version to pin a specific build.

@@ -260,7 +260,7 @@ export function SyncManager() {
   };
 
   const copyAppsScript = () => {
-    const code = `// Google Apps Script for OpenWA WhatsApp Webhook Sync
+    const code = `// Google Apps Script for Artha WhatsApp Webhook Sync
 function doPost(e) {
   try {
     var payload = JSON.parse(e.postData.contents);
@@ -1134,7 +1134,7 @@ function doPost(e) {
                 placeholder="https://script.google.com/macros/s/... or https://hooks.zapier.com/..."
               />
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>
-                When triggered, OpenWA will HTTP POST real JSON batches directly to this endpoint. Leave blank to maintain a downloadable database snapshot.
+                When triggered, Artha will HTTP POST real JSON batches directly to this endpoint. Leave blank to maintain a downloadable database snapshot.
               </span>
             </label>
 

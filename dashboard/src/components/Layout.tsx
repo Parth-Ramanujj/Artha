@@ -60,11 +60,13 @@ import { type UserRole } from '../hooks/useRole';
 import { languageOptions, resolveSupportedLanguage, rtlLanguages, type SupportedLanguage } from '../i18n';
 import { healthApi } from '../services/api';
 import { TopConnectionBar } from './TopConnectionBar';
+import { isRouteAllowed } from '../utils/features';
 import './Layout.css';
 
 interface LayoutProps {
   onLogout: () => void;
   userRole: UserRole | null;
+  allowedFeatures: string[] | null;
 }
 
 const allNavItems = [
@@ -165,7 +167,7 @@ const OPEN_SECTIONS_KEY = 'sidebar-open-sections';
 
 const themeIcons = { light: Sun, dark: Moon, system: Monitor };
 
-export function Layout({ onLogout, userRole }: LayoutProps) {
+export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
   const { t, i18n } = useTranslation();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const ThemeIcon = themeIcons[theme];
@@ -200,7 +202,7 @@ export function Layout({ onLogout, userRole }: LayoutProps) {
       ...section,
       items: section.paths
         .map(path => allNavItems.find(item => item.to === path))
-        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin')),
+        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin') && isRouteAllowed(item.to, allowedFeatures)),
     }))
     .filter(group => group.items.length > 0);
 

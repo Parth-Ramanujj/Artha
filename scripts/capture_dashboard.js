@@ -19,7 +19,7 @@ async function capture() {
   console.log('Navigating to login...');
   await page.goto('http://127.0.0.1:2785/', { waitUntil: 'domcontentloaded' });
   await page.evaluate((key) => {
-    sessionStorage.setItem('openwa_api_key', key);
+    sessionStorage.setItem('artha_api_key', key);
   }, API_KEY);
 
   const pages = [

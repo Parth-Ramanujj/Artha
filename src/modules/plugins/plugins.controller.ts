@@ -25,7 +25,7 @@ const MAX_PLUGIN_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 @ApiTags('plugins')
 @Controller('plugins')
-// Plugin installation and lifecycle are deployment-global and execute plugin code as the OpenWA
+// Plugin installation and lifecycle are deployment-global and execute plugin code as the Artha
 // process user, so session-restricted keys are fenced off route by route below. The fence is NOT
 // applied at class level because @RequireUnscopedKey takes no argument and cannot be opted out of:
 // `updateSessions` is fenced too (it overwrites the ENTIRE active set, so a scoped key could delete

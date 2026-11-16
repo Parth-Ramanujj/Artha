@@ -160,6 +160,8 @@ export interface ApiKey {
   role: 'admin' | 'operator' | 'viewer';
   allowedIps?: string[];
   allowedSessions?: string[];
+  businessId?: string | null;
+  allowedFeatures?: string[] | null;
   isActive: boolean;
   expiresAt?: string;
   lastUsedAt?: string;
@@ -608,7 +610,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get API key from sessionStorage for authentication
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const apiKey = sessionStorage.getItem('artha_api_key');
 
   // For FormData (file uploads) let the browser set multipart/form-data + boundary itself.
   const isFormData = options.body instanceof FormData;
@@ -623,7 +625,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (response.status === 401) {
     // The stored API key is invalid/expired/revoked — clear it and return to login
     // so the user isn't stuck on a dashboard that 401s every request.
-    sessionStorage.removeItem('openwa_api_key');
+    sessionStorage.removeItem('artha_api_key');
     if (typeof window !== 'undefined') {
       window.location.assign('/');
       // The page is navigating away — halt this request's promise chain so callers neither
@@ -664,13 +666,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 /** Like {@link request} but returns the raw response text — e.g. a plugin's HTML config-UI bundle. */
 async function requestText(endpoint: string): Promise<string> {
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const apiKey = sessionStorage.getItem('artha_api_key');
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: { ...(apiKey ? { 'X-API-Key': apiKey } : {}) },
   });
 
   if (response.status === 401) {
-    sessionStorage.removeItem('openwa_api_key');
+    sessionStorage.removeItem('artha_api_key');
     if (typeof window !== 'undefined') {
       window.location.assign('/');
       return new Promise<string>(() => {});
@@ -690,7 +692,7 @@ async function requestBlob(endpoint: string): Promise<Blob> {
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get API key from sessionStorage for authentication
-  const apiKey = sessionStorage.getItem('openwa_api_key');
+  const apiKey = sessionStorage.getItem('artha_api_key');
 
   const headers: HeadersInit = {
     ...(apiKey ? { 'X-API-Key': apiKey } : {}),
@@ -700,7 +702,7 @@ async function requestBlob(endpoint: string): Promise<Blob> {
 
   if (response.status === 401) {
     // The stored API key is invalid/expired/revoked — clear it and return to login
-    sessionStorage.removeItem('openwa_api_key');
+    sessionStorage.removeItem('artha_api_key');
     if (typeof window !== 'undefined') {
       window.location.assign('/');
       // Halt this request's promise chain so callers neither throw nor receive an undefined payload.
@@ -910,6 +912,8 @@ export const apiKeyApi = {
     allowedIps?: string[];
     allowedSessions?: string[];
     expiresAt?: string;
+    businessId?: string;
+    allowedFeatures?: string[];
   }) =>
     request<ApiKey>('/auth/api-keys', {
       method: 'POST',

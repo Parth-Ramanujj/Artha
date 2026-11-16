@@ -159,7 +159,7 @@ export class SyncService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'OpenWA-SyncEngine/1.0',
+            'User-Agent': 'Artha-SyncEngine/1.0',
           },
           body: JSON.stringify({
             event: 'sync.batch',

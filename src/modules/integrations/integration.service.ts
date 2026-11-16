@@ -117,7 +117,7 @@ export class IntegrationService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'OpenWA-Integration-Probe/1.0',
+            'User-Agent': 'Artha-Integration-Probe/1.0',
             ...(integration.config?.apiKey
               ? { Authorization: `Bearer ${scalarToString(integration.config.apiKey)}` }
               : {}),

@@ -186,7 +186,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     fields: Record<string, string>,
     file: { filename: string; contentType: string; data: Buffer },
   ): Promise<T> {
-    const boundary = `----openwa${randomUUID()}`;
+    const boundary = `----artha${randomUUID()}`;
     const crlf = '\r\n';
     const parts: Uint8Array[] = Object.entries(fields).map(([name, value]) =>
       Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="${name}"${crlf}${crlf}${value}${crlf}`),

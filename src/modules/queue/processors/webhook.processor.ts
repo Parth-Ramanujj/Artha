@@ -13,6 +13,7 @@ import { recordWebhookDeliveryFailure, statusCodeFromError } from '../../webhook
 import { HookManager } from '../../../core/hooks';
 import { withSafeFetch, isSsrfProtectionEnabled, redactSsrfError } from '../../../common/security/ssrf-guard';
 import { incrementWebhookDeliveryFailures } from '../../../common/metrics/webhook-delivery-metrics';
+import { withLegacyHeaders } from '../../webhook/utils/legacy-headers';
 
 export interface WebhookJobResult {
   statusCode: number;
@@ -66,7 +67,7 @@ export class WebhookProcessor extends WorkerHost {
     // Update retry count in headers
     const requestHeaders = {
       ...headers,
-      'X-OpenWA-Retry-Count': String(job.attemptsMade),
+      'X-Artha-Retry-Count': String(job.attemptsMade),
     };
 
     try {
@@ -74,7 +75,7 @@ export class WebhookProcessor extends WorkerHost {
         url,
         {
           method: 'POST',
-          headers: requestHeaders,
+          headers: withLegacyHeaders(requestHeaders),
           body: JSON.stringify(payload),
           // Honor WEBHOOK_TIMEOUT on the primary (queued) path too — not just the deprecated direct one.
           signal: AbortSignal.timeout(this.configService.get<number>('webhook.timeout', 10000)),

@@ -53,8 +53,8 @@ export function waLink(phone: string, prefillText: string, ref: string): string 
 /** Self-contained floating WhatsApp button; `href` is our own tracking redirect. */
 export function widgetScript(href: string, label: string): string {
   const cfg = JSON.stringify({ href, label });
-  return `(function(){var c=${cfg};if(document.getElementById('openwa-chat-btn'))return;
-var a=document.createElement('a');a.id='openwa-chat-btn';a.href=c.href;a.target='_blank';a.rel='noopener';
+  return `(function(){var c=${cfg};if(document.getElementById('artha-chat-btn'))return;
+var a=document.createElement('a');a.id='artha-chat-btn';a.href=c.href;a.target='_blank';a.rel='noopener';
 a.setAttribute('aria-label',c.label);a.title=c.label;
 a.style.cssText='position:fixed;right:20px;bottom:20px;z-index:2147483647;width:56px;height:56px;border-radius:50%;background:#25D366;box-shadow:0 4px 12px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center';
 a.innerHTML='<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.7-.1l.9-1.1c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.6.3.1.2.1.7-.1 1.3z"/></svg>';

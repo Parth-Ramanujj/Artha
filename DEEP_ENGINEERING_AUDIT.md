@@ -1,6 +1,6 @@
 # UNIVERSAL DEEP ENGINEERING INTELLIGENCE AUDIT (V2)
-**Project:** OpenWA / Artha WhatsApp Business Automation Platform  
-**Target Root:** `d:\testing\OpenWA`  
+**Project:** Artha / Artha WhatsApp Business Automation Platform  
+**Target Root:** `d:\testing\Artha`  
 **Audit Date:** October 15, 2026  
 **Auditor Roles:** Principal Software Architect, Staff Systems Engineer, Senior QA Automation Lead, Application Security Engineer, Performance & Database Reliability Engineer  
 **Audit Mode:** READ-ONLY COMPREHENSIVE REPOSITORY AUDIT (Phase A through Phase D Complete)  
@@ -10,7 +10,7 @@
 
 ## 1. EXECUTIVE SUMMARY
 
-An exhaustive, evidence-driven, read-only engineering audit was conducted on the OpenWA / Artha WhatsApp Business Automation platform across all architectural tiers: NestJS backend microservices, Puppeteer/Baileys/Cloud API engine adapters, dual TypeORM database layers, DAG workflow execution engines, AI Copilot & Autonomous Agent pipelines, and the React 19 / TypeScript / Vite frontend application.
+An exhaustive, evidence-driven, read-only engineering audit was conducted on the Artha / Artha WhatsApp Business Automation platform across all architectural tiers: NestJS backend microservices, Puppeteer/Baileys/Cloud API engine adapters, dual TypeORM database layers, DAG workflow execution engines, AI Copilot & Autonomous Agent pipelines, and the React 19 / TypeScript / Vite frontend application.
 
 ### Key Audit Findings & Verifications:
 1. **Engine Core & Multi-Engine Hybrid Architecture:** The platform operates a dual-engine architecture supporting both browser automation (`whatsapp-web.js` + Puppeteer) and direct protocol WebSockets (`baileys`), alongside Meta's official WhatsApp Business Cloud API. The active production daemon (`node dist/main.js` running on PID 15456/port 2785) is authenticated to active session `45b5630b-5f4b-4875-8d50-b1e053a1005e` (`padosi`, phone: `919227102108`), verified live and operational.
@@ -75,7 +75,7 @@ graph TD
 
     subgraph Persistence Layer
         RFG -->|Auth & Audit| DBM[main.sqlite<br/>API Keys, Audit Logs]
-        WE -->|App Data| DBD[openwa.sqlite / PostgreSQL<br/>49 Domain Entities]
+        WE -->|App Data| DBD[artha.sqlite / PostgreSQL<br/>49 Domain Entities]
         MM -->|App Data| DBD
         CRM -->|App Data| DBD
         SC -->|App Data| DBD
@@ -226,7 +226,7 @@ graph TD
 - **Connection 1 (`main`):** Synchronous SQLite connection (`better-sqlite3`, `./data/main.sqlite`). Stores sensitive operational credentials:
   - `api_keys`: Contains hashed keys (`key_hash`), salt, role, allowed IP CIDRs, expiration timestamps.
   - `audit_logs`: Append-only immutable log of every administrative API action.
-- **Connection 2 (`data`):** Pluggable TypeORM connection (`openwa.sqlite` in dev/local, PostgreSQL in production).
+- **Connection 2 (`data`):** Pluggable TypeORM connection (`artha.sqlite` in dev/local, PostgreSQL in production).
   - 49 domain tables including `sessions`, `messages`, `contacts`, `conversations`, `deals`, `workflows`, `campaigns`, `ai_agents`.
   - Compound indexing on `(sessionId, timestamp)` and `(businessId, createdAt)` ensures $O(\log N)$ retrieval on conversation message queries.
 
@@ -295,7 +295,7 @@ npm run build
 | :--- | :--- | :--- |
 | **Process Supervision** | **HIGH** | NestJS process runs with unhandled exception hooks and graceful shutdown handlers (`SIGTERM`, `SIGINT`). |
 | **Session Persistence**| **HIGH** | WhatsApp Web session tokens are persisted in `./data/sessions/` ensuring zero QR re-scans on server reboot. |
-| **Backup & Restore** | **HIGH** | SQLite databases (`main.sqlite`, `openwa.sqlite`) can be backed up online using SQLite Online Backup API or volume snapshots. |
+| **Backup & Restore** | **HIGH** | SQLite databases (`main.sqlite`, `artha.sqlite`) can be backed up online using SQLite Online Backup API or volume snapshots. |
 | **Disaster Recovery** | **MEDIUM-HIGH**| In the event of process crash, session mutex auto-releases after 30 seconds; state resumes from SQLite WAL journal. |
 
 ---

@@ -1,4 +1,4 @@
-🚀 Stop paying per WhatsApp message. Meet Artha (OpenWA) — the free, 100% open-source WhatsApp API Gateway designed for developers.
+🚀 Stop paying per WhatsApp message. Meet Artha (Artha) — the free, 100% open-source WhatsApp API Gateway designed for developers.
 
 Built with NestJS and Node 22, Artha gives you multi-session WhatsApp management, unified REST APIs, HMAC webhooks, and pluggable storage (SQLite, PostgreSQL, S3, Redis). Plus, autonomous AI agent pipelines with Groq & OpenAI model support.
 

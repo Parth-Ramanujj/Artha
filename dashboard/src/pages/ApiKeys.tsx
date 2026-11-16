@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,7 +21,9 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import type { ApiKey } from '../services/api';
+import { businessApi, type ApiKey } from '../services/api';
+import { FEATURE_IDS } from '../utils/features';
+import { EXPIRY_UNITS, expiresAtFrom, type ExpiryUnit } from '../utils/expiry';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
   useApiKeysQuery,
@@ -35,6 +38,14 @@ import { copyToClipboard } from '../utils/clipboard';
 import './ApiKeys.css';
 
 const roleNames = ['admin', 'operator', 'viewer'] as const;
+const emptyKey = {
+  name: '',
+  role: 'operator',
+  businessId: '',
+  expiryAmount: '30',
+  expiryUnit: 'days' as ExpiryUnit,
+  features: [] as string[],
+};
 
 function useWindowSize() {
   const [width, setWidth] = useState(window.innerWidth);
@@ -58,7 +69,17 @@ export function ApiKeys() {
   const revokeMutation = useRevokeApiKeyMutation();
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [showModal, setShowModal] = useState(false);
-  const [newKey, setNewKey] = useState({ name: '', role: 'operator' });
+  const [newKey, setNewKey] = useState(emptyKey);
+  const { data: businesses = [] } = useQuery({
+    queryKey: ['businesses'],
+    queryFn: businessApi.list,
+    staleTime: 30_000,
+  });
+  const toggleFeature = (feature: string) =>
+    setNewKey(k => ({
+      ...k,
+      features: k.features.includes(feature) ? k.features.filter(f => f !== feature) : [...k.features, feature],
+    }));
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'revoke'; id: string; name: string } | null>(
@@ -74,12 +95,23 @@ export function ApiKeys() {
     setColumnVisibility({ key: !isSmall, lastUsed: !isMobile });
   }, [isMobile, isSmall]);
 
+  const expiryValid = expiresAtFrom(newKey.expiryAmount, newKey.expiryUnit) !== null;
+
   const handleCreate = async () => {
-    if (!newKey.name) return;
+    // Computed at click time, so "5 minutes" means five minutes from creation, not from opening the form.
+    const expiresAt = expiresAtFrom(newKey.expiryAmount, newKey.expiryUnit);
+    if (!newKey.name || expiresAt === null) return;
     try {
-      const created = await createMutation.mutateAsync({ name: newKey.name, role: newKey.role });
+      // A customer (business) key carries its approved features; a platform (super admin) key has none.
+      const forBusiness = newKey.businessId !== '';
+      const created = await createMutation.mutateAsync({
+        name: newKey.name,
+        role: newKey.role,
+        ...(forBusiness && { businessId: newKey.businessId, allowedFeatures: newKey.features }),
+        ...(expiresAt && { expiresAt }),
+      });
       setCreatedKey(created.apiKey || null);
-      setNewKey({ name: '', role: 'operator' });
+      setNewKey(emptyKey);
     } catch (err) {
       console.error('Failed to create:', err);
       toast.error(t('apiKeys.createBtn'), err instanceof Error ? err.message : t('common.unknownError'));
@@ -156,6 +188,32 @@ export function ApiKeys() {
         header: () => t('apiKeys.columns.role'),
         cell: info => <span className="permission-badge">{info.getValue()}</span>,
       }),
+      columnHelper.display({
+        id: 'access',
+        header: () => t('apiKeys.columns.access'),
+        cell: info => {
+          const apiKey = info.row.original;
+          const expired = !!apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date();
+          const business = businesses.find(b => b.id === apiKey.businessId)?.name ?? apiKey.businessId;
+          return (
+            <span className="access-cell">
+              <span>{apiKey.businessId ? business : t('apiKeys.access.platform')}</span>
+              <small>
+                {apiKey.allowedFeatures == null
+                  ? t('apiKeys.access.allFeatures')
+                  : t('apiKeys.access.featureCount', { count: apiKey.allowedFeatures.length })}
+                {' · '}
+                {apiKey.expiresAt
+                  ? t(expired ? 'apiKeys.access.expired' : 'apiKeys.access.expires', {
+                      // Time too: keys can now live for minutes or hours.
+                      date: new Date(apiKey.expiresAt).toLocaleString(),
+                    })
+                  : t('apiKeys.access.noExpiry')}
+              </small>
+            </span>
+          );
+        },
+      }),
       columnHelper.accessor('isActive', {
         header: () => t('apiKeys.columns.status'),
         cell: info => (
@@ -203,7 +261,7 @@ export function ApiKeys() {
         },
       }),
     ],
-    [visibleKeys, t],
+    [visibleKeys, t, businesses],
   );
 
   const table = useReactTable({
@@ -263,7 +321,7 @@ export function ApiKeys() {
                 <button
                   className="btn-primary"
                   onClick={handleCreate}
-                  disabled={createMutation.isPending || !newKey.name}
+                  disabled={createMutation.isPending || !newKey.name || !expiryValid}
                 >
                   {createMutation.isPending ? <Loader2 className="animate-spin" size={16} /> : t('common.create')}
                 </button>
@@ -302,12 +360,72 @@ export function ApiKeys() {
               />
               <label>{t('common.role')}</label>
               <select value={newKey.role} onChange={e => setNewKey({ ...newKey, role: e.target.value })}>
-                {roleNames.map(r => (
-                  <option key={r} value={r}>
-                    {t(`apiKeys.roles.${r}`)}
+                {roleNames
+                  // Customer keys are never admin: admin routes are server-wide (the API refuses it too).
+                  .filter(r => !(newKey.businessId && r === 'admin'))
+                  .map(r => (
+                    <option key={r} value={r}>
+                      {t(`apiKeys.roles.${r}`)}
+                    </option>
+                  ))}
+              </select>
+              <label htmlFor="apiKeyBusiness">{t('apiKeys.access.business')}</label>
+              <select
+                id="apiKeyBusiness"
+                value={newKey.businessId}
+                onChange={e =>
+                  setNewKey({
+                    ...newKey,
+                    businessId: e.target.value,
+                    role: e.target.value && newKey.role === 'admin' ? 'operator' : newKey.role,
+                  })
+                }
+              >
+                <option value="">{t('apiKeys.access.platform')}</option>
+                {businesses.map(b => (
+                  <option key={b.id} value={b.id} disabled={!b.isActive}>
+                    {b.name}
                   </option>
                 ))}
               </select>
+              <label htmlFor="apiKeyExpiryAmount">{t('apiKeys.access.validity')}</label>
+              <div className="expiry-row">
+                {newKey.expiryUnit !== 'never' && (
+                  <input
+                    id="apiKeyExpiryAmount"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={newKey.expiryAmount}
+                    onChange={e => setNewKey({ ...newKey, expiryAmount: e.target.value })}
+                    aria-invalid={!expiryValid}
+                  />
+                )}
+                <select
+                  aria-label={t('apiKeys.access.validityUnit')}
+                  value={newKey.expiryUnit}
+                  onChange={e => setNewKey({ ...newKey, expiryUnit: e.target.value as ExpiryUnit })}
+                >
+                  {EXPIRY_UNITS.map(u => (
+                    <option key={u} value={u}>
+                      {t(`apiKeys.access.units.${u}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!expiryValid && <span className="expiry-error">{t('apiKeys.access.validityInvalid')}</span>}
+              {newKey.businessId && (
+                <fieldset className="feature-grid">
+                  <legend>{t('apiKeys.access.features')}</legend>
+                  <p className="feature-hint">{t('apiKeys.access.featuresHint')}</p>
+                  {FEATURE_IDS.map(f => (
+                    <label key={f} className="feature-option">
+                      <input type="checkbox" checked={newKey.features.includes(f)} onChange={() => toggleFeature(f)} />
+                      {t(`apiKeys.featureNames.${f}`)}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
             </>
           )}
         </Modal>
@@ -383,7 +501,9 @@ export function ApiKeys() {
           </div>
           <p className="confirm-message">
             <Trans
-              i18nKey={confirmAction.type === 'delete' ? 'apiKeys.confirm.deleteMessage' : 'apiKeys.confirm.revokeMessage'}
+              i18nKey={
+                confirmAction.type === 'delete' ? 'apiKeys.confirm.deleteMessage' : 'apiKeys.confirm.revokeMessage'
+              }
               values={{ name: confirmAction.name }}
               components={{ strong: <strong /> }}
             />

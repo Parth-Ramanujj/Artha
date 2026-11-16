@@ -594,7 +594,8 @@
       "role": "Role",
       "status": "Status",
       "lastUsed": "Last Used",
-      "actions": "Actions"
+      "actions": "Actions",
+      "access": "एक्सेस"
     },
     "statuses": {
       "active": "Active",
@@ -616,6 +617,46 @@
       "copy": "Copy",
       "revoke": "Revoke",
       "delete": "Delete"
+    },
+    "access": {
+      "business": "ग्राहक का बिज़नेस",
+      "platform": "प्लेटफ़ॉर्म (सुपर एडमिन)",
+      "validity": "वैधता",
+      "noExpiry": "कोई समय-सीमा नहीं",
+      "expires": "{{date}} को समाप्त",
+      "expired": "{{date}} को समाप्त हो गई",
+      "features": "मंज़ूर फीचर्स",
+      "featuresHint": "सेशन और मैसेजिंग हमेशा शामिल हैं। ग्राहक ने जो लिया है वही चुनें।",
+      "allFeatures": "सभी फीचर्स",
+      "featureCount_one": "{{count}} फीचर",
+      "featureCount_other": "{{count}} फीचर्स",
+      "validityUnit": "वैधता की इकाई",
+      "validityInvalid": "1 या उससे बड़ी पूर्ण संख्या लिखें",
+      "units": {
+        "minutes": "मिनट",
+        "hours": "घंटे",
+        "days": "दिन",
+        "never": "कोई समय-सीमा नहीं"
+      }
+    },
+    "featureNames": {
+      "webhooks": "वेबहुक्स",
+      "templates": "टेम्पलेट्स",
+      "messageStudio": "मैसेज स्टूडियो",
+      "whatsappForms": "WhatsApp फॉर्म्स",
+      "conversations": "इनबॉक्स और CRM",
+      "support": "SLA, अलर्ट और फीडबैक",
+      "followup": "फॉलो-अप रिकवरी",
+      "workflows": "वर्कफ़्लो और A/B टेस्ट",
+      "campaigns": "कैंपेन",
+      "ai": "AI और AI एजेंट",
+      "aiCalling": "AI कॉलिंग",
+      "customerCare": "कस्टमर केयर",
+      "salesAgent": "सेल्स एजेंट",
+      "googleBusiness": "Google Business",
+      "library": "लाइब्रेरी",
+      "growth": "ग्रोथ",
+      "integrations": "इंटीग्रेशन"
     }
   },
   "logs": {

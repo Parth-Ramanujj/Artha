@@ -6,7 +6,7 @@
  */
 
 import { encodeSegment } from '../http.js';
-import type { OpenWAClient } from '../client.js';
+import type { ArthaClient } from '../client.js';
 import type {
   CreateSessionRequest,
   PairingCodeResponse,
@@ -17,7 +17,7 @@ import type {
 } from '../types.js';
 
 export class SessionsResource {
-  constructor(private readonly client: OpenWAClient) {}
+  constructor(private readonly client: ArthaClient) {}
 
   /** List all sessions (scoped to the API key's `allowedSessions`). */
   list(): Promise<SessionResponse[]> {

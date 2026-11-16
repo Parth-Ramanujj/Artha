@@ -1090,7 +1090,7 @@ function NodeInspectorBody({
       phone: '{{phone}}',
       name: '{{name}}',
       message: '{{message}}',
-      source: 'OpenWA_Workflow',
+      source: 'Artha_Workflow',
     };
     updateConfig('body', JSON.stringify(sample, null, 2));
   };
@@ -2179,7 +2179,7 @@ function NodeInspectorBody({
                       type="button"
                       className="wf-preset-btn"
                       onClick={() => updateConfig('url', getWebhookTestUrl('echo'))}
-                      title="Use OpenWA's built-in testing endpoint"
+                      title="Use Artha's built-in testing endpoint"
                       style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}
                     >
                       ⚡ Use Local Test Endpoint
@@ -2195,7 +2195,7 @@ function NodeInspectorBody({
                   />
                   {config.url && config.url.includes('/api/webhook-test') && (
                     <span className="wf-field-hint" style={{ color: '#38bdf8', marginTop: '0.2rem' }}>
-                      ✨ Connected to built-in OpenWA test endpoint! Requests are captured and echoed back.
+                      ✨ Connected to built-in Artha test endpoint! Requests are captured and echoed back.
                     </span>
                   )}
                 </div>

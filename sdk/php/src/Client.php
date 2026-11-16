@@ -2,36 +2,36 @@
 
 declare(strict_types=1);
 
-namespace OpenWA;
+namespace Artha;
 
 use GuzzleHttp\ClientInterface;
-use OpenWA\Exceptions\OpenWAException;
-use OpenWA\Http\HttpExecutor;
-use OpenWA\Resources\CatalogResource;
-use OpenWA\Resources\CallsResource;
-use OpenWA\Resources\ChannelsResource;
-use OpenWA\Resources\ChatsResource;
-use OpenWA\Resources\ContactsResource;
-use OpenWA\Resources\GroupsResource;
-use OpenWA\Resources\HealthResource;
-use OpenWA\Resources\LabelsResource;
-use OpenWA\Resources\MessagesResource;
-use OpenWA\Resources\ProfileResource;
-use OpenWA\Resources\SearchResource;
-use OpenWA\Resources\SessionsResource;
-use OpenWA\Resources\StatusResource;
-use OpenWA\Resources\TemplatesResource;
-use OpenWA\Resources\WebhooksResource;
+use Artha\Exceptions\ArthaException;
+use Artha\Http\HttpExecutor;
+use Artha\Resources\CatalogResource;
+use Artha\Resources\CallsResource;
+use Artha\Resources\ChannelsResource;
+use Artha\Resources\ChatsResource;
+use Artha\Resources\ContactsResource;
+use Artha\Resources\GroupsResource;
+use Artha\Resources\HealthResource;
+use Artha\Resources\LabelsResource;
+use Artha\Resources\MessagesResource;
+use Artha\Resources\ProfileResource;
+use Artha\Resources\SearchResource;
+use Artha\Resources\SessionsResource;
+use Artha\Resources\StatusResource;
+use Artha\Resources\TemplatesResource;
+use Artha\Resources\WebhooksResource;
 
 /**
- * OpenWA PHP SDK — client core.
+ * Artha PHP SDK — client core.
  *
  * The single entry point. It owns an {@see HttpExecutor} (which wraps a Guzzle
  * client with an injectable handler) and exposes domain resources as
  * properties:
  *
  * ```php
- * use OpenWA\Client;
+ * use Artha\Client;
  *
  * $client = new Client([
  *     'baseUrl' => 'http://localhost:2785',
@@ -41,7 +41,7 @@ use OpenWA\Resources\WebhooksResource;
  * $client->sessions->start('my-session');
  * $result = $client->messages->sendText('my-session', [
  *     'chatId' => '628123456789@c.us',
- *     'text'   => 'Hello from the OpenWA PHP SDK!',
+ *     'text'   => 'Hello from the Artha PHP SDK!',
  * ]);
  * echo $result['messageId'];
  * ```
@@ -77,15 +77,15 @@ class Client
      *     defaultHeaders?:array<string,string>
      * } $config
      *
-     * @throws OpenWAException If baseUrl or apiKey is missing.
+     * @throws ArthaException If baseUrl or apiKey is missing.
      */
     public function __construct(array $config)
     {
         if (empty($config['baseUrl'])) {
-            throw new OpenWAException('OpenWA Client: baseUrl is required');
+            throw new ArthaException('Artha Client: baseUrl is required');
         }
         if (empty($config['apiKey'])) {
-            throw new OpenWAException('OpenWA Client: apiKey is required');
+            throw new ArthaException('Artha Client: apiKey is required');
         }
 
         self::warnIfInsecureHttp($config['baseUrl']);
@@ -129,7 +129,7 @@ class Client
             $host = \trim($host, '[]');
             if (!\in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
                 \trigger_error(
-                    "OpenWA Client: baseUrl uses an insecure http:// URL (host: {$host}). "
+                    "Artha Client: baseUrl uses an insecure http:// URL (host: {$host}). "
                     . 'The API key will be sent in cleartext. Use https:// in production.',
                     \E_USER_WARNING
                 );

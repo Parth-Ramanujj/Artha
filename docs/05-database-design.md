@@ -2,7 +2,7 @@
 
 ## 5.1 Overview
 
-OpenWA uses a database to store:
+Artha uses a database to store:
 
 - Session configuration & state
 - Webhook configurations
@@ -12,7 +12,7 @@ OpenWA uses a database to store:
 
 ### Database Support
 
-OpenWA supports two database backends that can be selected at deployment time:
+Artha supports two database backends that can be selected at deployment time:
 
 | Database       | Use Case                                    | Sessions | Horizontal Scaling |
 | -------------- | ------------------------------------------- | -------- | ------------------ |
@@ -33,11 +33,11 @@ OpenWA supports two database backends that can be selected at deployment time:
 
 ### Dual-Database Architecture
 
-OpenWA v0.2+ implements a **dual-database architecture** that separates boot configuration from user data:
+Artha v0.2+ implements a **dual-database architecture** that separates boot configuration from user data:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        OpenWA Application                        │
+│                        Artha Application                        │
 ├─────────────────────────────┬───────────────────────────────────┤
 │      Main DB (SQLite)       │        Data DB (Pluggable)        │
 │  Default ./data/main.sqlite │   SQLite or PostgreSQL (config)   │
@@ -87,21 +87,21 @@ Because the container can therefore still be coming up when the `data` connectio
 
 #### PostgreSQL Schema Selection
 
-When using PostgreSQL, OpenWA can place its tables and migration ledger in a dedicated schema via the `POSTGRES_SCHEMA` environment variable:
+When using PostgreSQL, Artha can place its tables and migration ledger in a dedicated schema via the `POSTGRES_SCHEMA` environment variable:
 
 | Setting            | Default | Description                                                                 |
 | ------------------ | ------- | --------------------------------------------------------------------------- |
-| `POSTGRES_SCHEMA`  | `public` | PostgreSQL schema for OpenWA tables and TypeORM migration ledger          |
+| `POSTGRES_SCHEMA`  | `public` | PostgreSQL schema for Artha tables and TypeORM migration ledger          |
 
 **Use Cases:**
 - **Managed PostgreSQL:** Use your cloud provider's project schema (e.g., a schema provisioned by the provider)
-- **Multi-tenant databases:** Isolate OpenWA from other applications sharing the same database
-- **Clean separation:** Keep OpenWA's tables organized separately from other schemas
+- **Multi-tenant databases:** Isolate Artha from other applications sharing the same database
+- **Clean separation:** Keep Artha's tables organized separately from other schemas
 
 **Configuration:**
 ```bash
 # .env or dashboard Infrastructure page
-POSTGRES_SCHEMA=openwa  # Use a dedicated schema
+POSTGRES_SCHEMA=artha  # Use a dedicated schema
 POSTGRES_SCHEMA=public   # Default behavior (historical)
 ```
 
@@ -117,11 +117,11 @@ POSTGRES_SCHEMA=public   # Default behavior (historical)
 - Invalid values cause fast boot failure rather than migration-time errors
 
 > [!NOTE]
-> TypeORM's `schema` option alone does not set the session `search_path`. OpenWA additionally sets `search_path=<schema>,public` via PostgreSQL's startup `options` parameter so raw, unqualified migration DDL resolves to the configured schema. The migration ledger and all tables land in the specified schema while keeping `public` accessible for `pg_catalog` and helpers.
+> TypeORM's `schema` option alone does not set the session `search_path`. Artha additionally sets `search_path=<schema>,public` via PostgreSQL's startup `options` parameter so raw, unqualified migration DDL resolves to the configured schema. The migration ledger and all tables land in the specified schema while keeping `public` accessible for `pg_catalog` and helpers.
 
 #### Data Migration API
 
-OpenWA provides endpoints for migrating data between database types:
+Artha provides endpoints for migrating data between database types:
 
 | Endpoint                 | Method | Description                          |
 | ------------------------ | ------ | ------------------------------------ |
@@ -148,7 +148,7 @@ curl -X POST 'http://localhost:2785/api/infra/import-data' \
 
 #### Cross-Database Date Portability
 
-To ensure date/time values work across both SQLite and PostgreSQL, OpenWA uses a `DateTransformer` that stores dates as ISO 8601 text strings:
+To ensure date/time values work across both SQLite and PostgreSQL, Artha uses a `DateTransformer` that stores dates as ISO 8601 text strings:
 
 ```typescript
 // src/common/transformers/date.transformer.ts
@@ -428,7 +428,7 @@ CREATE UNIQUE INDEX "UQ_messages_sessionId_waMessageId"
 ```
 
 > [!NOTE]
-> There is **no** PostgreSQL RANGE partitioning, `create_messages_partition()` function, or `pg_cron` schedule in OpenWA. `messages` is a single plain table on both backends. The `timestamp` column uses a `bigint→number` value transformer so the REST/SDK/MCP contract returns a JS number on both SQLite and PostgreSQL.
+> There is **no** PostgreSQL RANGE partitioning, `create_messages_partition()` function, or `pg_cron` schedule in Artha. `messages` is a single plain table on both backends. The `timestamp` column uses a `bigint→number` value transformer so the REST/SDK/MCP contract returns a JS number on both SQLite and PostgreSQL.
 
 > [!NOTE]
 > Message rows carry no separate `media`/`ack`/`from_me`/`is_group` columns. Media and other engine-specific details are stored in the `metadata` JSON column; delivery state is the `status` enum and `direction` distinguishes inbound vs. outbound.
@@ -699,7 +699,7 @@ flowchart LR
 
 ## 5.6 Migration Strategy
 
-OpenWA runs **two separate TypeORM connections**, each with its own migrations directory and CLI DataSource:
+Artha runs **two separate TypeORM connections**, each with its own migrations directory and CLI DataSource:
 
 | Connection | DataSource              | Migrations dir              | Owns                                                                   |
 | ---------- | ----------------------- | --------------------------- | ---------------------------------------------------------------------- |
@@ -832,7 +832,7 @@ The 24-hour TTL itself is a fixed constant (`STATUS_TTL_MS`) and is not configur
 ## 5.8 Backup Strategy
 
 > [!NOTE]
-> This section is **operational guidance**, not a built-in feature. OpenWA ships no scheduler, encryption step, or S3 uploader for backups — the diagram and script below are a recommended setup you wire up externally (cron, your host's backup tooling, etc.). For SQLite, back up the `./data/*.sqlite` files (including `./data/main.sqlite`); for PostgreSQL, use `pg_dump`. The JSON export/import endpoints in §5.1 are a portability path, not a backup mechanism.
+> This section is **operational guidance**, not a built-in feature. Artha ships no scheduler, encryption step, or S3 uploader for backups — the diagram and script below are a recommended setup you wire up externally (cron, your host's backup tooling, etc.). For SQLite, back up the `./data/*.sqlite` files (including `./data/main.sqlite`); for PostgreSQL, use `pg_dump`. The JSON export/import endpoints in §5.1 are a portability path, not a backup mechanism.
 > The authoritative full-system backup is [`scripts/backup.sh`](../scripts/backup.sh), documented in the [operational runbook](./11-operational-runbooks.md#runbook-database-backup); it also captures engine auth state, including `BAILEYS_AUTH_DIR` for Baileys.
 
 ### Backup Components
@@ -862,16 +862,16 @@ flowchart TB
 
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="/backups"
-DB_NAME="openwa"
+DB_NAME="artha"
 
 # Create backup
-pg_dump -Fc $DB_NAME > $BACKUP_DIR/openwa_$DATE.dump
+pg_dump -Fc $DB_NAME > $BACKUP_DIR/artha_$DATE.dump
 
 # Compress
-gzip $BACKUP_DIR/openwa_$DATE.dump
+gzip $BACKUP_DIR/artha_$DATE.dump
 
 # Upload to S3 (optional)
-aws s3 cp $BACKUP_DIR/openwa_$DATE.dump.gz s3://backups/openwa/
+aws s3 cp $BACKUP_DIR/artha_$DATE.dump.gz s3://backups/artha/
 
 # Cleanup old backups (keep last 7 days)
 find $BACKUP_DIR -name "*.dump.gz" -mtime +7 -delete

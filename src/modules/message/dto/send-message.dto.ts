@@ -30,7 +30,7 @@ export class SendTextMessageDto {
 
   @ApiProperty({
     description: 'Text message content',
-    example: 'Hello from OpenWA!',
+    example: 'Hello from Artha!',
     maxLength: MESSAGE_TEXT_MAX_LENGTH,
   })
   @IsString()

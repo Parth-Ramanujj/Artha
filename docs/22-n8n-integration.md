@@ -2,23 +2,23 @@
 
 ## Overview
 
-OpenWA provides official n8n community nodes for integrating WhatsApp automation into n8n workflows. This enables users to build powerful automations combining WhatsApp messaging with hundreds of other services available in n8n.
+Artha provides official n8n community nodes for integrating WhatsApp automation into n8n workflows. This enables users to build powerful automations combining WhatsApp messaging with hundreds of other services available in n8n.
 
-**Repository:** https://github.com/rmyndharis/OpenWA-n8n
-**npm Package:** `@rmyndharis/n8n-nodes-openwa`
+**Repository:** https://github.com/rmyndharis/Artha-n8n
+**npm Package:** `@rmyndharis/n8n-nodes-artha`
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   n8n Workflow  │────▶│  OpenWA Node    │────▶│  OpenWA API     │
+│   n8n Workflow  │────▶│  Artha Node    │────▶│  Artha API     │
 │                 │     │  (credentials)  │     │  (your server)  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                                         │
                                                         ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   n8n Workflow  │◀────│ OpenWA Trigger  │◀────│  Webhook POST   │
-│   (triggered)   │     │  (listens)      │     │  from OpenWA    │
+│   n8n Workflow  │◀────│ Artha Trigger  │◀────│  Webhook POST   │
+│   (triggered)   │     │  (listens)      │     │  from Artha    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
@@ -28,7 +28,7 @@ OpenWA provides official n8n community nodes for integrating WhatsApp automation
 
 1. Go to **Settings > Community Nodes**
 2. Select **Install**
-3. Enter `@rmyndharis/n8n-nodes-openwa`
+3. Enter `@rmyndharis/n8n-nodes-artha`
 4. Agree to the risks and install
 5. Restart n8n
 
@@ -36,21 +36,21 @@ OpenWA provides official n8n community nodes for integrating WhatsApp automation
 
 ```bash
 cd ~/.n8n/nodes
-npm install @rmyndharis/n8n-nodes-openwa
+npm install @rmyndharis/n8n-nodes-artha
 ```
 
 ## Nodes
 
-### OpenWA Node
+### Artha Node
 
-Execute operations on your OpenWA server.
+Execute operations on your Artha server.
 
 #### Credentials Setup
 
 | Field      | Description                      | Example                  |
 | ---------- | -------------------------------- | ------------------------ |
-| Server URL | OpenWA server URL (without /api) | `https://wa.example.com` |
-| API Key    | API key from OpenWA dashboard    | `owa_xxxxxxxx...`        |
+| Server URL | Artha server URL (without /api) | `https://wa.example.com` |
+| API Key    | API key from Artha dashboard    | `owa_xxxxxxxx...`        |
 
 #### Resources & Operations
 
@@ -67,7 +67,7 @@ Execute operations on your OpenWA server.
 | Webhook  | Create        | Create a webhook            | `POST /api/sessions/:id/webhooks`               |
 | Webhook  | Delete        | Delete a webhook            | `DELETE /api/sessions/:id/webhooks/:webhookId`  |
 
-### OpenWA Trigger Node
+### Artha Trigger Node
 
 Start workflows when WhatsApp events occur.
 
@@ -95,8 +95,8 @@ Start workflows when WhatsApp events occur.
 
 #### How It Works
 
-1. When workflow is activated, the trigger creates a webhook in OpenWA
-2. OpenWA sends events to n8n's webhook URL
+1. When workflow is activated, the trigger creates a webhook in Artha
+2. Artha sends events to n8n's webhook URL
 3. When workflow is deactivated, the webhook is automatically deleted
 
 #### Output Data Format
@@ -120,9 +120,9 @@ Start workflows when WhatsApp events occur.
 ```
 
 > **Deduplication.** Every delivery includes `idempotencyKey` and `deliveryId` in the body **and** as the
-> `X-OpenWA-Idempotency-Key` / `X-OpenWA-Delivery-Id` headers. `idempotencyKey` is **stable across retries**
+> `X-Artha-Idempotency-Key` / `X-Artha-Delivery-Id` headers. `idempotencyKey` is **stable across retries**
 > of the same event; `deliveryId` identifies one delivery to one webhook and is stable across that
-> delivery's retry attempts too — read the `X-OpenWA-Retry-Count` header for the attempt number. Because a
+> delivery's retry attempts too — read the `X-Artha-Retry-Count` header for the attempt number. Because a
 > webhook can be retried, add a dedup step keyed on `idempotencyKey` (e.g. an n8n IF or "Remove Duplicates"
 > node) so a retried delivery isn't processed twice.
 
@@ -133,7 +133,7 @@ Start workflows when WhatsApp events occur.
 Automatically reply to incoming messages with a welcome message.
 
 ```
-[OpenWA Trigger] → [IF: Check keyword] → [OpenWA: Send Text]
+[Artha Trigger] → [IF: Check keyword] → [Artha: Send Text]
      │
      └── Events: message.received
 ```
@@ -142,14 +142,14 @@ Automatically reply to incoming messages with a welcome message.
 
 - Trigger: `message.received`
 - IF Node: Check if `{{$json.data.body}}` contains "hello"
-- OpenWA: Send Text with welcome message
+- Artha: Send Text with welcome message
 
 ### 2. Lead Collection to Google Sheets
 
 Capture incoming messages and save to Google Sheets.
 
 ```
-[OpenWA Trigger] → [Google Sheets: Append] → [OpenWA: Send Text]
+[Artha Trigger] → [Google Sheets: Append] → [Artha: Send Text]
      │                    │
      │                    └── Save: name, phone, message
      └── Events: message.received
@@ -160,7 +160,7 @@ Capture incoming messages and save to Google Sheets.
 Get notified on Slack when WhatsApp session disconnects.
 
 ```
-[OpenWA Trigger] → [Slack: Send Message]
+[Artha Trigger] → [Slack: Send Message]
      │
      └── Events: session.disconnected
 ```
@@ -178,7 +178,7 @@ Please check and reconnect.
 Send WhatsApp notification when new order is received.
 
 ```
-[Webhook: New Order] → [OpenWA: Send Text]
+[Webhook: New Order] → [Artha: Send Text]
                             │
                             └── "Thank you for your order #{{$json.orderId}}"
 ```
@@ -188,7 +188,7 @@ Send WhatsApp notification when new order is received.
 Send daily reminders to a list of contacts.
 
 ```
-[Schedule Trigger] → [Google Sheets: Get Rows] → [Loop] → [OpenWA: Send Text]
+[Schedule Trigger] → [Google Sheets: Get Rows] → [Loop] → [Artha: Send Text]
      │                      │                                    │
      └── Daily 9AM          └── Get contacts                     └── Send reminder
 ```
@@ -200,14 +200,14 @@ Collect appointment requests over WhatsApp, check availability in an external sc
 See [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md) for a complete example.
 
 ```
-[OpenWA Trigger] → [IF: Booking intent?] → [Set: Normalize request]
+[Artha Trigger] → [IF: Booking intent?] → [Set: Normalize request]
                                                │
                                                ▼
                                       [Availability Source]
                                                │
                          ┌─────────────────────┴─────────────────────┐
                          ▼                                           ▼
-              [Create Booking] → [OpenWA: Send Text]      [OpenWA: Send Text]
+              [Create Booking] → [Artha: Send Text]      [Artha: Send Text]
                   confirmed confirmation                  alternative slots
 ```
 
@@ -218,7 +218,7 @@ See [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md) fo
 Always add error handling in your workflows:
 
 ```
-[OpenWA Node] → [IF: Check success] → [Continue...]
+[Artha Node] → [IF: Check success] → [Continue...]
                       │
                       └── [Error Handler]
 ```
@@ -228,7 +228,7 @@ Always add error handling in your workflows:
 WhatsApp has rate limits. Add delays between messages:
 
 ```
-[Loop Over Items] → [Wait: 2 seconds] → [OpenWA: Send Text]
+[Loop Over Items] → [Wait: 2 seconds] → [Artha: Send Text]
 ```
 
 ### 3. Message Formatting
@@ -251,15 +251,15 @@ Always use the correct format for chat IDs:
 
 ### Credential Test Failed
 
-1. Verify OpenWA server is running
+1. Verify Artha server is running
 2. Check API key is correct
 3. Ensure server URL doesn't have trailing slash
-4. Verify network connectivity between n8n and OpenWA
+4. Verify network connectivity between n8n and Artha
 
 ### Trigger Not Receiving Events
 
-1. Check webhook was created in OpenWA dashboard
-2. Verify n8n webhook URL is accessible from OpenWA server
+1. Check webhook was created in Artha dashboard
+2. Verify n8n webhook URL is accessible from Artha server
 3. Check firewall/proxy settings
 4. Ensure session is connected and active
 
@@ -275,8 +275,8 @@ Always use the correct format for chat IDs:
 ### Building from Source
 
 ```bash
-git clone https://github.com/rmyndharis/OpenWA-n8n.git
-cd OpenWA-n8n
+git clone https://github.com/rmyndharis/Artha-n8n.git
+cd Artha-n8n
 npm install
 npm run build
 ```
@@ -289,7 +289,7 @@ npm run dev
 
 # Link to local n8n
 cd ~/.n8n/nodes
-npm link /path/to/OpenWA-n8n
+npm link /path/to/Artha-n8n
 ```
 
 ### Testing
@@ -309,7 +309,7 @@ docker run -it --rm \
 
 ## Related Documentation
 
-- [OpenWA API Specification](./06-api-specification.md)
+- [Artha API Specification](./06-api-specification.md)
 - [Webhook System](./03-system-architecture.md#353-webhook-system)
 - [n8n Appointment Booking Workflow](./examples/n8n-appointment-booking.md)
 - [n8n Documentation](https://docs.n8n.io/)

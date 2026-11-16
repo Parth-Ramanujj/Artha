@@ -11,8 +11,8 @@ export interface CreditTransaction {
   balanceAfter: number;
 }
 
-const STORAGE_KEY_BALANCE = 'openwa_ai_credits_balance';
-const STORAGE_KEY_HISTORY = 'openwa_ai_credits_history';
+const STORAGE_KEY_BALANCE = 'artha_ai_credits_balance';
+const STORAGE_KEY_HISTORY = 'artha_ai_credits_history';
 export const DEFAULT_INITIAL_CREDITS = 20000;
 
 export const aiCreditsService = {

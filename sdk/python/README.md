@@ -1,23 +1,23 @@
-# rmyndharis-openwa
+# rmyndharis-artha
 
-Official Python SDK for the [OpenWA](https://github.com/rmyndharis/OpenWA) WhatsApp API Gateway.
+Official Python SDK for the [Artha](https://github.com/rmyndharis/Artha) WhatsApp API Gateway.
 
 A synchronous client built on [httpx](https://www.python-httpx.org/), with bundled type hints (PEP 561).
 
 ## Install
 
 ```bash
-pip install rmyndharis-openwa
+pip install rmyndharis-artha
 ```
 
-Requires Python 3.9+. The importable module is `openwa`.
+Requires Python 3.9+. The importable module is `artha`.
 
 ## Usage
 
 ```python
-from openwa import OpenWAClient
+from artha import ArthaClient
 
-client = OpenWAClient(
+client = ArthaClient(
     base_url="https://your-gateway.example.com",
     api_key="owa_k1_…",
 )
@@ -26,7 +26,7 @@ client.sessions.start("my-session")
 
 result = client.messages.send_text("my-session", {
     "chatId": "628123456789@c.us",
-    "text": "Hello from the OpenWA Python SDK!",
+    "text": "Hello from the Artha Python SDK!",
 })
 print(result["messageId"])
 ```
@@ -34,7 +34,7 @@ print(result["messageId"])
 The client is also a context manager (it closes the underlying connection pool on exit):
 
 ```python
-with OpenWAClient(base_url="…", api_key="…") as client:
+with ArthaClient(base_url="…", api_key="…") as client:
     client.messages.send_text("my-session", {"chatId": "…@c.us", "text": "hi"})
 ```
 
@@ -42,7 +42,7 @@ For tests, pass an httpx transport — no global monkey-patching required:
 
 ```python
 import httpx
-client = OpenWAClient(base_url="…", api_key="…", transport=httpx.MockTransport(handler))
+client = ArthaClient(base_url="…", api_key="…", transport=httpx.MockTransport(handler))
 ```
 
 ## Search
@@ -65,17 +65,17 @@ for hit in res["hits"]:
 
 ## Errors
 
-A non-2xx response raises a typed `OpenWAApiError` subclass — `OpenWAAuthError` (401),
-`OpenWAForbiddenError` (403), `OpenWANotFoundError` (404), `OpenWAConflictError` (409),
-`OpenWARateLimitError` (429), `OpenWANotImplementedError` (501) — each carrying `.status`
-and the parsed `.body`. A timeout raises `OpenWATimeoutError`.
+A non-2xx response raises a typed `ArthaApiError` subclass — `ArthaAuthError` (401),
+`ArthaForbiddenError` (403), `ArthaNotFoundError` (404), `ArthaConflictError` (409),
+`ArthaRateLimitError` (429), `ArthaNotImplementedError` (501) — each carrying `.status`
+and the parsed `.body`. A timeout raises `ArthaTimeoutError`.
 
 ```python
-from openwa import OpenWANotFoundError
+from artha import ArthaNotFoundError
 
 try:
     client.sessions.get("missing")
-except OpenWANotFoundError as e:
+except ArthaNotFoundError as e:
     print(e.status)  # 404
 ```
 

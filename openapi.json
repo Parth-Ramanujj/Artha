@@ -13998,6 +13998,36 @@
             "type": "string",
             "description": "Expiration date (ISO 8601)",
             "example": "2027-12-31T23:59:59Z"
+          },
+          "businessId": {
+            "type": "string",
+            "description": "Customer business this key belongs to (super admin only; never with role admin)"
+          },
+          "allowedFeatures": {
+            "type": "array",
+            "description": "Approved features (omit for all features; [] = core only: sessions and messaging)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "webhooks",
+                "templates",
+                "messageStudio",
+                "whatsappForms",
+                "conversations",
+                "support",
+                "followup",
+                "workflows",
+                "campaigns",
+                "ai",
+                "aiCalling",
+                "customerCare",
+                "salesAgent",
+                "googleBusiness",
+                "library",
+                "growth",
+                "integrations"
+              ]
+            }
           }
         },
         "required": [
@@ -14035,6 +14065,36 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "businessId": {
+            "type": "object",
+            "nullable": true
+          },
+          "allowedFeatures": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "webhooks",
+                "templates",
+                "messageStudio",
+                "whatsappForms",
+                "conversations",
+                "support",
+                "followup",
+                "workflows",
+                "campaigns",
+                "ai",
+                "aiCalling",
+                "customerCare",
+                "salesAgent",
+                "googleBusiness",
+                "library",
+                "growth",
+                "integrations"
+              ]
             }
           },
           "isActive": {
@@ -14105,6 +14165,36 @@
               "type": "string"
             }
           },
+          "businessId": {
+            "type": "object",
+            "nullable": true
+          },
+          "allowedFeatures": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "webhooks",
+                "templates",
+                "messageStudio",
+                "whatsappForms",
+                "conversations",
+                "support",
+                "followup",
+                "workflows",
+                "campaigns",
+                "ai",
+                "aiCalling",
+                "customerCare",
+                "salesAgent",
+                "googleBusiness",
+                "library",
+                "growth",
+                "integrations"
+              ]
+            }
+          },
           "isActive": {
             "type": "boolean"
           },
@@ -14162,6 +14252,32 @@
           },
           "expiresAt": {
             "type": "string"
+          },
+          "allowedFeatures": {
+            "type": "array",
+            "description": "Approved features (omit for all features; [] = core only: sessions and messaging)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "webhooks",
+                "templates",
+                "messageStudio",
+                "whatsappForms",
+                "conversations",
+                "support",
+                "followup",
+                "workflows",
+                "campaigns",
+                "ai",
+                "aiCalling",
+                "customerCare",
+                "salesAgent",
+                "googleBusiness",
+                "library",
+                "growth",
+                "integrations"
+              ]
+            }
           }
         }
       },
@@ -14953,7 +15069,7 @@
           "text": {
             "type": "string",
             "description": "Text message content",
-            "example": "Hello from OpenWA!",
+            "example": "Hello from Artha!",
             "maxLength": 4096
           },
           "mentions": {
@@ -15530,7 +15646,7 @@
           "header": {
             "type": "string",
             "description": "Optional header text, prepended to the rendered body",
-            "example": "OpenWA Store",
+            "example": "Artha Store",
             "maxLength": 1024
           },
           "footer": {

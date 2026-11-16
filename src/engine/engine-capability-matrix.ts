@@ -11,7 +11,7 @@
  *    "not implemented" and return null/[] without throwing).
  *  - `rootCause` (present only when `not-available`): WHY it is not available, so a contributor knows
  *    exactly where to start. Three values:
- *      'adapter-gap'        — the underlying library HAS the capability; only the OpenWA adapter
+ *      'adapter-gap'        — the underlying library HAS the capability; only the Artha adapter
  *                             wiring is missing. FIXABLE in this repo (a PR that calls the library
  *                             symbol the evidence points at).
  *      'library-limitation' — the underlying library exposes NO first-class symbol for this op. Not

@@ -277,10 +277,10 @@ describe('Webhooks (e2e)', () => {
       await waitFor(() => received.length === 1);
 
       const { headers, raw, body } = received[0];
-      expect(headers['x-openwa-event']).toBe('message.received');
+      expect(headers['x-artha-event']).toBe('message.received');
       // Verify the signature over the exact bytes that were sent, not a re-serialization.
       const expected = `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}`;
-      expect(headers['x-openwa-signature']).toBe(expected);
+      expect(headers['x-artha-signature']).toBe(expected);
       expect((body as { data: { from: string } }).data.from).toBe('boss@c.us');
     });
 
@@ -304,7 +304,7 @@ describe('Webhooks (e2e)', () => {
 
       await webhookService.dispatch(session, 'session.status', { status: 'connected' });
       await waitFor(() => received.length === 1);
-      expect(received[0].headers['x-openwa-event']).toBe('session.status');
+      expect(received[0].headers['x-artha-event']).toBe('session.status');
     });
 
     it('does not deliver to an inactive webhook', async () => {
@@ -324,14 +324,14 @@ describe('Webhooks (e2e)', () => {
     it('drops forged reserved headers but keeps custom ones on the wire', async () => {
       const session = await nextSession();
       await createWebhook(session, {
-        headers: { 'X-OpenWA-Event': 'forged', 'Content-Type': 'text/plain', 'X-Custom': 'ok' },
+        headers: { 'X-Artha-Event': 'forged', 'Content-Type': 'text/plain', 'X-Custom': 'ok' },
       });
 
       await webhookService.dispatch(session, 'message.received', {});
       await waitFor(() => received.length === 1);
 
       const { headers } = received[0];
-      expect(headers['x-openwa-event']).toBe('message.received'); // system value wins, not 'forged'
+      expect(headers['x-artha-event']).toBe('message.received'); // system value wins, not 'forged'
       expect(headers['content-type']).toBe('application/json');
       expect(headers['x-custom']).toBe('ok'); // legitimate custom header preserved
     });
@@ -367,9 +367,9 @@ describe('Webhooks (e2e)', () => {
         expect(body.event).toBe('message.received');
         expect(body.sessionId).toBe(session);
         expect(body.timestamp).not.toBe('1999-01-01T00:00:00.000Z');
-        expect(headers['x-openwa-event']).toBe('message.received');
+        expect(headers['x-artha-event']).toBe('message.received');
         const expected = `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}`;
-        expect(headers['x-openwa-signature']).toBe(expected);
+        expect(headers['x-artha-signature']).toBe(expected);
         expect((body as { data: { from: string } }).data.from).toBe('boss@c.us'); // data stays hook-controlled
       } finally {
         hookManager.unregister(hookId);
@@ -419,7 +419,7 @@ describe('Webhooks (e2e)', () => {
       });
       // The signature verifies over the exact marker-form bytes the receiver got.
       const expected = `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}`;
-      expect(headers['x-openwa-signature']).toBe(expected);
+      expect(headers['x-artha-signature']).toBe(expected);
     });
 
     it('keeps under-threshold media inline end-to-end', async () => {
@@ -453,7 +453,7 @@ describe('Webhooks (e2e)', () => {
 
       expect((res.body as { success: boolean }).success).toBe(true);
       await waitFor(() => received.length === 1);
-      expect(received[0].headers['x-openwa-event']).toBe('test');
+      expect(received[0].headers['x-artha-event']).toBe('test');
     });
   });
 });

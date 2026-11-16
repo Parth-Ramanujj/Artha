@@ -1,7 +1,19 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsDateString, MinLength, MaxLength, Validate } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsArray,
+  IsDateString,
+  IsIn,
+  IsUUID,
+  MinLength,
+  MaxLength,
+  Validate,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ApiKeyRole } from '../entities/api-key.entity';
 import { IsIpOrCidrConstraint } from './is-ip-or-cidr.validator';
+import { FEATURE_IDS } from '../features';
 
 export class CreateApiKeyDto {
   @ApiProperty({
@@ -48,6 +60,23 @@ export class CreateApiKeyDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Customer business this key belongs to (super admin only; never with role admin)',
+  })
+  @IsOptional()
+  @IsUUID()
+  businessId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Approved features (omit for all features; [] = core only: sessions and messaging)',
+    enum: FEATURE_IDS,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(FEATURE_IDS, { each: true })
+  allowedFeatures?: string[];
 }
 
 export class ApiKeyResponseDto {
@@ -70,6 +99,12 @@ export class ApiKeyResponseDto {
 
   @ApiPropertyOptional()
   allowedSessions?: string[];
+
+  @ApiPropertyOptional({ nullable: true })
+  businessId?: string | null;
+
+  @ApiPropertyOptional({ enum: FEATURE_IDS, isArray: true, nullable: true })
+  allowedFeatures?: string[] | null;
 
   @ApiProperty()
   isActive: boolean;
@@ -125,4 +160,14 @@ export class UpdateApiKeyDto {
   @IsOptional()
   @IsDateString()
   expiresAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Approved features (omit for all features; [] = core only: sessions and messaging)',
+    enum: FEATURE_IDS,
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(FEATURE_IDS, { each: true })
+  allowedFeatures?: string[];
 }

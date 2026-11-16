@@ -1,10 +1,10 @@
-# OpenWA Dashboard
+# Artha Dashboard
 
 <p align="center">
-  <img src="../docs/logo/openwa_logo.webp" alt="OpenWA Logo" width="120"/>
+  <img src="../docs/logo/artha_logo.webp" alt="Artha Logo" width="120"/>
 </p>
 
-Modern web dashboard for managing OpenWA WhatsApp API Gateway sessions, webhooks, and infrastructure.
+Modern web dashboard for managing Artha WhatsApp API Gateway sessions, webhooks, and infrastructure.
 
 ## ✨ Features
 
@@ -96,4 +96,4 @@ VITE_WS_URL=http://localhost:2785
 
 ## 📄 License
 
-MIT License - Part of the [OpenWA](https://github.com/rmyndharis/OpenWA) project.
+MIT License - Part of the [Artha](https://github.com/rmyndharis/Artha) project.

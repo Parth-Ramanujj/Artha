@@ -131,7 +131,7 @@ describe('DockerService.stopManagedService (stop-only teardown)', () => {
 
 describe('DockerService.getContainerByService exact-name fallback', () => {
   // Label lookup returns nothing → exercises the name fallback. The fallback must match the exact
-  // OpenWA-managed container name, never a substring (a substring — and especially the empty string —
+  // Artha-managed container name, never a substring (a substring — and especially the empty string —
   // would let an arbitrary container be resolved and torn down).
   function withFakeDocker(containers: Array<{ Id: string; Names: string[] }>) {
     const service = new DockerService();

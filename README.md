@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo/openwa_logo.webp" alt="Artha Logo" width="200"/>
+  <img src="docs/logo/artha_logo.webp" alt="Artha Logo" width="200"/>
 </p>
 
 <h1 align="center">Artha</h1>
@@ -200,7 +200,7 @@ disable that policy globally.
 The production stack never exposes `/var/run/docker.sock` directly to the application container. Instead, a dedicated `docker-proxy` sidecar (based on [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy)) acts as the sole gateway to the Docker daemon:
 
 ```
-openwa-api  ──TCP 2375──▶  docker-proxy  ──unix──▶  /var/run/docker.sock
+artha-api  ──TCP 2375──▶  docker-proxy  ──unix──▶  /var/run/docker.sock
 ```
 
 Only the operations needed for container orchestration are enabled (`CONTAINERS`, `IMAGES`, `VOLUMES`, `INFO`, `PING`, plus the `POST` method switch). The application connects via the `DOCKER_HOST=tcp://docker-proxy:2375` environment variable, which `DockerService` detects automatically. Note this is an operational gateway, not a fine-grained privilege boundary: with `POST` enabled the proxy admits every method to the enabled paths and cannot scope container-create payloads, so a compromised API container would be host-root-equivalent — see `SECURITY.md` for the full threat model, mitigations, and how to disable the proxy if you don't use the built-in datastore orchestration.
@@ -212,14 +212,14 @@ The production image never runs the Node.js process as root. On startup, the con
 ```
 dumb-init (PID 1)
   └─ docker-entrypoint.sh (root — fixes named-volume ownership via chown)
-       └─ gosu openwa node dist/main  (drops to the openwa user)
+       └─ gosu artha node dist/main  (drops to the artha user)
 ```
 
 - **dumb-init** is PID 1 and forwards signals (SIGTERM, etc.) for graceful shutdown.
-- **docker-entrypoint.sh** runs as root only long enough to `chown` the named-volume mount points so the `openwa` user can write to them.
+- **docker-entrypoint.sh** runs as root only long enough to `chown` the named-volume mount points so the `artha` user can write to them.
 - **gosu** performs a clean `exec`-based privilege drop — no `su` or `sudo` wrappers, so the node process is the direct child of dumb-init.
 
-Named volumes (e.g. `openwa-data`) get their ownership corrected automatically on every start, so no manual `chown` step is needed after volume creation.
+Named volumes (e.g. `artha-data`) get their ownership corrected automatically on every start, so no manual `chown` step is needed after volume creation.
 
 ---
 
@@ -246,7 +246,7 @@ docker compose --profile full up -d
 | `full`     | All services above    |
 
 > The dashboard is bundled into the API image and served by NestJS on the API port, so it
-> needs no profile — it is always available wherever `openwa-api` runs. For TLS/public exposure,
+> needs no profile — it is always available wherever `artha-api` runs. For TLS/public exposure,
 > put your own reverse proxy (nginx, Caddy, a cloud load balancer, or a k8s Ingress) in front;
 > see the nginx example in `docs/12-troubleshooting-faq.md`.
 
@@ -338,7 +338,7 @@ Point an MCP client at it (e.g. for Claude Code, a `.mcp.json` at your project r
 ```json
 {
   "mcpServers": {
-    "openwa": {
+    "artha": {
       "type": "http",
       "url": "http://localhost:2785/mcp",
       "headers": { "Authorization": "Bearer YOUR_API_KEY" }
@@ -379,7 +379,7 @@ The key can be passed as `Authorization: Bearer …` or `X-API-Key: …`. Every 
 ## 📁 Project Structure
 
 ```
-openwa/
+artha/
 ├── src/
 │   ├── main.ts                 # Application entry point
 │   ├── app.module.ts           # Root module

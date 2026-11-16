@@ -143,7 +143,8 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       } catch (error) {
         this.logger.error('Failed to sweep expired WebSocket API keys', error instanceof Error ? error.stack : error);
       }
-    }, 60_000);
+      // 10s: keys can be issued for a few minutes, so a live socket must not outlive its key by long.
+    }, 10_000);
     this.expirySweepTimer.unref?.();
   }
 
@@ -364,7 +365,11 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     // here too, not just at connect.
     const rawApiKey = (client.data as { rawApiKey?: string }).rawApiKey;
     const clientIp = this.resolveClientIp(client);
-    let subscriberKey: { allowedSessions?: string[] | null } | null;
+    let subscriberKey: {
+      allowedSessions?: string[] | null;
+      businessId?: string | null;
+      allowedFeatures?: string[] | null;
+    } | null;
     try {
       subscriberKey = rawApiKey ? await this.authService.validateApiKey(rawApiKey, clientIp) : null;
     } catch {
@@ -378,7 +383,15 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     // Enforce per-key session scope against the FRESH key: a key restricted to specific
     // sessions must not subscribe to '*' or a session outside its allowlist (#221).
-    if (!isSessionSubscriptionAllowed(subscriberKey.allowedSessions, sessionId)) {
+    // A customer key is confined to its own business's sessions (older keys keep their stored scope).
+    const sessionScope = subscriberKey.businessId
+      ? await this.authService.effectiveSessionScope({
+          businessId: subscriberKey.businessId,
+          allowedSessions: subscriberKey.allowedSessions ?? null,
+          allowedFeatures: subscriberKey.allowedFeatures ?? null,
+        })
+      : subscriberKey.allowedSessions;
+    if (!isSessionSubscriptionAllowed(sessionScope, sessionId)) {
       return this.createError('FORBIDDEN_SESSION', 'API key is not authorized for this session', requestId);
     }
 

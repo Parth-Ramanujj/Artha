@@ -64,7 +64,7 @@ echo "PASS: GET /networks via proxy -> 403 (denied)"
 # NOTE: there is intentionally no "DELETE is rejected" check. With POST=1 the pinned proxy
 # (tecnativa/docker-socket-proxy v0.4.2) admits EVERY method to the enabled paths — its
 # DELETE env flag is dead config — so such a check would fail against the working
-# configuration. OpenWA itself never issues deletes (profile teardown is stop-only);
+# configuration. Artha itself never issues deletes (profile teardown is stop-only);
 # see SECURITY.md "Docker socket proxy — scope and residual risk".
 
 echo ""

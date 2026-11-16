@@ -105,7 +105,7 @@ const mustReject = [
   // Runtime data (sessions, media, databases, keys)
   'data/main.sqlite',
   'data/.api-key',
-  'openwa.sqlite',
+  'artha.sqlite',
   'backup.db',
   // VCS metadata
   '.git/HEAD',

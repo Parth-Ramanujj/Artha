@@ -33,7 +33,7 @@ export function renderWebhookInspectorHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenWA Webhook Echo & Live Inspector</title>
+  <title>Artha Webhook Echo & Live Inspector</title>
   <style>
     :root {
       --bg-dark: #090d16;
@@ -736,7 +736,7 @@ export function renderWebhookInspectorHtml(
     <div class="brand-group">
       <div class="brand-logo">⚡</div>
       <div class="brand-title">
-        OpenWA Webhook Tester & Echo
+        Artha Webhook Tester & Echo
         <span class="brand-badge">Live UI</span>
       </div>
     </div>
@@ -852,7 +852,7 @@ export function renderWebhookInspectorHtml(
           <div class="test-sender-box">
             <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff;">Send a Live Test Request to this Endpoint</h3>
             <p style="font-size: 0.78rem; color: var(--text-muted);">
-              Use this interactive test tool to trigger incoming webhooks and see how OpenWA captures headers, query parameters, and JSON payloads.
+              Use this interactive test tool to trigger incoming webhooks and see how Artha captures headers, query parameters, and JSON payloads.
             </p>
 
             <div class="form-group">
@@ -897,11 +897,11 @@ export function renderWebhookInspectorHtml(
         <!-- Tab 5: Workflow Integration Guide -->
         <div id="guide-tab" class="tab-panel" style="display: none;">
           <div class="guide-card">
-            <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff;">Using this Webhook in OpenWA Workflows</h3>
+            <h3 style="font-size: 0.95rem; font-weight: 700; color: #fff;">Using this Webhook in Artha Workflows</h3>
             <div class="guide-step">
               <div class="guide-num">1</div>
               <div class="guide-text">
-                In the OpenWA Visual Workflow Builder (<a href="http://localhost:2886/workflows" target="_blank" style="color: #38bdf8;">http://localhost:2886/workflows</a>), add a <strong>Webhook / API Call</strong> node.
+                In the Artha Visual Workflow Builder (<a href="http://localhost:2886/workflows" target="_blank" style="color: #38bdf8;">http://localhost:2886/workflows</a>), add a <strong>Webhook / API Call</strong> node.
               </div>
             </div>
             <div class="guide-step">
@@ -1194,7 +1194,7 @@ export function renderWebhookInspectorHtml(
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-OpenWA-Source': 'Interactive_Tester_UI',
+          'X-Artha-Source': 'Interactive_Tester_UI',
         },
       };
 

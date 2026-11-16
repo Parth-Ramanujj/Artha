@@ -546,7 +546,7 @@ describe('InfraController.saveConfig byte-identical regression (full dashboard p
       .sort()
       .map(k => `${k}=${keys[k]}`);
     return [
-      '# OpenWA Configuration',
+      '# Artha Configuration',
       `# Generated at ${NOW}`,
       '# Managed via Dashboard > Infrastructure. Values in process env or project .env take precedence.',
       '',

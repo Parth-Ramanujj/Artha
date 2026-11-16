@@ -180,7 +180,7 @@ export class WebhookTestController {
 
     return res.status(HttpStatus.OK).json({
       success: true,
-      message: 'Webhook received successfully by OpenWA test receiver!',
+      message: 'Webhook received successfully by Artha test receiver!',
       id: captured.id,
       receivedAt: captured.receivedAt,
       method: captured.method,

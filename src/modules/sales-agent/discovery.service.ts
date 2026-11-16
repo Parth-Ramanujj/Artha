@@ -6,7 +6,7 @@ import { CompanySignal, SalesActivity, SalesCompany, SalesProspect } from './ent
 import { normalizePhone } from './sales-rules';
 import { buildOverpassQuery, closeEnough, explicitSplit, parseBusiness, tokenize } from './search-query';
 
-const USER_AGENT = 'OpenWA-SalesAgent/1.0 (+https://github.com/rmyndharis/OpenWA)';
+const USER_AGENT = 'Artha-SalesAgent/1.0 (+https://github.com/rmyndharis/Artha)';
 const OVERPASS_MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',

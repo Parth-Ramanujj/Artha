@@ -9,9 +9,9 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const cjs = require('../dist/cjs/index.js');
-if (typeof cjs.OpenWAClient !== 'function') throw new Error('CJS: OpenWAClient missing');
+if (typeof cjs.ArthaClient !== 'function') throw new Error('CJS: ArthaClient missing');
 
 const esm = await import(new URL('../dist/esm/index.js', import.meta.url).href);
-if (typeof esm.OpenWAClient !== 'function') throw new Error('ESM: OpenWAClient missing');
+if (typeof esm.ArthaClient !== 'function') throw new Error('ESM: ArthaClient missing');
 
-console.log('smoke OK: require() + import() both resolve OpenWAClient');
+console.log('smoke OK: require() + import() both resolve ArthaClient');

@@ -202,7 +202,7 @@ export function mountMcpServer(
   auditService?: AuditService,
 ): void {
   const basePath = (options.basePath ?? '/mcp').replace(/\/$/, '') || '/mcp';
-  const serverInfo = options.serverInfo ?? { name: 'openwa', version: '0.0.0' };
+  const serverInfo = options.serverInfo ?? { name: 'artha', version: '0.0.0' };
   const readOnly = resolveMcpReadOnly(options.readOnly);
 
   // Eagerly compute the tool list at mount time to validate the registry is populated

@@ -31,9 +31,9 @@ const POSTGRES_ENABLED = process.env.DATABASE_TYPE === 'postgres';
       type: 'postgres',
       host: process.env.DATABASE_HOST || 'localhost',
       port: Number(process.env.DATABASE_PORT || 5432),
-      username: process.env.DATABASE_USERNAME || 'openwa',
-      password: process.env.DATABASE_PASSWORD || 'openwa',
-      database: process.env.DATABASE_NAME || 'openwa',
+      username: process.env.DATABASE_USERNAME || 'artha',
+      password: process.env.DATABASE_PASSWORD || 'artha',
+      database: process.env.DATABASE_NAME || 'artha',
     });
     await ds.initialize();
 

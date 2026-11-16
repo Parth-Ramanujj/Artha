@@ -2,7 +2,7 @@
 
 > ## ⚠️ DESIGN REFERENCE ONLY — NOT IMPLEMENTED
 >
-> **OpenWA is currently a single-process, single-instance application.** Live WhatsApp
+> **Artha is currently a single-process, single-instance application.** Live WhatsApp
 > engine state (browser + WebSocket + reconnect/error state) lives in an in-memory `Map`
 > in `EngineRegistry`; there is **no** DB-backed session registry, **no** node-claim/lease,
 > and **no** Socket.IO Redis adapter.
@@ -14,9 +14,9 @@
 >
 > Everything in this guide (session-claim, node affinity, `replicas: 3`) is a **future
 > design sketch**, retained for planning. Until it is implemented, deploy with
-> **`replicas: 1`** for the OpenWA API service.
+> **`replicas: 1`** for the Artha API service.
 
-This guide explains a *proposed* design for deploying OpenWA in a horizontally scaled environment for high availability and increased capacity.
+This guide explains a *proposed* design for deploying Artha in a horizontally scaled environment for high availability and increased capacity.
 
 ## 13.1 Architecture Overview
 
@@ -26,10 +26,10 @@ flowchart TB
         NGINX[Nginx/Traefik]
     end
 
-    subgraph Nodes["OpenWA Nodes"]
-        N1[OpenWA Node 1]
-        N2[OpenWA Node 2]
-        N3[OpenWA Node 3]
+    subgraph Nodes["Artha Nodes"]
+        N1[Artha Node 1]
+        N2[Artha Node 2]
+        N3[Artha Node 3]
     end
 
     subgraph Storage["Shared Storage"]
@@ -106,8 +106,8 @@ Each node "claims" sessions on startup and releases them on shutdown. **(Not imp
 version: '3.8'
 
 services:
-  openwa:
-    image: ghcr.io/rmyndharis/openwa:latest
+  artha:
+    image: ghcr.io/rmyndharis/artha:latest
     deploy:
       replicas: 1 # MUST stay 1 until session-claim is implemented — multiple replicas on one session volume corrupt WhatsApp auth
       update_config:
@@ -125,8 +125,8 @@ services:
       - NODE_ENV=production
       - DATABASE_TYPE=postgres
       - DATABASE_HOST=postgres
-      - DATABASE_NAME=openwa
-      - DATABASE_USERNAME=openwa
+      - DATABASE_NAME=artha
+      - DATABASE_USERNAME=artha
       - DATABASE_PASSWORD=${DB_PASSWORD}
       - REDIS_HOST=redis
       - QUEUE_ENABLED=true
@@ -136,7 +136,7 @@ services:
     volumes:
       - sessions:/app/data/sessions
     networks:
-      - openwa-net
+      - artha-net
     depends_on:
       - postgres
       - redis
@@ -149,13 +149,13 @@ services:
         constraints:
           - node.role == manager
     environment:
-      - POSTGRES_DB=openwa
-      - POSTGRES_USER=openwa
+      - POSTGRES_DB=artha
+      - POSTGRES_USER=artha
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - openwa-net
+      - artha-net
 
   redis:
     image: redis:7-alpine
@@ -165,11 +165,11 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - openwa-net
+      - artha-net
 
-  # NOTE (v0.4.0): OpenWA no longer ships a bundled Traefik container.
+  # NOTE (v0.4.0): Artha no longer ships a bundled Traefik container.
   # For TLS / public exposure, bring your own reverse proxy (Traefik, nginx,
-  # Caddy, a cloud load balancer, etc.) and point it at openwa:2785.
+  # Caddy, a cloud load balancer, etc.) and point it at artha:2785.
   # See section 13.5 for Traefik / nginx config examples.
 
 volumes:
@@ -178,7 +178,7 @@ volumes:
   sessions:
 
 networks:
-  openwa-net:
+  artha-net:
     driver: overlay
 ```
 
@@ -189,14 +189,14 @@ networks:
 docker swarm init
 
 # Deploy stack
-docker stack deploy -c docker-compose.swarm.yml openwa
+docker stack deploy -c docker-compose.swarm.yml artha
 
 # Check status
 docker service ls
-docker service ps openwa_openwa
+docker service ps artha_artha
 ```
 
-> **Do not scale the `openwa` service** (`docker service scale openwa_openwa=N`). The `sessions`
+> **Do not scale the `artha` service** (`docker service scale artha_artha=N`). The `sessions`
 > volume above is declared with the default local driver (not `external`), so Swarm creates one per
 > node: replicas co-located on a single node share that directory and corrupt the WhatsApp auth
 > state, while replicas placed on other nodes each get a fresh empty volume and start an
@@ -211,7 +211,7 @@ docker service ps openwa_openwa
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: openwa
+  name: artha
 ```
 
 ### k8s/configmap.yaml
@@ -220,14 +220,14 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: openwa-config
-  namespace: openwa
+  name: artha-config
+  namespace: artha
 data:
   NODE_ENV: 'production'
   DATABASE_TYPE: 'postgres'
   DATABASE_HOST: 'postgres-service'
   DATABASE_PORT: '5432'
-  DATABASE_NAME: 'openwa'
+  DATABASE_NAME: 'artha'
   REDIS_HOST: 'redis-service'
   REDIS_PORT: '6379'
   QUEUE_ENABLED: 'true'
@@ -240,11 +240,11 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: openwa-secrets
-  namespace: openwa
+  name: artha-secrets
+  namespace: artha
 type: Opaque
 stringData:
-  DATABASE_USERNAME: openwa
+  DATABASE_USERNAME: artha
   DATABASE_PASSWORD: your-secure-password
 ```
 
@@ -254,18 +254,18 @@ stringData:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: openwa
-  namespace: openwa
+  name: artha
+  namespace: artha
 spec:
-  serviceName: openwa-headless # must match the headless Service declared in k8s/service.yaml
+  serviceName: artha-headless # must match the headless Service declared in k8s/service.yaml
   replicas: 1 # MUST stay 1 until session-claim is implemented — see the warning at the top of this guide
   selector:
     matchLabels:
-      app: openwa
+      app: artha
   template:
     metadata:
       labels:
-        app: openwa
+        app: artha
     spec:
       # OS-level containment is the second half of the plugin sandbox boundary (see docs/23-plugin-
       # sandboxing.md). Without it a worker_thread plugin that abuses Node built-ins (fs, net) runs with
@@ -276,16 +276,16 @@ spec:
         runAsNonRoot: true
         fsGroup: 1000
       containers:
-        - name: openwa
-          image: ghcr.io/rmyndharis/openwa:latest
+        - name: artha
+          image: ghcr.io/rmyndharis/artha:latest
           ports:
             - containerPort: 2785
               name: http
           envFrom:
             - configMapRef:
-                name: openwa-config
+                name: artha-config
             - secretRef:
-                name: openwa-secrets
+                name: artha-secrets
           env:
             # Operator-facing metadata only — the application does not read NODE_ID (no consumer
             # exists in src/); it is retained for the future node-affinity design in 13.2.
@@ -309,7 +309,7 @@ spec:
               memory: '2Gi'
               cpu: '1000m'
           volumeMounts:
-            - name: openwa-data
+            - name: artha-data
               mountPath: /app/data
             - name: tmp
               mountPath: /tmp
@@ -330,7 +330,7 @@ spec:
           emptyDir: {}
   volumeClaimTemplates:
     - metadata:
-        name: openwa-data
+        name: artha-data
       spec:
         accessModes: ['ReadWriteOnce']
         resources:
@@ -344,12 +344,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: openwa-service
-  namespace: openwa
+  name: artha-service
+  namespace: artha
 spec:
   type: ClusterIP
   selector:
-    app: openwa
+    app: artha
   ports:
     - port: 80
       targetPort: 2785
@@ -358,12 +358,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: openwa-headless
-  namespace: openwa
+  name: artha-headless
+  namespace: artha
 spec:
   clusterIP: None
   selector:
-    app: openwa
+    app: artha
   ports:
     - port: 2785
       name: http
@@ -375,29 +375,29 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: openwa-ingress
-  namespace: openwa
+  name: artha-ingress
+  namespace: artha
   annotations:
     nginx.ingress.kubernetes.io/affinity: 'cookie'
-    nginx.ingress.kubernetes.io/session-cookie-name: 'openwa-session'
+    nginx.ingress.kubernetes.io/session-cookie-name: 'artha-session'
     nginx.ingress.kubernetes.io/session-cookie-max-age: '172800'
 spec:
   ingressClassName: nginx
   rules:
-    - host: openwa.example.com
+    - host: artha.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: openwa-service
+                name: artha-service
                 port:
                   number: 80
   tls:
     - hosts:
-        - openwa.example.com
-      secretName: openwa-tls
+        - artha.example.com
+      secretName: artha-tls
 ```
 
 ### Deploy to Kubernetes
@@ -407,13 +407,13 @@ spec:
 kubectl apply -f k8s/
 
 # Check pods
-kubectl get pods -n openwa
+kubectl get pods -n artha
 
 # Check logs
-kubectl logs -f statefulset/openwa -n openwa
+kubectl logs -f statefulset/artha -n artha
 ```
 
-> **Do not raise `replicas` above 1** (`kubectl scale statefulset openwa --replicas=N`). Each pod
+> **Do not raise `replicas` above 1** (`kubectl scale statefulset artha --replicas=N`). Each pod
 > gets its own PVC, so extra replicas do not share a session directory — they each start their own
 > unauthenticated engine, and with `AUTO_START_SESSIONS=true` every pod tries to drive the same
 > configured sessions from the shared database. See the warning at the top of this guide.
@@ -426,9 +426,9 @@ kubectl logs -f statefulset/openwa -n openwa
 # traefik/dynamic-scaling.yml
 http:
   routers:
-    openwa:
-      rule: 'Host(`openwa.example.com`)'
-      service: openwa
+    artha:
+      rule: 'Host(`artha.example.com`)'
+      service: artha
       middlewares:
         - sticky-session
 
@@ -436,20 +436,20 @@ http:
     sticky-session:
       headers:
         customResponseHeaders:
-          X-OpenWA-Node: '{{.Node}}'
+          X-Artha-Node: '{{.Node}}'
 
   services:
-    openwa:
+    artha:
       loadBalancer:
         sticky:
           cookie:
-            name: openwa_node
+            name: artha_node
             secure: true
             httpOnly: true
         servers:
-          - url: 'http://openwa-1:2785'
-          - url: 'http://openwa-2:2785'
-          - url: 'http://openwa-3:2785'
+          - url: 'http://artha-1:2785'
+          - url: 'http://artha-2:2785'
+          - url: 'http://artha-3:2785'
         healthCheck:
           path: /api/health
           interval: 10s
@@ -459,20 +459,20 @@ http:
 ### Nginx Upstream Config
 
 ```nginx
-upstream openwa {
+upstream artha {
     ip_hash;  # Sticky sessions based on client IP
 
-    server openwa-1:2785 weight=1 max_fails=3 fail_timeout=30s;
-    server openwa-2:2785 weight=1 max_fails=3 fail_timeout=30s;
-    server openwa-3:2785 weight=1 max_fails=3 fail_timeout=30s;
+    server artha-1:2785 weight=1 max_fails=3 fail_timeout=30s;
+    server artha-2:2785 weight=1 max_fails=3 fail_timeout=30s;
+    server artha-3:2785 weight=1 max_fails=3 fail_timeout=30s;
 }
 
 server {
     listen 80;
-    server_name openwa.example.com;
+    server_name artha.example.com;
 
     location / {
-        proxy_pass http://openwa;
+        proxy_pass http://artha;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -485,7 +485,7 @@ server {
     }
 
     location /api/health {
-        proxy_pass http://openwa;
+        proxy_pass http://artha;
         proxy_connect_timeout 5s;
         proxy_read_timeout 5s;
     }
@@ -533,18 +533,18 @@ the warning at the top of this guide), so the 3- and 5-node rows could not have 
 
 ### Prometheus Metrics
 
-OpenWA exports Prometheus text exposition at `GET /api/metrics` (`openwa_*` gauges and counters).
+Artha exports Prometheus text exposition at `GET /api/metrics` (`artha_*` gauges and counters).
 The endpoint returns `404` until `METRICS_TOKEN` is set, and then requires that token as a Bearer:
 
 ```yaml
 # prometheus/prometheus.yml
 scrape_configs:
-  - job_name: 'openwa'
+  - job_name: 'artha'
     static_configs:
-      # Swarm service name (13.3). On Kubernetes there is no Service called `openwa` — scrape the
+      # Swarm service name (13.3). On Kubernetes there is no Service called `artha` — scrape the
       # pod through the headless Service instead, e.g.
-      # openwa-0.openwa-headless.openwa.svc.cluster.local:2785
-      - targets: ['openwa:2785']
+      # artha-0.artha-headless.artha.svc.cluster.local:2785
+      - targets: ['artha:2785']
     metrics_path: '/api/metrics'
     authorization:
       type: Bearer
@@ -552,25 +552,25 @@ scrape_configs:
 ```
 
 ```yaml
-# prometheus/openwa-rules.yaml
+# prometheus/artha-rules.yaml
 groups:
-  - name: openwa
+  - name: artha
     rules:
       - alert: HighMemoryUsage
-        expr: container_memory_usage_bytes{container="openwa"} > 1.8e9
+        expr: container_memory_usage_bytes{container="artha"} > 1.8e9
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: 'OpenWA node high memory usage'
+          summary: 'Artha node high memory usage'
 
       - alert: NodeDown
-        expr: up{job="openwa"} == 0
+        expr: up{job="artha"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: 'OpenWA node is down'
+          summary: 'Artha node is down'
 ```
 
 ### Health Check Endpoints

@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Controller, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { Repository } from 'typeorm';
@@ -6,6 +6,7 @@ import { ApiKeyGuard } from './api-key.guard';
 import type { Session } from '../../session/entities/session.entity';
 import { AuthService } from '../auth.service';
 import { ApiKey, ApiKeyRole } from '../entities/api-key.entity';
+import { REQUIRED_ROLE_KEY } from '../decorators/auth.decorators';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
 
@@ -19,6 +20,7 @@ function createMockApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     allowedIps: null,
     allowedSessions: null,
     businessId: null,
+    allowedFeatures: null,
     isActive: true,
     expiresAt: null,
     lastUsedAt: null,
@@ -77,6 +79,7 @@ describe('ApiKeyGuard', () => {
     authService = {
       validateApiKey: jest.fn(),
       hasPermission: jest.fn(),
+      effectiveSessionScope: jest.fn().mockResolvedValue(['sess-1']),
     };
 
     reflector = {
@@ -375,6 +378,10 @@ describe('ApiKeyGuard', () => {
 
     const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    // An older business key (no approved-features list) keeps its stored scope — no new confinement.
+    const request = context.switchToHttp().getRequest<{ apiKey: ApiKey }>();
+    expect(request.apiKey.allowedSessions).toBeNull();
+    expect(authService.effectiveSessionScope).not.toHaveBeenCalled();
   });
 
   it('skips business check when API key has no businessId (platform admin)', async () => {
@@ -389,7 +396,7 @@ describe('ApiKeyGuard', () => {
     expect(sessionRepository.findOne).not.toHaveBeenCalled();
   });
 
-  it('allows access to legacy sessions with no businessId', async () => {
+  it('keeps legacy access to unassigned sessions for older business keys (backward compatible)', async () => {
     reflector.getAllAndOverride.mockReturnValueOnce(false).mockReturnValueOnce(undefined);
 
     const apiKey = createMockApiKey({ businessId: 'biz-A' });
@@ -399,5 +406,91 @@ describe('ApiKeyGuard', () => {
 
     const context = createMockContext({ 'x-api-key': 'key' }, { sessionId: 'sess-1' });
     await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  describe('super admin and feature approval', () => {
+    @Controller('campaigns')
+    class CampaignsController {}
+    @Controller('sessions/:sessionId/messages')
+    class MessagesController {}
+
+    // Role passes so these tests reach the super-admin / feature checks that follow it.
+    const withRole = (role?: ApiKeyRole) => {
+      (authService.hasPermission as jest.Mock).mockReturnValue(true);
+      reflector.getAllAndOverride.mockImplementation((key: string) => (key === REQUIRED_ROLE_KEY ? role : undefined));
+    };
+    const contextFor = (controller: object) =>
+      ({ ...createMockContext({ 'x-api-key': 'key' }), getClass: () => controller }) as unknown as ExecutionContext;
+
+    const customerContext = (sessionId: string) =>
+      ({
+        ...createMockContext({ 'x-api-key': 'key' }, { sessionId }),
+        getClass: () => MessagesController,
+      }) as unknown as ExecutionContext;
+
+    it('rejects a customer key with an ADMIN role on admin routes (super admin only)', async () => {
+      withRole(ApiKeyRole.ADMIN);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(
+        createMockApiKey({ role: ApiKeyRole.ADMIN, businessId: 'biz-A', allowedFeatures: [] }),
+      );
+      await expect(guard.canActivate(createMockContext({ 'x-api-key': 'key' }))).rejects.toThrow(
+        'Super admin API key required',
+      );
+    });
+
+    it('leaves an older business ADMIN key on admin routes as before (backward compatible)', async () => {
+      withRole(ApiKeyRole.ADMIN);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(
+        createMockApiKey({ role: ApiKeyRole.ADMIN, businessId: 'biz-A' }),
+      );
+      await expect(guard.canActivate(createMockContext({ 'x-api-key': 'key' }))).resolves.toBe(true);
+    });
+
+    it("rejects a customer key on the super admin's unassigned sessions", async () => {
+      withRole(undefined);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(
+        createMockApiKey({ businessId: 'biz-A', allowedFeatures: [] }),
+      );
+      sessionRepository.findOne.mockResolvedValue({ id: 'sess-1', businessId: null });
+      await expect(guard.canActivate(customerContext('sess-1'))).rejects.toThrow(ForbiddenException);
+    });
+
+    it("confines a customer key's reads to its own sessions without mutating the stored key", async () => {
+      withRole(undefined);
+      const apiKey = createMockApiKey({ businessId: 'biz-A', allowedFeatures: [] });
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(apiKey);
+      sessionRepository.findOne.mockResolvedValue({ id: 'sess-1', businessId: 'biz-A' });
+
+      const context = customerContext('sess-1');
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(context.switchToHttp().getRequest<{ apiKey: ApiKey }>().apiKey.allowedSessions).toEqual(['sess-1']);
+      expect(apiKey.allowedSessions).toBeNull();
+    });
+
+    it('allows the super admin (admin key without business) on admin routes', async () => {
+      withRole(ApiKeyRole.ADMIN);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(createMockApiKey({ role: ApiKeyRole.ADMIN }));
+      await expect(guard.canActivate(createMockContext({ 'x-api-key': 'key' }))).resolves.toBe(true);
+    });
+
+    it('blocks a feature the key is not approved for, allows an approved one', async () => {
+      withRole(undefined);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(createMockApiKey({ allowedFeatures: ['ai'] }));
+      await expect(guard.canActivate(contextFor(CampaignsController))).rejects.toThrow(
+        'Feature not enabled for this API key: campaigns',
+      );
+
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(createMockApiKey({ allowedFeatures: ['campaigns'] }));
+      await expect(guard.canActivate(contextFor(CampaignsController))).resolves.toBe(true);
+    });
+
+    it('always allows core routes, and denies unclassified controllers to restricted keys', async () => {
+      withRole(undefined);
+      (authService.validateApiKey as jest.Mock).mockResolvedValue(createMockApiKey({ allowedFeatures: [] }));
+      await expect(guard.canActivate(contextFor(MessagesController))).resolves.toBe(true);
+      await expect(guard.canActivate(createMockContext({ 'x-api-key': 'key' }))).rejects.toThrow(
+        'Feature not enabled for this API key: unclassified',
+      );
+    });
   });
 });

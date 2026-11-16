@@ -39,6 +39,10 @@ export class ApiKey {
   @Column({ type: 'varchar', length: 36, nullable: true })
   businessId: string | null;
 
+  // Approved feature ids (see features.ts). null = every feature; [] = core only.
+  @Column({ type: 'simple-array', nullable: true })
+  allowedFeatures: string[] | null;
+
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 

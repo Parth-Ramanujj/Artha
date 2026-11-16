@@ -178,7 +178,7 @@ const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: 'mem-1',
     name: 'Parth Ramanuj (Owner)',
-    email: 'parth@openwa.local',
+    email: 'parth@artha.local',
     role: 'admin',
     status: 'active',
     lastActive: 'Just now',
@@ -186,7 +186,7 @@ const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: 'mem-2',
     name: 'Amit Shah (Sales Lead)',
-    email: 'amit@openwa.local',
+    email: 'amit@artha.local',
     role: 'manager',
     status: 'active',
     assignedNumber: '+91 98765 43210',
@@ -195,7 +195,7 @@ const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: 'mem-3',
     name: 'Pooja Verma (Support Rep)',
-    email: 'pooja@openwa.local',
+    email: 'pooja@artha.local',
     role: 'agent',
     status: 'active',
     assignedNumber: '+91 91234 56789',
@@ -204,7 +204,7 @@ const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: 'mem-4',
     name: 'Rohan Mehta (Growth Marketer)',
-    email: 'rohan@openwa.local',
+    email: 'rohan@artha.local',
     role: 'marketing',
     status: 'active',
     lastActive: '3 hours ago',
@@ -212,15 +212,15 @@ const INITIAL_MEMBERS: TeamMember[] = [
   {
     id: 'mem-5',
     name: 'Kavita Patel (Compliance)',
-    email: 'kavita@openwa.local',
+    email: 'kavita@artha.local',
     role: 'auditor',
     status: 'active',
     lastActive: 'Yesterday',
   },
 ];
 
-const STORAGE_KEY_PERMS = 'openwa_rbac_permissions';
-const STORAGE_KEY_MEMBERS = 'openwa_team_members';
+const STORAGE_KEY_PERMS = 'artha_rbac_permissions';
+const STORAGE_KEY_MEMBERS = 'artha_team_members';
 
 export function RolesManagement() {
   const toast = useToast();
@@ -335,7 +335,7 @@ export function RolesManagement() {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              Define exactly what each role can view, edit, or execute across OpenWA.
+              Define exactly what each role can view, edit, or execute across Artha.
             </p>
             <button className="btn-primary" onClick={handleSaveMatrix}>
               Save Permissions Matrix

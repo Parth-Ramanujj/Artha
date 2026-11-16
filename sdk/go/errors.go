@@ -1,4 +1,4 @@
-package openwa
+package artha
 
 import (
 	"encoding/json"
@@ -9,30 +9,30 @@ import (
 
 // Sentinel errors for the common failure modes. Match them with errors.Is:
 //
-//	if errors.Is(err, openwa.ErrNotFound) { ... }
+//	if errors.Is(err, artha.ErrNotFound) { ... }
 //
 // They are matched against an *APIError by its HTTP status code, so you never
 // need to inspect the status yourself for the common cases. For everything else
 // (or to read the response body), unwrap the concrete type with errors.As:
 //
-//	var apiErr *openwa.APIError
+//	var apiErr *artha.APIError
 //	if errors.As(err, &apiErr) { log.Println(apiErr.StatusCode, apiErr.Body) }
 var (
 	// ErrBadRequest is returned for a 400 (invalid request payload).
-	ErrBadRequest = errors.New("openwa: bad request")
+	ErrBadRequest = errors.New("artha: bad request")
 	// ErrUnauthorized is returned for a 401 (missing or invalid API key).
-	ErrUnauthorized = errors.New("openwa: unauthorized")
+	ErrUnauthorized = errors.New("artha: unauthorized")
 	// ErrForbidden is returned for a 403 (insufficient role).
-	ErrForbidden = errors.New("openwa: forbidden")
+	ErrForbidden = errors.New("artha: forbidden")
 	// ErrNotFound is returned for a 404.
-	ErrNotFound = errors.New("openwa: not found")
+	ErrNotFound = errors.New("artha: not found")
 	// ErrConflict is returned for a 409 (typically an engine-not-ready condition).
-	ErrConflict = errors.New("openwa: conflict")
+	ErrConflict = errors.New("artha: conflict")
 	// ErrRateLimited is returned for a 429 (too many requests).
-	ErrRateLimited = errors.New("openwa: rate limited")
+	ErrRateLimited = errors.New("artha: rate limited")
 	// ErrNotImplemented is returned for a 501 (the active engine does not
 	// support this operation).
-	ErrNotImplemented = errors.New("openwa: not implemented")
+	ErrNotImplemented = errors.New("artha: not implemented")
 )
 
 // APIError is returned when the API responds with a non-2xx status. A 3xx also
@@ -55,7 +55,7 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("openwa: API %d — %s: %s", e.StatusCode, e.Context, e.Message)
+	return fmt.Sprintf("artha: API %d — %s: %s", e.StatusCode, e.Context, e.Message)
 }
 
 // Is bridges the concrete APIError to the sentinel errors above so callers can
@@ -90,9 +90,9 @@ type TimeoutError struct {
 
 func (e *TimeoutError) Error() string {
 	if e.Timeout > 0 {
-		return fmt.Sprintf("openwa: request timed out after %s", e.Timeout)
+		return fmt.Sprintf("artha: request timed out after %s", e.Timeout)
 	}
-	return "openwa: request timed out"
+	return "artha: request timed out"
 }
 
 func (e *TimeoutError) Unwrap() error { return e.Err }

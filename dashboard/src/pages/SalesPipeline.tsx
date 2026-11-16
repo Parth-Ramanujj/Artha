@@ -120,7 +120,7 @@ const INITIAL_DEALS: Deal[] = [
   },
 ];
 
-const STORAGE_KEY = 'openwa_sales_pipeline_deals';
+const STORAGE_KEY = 'artha_sales_pipeline_deals';
 
 export function SalesPipeline() {
   const [searchParams] = useSearchParams();

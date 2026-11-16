@@ -1,30 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import {
-  OpenWAClient,
-  OpenWAApiError,
-  OpenWAAuthError,
-  OpenWAForbiddenError,
-  OpenWANotFoundError,
-  OpenWAConflictError,
-  OpenWARateLimitError,
-  OpenWANotImplementedError,
-  OpenWATimeoutError,
+  ArthaClient,
+  ArthaApiError,
+  ArthaAuthError,
+  ArthaForbiddenError,
+  ArthaNotFoundError,
+  ArthaConflictError,
+  ArthaRateLimitError,
+  ArthaNotImplementedError,
+  ArthaTimeoutError,
 } from '../src';
 import type { FetchLike } from '../src';
 import { MockTransport } from './helpers';
 
-function client(transport: MockTransport): OpenWAClient {
-  return new OpenWAClient({
+function client(transport: MockTransport): ArthaClient {
+  return new ArthaClient({
     baseUrl: 'http://localhost:2785',
     apiKey: 'owa_k1_test',
     fetch: transport.asFetch(),
   });
 }
 
-describe('OpenWAClient', () => {
+describe('ArthaClient', () => {
   it('requires baseUrl and apiKey', () => {
-    expect(() => new OpenWAClient({ baseUrl: '', apiKey: 'x' })).toThrow();
-    expect(() => new OpenWAClient({ baseUrl: 'http://x', apiKey: '' })).toThrow();
+    expect(() => new ArthaClient({ baseUrl: '', apiKey: 'x' })).toThrow();
+    expect(() => new ArthaClient({ baseUrl: 'http://x', apiKey: '' })).toThrow();
   });
 
   it('sends the API key as X-API-Key and JSON content type', async () => {
@@ -36,7 +36,7 @@ describe('OpenWAClient', () => {
 
   it('strips a trailing slash from baseUrl', async () => {
     const t = new MockTransport().on('GET', '/api/sessions', { body: [] });
-    const c = new OpenWAClient({ baseUrl: 'http://localhost:2785/', apiKey: 'k', fetch: t.asFetch() });
+    const c = new ArthaClient({ baseUrl: 'http://localhost:2785/', apiKey: 'k', fetch: t.asFetch() });
     await c.sessions.list();
     expect(t.lastCall!.url).toBe('http://localhost:2785/api/sessions');
   });
@@ -49,7 +49,7 @@ describe('OpenWAClient', () => {
       seenInit = init as RequestInit;
       return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
     };
-    const c = new OpenWAClient({ baseUrl: 'http://x', apiKey: 'k', fetch: recordingFetch });
+    const c = new ArthaClient({ baseUrl: 'http://x', apiKey: 'k', fetch: recordingFetch });
     await c.health.check();
     expect(seenInit?.redirect).toBe('manual');
   });
@@ -59,19 +59,19 @@ describe('OpenWAClient', () => {
     // JS transport aligned with the Python and PHP SDKs (which now also error on >= 300).
     const redirectingFetch: FetchLike = async () =>
       new Response('{"redirected":true}', { status: 302, headers: { location: 'http://evil.example/x' } });
-    const c = new OpenWAClient({ baseUrl: 'http://x', apiKey: 'k', fetch: redirectingFetch });
+    const c = new ArthaClient({ baseUrl: 'http://x', apiKey: 'k', fetch: redirectingFetch });
     await expect(c.sessions.list()).rejects.toThrow();
   });
 
-  it('surfaces a real opaque unfollowed redirect (status 0) as a clear OpenWAApiError', async () => {
+  it('surfaces a real opaque unfollowed redirect (status 0) as a clear ArthaApiError', async () => {
     // With `redirect: 'manual'` the runtime returns an opaque response with status 0 (not a 3xx);
     // this is the actual shape the no-redirect guard produces, and it must throw a clear error.
     const opaqueRedirectFetch: FetchLike = async () => Response.error();
-    const c = new OpenWAClient({ baseUrl: 'http://x', apiKey: 'k', fetch: opaqueRedirectFetch });
+    const c = new ArthaClient({ baseUrl: 'http://x', apiKey: 'k', fetch: opaqueRedirectFetch });
     const err = await c.sessions.list().catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(OpenWAApiError);
-    expect((err as OpenWAApiError).status).toBe(0);
-    expect((err as OpenWAApiError).message).toMatch(/redirect/i);
+    expect(err).toBeInstanceOf(ArthaApiError);
+    expect((err as ArthaApiError).status).toBe(0);
+    expect((err as ArthaApiError).message).toMatch(/redirect/i);
   });
 
   it('percent-encodes path segments but keeps @ in JIDs readable', async () => {
@@ -91,12 +91,12 @@ describe('OpenWAClient', () => {
     expect(t.lastCall!.url).not.toContain('from=');
   });
 
-  it('maps a 404 to OpenWANotFoundError with parsed body', async () => {
+  it('maps a 404 to ArthaNotFoundError with parsed body', async () => {
     const t = new MockTransport().on('GET', '/api/sessions/missing', {
       status: 404,
       body: { statusCode: 404, message: 'Session not found', error: 'Not Found' },
     });
-    await expect(client(t).sessions.get('missing')).rejects.toBeInstanceOf(OpenWANotFoundError);
+    await expect(client(t).sessions.get('missing')).rejects.toBeInstanceOf(ArthaNotFoundError);
     await expect(client(t).sessions.get('missing')).rejects.toMatchObject({ status: 404 });
   });
 
@@ -128,24 +128,24 @@ describe('OpenWAClient', () => {
     await expect(client(t).sessions.delete('x')).resolves.toBeNull();
   });
 
-  it('OpenWAApiError.fromResponse parses the NestJS envelope', async () => {
+  it('ArthaApiError.fromResponse parses the NestJS envelope', async () => {
     const t = new MockTransport().on('POST', /send-text/, {
       status: 409,
       body: { statusCode: 409, message: 'Engine not ready', error: 'Conflict' },
     });
     await expect(client(t).messages.sendText('s', { chatId: 'a@c.us', text: 'hi' })).rejects.toBeInstanceOf(
-      OpenWAApiError,
+      ArthaApiError,
     );
   });
 
   it('maps each status code to its typed error subclass', async () => {
-    const cases: Array<[number, new (...a: never[]) => OpenWAApiError]> = [
-      [401, OpenWAAuthError],
-      [403, OpenWAForbiddenError],
-      [404, OpenWANotFoundError],
-      [409, OpenWAConflictError],
-      [429, OpenWARateLimitError],
-      [501, OpenWANotImplementedError],
+    const cases: Array<[number, new (...a: never[]) => ArthaApiError]> = [
+      [401, ArthaAuthError],
+      [403, ArthaForbiddenError],
+      [404, ArthaNotFoundError],
+      [409, ArthaConflictError],
+      [429, ArthaRateLimitError],
+      [501, ArthaNotImplementedError],
     ];
     for (const [status, cls] of cases) {
       const t = new MockTransport().on('GET', '/api/sessions', {
@@ -156,23 +156,23 @@ describe('OpenWAClient', () => {
     }
   });
 
-  it('falls back to the generic OpenWAApiError (with .status) for an unmapped status', async () => {
+  it('falls back to the generic ArthaApiError (with .status) for an unmapped status', async () => {
     const t = new MockTransport().on('GET', '/api/sessions', {
       status: 418,
       body: { statusCode: 418, message: 'teapot', error: 'Teapot' },
     });
     await expect(client(t).sessions.list()).rejects.toMatchObject({ status: 418 });
-    await expect(client(t).sessions.list()).rejects.toBeInstanceOf(OpenWAApiError);
+    await expect(client(t).sessions.list()).rejects.toBeInstanceOf(ArthaApiError);
   });
 
-  it('throws OpenWATimeoutError when the request aborts', async () => {
+  it('throws ArthaTimeoutError when the request aborts', async () => {
     const abortingFetch: FetchLike = async () => {
       const e = new Error('aborted');
       e.name = 'AbortError';
       throw e;
     };
-    const c = new OpenWAClient({ baseUrl: 'http://x', apiKey: 'k', fetch: abortingFetch });
-    await expect(c.sessions.list()).rejects.toBeInstanceOf(OpenWATimeoutError);
+    const c = new ArthaClient({ baseUrl: 'http://x', apiKey: 'k', fetch: abortingFetch });
+    await expect(c.sessions.list()).rejects.toBeInstanceOf(ArthaTimeoutError);
   });
 
   it('keeps the timeout armed while reading a stalled response body', async () => {
@@ -189,14 +189,14 @@ describe('OpenWAClient', () => {
       });
       return new Response(body, { status: 200 });
     };
-    const c = new OpenWAClient({ baseUrl: 'http://x', apiKey: 'k', timeoutMs: 5, fetch: stalledBodyFetch });
+    const c = new ArthaClient({ baseUrl: 'http://x', apiKey: 'k', timeoutMs: 5, fetch: stalledBodyFetch });
 
-    await expect(c.sessions.list()).rejects.toBeInstanceOf(OpenWATimeoutError);
+    await expect(c.sessions.list()).rejects.toBeInstanceOf(ArthaTimeoutError);
   });
 
   it('keeps X-API-Key winning over defaultHeaders', async () => {
     const t = new MockTransport().on('GET', '/api/sessions', { body: [] });
-    const c = new OpenWAClient({
+    const c = new ArthaClient({
       baseUrl: 'http://x',
       apiKey: 'REAL',
       defaultHeaders: { 'X-API-Key': 'EVIL', 'X-Trace': 'keep' },
@@ -209,7 +209,7 @@ describe('OpenWAClient', () => {
 
   it('keeps the JSON Content-Type winning over a defaultHeaders override', async () => {
     const t = new MockTransport().on('GET', '/api/sessions', { body: [] });
-    const c = new OpenWAClient({
+    const c = new ArthaClient({
       baseUrl: 'http://x',
       apiKey: 'k',
       defaultHeaders: { 'Content-Type': 'text/plain', 'X-Trace': 'keep' },

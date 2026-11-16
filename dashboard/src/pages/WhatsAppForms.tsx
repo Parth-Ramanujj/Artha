@@ -139,7 +139,7 @@ export function WhatsAppForms() {
           }
         >
           <p>
-            "{deleteTarget.name}" will be removed from OpenWA. A form already published to WhatsApp stays live there until it is
+            "{deleteTarget.name}" will be removed from Artha. A form already published to WhatsApp stays live there until it is
             deleted in Meta Business Manager.
           </p>
         </Modal>

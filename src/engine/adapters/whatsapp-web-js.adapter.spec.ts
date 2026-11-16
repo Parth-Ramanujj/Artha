@@ -1628,7 +1628,7 @@ describe('WhatsAppWebJsAdapter ready reconciliation (#251/#273)', () => {
   // #981: clearing the auth dir destroys the ONLY copy of the session's WhatsApp credentials, and the
   // loss is permanent — every later start finds an empty profile and can only show a QR. Until now the
   // adapter logged only the FAILURE to delete, so a successful wipe left no trace at all and triage
-  // could not tell an OpenWA self-heal apart from a WhatsApp-side logout or an untouched profile.
+  // could not tell an Artha self-heal apart from a WhatsApp-side logout or an untouched profile.
   it('records the credential deletion, naming the session and the directory removed', async () => {
     const rmSpy = jest.spyOn(fs.promises, 'rm').mockResolvedValue(undefined);
     const adapter = newAdapter();

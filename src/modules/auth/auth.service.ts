@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -13,6 +14,13 @@ import { randomBytes } from 'crypto';
 import { ipMatches } from '../../common/utils/ip';
 import { hashApiKey } from './api-key-hash';
 import { ApiKey, ApiKeyRole } from './entities/api-key.entity';
+import { Business } from '../business/entities/business.entity';
+import { Session } from '../session/entities/session.entity';
+import { isCustomerKey } from './features';
+
+// Every allowedSessions consumer reads [] as "unrestricted", so a business with no sessions is
+// scoped to this id instead — no session can have it.
+export const NO_SESSION_SCOPE = '00000000-0000-0000-0000-000000000000';
 import { CreateApiKeyDto, UpdateApiKeyDto } from './dto';
 import { createLogger } from '../../common/services/logger.service';
 import { readBootstrapKey, removeBootstrapKey, writeBootstrapKey } from './bootstrap-key-file';
@@ -70,6 +78,10 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(ApiKey, 'main')
     private readonly apiKeyRepository: Repository<ApiKey>,
+    @InjectRepository(Business, 'data')
+    private readonly businessRepository: Repository<Business>,
+    @InjectRepository(Session, 'data')
+    private readonly sessionRepository: Repository<Session>,
     private readonly usageTracker: ApiKeyUsageTracker,
     private readonly moduleRef: ModuleRef,
   ) {}
@@ -106,7 +118,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('');
     this.logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     this.logger.log('');
-    this.logger.log('  🟢 Welcome to OpenWA - WhatsApp API Gateway');
+    this.logger.log('  🟢 Welcome to Artha - WhatsApp API Gateway');
     this.logger.log('');
     this.logger.log(`  📊 Dashboard: ${dashboardUrl}`);
     this.logger.log(`  📚 API Docs:  ${apiBaseUrl}/api/docs`);
@@ -186,6 +198,12 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
   }
 
   async createApiKey(dto: CreateApiKeyDto): Promise<{ apiKey: ApiKey; rawKey: string }> {
+    const role = dto.role || ApiKeyRole.OPERATOR;
+    if (dto.expiresAt && new Date(dto.expiresAt) <= new Date()) {
+      throw new BadRequestException('expiresAt must be in the future');
+    }
+    if (dto.businessId) await this.assertBusinessKeyAllowed(dto.businessId, role);
+
     // Generate secure random key: owa_k1_<32 bytes hex>
     const rawKey = `owa_k1_${randomBytes(32).toString('hex')}`;
     const keyHash = this.hashKey(rawKey);
@@ -195,10 +213,12 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       name: dto.name,
       keyHash,
       keyPrefix,
-      role: dto.role || ApiKeyRole.OPERATOR,
+      role,
       allowedIps: dto.allowedIps || null,
       allowedSessions: dto.allowedSessions || null,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      businessId: dto.businessId ?? null,
+      allowedFeatures: dto.allowedFeatures ?? null,
     });
 
     const saved = await this.apiKeyRepository.save(apiKey);
@@ -240,6 +260,9 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       // concurrent serialized mutation may already have changed this key's usability — so the
       // last-admin check and the write both run against fresh state.
       const target = await this.findOne(id);
+      if (dto.role === ApiKeyRole.ADMIN && target.businessId) {
+        throw new BadRequestException('A business API key cannot have the admin role');
+      }
       if (removesOrSchedulesLastAdmin) {
         await this.assertNotLastUsableAdmin(target);
       }
@@ -254,6 +277,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
         allowedIps: target.allowedIps,
         allowedSessions: target.allowedSessions,
         expiresAt: target.expiresAt,
+        allowedFeatures: target.allowedFeatures,
       };
 
       if (dto.name) target.name = dto.name;
@@ -261,6 +285,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       if (dto.allowedIps !== undefined) target.allowedIps = dto.allowedIps;
       if (dto.allowedSessions !== undefined) target.allowedSessions = dto.allowedSessions;
       if (dto.expiresAt !== undefined) target.expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+      if (dto.allowedFeatures !== undefined) target.allowedFeatures = dto.allowedFeatures;
 
       const saved = await this.apiKeyRepository.save(target);
 
@@ -271,7 +296,8 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
         saved.role !== before.role ||
         saved.expiresAt?.getTime() !== before.expiresAt?.getTime() ||
         JSON.stringify(ordered(saved.allowedIps)) !== JSON.stringify(ordered(before.allowedIps)) ||
-        JSON.stringify(ordered(saved.allowedSessions)) !== JSON.stringify(ordered(before.allowedSessions));
+        JSON.stringify(ordered(saved.allowedSessions)) !== JSON.stringify(ordered(before.allowedSessions)) ||
+        JSON.stringify(ordered(saved.allowedFeatures)) !== JSON.stringify(ordered(before.allowedFeatures));
       if (authzChanged) {
         this.evictActiveSockets(id, 'authorization_changed');
       }
@@ -355,7 +381,8 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
       key.role === ApiKeyRole.ADMIN &&
       key.isActive &&
       (!key.expiresAt || key.expiresAt > now) &&
-      (!key.allowedSessions || key.allowedSessions.length === 0)
+      (!key.allowedSessions || key.allowedSessions.length === 0) &&
+      !key.businessId
     );
   }
 
@@ -368,12 +395,27 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     // "no session scope" is NULL or '' — IsNull() alone would miss the '' rows.
     const otherUsableAdmins = await this.apiKeyRepository.count({
       where: [
-        { id: Not(target.id), role: ApiKeyRole.ADMIN, isActive: true, expiresAt: IsNull(), allowedSessions: IsNull() },
-        { id: Not(target.id), role: ApiKeyRole.ADMIN, isActive: true, expiresAt: IsNull(), allowedSessions: Equal('') },
         {
           id: Not(target.id),
           role: ApiKeyRole.ADMIN,
           isActive: true,
+          businessId: IsNull(),
+          expiresAt: IsNull(),
+          allowedSessions: IsNull(),
+        },
+        {
+          id: Not(target.id),
+          role: ApiKeyRole.ADMIN,
+          isActive: true,
+          businessId: IsNull(),
+          expiresAt: IsNull(),
+          allowedSessions: Equal(''),
+        },
+        {
+          id: Not(target.id),
+          role: ApiKeyRole.ADMIN,
+          isActive: true,
+          businessId: IsNull(),
           expiresAt: MoreThan(now),
           allowedSessions: IsNull(),
         },
@@ -381,6 +423,7 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
           id: Not(target.id),
           role: ApiKeyRole.ADMIN,
           isActive: true,
+          businessId: IsNull(),
           expiresAt: MoreThan(now),
           allowedSessions: Equal(''),
         },
@@ -454,6 +497,34 @@ export class AuthService implements OnModuleInit, OnModuleDestroy {
     await this.usageTracker.record(apiKey);
 
     return apiKey;
+  }
+
+  /**
+   * The sessions a key may see. A business key is confined to its own business's sessions (narrowed
+   * further by its allowedSessions), so every allowedSessions-based list/filter is tenant-safe.
+   * Other keys keep their stored allowedSessions (null/[] = unrestricted).
+   */
+  async effectiveSessionScope(
+    apiKey: Pick<ApiKey, 'businessId' | 'allowedSessions' | 'allowedFeatures'>,
+  ): Promise<string[] | null> {
+    if (!apiKey.businessId || !isCustomerKey(apiKey)) return apiKey.allowedSessions;
+    const own = await this.sessionRepository.find({ where: { businessId: apiKey.businessId }, select: { id: true } });
+    const ownIds = own.map(s => s.id);
+    const scope = apiKey.allowedSessions?.length ? apiKey.allowedSessions.filter(id => ownIds.includes(id)) : ownIds;
+    return scope.length ? scope : [NO_SESSION_SCOPE];
+  }
+
+  /** Customer (business) keys are never admin: admin routes are server-wide (super admin only). */
+  private async assertBusinessKeyAllowed(businessId: string, role: ApiKeyRole): Promise<void> {
+    if (role === ApiKeyRole.ADMIN) {
+      throw new BadRequestException('A business API key cannot have the admin role');
+    }
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId },
+      select: { id: true, isActive: true },
+    });
+    if (!business) throw new BadRequestException('Business not found');
+    if (!business.isActive) throw new BadRequestException('Business is deactivated');
   }
 
   private hashKey(rawKey: string): string {

@@ -25,7 +25,7 @@ async function bench() {
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
     '-preset', 'ultrafast',
-    'd:/testing/OpenWA/data/test_bench.mp4'
+    'd:/testing/Artha/data/test_bench.mp4'
   ]);
 
   for (let i = 0; i < 30; i++) {

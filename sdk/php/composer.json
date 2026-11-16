@@ -1,18 +1,18 @@
 {
-    "name": "rmyndharis/openwa",
-    "description": "Official PHP SDK for OpenWA WhatsApp API Gateway",
+    "name": "rmyndharis/artha",
+    "description": "Official PHP SDK for Artha WhatsApp API Gateway",
     "type": "library",
     "license": "MIT",
     "keywords": [
         "whatsapp",
         "api",
         "sdk",
-        "openwa",
+        "artha",
         "gateway"
     ],
     "authors": [
         {
-            "name": "OpenWA Contributors"
+            "name": "Artha Contributors"
         }
     ],
     "require": {
@@ -24,12 +24,12 @@
     },
     "autoload": {
         "psr-4": {
-            "OpenWA\\": "src/"
+            "Artha\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "OpenWA\\Tests\\": "tests/"
+            "Artha\\Tests\\": "tests/"
         }
     },
     "config": {

@@ -1827,7 +1827,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     // 3. Headers
     const headers: Record<string, string> = {
-      'User-Agent': 'OpenWA-Workflow-Engine/1.0',
+      'User-Agent': 'Artha-Workflow-Engine/1.0',
     };
     const rawHeaders = action.config['headers'];
     if (Array.isArray(rawHeaders)) {
@@ -2024,7 +2024,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     const method = String(dto.method || 'POST').toUpperCase();
     const reqHeaders: Record<string, string> = {
-      'User-Agent': 'OpenWA-Workflow-Engine/1.0',
+      'User-Agent': 'Artha-Workflow-Engine/1.0',
     };
     if (Array.isArray(dto.headers)) {
       for (const h of dto.headers) {

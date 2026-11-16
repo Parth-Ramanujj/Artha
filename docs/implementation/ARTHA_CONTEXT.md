@@ -4,8 +4,8 @@
 
 ## Identity
 
-- **Package:** `openwa` v0.12.3
-- **Brand:** Artha (formerly OpenWA)
+- **Package:** `artha` v0.12.3
+- **Brand:** Artha (formerly Artha)
 - **Runtime:** Node.js >=22.13 (tested on v24.15.0)
 - **Backend:** NestJS 11, TypeScript 6
 - **Frontend:** React 19, Vite 8, React Router 7, TanStack Query, Socket.IO, i18next (12 locales)

@@ -3,16 +3,16 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rmyndharis-openwa"
+name = "rmyndharis-artha"
 version = "0.1.0"
-description = "Official Python SDK for OpenWA WhatsApp API Gateway"
+description = "Official Python SDK for Artha WhatsApp API Gateway"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
 authors = [
-    { name = "OpenWA Contributors" }
+    { name = "Artha Contributors" }
 ]
-keywords = ["whatsapp", "api", "sdk", "openwa", "gateway"]
+keywords = ["whatsapp", "api", "sdk", "artha", "gateway"]
 
 dependencies = [
     "httpx>=0.25.0,<1.0",
@@ -25,16 +25,16 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/rmyndharis/OpenWA"
-Repository = "https://github.com/rmyndharis/OpenWA"
+Homepage = "https://github.com/rmyndharis/Artha"
+Repository = "https://github.com/rmyndharis/Artha"
 
 [tool.setuptools.packages.find]
-include = ["openwa*"]
+include = ["artha*"]
 
 # Ship type information (PEP 561) so consumers get the bundled type hints.
 [tool.setuptools.package-data]
-openwa = ["py.typed"]
-"openwa.resources" = ["py.typed"]
+artha = ["py.typed"]
+"artha.resources" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

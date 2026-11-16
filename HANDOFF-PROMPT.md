@@ -1,6 +1,6 @@
-# Artha (OpenWA) - Full Project Handoff Prompt
+# Artha (Artha) - Full Project Handoff Prompt
 
-You are continuing development on **Artha** (package name `openwa`), a self-hosted WhatsApp API Gateway. Below is everything you need to know to work on this project.
+You are continuing development on **Artha** (package name `artha`), a self-hosted WhatsApp API Gateway. Below is everything you need to know to work on this project.
 
 ---
 
@@ -205,7 +205,7 @@ npm run format       # Prettier
 
 ## Recent Git History (Key Milestones)
 
-1. **Rebrand from OpenWA to Artha** — UI and documentation rename
+1. **Rebrand from Artha to Artha** — UI and documentation rename
 2. **Deployment fixes** — Dockerfile HEALTHCHECK port, Railway host binding (0.0.0.0)
 3. **v0.12.3** — Engine fixes (link-preview), config fixes (env precedence), dashboard fixes (readiness polling)
 4. **v0.12.2** — Plugin fixes (package dir, scope binding), auth fixes (bootstrap key file)
@@ -266,7 +266,7 @@ The Cloud API engine (third engine, using Meta's official WhatsApp Cloud API) ha
 3. **Neutral JID dialect**: All engine output normalized to consistent identity format
 4. **Conditional module loading**: Queue, MCP, Search, ServeStatic only load when enabled
 5. **Three-layer env precedence**: Process env > .env > dashboard-generated file
-6. **Non-root Docker**: Root runs only for chown, drops to openwa user via gosu
+6. **Non-root Docker**: Root runs only for chown, drops to artha user via gosu
 7. **SSRF protection**: Blocks internal addresses on webhooks and media fetches
 8. **Simulate typing**: Anti-ban delays before sends
 9. **Engine capability matrix with evidence**: Per-method support documented with library citations, enforced by tests

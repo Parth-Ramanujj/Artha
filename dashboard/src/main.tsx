@@ -1,3 +1,5 @@
+// First import: copies pre-rename storage keys before i18n or the theme read them.
+import './utils/legacyStorage';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './i18n';
@@ -7,7 +9,7 @@ import App from './App.tsx';
 // Apply the stored theme BEFORE first paint: useTheme() only runs inside Layout, so standalone
 // routes (Login) otherwise flash the OS theme on reload even when the user explicitly picked one.
 // Mirrors applyTheme: an explicit choice sets data-theme; system/absent leaves it to the media query.
-const storedTheme = localStorage.getItem('openwa_theme');
+const storedTheme = localStorage.getItem('artha_theme');
 if (storedTheme === 'light' || storedTheme === 'dark') {
   document.documentElement.setAttribute('data-theme', storedTheme);
 }

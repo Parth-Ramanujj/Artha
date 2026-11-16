@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace OpenWA\Tests;
+namespace Artha\Tests;
 
-use OpenWA\Exceptions\OpenWANotFoundException;
+use Artha\Exceptions\ArthaNotFoundException;
 use PHPUnit\Framework\TestCase;
 
 class ResourcesTest extends TestCase
@@ -275,7 +275,7 @@ class ResourcesTest extends TestCase
             'message' => 'Status media not found or expired',
             'error' => 'Not Found',
         ]);
-        $this->expectException(OpenWANotFoundException::class);
+        $this->expectException(ArthaNotFoundException::class);
         $backend->makeClient()->status->media('s', 'w1');
     }
 

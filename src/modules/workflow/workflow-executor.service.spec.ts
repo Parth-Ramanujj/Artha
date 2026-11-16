@@ -584,7 +584,7 @@ describe('WorkflowExecutor', () => {
         businessId: 'biz-1',
         sessionId: 'sess-1',
         chatId: '919876543210@c.us',
-        messageBody: 'Hello OpenWA',
+        messageBody: 'Hello Artha',
         metadata: { contactName: 'Parth' },
       };
 
@@ -607,7 +607,7 @@ describe('WorkflowExecutor', () => {
 
       // 5. Trigger scope: {{trigger.*}}
       const text5 = 'Sender: {{trigger.phone}}, Message: {{trigger.message}}';
-      expect(executor.interpolateVariables(text5, ctx, run)).toBe('Sender: 919876543210, Message: Hello OpenWA');
+      expect(executor.interpolateVariables(text5, ctx, run)).toBe('Sender: 919876543210, Message: Hello Artha');
     });
 
     it('passes data from Action 1 (API call) directly into Action 2 (Send Message)', async () => {

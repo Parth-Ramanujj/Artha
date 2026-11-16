@@ -22,6 +22,7 @@ import { incrementWebhookDeliveryFailures } from '../../common/metrics/webhook-d
 import { ListOptions, resolveListWindow } from '../../common/utils/paginate';
 import { QUEUE_NAMES } from '../queue/queue-names';
 import { generateIdempotencyKey, generateDeliveryId } from './utils/idempotency.util';
+import { RESERVED_WEBHOOK_HEADER, withLegacyHeaders } from './utils/legacy-headers';
 import { evaluateFilters } from './filters/filter-evaluator';
 import { LidMappingStoreService } from '../../engine/identity/lid-mapping-store.service';
 import { userPart } from '../../engine/identity/wa-id';
@@ -349,7 +350,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       idempotencyKey: generateIdempotencyKey('test', { webhookId: webhook.id }),
       deliveryId: generateDeliveryId(),
       data: {
-        message: 'This is a test webhook from OpenWA',
+        message: 'This is a test webhook from Artha',
         webhookId: webhook.id,
         url: webhook.url,
       },
@@ -360,15 +361,15 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
       // Custom headers FIRST so the system headers below always win.
       ...this.sanitizeCustomHeaders(webhook.headers),
       'Content-Type': 'application/json',
-      'User-Agent': 'OpenWA-Webhook/1.0.0',
-      'X-OpenWA-Event': 'test',
-      'X-OpenWA-Idempotency-Key': testPayload.idempotencyKey,
-      'X-OpenWA-Delivery-Id': testPayload.deliveryId,
-      'X-OpenWA-Retry-Count': '0',
+      'User-Agent': 'Artha-Webhook/1.0.0',
+      'X-Artha-Event': 'test',
+      'X-Artha-Idempotency-Key': testPayload.idempotencyKey,
+      'X-Artha-Delivery-Id': testPayload.deliveryId,
+      'X-Artha-Retry-Count': '0',
     };
 
     if (webhook.secret) {
-      headers['X-OpenWA-Signature'] = this.generateSignature(body, webhook.secret);
+      headers['X-Artha-Signature'] = this.generateSignature(body, webhook.secret);
     }
 
     try {
@@ -376,7 +377,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         webhook.url,
         {
           method: 'POST',
-          headers,
+          headers: withLegacyHeaders(headers),
           body,
           // Use the configured WEBHOOK_TIMEOUT (single source of truth across queued/test/direct paths).
           signal: AbortSignal.timeout(this.configService.get<number>('webhook.timeout', 10000)),
@@ -513,7 +514,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         finalPayload = (hookResult as { payload?: WebhookPayload } | null | undefined)?.payload ?? payload;
         // Re-assert EVERY identity field after the (untrusted) hook chain. A hook may rewrite data,
         // but event/sessionId/timestamp and the dedupe ids must remain the server's values: the
-        // receiver verifies the signature over this body and compares it against the X-OpenWA-*
+        // receiver verifies the signature over this body and compares it against the X-Artha-*
         // headers, and failure records are filed by these fields — a rewritten sessionId/event
         // misfiles them across sessions.
         finalPayload.event = event;
@@ -559,11 +560,11 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         headers = {
           ...this.sanitizeCustomHeaders(webhook.headers),
           'Content-Type': 'application/json',
-          'User-Agent': 'OpenWA-Webhook/1.0.0',
-          'X-OpenWA-Event': event,
-          'X-OpenWA-Idempotency-Key': idempotencyKey,
-          'X-OpenWA-Delivery-Id': deliveryId,
-          'X-OpenWA-Retry-Count': '0',
+          'User-Agent': 'Artha-Webhook/1.0.0',
+          'X-Artha-Event': event,
+          'X-Artha-Idempotency-Key': idempotencyKey,
+          'X-Artha-Delivery-Id': deliveryId,
+          'X-Artha-Retry-Count': '0',
         };
       } catch (error) {
         await recordUndelivered(webhook, deliveryId, idempotencyKey, error, 'webhook_dispatch_preflight_failed');
@@ -579,7 +580,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
           const signature = webhook.secret ? this.generateSignature(body, webhook.secret) : '';
 
           if (webhook.secret) {
-            headers['X-OpenWA-Signature'] = signature;
+            headers['X-Artha-Signature'] = signature;
           }
 
           const jobData: WebhookJobData = {
@@ -630,7 +631,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
           // Fallback: deliver directly when the queue add failed (e.g. Redis unreachable with the
           // producer's enableOfflineQueue:false). This is at-least-once — if add() actually reached
           // Redis before rejecting, the queued job AND this fallback may both POST. Both paths carry the
-          // same X-OpenWA-Idempotency-Key / X-OpenWA-Delivery-Id, so a conformant receiver dedupes.
+          // same X-Artha-Idempotency-Key / X-Artha-Delivery-Id, so a conformant receiver dedupes.
           try {
             await this.deliverWebhook(webhook, finalPayload, headers, body);
 
@@ -755,11 +756,11 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     attempt = 1,
   ): Promise<void> {
     // Update retry count header
-    headers['X-OpenWA-Retry-Count'] = String(attempt - 1);
+    headers['X-Artha-Retry-Count'] = String(attempt - 1);
 
     // Add signature if secret is configured and not already present
-    if (webhook.secret && !headers['X-OpenWA-Signature']) {
-      headers['X-OpenWA-Signature'] = this.generateSignature(body, webhook.secret);
+    if (webhook.secret && !headers['X-Artha-Signature']) {
+      headers['X-Artha-Signature'] = this.generateSignature(body, webhook.secret);
     }
 
     try {
@@ -767,7 +768,7 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
         webhook.url,
         {
           method: 'POST',
-          headers,
+          headers: withLegacyHeaders(headers),
           body,
           signal: AbortSignal.timeout(this.configService.get<number>('webhook.timeout', 10000)),
         },
@@ -862,13 +863,13 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Drop operator-supplied custom headers that target reserved names (Content-Type or any
-   * X-OpenWA-* header) so a webhook config cannot forge the signature/event/idempotency
+   * X-Artha-* / legacy X-OpenWA-* header) so a webhook config cannot forge the signature/event/idempotency
    * headers. Spread the result BEFORE the system headers so system always wins.
    */
   private sanitizeCustomHeaders(custom: Record<string, string> | null | undefined): Record<string, string> {
     const safe: Record<string, string> = {};
     for (const [key, value] of Object.entries(custom ?? {})) {
-      if (!/^(content-type|x-openwa-)/i.test(key)) {
+      if (!RESERVED_WEBHOOK_HEADER.test(key)) {
         safe[key] = value;
       }
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { messageStudioApi, sessionApi } from '../../services/api';
 
-const STORAGE_KEY = 'openwa.messageStudio.sessionId';
+const STORAGE_KEY = 'artha.messageStudio.sessionId';
 
 function remembered(): string {
   try {

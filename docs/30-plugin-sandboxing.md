@@ -1,6 +1,6 @@
 # 30 — Plugin Sandboxing
 
-OpenWA runs **untrusted plugins** (anything loaded from the plugins directory) in an isolated worker
+Artha runs **untrusted plugins** (anything loaded from the plugins directory) in an isolated worker
 thread, separate from the first-party built-ins (the two engine adapters) which run in-process. This
 page describes the security model honestly — what the sandbox guarantees and, just as important, what
 it does not — and what changes for plugin authors.
@@ -55,14 +55,14 @@ from disk is untrusted and sandboxed.
 > not an OS-level sandbox.
 
 A worker still has access to Node built-ins — `require('fs')`, `process`, network sockets — and runs
-as the same uid as OpenWA. The sandbox therefore does **not**, by itself, stop a malicious plugin
-from reading files the OpenWA process can read or making outbound network connections. It protects
+as the same uid as Artha. The sandbox therefore does **not**, by itself, stop a malicious plugin
+from reading files the Artha process can read or making outbound network connections. It protects
 the *integrity* of the host (no host-object compromise, contained faults, mediated capabilities) — not
 the *confidentiality* of the host filesystem against deliberate Node-builtin abuse.
 
 For genuinely untrusted, third-party plugins, combine the sandbox with **OS-level containment**:
 
-- **Run OpenWA in a container.** The image's entrypoint already drops to the non-root `openwa` user
+- **Run Artha in a container.** The image's entrypoint already drops to the non-root `artha` user
   (via `gosu`, after fixing volume ownership). The rest of the confinement comes from the bundled
   `docker-compose.yml`, not from the image: `read_only: true` rootfs with a tmpfs `/tmp`,
   `no-new-privileges`, and `cap_drop: ALL` with a minimal re-add

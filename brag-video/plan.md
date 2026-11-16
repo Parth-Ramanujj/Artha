@@ -1,7 +1,7 @@
-# ARTHA (OpenWA) — 60-SECOND LAUNCH VIDEO PRODUCTION PLAN
+# ARTHA (Artha) — 60-SECOND LAUNCH VIDEO PRODUCTION PLAN
 
 ## 1. PROJECT SUMMARY
-- **Product**: Artha (OpenWA) — Free, Open Source WhatsApp API Gateway & AI Orchestration Platform
+- **Product**: Artha (Artha) — Free, Open Source WhatsApp API Gateway & AI Orchestration Platform
 - **Target Audience**: Developers, Software Engineers, Founders, and Tech Businesses seeking reliable WhatsApp messaging infrastructure without Meta Cloud API vendor lock-in or per-conversation fees.
 - **Duration**: Exactly 60.0 Seconds (1,800 frames @ 30fps)
 - **Output Spec**: 1920x1080 Full HD, H.264 video (High Profile, YUV420p), AAC 48kHz Stereo Audio, 30fps MP4.

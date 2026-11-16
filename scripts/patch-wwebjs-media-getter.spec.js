@@ -17,7 +17,7 @@ const {
 } = require('./patch-wwebjs-media-getter.js');
 
 function makeDependency(source) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'openwa-media-getter-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'artha-media-getter-'));
   const utils = path.join(root, 'src', 'util', 'Injected', 'Utils.js');
   fs.mkdirSync(path.dirname(utils), { recursive: true });
   fs.writeFileSync(utils, source, 'utf8');

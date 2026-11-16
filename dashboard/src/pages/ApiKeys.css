@@ -392,3 +392,64 @@
     padding: 0.75rem;
   }
 }
+
+.api-keys-page .access-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.api-keys-page .access-cell small {
+  color: var(--text-muted);
+}
+
+.api-keys-page .feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.api-keys-page .feature-grid legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.api-keys-page .feature-grid .feature-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.api-keys-page .feature-grid .feature-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.api-keys-page .expiry-row {
+  display: flex;
+  gap: 8px;
+}
+
+.api-keys-page .expiry-row input {
+  width: 110px;
+  flex: none;
+}
+
+.api-keys-page .expiry-row select {
+  flex: 1;
+}
+
+.api-keys-page .expiry-error {
+  display: block;
+  margin-top: 4px;
+  color: var(--error);
+  font-size: 0.85rem;
+}
