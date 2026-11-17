@@ -95,6 +95,7 @@
     "library": "Library",
     "customerCare": "Missed Calls & Assistant",
     "growth": "Growth",
+    "socialAutomation": "Social Automation",
     "aiAgents": "AI Agents & Voice",
     "commerce": "Shopify Commerce",
     "roles": "Roles & RBAC",
@@ -632,6 +633,7 @@
       "googleBusiness": "Google Business",
       "library": "Library",
       "growth": "Growth",
+      "socialAutomation": "Social Automation",
       "integrations": "Integrations"
     }
   },

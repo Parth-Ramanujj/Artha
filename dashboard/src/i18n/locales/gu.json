@@ -95,6 +95,7 @@
     "library": "લાઇબ્રેરી",
     "customerCare": "મિસ્ડ કૉલ અને આસિસ્ટન્ટ",
     "growth": "ગ્રોથ",
+    "socialAutomation": "સોશિયલ ઓટોમેશન",
     "aiAgents": "AI એજન્ટ્સ અને વૉઇસ",
     "commerce": "શોપિફાઇ ઈ-કોમર્સ",
     "roles": "રોલ્સ અને RBAC",
@@ -656,6 +657,7 @@
       "googleBusiness": "Google Business",
       "library": "લાઇબ્રેરી",
       "growth": "ગ્રોથ",
+      "socialAutomation": "સોશિયલ ઓટોમેશન",
       "integrations": "ઇન્ટિગ્રેશન"
     }
   },

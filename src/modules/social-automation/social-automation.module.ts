@@ -1,0 +1,26 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiModule } from '../ai/ai.module';
+import { BusinessModule } from '../business/business.module';
+import { SocialAutomationController } from './controllers/social-automation.controller';
+import { SocialWebhookController } from './controllers/social-webhook.controller';
+import { SocialAccount, SocialCommentLog, SocialCommentRule, SocialPost } from './entities/social-automation.entity';
+import { MetaGraphService } from './services/meta-graph.service';
+import { SocialAutomationService } from './social-automation.service';
+
+/**
+ * Social Media Automation Module
+ * Enables automated scheduled posting to Instagram & Facebook (Meta Graph API)
+ * and intelligent auto-replying & auto-liking of comments via webhooks or AI.
+ */
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog], 'data'),
+    BusinessModule,
+    AiModule,
+  ],
+  controllers: [SocialAutomationController, SocialWebhookController],
+  providers: [SocialAutomationService, MetaGraphService],
+  exports: [SocialAutomationService, MetaGraphService],
+})
+export class SocialAutomationModule {}

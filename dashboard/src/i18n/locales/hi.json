@@ -95,6 +95,7 @@
     "library": "लाइब्रेरी",
     "customerCare": "मिस्ड कॉल और असिस्टेंट",
     "growth": "ग्रोथ",
+    "socialAutomation": "सोशल ऑटोमेशन",
     "aiAgents": "AI एजेंट्स और वॉइस",
     "commerce": "शॉपिफाई ई-कॉमर्स",
     "roles": "रोल्स और RBAC",
@@ -656,6 +657,7 @@
       "googleBusiness": "Google Business",
       "library": "लाइब्रेरी",
       "growth": "ग्रोथ",
+      "socialAutomation": "सोशल ऑटोमेशन",
       "integrations": "इंटीग्रेशन"
     }
   },

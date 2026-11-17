@@ -34,6 +34,17 @@ import type {
 } from '../types/salesAgent';
 import type { GbpConfig, GbpLocation, GbpOverview, GbpReview, GbpSyncSummary } from '../types/googleBusiness';
 import type {
+  SimulateCommentResult,
+  SocialAccount,
+  SocialAccountInput,
+  SocialCommentLog,
+  SocialCommentRule,
+  SocialOverview,
+  SocialPost,
+  SocialPostInput,
+  SocialRuleInput,
+} from '../types/socialAutomation';
+import type {
   LibraryAutomation,
   LibraryAutomationInput,
   LibraryItem,
@@ -3022,4 +3033,39 @@ export const assistantApi = {
     assistantRequest<{ callId: string; token: string; path: string }>(`${encodeURIComponent(token)}/voice`, {
       method: 'POST',
     }),
+};
+
+const social = (path = '') => '/social-automation' + path;
+const socialId = (kind: string, id: string, rest = '') => social(`/${kind}/${encodeURIComponent(id)}${rest}`);
+
+export const socialAutomationApi = {
+  overview: () => request<SocialOverview>(social('/overview')),
+  accounts: () => request<SocialAccount[]>(social('/accounts')),
+  createAccount: (input: SocialAccountInput) =>
+    request<SocialAccount>(social('/accounts'), { method: 'POST', body: JSON.stringify(input) }),
+  updateAccount: (id: string, input: Partial<SocialAccountInput> & { status?: 'connected' | 'disconnected' }) =>
+    request<SocialAccount>(socialId('accounts', id), { method: 'PUT', body: JSON.stringify(input) }),
+  deleteAccount: (id: string) => request<{ success: boolean }>(socialId('accounts', id), { method: 'DELETE' }),
+  testAccount: (id: string) =>
+    request<{ valid: boolean; name?: string; error?: string; webhookError?: string }>(socialId('accounts', id, '/test'), {
+      method: 'POST',
+    }),
+  posts: () => request<SocialPost[]>(social('/posts')),
+  createPost: (input: SocialPostInput) =>
+    request<SocialPost>(social('/posts'), { method: 'POST', body: JSON.stringify(input) }),
+  updatePost: (id: string, input: Partial<Omit<SocialPostInput, 'platform' | 'publishNow' | 'accountId'>> & { status?: 'draft' | 'scheduled' }) =>
+    request<SocialPost>(socialId('posts', id), { method: 'PUT', body: JSON.stringify(input) }),
+  publishPostNow: (id: string) => request<SocialPost>(socialId('posts', id, '/publish-now'), { method: 'POST' }),
+  deletePost: (id: string) => request<{ success: boolean }>(socialId('posts', id), { method: 'DELETE' }),
+  rules: () => request<SocialCommentRule[]>(social('/rules')),
+  createRule: (input: SocialRuleInput) =>
+    request<SocialCommentRule>(social('/rules'), { method: 'POST', body: JSON.stringify(input) }),
+  updateRule: (id: string, input: Partial<SocialRuleInput>) =>
+    request<SocialCommentRule>(socialId('rules', id), { method: 'PUT', body: JSON.stringify(input) }),
+  toggleRule: (id: string, enabled: boolean) =>
+    request<SocialCommentRule>(socialId('rules', id, '/toggle'), { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  deleteRule: (id: string) => request<{ success: boolean }>(socialId('rules', id), { method: 'DELETE' }),
+  simulateComment: (input: { commentText: string; platform?: string; postId?: string; fromUserName?: string }) =>
+    request<SimulateCommentResult>(social('/simulate-comment'), { method: 'POST', body: JSON.stringify(input) }),
+  logs: (limit = 50) => request<SocialCommentLog[]>(social('/logs?limit=' + limit)),
 };

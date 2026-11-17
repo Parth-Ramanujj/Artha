@@ -17,6 +17,7 @@ export const FEATURE_IDS = [
   'googleBusiness',
   'library',
   'growth',
+  'socialAutomation',
   'integrations',
 ] as const;
 
@@ -52,6 +53,7 @@ export const ROUTE_FEATURE: Record<string, FeatureId> = {
   '/google-business': 'googleBusiness',
   '/library': 'library',
   '/growth': 'growth',
+  '/social-automation': 'socialAutomation',
   '/integrations': 'integrations',
   '/sync': 'integrations',
   '/commerce': 'integrations',

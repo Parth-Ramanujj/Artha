@@ -13822,6 +13822,434 @@
         ],
         "security": []
       }
+    },
+    "/api/social-automation/overview": {
+      "get": {
+        "operationId": "SocialAutomationController_getOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Social automation statistics and overview",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/accounts": {
+      "get": {
+        "operationId": "SocialAutomationController_listAccounts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List connected Instagram & Facebook accounts",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "post": {
+        "operationId": "SocialAutomationController_createAccount",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSocialAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Connect Instagram / Facebook account",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/accounts/{id}": {
+      "put": {
+        "operationId": "SocialAutomationController_updateAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSocialAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update connected account credentials",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "delete": {
+        "operationId": "SocialAutomationController_deleteAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Disconnect / delete account",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/accounts/{id}/test": {
+      "post": {
+        "operationId": "SocialAutomationController_testAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Verify account token and connection",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/posts": {
+      "get": {
+        "operationId": "SocialAutomationController_listPosts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List automated & scheduled posts",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "post": {
+        "operationId": "SocialAutomationController_createPost",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSocialPostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create or schedule a social media post",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/posts/{id}": {
+      "put": {
+        "operationId": "SocialAutomationController_updatePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSocialPostDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update post caption, media or schedule",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "delete": {
+        "operationId": "SocialAutomationController_deletePost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete scheduled or draft post",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/posts/{id}/publish-now": {
+      "post": {
+        "operationId": "SocialAutomationController_publishPostNow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Publish post immediately to Instagram or Facebook",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/rules": {
+      "get": {
+        "operationId": "SocialAutomationController_listRules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List comment auto-reply & like rules",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "post": {
+        "operationId": "SocialAutomationController_createRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommentRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create auto-reply & like rule",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/rules/{id}": {
+      "put": {
+        "operationId": "SocialAutomationController_updateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCommentRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update auto-reply & like rule",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "delete": {
+        "operationId": "SocialAutomationController_deleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete comment rule",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/rules/{id}/toggle": {
+      "patch": {
+        "operationId": "SocialAutomationController_toggleRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleCommentRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Enable or disable rule",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/simulate-comment": {
+      "post": {
+        "operationId": "SocialAutomationController_simulateComment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Simulate comment text against rules for instant testing",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/logs": {
+      "get": {
+        "operationId": "SocialAutomationController_listLogs",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List comment activity logs",
+        "tags": [
+          "social-automation"
+        ]
+      }
     }
   },
   "info": {
@@ -14025,6 +14453,7 @@
                 "googleBusiness",
                 "library",
                 "growth",
+                "socialAutomation",
                 "integrations"
               ]
             }
@@ -14093,6 +14522,7 @@
                 "googleBusiness",
                 "library",
                 "growth",
+                "socialAutomation",
                 "integrations"
               ]
             }
@@ -14191,6 +14621,7 @@
                 "googleBusiness",
                 "library",
                 "growth",
+                "socialAutomation",
                 "integrations"
               ]
             }
@@ -14275,6 +14706,7 @@
                 "googleBusiness",
                 "library",
                 "growth",
+                "socialAutomation",
                 "integrations"
               ]
             }
@@ -17528,6 +17960,367 @@
       "SaveGrowthLinkDto": {
         "type": "object",
         "properties": {}
+      },
+      "CreateSocialAccountDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "instagram",
+              "facebook"
+            ]
+          },
+          "accountName": {
+            "type": "string",
+            "example": "My Brand Instagram"
+          },
+          "accountId": {
+            "type": "string",
+            "example": "17841400000000000",
+            "description": "Instagram Business account ID or Facebook Page ID"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "Long-lived Page access token from Meta (never returned by the API)"
+          },
+          "pageId": {
+            "type": "string",
+            "description": "Facebook Page linked to the Instagram account (required for Instagram)"
+          },
+          "webhookVerifyToken": {
+            "type": "string",
+            "description": "Webhook verify token to enter in the Meta app. Generated when empty."
+          }
+        },
+        "required": [
+          "platform",
+          "accountId",
+          "accessToken"
+        ]
+      },
+      "UpdateSocialAccountDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "instagram",
+              "facebook"
+            ]
+          },
+          "accountName": {
+            "type": "string",
+            "example": "My Brand Instagram"
+          },
+          "accountId": {
+            "type": "string",
+            "example": "17841400000000000",
+            "description": "Instagram Business account ID or Facebook Page ID"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "Long-lived Page access token from Meta (never returned by the API)"
+          },
+          "pageId": {
+            "type": "string",
+            "description": "Facebook Page linked to the Instagram account (required for Instagram)"
+          },
+          "webhookVerifyToken": {
+            "type": "string",
+            "description": "Webhook verify token to enter in the Meta app. Generated when empty."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected"
+            ]
+          }
+        }
+      },
+      "CreateSocialPostDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "description": "Connected account to publish with. Defaults to the first connected account of the platform."
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "instagram",
+              "facebook"
+            ]
+          },
+          "caption": {
+            "type": "string",
+            "example": "Check out our new launch! #innovation"
+          },
+          "mediaUrl": {
+            "type": "string",
+            "description": "Public HTTPS image or video URL that Meta can download"
+          },
+          "mediaType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "VIDEO"
+            ],
+            "default": "IMAGE"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "description": "ISO date-time to publish at. Empty saves a draft."
+          },
+          "publishNow": {
+            "type": "boolean",
+            "description": "Publish to Meta right away"
+          }
+        },
+        "required": [
+          "platform",
+          "caption",
+          "mediaUrl"
+        ]
+      },
+      "UpdateSocialPostDto": {
+        "type": "object",
+        "properties": {
+          "caption": {
+            "type": "string"
+          },
+          "mediaUrl": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string",
+            "enum": [
+              "IMAGE",
+              "VIDEO"
+            ]
+          },
+          "scheduledAt": {
+            "type": "object",
+            "description": "ISO date-time, or null to unschedule"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled"
+            ]
+          }
+        }
+      },
+      "CreateCommentRuleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Price question"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "all",
+              "instagram",
+              "facebook"
+            ],
+            "default": "all"
+          },
+          "postId": {
+            "type": "string",
+            "description": "Only comments on this Meta post/media ID; empty for all posts"
+          },
+          "matchType": {
+            "type": "string",
+            "enum": [
+              "contains",
+              "exact",
+              "regex",
+              "all"
+            ],
+            "default": "contains"
+          },
+          "keywords": {
+            "example": [
+              "price",
+              "cost",
+              "how much"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "replyTemplates": {
+            "example": [
+              "Hi {username}! Sent you the price list in DM ✨"
+            ],
+            "description": "Reply variations, one is picked at random",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoLike": {
+            "type": "boolean",
+            "default": false,
+            "description": "Like the comment (Facebook only; Instagram has no API for it)"
+          },
+          "autoDm": {
+            "type": "boolean",
+            "default": false
+          },
+          "autoDmTemplate": {
+            "type": "string",
+            "example": "Hi {username}! Here is our price list: https://example.com/pricing"
+          },
+          "useAi": {
+            "type": "boolean",
+            "default": false,
+            "description": "Write the reply with the configured AI provider"
+          },
+          "aiPrompt": {
+            "type": "string"
+          },
+          "delaySeconds": {
+            "type": "number",
+            "default": 3,
+            "description": "Seconds to wait before replying (0-10)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "matchType",
+          "keywords",
+          "replyTemplates"
+        ]
+      },
+      "UpdateCommentRuleDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Price question"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "all",
+              "instagram",
+              "facebook"
+            ],
+            "default": "all"
+          },
+          "postId": {
+            "type": "string",
+            "description": "Only comments on this Meta post/media ID; empty for all posts"
+          },
+          "matchType": {
+            "type": "string",
+            "enum": [
+              "contains",
+              "exact",
+              "regex",
+              "all"
+            ],
+            "default": "contains"
+          },
+          "keywords": {
+            "example": [
+              "price",
+              "cost",
+              "how much"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "replyTemplates": {
+            "example": [
+              "Hi {username}! Sent you the price list in DM ✨"
+            ],
+            "description": "Reply variations, one is picked at random",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autoLike": {
+            "type": "boolean",
+            "default": false,
+            "description": "Like the comment (Facebook only; Instagram has no API for it)"
+          },
+          "autoDm": {
+            "type": "boolean",
+            "default": false
+          },
+          "autoDmTemplate": {
+            "type": "string",
+            "example": "Hi {username}! Here is our price list: https://example.com/pricing"
+          },
+          "useAi": {
+            "type": "boolean",
+            "default": false,
+            "description": "Write the reply with the configured AI provider"
+          },
+          "aiPrompt": {
+            "type": "string"
+          },
+          "delaySeconds": {
+            "type": "number",
+            "default": 3,
+            "description": "Seconds to wait before replying (0-10)"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "ToggleCommentRuleDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "SimulateCommentDto": {
+        "type": "object",
+        "properties": {
+          "commentText": {
+            "type": "string",
+            "example": "Hey, what is the price of this?"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "instagram",
+              "facebook"
+            ]
+          },
+          "postId": {
+            "type": "string"
+          },
+          "fromUserName": {
+            "type": "string",
+            "example": "john_doe"
+          }
+        },
+        "required": [
+          "commentText"
+        ]
       }
     }
   },

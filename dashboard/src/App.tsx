@@ -49,6 +49,7 @@ const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Lib
 const CustomerCare = lazy(() => import('./pages/CustomerCare').then(m => ({ default: m.CustomerCare })));
 const AssistantChat = lazy(() => import('./pages/AssistantChat').then(m => ({ default: m.AssistantChat })));
 const Growth = lazy(() => import('./pages/Growth').then(m => ({ default: m.Growth })));
+const SocialAutomation = lazy(() => import('./pages/SocialAutomation').then(m => ({ default: m.SocialAutomation })));
 const GoogleBusiness = lazy(() => import('./pages/GoogleBusiness').then(m => ({ default: m.GoogleBusiness })));
 const WhatsAppFormBuilder = lazy(() =>
   import('./pages/WhatsAppFormBuilder').then(m => ({ default: m.WhatsAppFormBuilder })),
@@ -202,6 +203,7 @@ function AppContent() {
               <Route path="library" element={<Library />} />
               <Route path="customer-care" element={<CustomerCare />} />
               <Route path="growth" element={<Growth />} />
+              <Route path="social-automation" element={<SocialAutomation />} />
               <Route path="ai-agents" element={<AiAgents />} />
               <Route path="commerce" element={<ShopifyCommerce />} />
               {role === 'admin' && <Route path="roles" element={<RolesManagement />} />}

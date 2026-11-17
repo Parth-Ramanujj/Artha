@@ -1,0 +1,137 @@
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Post,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHmac } from 'node:crypto';
+import * as express from 'express';
+import { constantTimeEqual } from '../../../common/security/constantTimeEqual';
+import { Public } from '../../auth/decorators/auth.decorators';
+import type { SocialPlatform } from '../entities/social-automation.entity';
+import { IncomingComment, SocialAutomationService } from '../social-automation.service';
+
+type Obj = Record<string, unknown>;
+const obj = (v: unknown): Obj => (v && typeof v === 'object' ? (v as Obj) : {});
+const str = (v: unknown): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
+
+/** Pulls new comments out of a Meta webhook payload (Instagram `comments`, Facebook Page `feed`). */
+export function extractComments(payload: Obj): IncomingComment[] {
+  const platform: SocialPlatform | null =
+    payload.object === 'instagram' ? 'instagram' : payload.object === 'page' ? 'facebook' : null;
+  if (!platform) return [];
+  const out: IncomingComment[] = [];
+  for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
+    const targetAccountId = str(obj(entry).id);
+    const changes = obj(entry).changes;
+    for (const change of Array.isArray(changes) ? changes : []) {
+      const field = str(obj(change).field);
+      const v = obj(obj(change).value);
+      const from = obj(v.from);
+      if (platform === 'instagram' && field === 'comments') {
+        out.push({
+          platform,
+          targetAccountId,
+          commentId: str(v.id),
+          commentText: str(v.text),
+          postId: str(obj(v.media).id),
+          fromUserId: str(from.id) || undefined,
+          fromUserName: str(from.username) || undefined,
+        });
+      } else if (platform === 'facebook' && field === 'feed' && v.item === 'comment' && v.verb === 'add') {
+        out.push({
+          platform,
+          targetAccountId,
+          commentId: str(v.comment_id),
+          commentText: str(v.message),
+          postId: str(v.post_id),
+          fromUserId: str(from.id) || undefined,
+          fromUserName: str(from.name) || undefined,
+        });
+      }
+    }
+  }
+  return out.filter(c => c.targetAccountId && c.commentId && c.commentText.trim());
+}
+
+/**
+ * Meta webhook for Instagram and Facebook Page comments. Configure in the Meta app with the callback
+ * URL `<api>/api/social-automation/webhook`, a verify token from a connected account, and set
+ * META_APP_SECRET so every delivery's X-Hub-Signature-256 is checked.
+ */
+@ApiExcludeController()
+@Controller('social-automation/webhook')
+export class SocialWebhookController {
+  private readonly logger = new Logger(SocialWebhookController.name);
+  private readonly appSecret: string;
+
+  constructor(
+    private readonly socialService: SocialAutomationService,
+    config: ConfigService,
+  ) {
+    this.appSecret = (config.get<string>('META_APP_SECRET') || config.get<string>('CLOUD_API_APP_SECRET') || '').trim();
+  }
+
+  @Public()
+  @Get()
+  async verify(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+    @Res() res: express.Response,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/plain');
+    if (
+      mode === 'subscribe' &&
+      /^[\w-]{1,200}$/.test(challenge ?? '') &&
+      (await this.socialService.isKnownVerifyToken(token))
+    ) {
+      res.status(HttpStatus.OK).send(challenge);
+      return;
+    }
+    this.logger.warn('Meta social webhook verification rejected');
+    res.status(HttpStatus.FORBIDDEN).send('Verification failed');
+  }
+
+  private signatureOk(rawBody: Buffer | undefined, signature: string | undefined): boolean {
+    if (!this.appSecret) {
+      // Without the secret anyone could post fake comments and make us reply/DM, so production refuses.
+      return process.env.NODE_ENV !== 'production';
+    }
+    if (!rawBody || !signature) return false;
+    const expected = 'sha256=' + createHmac('sha256', this.appSecret).update(rawBody).digest('hex');
+    return constantTimeEqual(signature, expected);
+  }
+
+  @Public()
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  receive(@Body() payload: Obj, @Req() req: express.Request): string {
+    const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
+    if (!this.signatureOk(rawBody, req.headers['x-hub-signature-256'] as string | undefined)) {
+      this.logger.warn(
+        this.appSecret
+          ? 'Meta social webhook signature check failed'
+          : 'META_APP_SECRET is not set; Meta social webhook refused',
+      );
+      throw new ForbiddenException('Invalid webhook signature');
+    }
+
+    // Acknowledge at once (Meta retries slow responses); replies run in the background.
+    for (const comment of extractComments(payload)) {
+      this.socialService.handleIncomingComment(comment).catch((err: unknown) => {
+        this.logger.error(`Comment ${comment.commentId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+    return 'EVENT_RECEIVED';
+  }
+}

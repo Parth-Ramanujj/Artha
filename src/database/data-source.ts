@@ -46,6 +46,7 @@ const dataEntities = [
   sourceGlob('..', 'modules', 'library', '**', '*.entity{.ts,.js}'),
   sourceGlob('..', 'modules', 'customer-care', '**', '*.entity{.ts,.js}'),
   sourceGlob('..', 'modules', 'growth', '**', '*.entity{.ts,.js}'),
+  sourceGlob('..', 'modules', 'social-automation', '**', '*.entity{.ts,.js}'),
 ];
 const dataMigrations = [sourceGlob('migrations', '*{.ts,.js}')];
 

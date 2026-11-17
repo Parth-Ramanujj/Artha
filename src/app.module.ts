@@ -55,6 +55,7 @@ import { GoogleBusinessModule } from './modules/google-business/google-business.
 import { LibraryModule } from './modules/library/library.module';
 import { CustomerCareModule } from './modules/customer-care/customer-care.module';
 import { GrowthModule } from './modules/growth/growth.module';
+import { SocialAutomationModule } from './modules/social-automation/social-automation.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -204,6 +205,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/library/**/*.entity{.ts,.js}',
             __dirname + '/modules/customer-care/**/*.entity{.ts,.js}',
             __dirname + '/modules/growth/**/*.entity{.ts,.js}',
+            __dirname + '/modules/social-automation/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -355,6 +357,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     LibraryModule, // Library: reusable posts, scheduled/recurring WhatsApp Status posts and messages
     CustomerCareModule, // Missed-call WhatsApp + AI call follow-up, and the WhatsApp → web AI assistant link
     GrowthModule, // Growth: QR/widget links, greetings, owner summary, compliance, voice-note actions
+    SocialAutomationModule, // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],

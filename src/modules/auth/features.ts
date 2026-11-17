@@ -32,6 +32,7 @@ export const FEATURE_CONTROLLER_PATHS = {
   googleBusiness: ['google-business', 'google', 'google/oauth'],
   library: ['library'],
   growth: ['growth', 'g'],
+  socialAutomation: ['social-automation'],
   integrations: ['integrations', 'sync', 'integration/instances', 'integration/plugins/:pluginId/instances', 'ingress'],
 } as const satisfies Record<string, readonly string[]>;
 
@@ -61,6 +62,7 @@ export const CORE_CONTROLLER_PATHS = [
   'settings',
   'audit',
   'cloud-api/webhook',
+  'social-automation/webhook',
 ] as const;
 
 const FEATURE_BY_PATH = new Map<string, FeatureId | 'core'>([
