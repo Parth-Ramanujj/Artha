@@ -3,6 +3,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { ServerResponse } from 'http';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
@@ -134,6 +135,16 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
       // ServeStaticModule has no explicit off switch, so this is a renderPath literal that no
       // real request can match.
       renderPath: '/__openwa_spa_fallback_owned_by_main_ts__',
+      // Vite content-hashes every file under assets/, so a changed file always gets a new URL: browsers
+      // can keep these forever instead of re-validating each chunk on every visit. index.html stays
+      // no-store (main.ts), so new deploys are still picked up immediately.
+      serveStaticOptions: {
+        setHeaders: (res: ServerResponse, filePath: string) => {
+          if (filePath.startsWith(path.join(DASHBOARD_DIST, 'assets') + path.sep)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      },
     }),
   );
 }

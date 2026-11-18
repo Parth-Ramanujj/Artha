@@ -17,6 +17,7 @@ import { applyHttpTimeouts, HttpTimeoutConfig, HttpTimeoutSink } from './config/
 import { createInflightBodyBudget, resolveInflightBodyBudgetBytes } from './config/inflight-body-budget';
 import { applyGlobalValidation } from './config/app-validation';
 import { requestContextMiddleware } from './common/middleware/request-context.middleware';
+import { responseCompression } from './config/response-compression';
 import { injectDashboardCspNonce } from './config/dashboard-csp';
 import {
   resolveCorsPolicy,
@@ -131,6 +132,9 @@ async function bootstrap() {
   // Assign a request id to every inbound request (X-Request-ID), echo it on the response, and run
   // the whole downstream chain inside its scope so every log line + audit row carries it.
   app.use(requestContextMiddleware);
+
+  // Compress responses (JSON, dashboard HTML/JS/CSS) to cut outbound bandwidth; streams are excluded.
+  app.use(responseCompression());
 
   // Let Nest own every shutdown signal EXCEPT SIGTERM/SIGINT — those we route through the bounded
   // drain below, so a load balancer / orchestrator observes readiness=503 and stops routing BEFORE
