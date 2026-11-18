@@ -3566,6 +3566,15 @@
             "schema": {
               "type": "number"
             }
+          },
+          {
+            "name": "omitMedia",
+            "required": false,
+            "in": "query",
+            "description": "When true, inline base64 attachments are replaced by `metadata.media.url` (GET …/messages/{messageId}/media) and `metadata.media.sizeBytes`. Default false: attachments stay inline as before.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -3574,6 +3583,52 @@
           }
         },
         "summary": "Get message history for a session",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/api/sessions/{sessionId}/messages/{messageId}/media": {
+      "get": {
+        "operationId": "MessageController_getMessageMedia",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Optional idempotency key to prevent duplicate sends. Cached for 24 hours per API key.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "description": "Stored message id (the `id` from GET …/messages)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The attachment bytes."
+          },
+          "404": {
+            "description": "The message has no stored attachment."
+          }
+        },
+        "summary": "Download a stored message attachment",
         "tags": [
           "messages"
         ]

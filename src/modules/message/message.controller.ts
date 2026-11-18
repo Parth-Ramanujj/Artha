@@ -1,4 +1,17 @@
-import { Controller, Post, Get, Param, Body, Query, Res, HttpCode, HttpStatus, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  Query,
+  Res,
+  HttpCode,
+  HttpStatus,
+  UseInterceptors,
+  ParseUUIDPipe,
+  StreamableFile,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiHeader } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { MessageService } from './message.service';
@@ -19,6 +32,8 @@ import {
 import { RequireRole } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole } from '../auth/entities/api-key.entity';
 import { IdempotencyInterceptor } from '../../common/interceptors/idempotency.interceptor';
+
+const INLINE_MEDIA_TYPE = /^(image\/(?!svg)|audio\/|video\/)/i;
 
 @ApiTags('messages')
 @Controller('sessions/:sessionId/messages')
@@ -46,6 +61,14 @@ export class MessageController {
   })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max messages to return (default 50)' })
   @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Offset for pagination' })
+  @ApiQuery({
+    name: 'omitMedia',
+    required: false,
+    type: Boolean,
+    description:
+      'When true, inline base64 attachments are replaced by `metadata.media.url` (GET …/messages/{messageId}/media) ' +
+      'and `metadata.media.sizeBytes`. Default false: attachments stay inline as before.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Message history',
@@ -56,13 +79,41 @@ export class MessageController {
     @Query('from') from?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('omitMedia') omitMedia?: string,
   ) {
     return this.messageService.getMessages(sessionId, {
       chatId,
       from,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
+      omitMedia: omitMedia === 'true' || omitMedia === '1',
     });
+  }
+
+  // Two segments with a literal tail: never collides with `:chatId/history` or `batch/:batchId`.
+  @Get(':messageId/media')
+  @ApiOperation({ summary: 'Download a stored message attachment' })
+  @ApiParam({ name: 'sessionId', description: 'Session ID' })
+  @ApiParam({ name: 'messageId', description: 'Stored message id (the `id` from GET …/messages)' })
+  @ApiResponse({ status: 200, description: 'The attachment bytes.' })
+  @ApiResponse({ status: 404, description: 'The message has no stored attachment.' })
+  async getMessageMedia(
+    @Param('sessionId') sessionId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, mimetype } = await this.messageService.getMessageMedia(sessionId, messageId);
+    res.set({
+      // Only media types render inline; anything else (incl. SVG/HTML from a sender) is an opaque download.
+      'Content-Type': INLINE_MEDIA_TYPE.test(mimetype) ? mimetype : 'application/octet-stream',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      // A message's attachment never changes, so the viewer's browser may reuse it. `private` keeps it
+      // out of shared caches; Vary scopes the cached copy to the API key that fetched it.
+      'Cache-Control': 'private, max-age=604800',
+      Vary: 'X-API-Key, Authorization',
+    });
+    return new StreamableFile(buffer);
   }
 
   @Post('send-text')

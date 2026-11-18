@@ -105,7 +105,14 @@ export const senderKey = (m: Pick<ChatMessage, 'author' | 'chatName'>): string |
 
 // ChatMessageView extends ChatMessage with the view-only fields the chat page renders.
 // Lifted from Chats.tsx so hooks/utils can share the same shape.
-type MessageMedia = { mimetype: string; filename?: string; data?: string; omitted?: boolean; sizeBytes?: number };
+type MessageMedia = {
+  mimetype: string;
+  filename?: string;
+  data?: string;
+  omitted?: boolean;
+  sizeBytes?: number;
+  url?: string; // stored attachment fetched on demand (GET …/messages/:id/media)
+};
 
 export interface ChatMessageView extends ChatMessage {
   metadata?: {

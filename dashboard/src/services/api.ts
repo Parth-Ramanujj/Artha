@@ -269,7 +269,7 @@ export interface ChatMessage {
   timestamp?: number;
   createdAt: string;
   metadata?: {
-    media?: { mimetype: string; filename?: string; data?: string; omitted?: boolean; sizeBytes?: number };
+    media?: { mimetype: string; filename?: string; data?: string; omitted?: boolean; sizeBytes?: number; url?: string };
     quotedMessage?: { id: string; body: string };
     reactions?: Record<string, string>;
     call?: { video: boolean; missed: boolean };
@@ -778,10 +778,14 @@ export const sessionApi = {
       method: 'POST',
       body: JSON.stringify({ chatId }),
     }),
+  // omitMedia: attachments come back as `media.url` and are fetched one by one (getMessageMediaBlob)
+  // when their bubble scrolls into view, instead of every attachment riding inline in this list.
   getChatMessages: (id: string, chatId: string, limit = 100) =>
     request<{ messages: ChatMessage[]; total: number }>(
-      `/sessions/${id}/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`,
+      `/sessions/${id}/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}&omitMedia=true`,
     ),
+  getMessageMediaBlob: (id: string, messageId: string) =>
+    requestBlob(`/sessions/${id}/messages/${encodeURIComponent(messageId)}/media`),
   // Live history straight from WhatsApp (bypasses the DB) — backfills a thread the gateway never
   // captured, e.g. a freshly paired session whose persisted store is still empty.
   // includeMedia downloads the media payload (base64) for history messages so stickers/images/
@@ -3047,14 +3051,19 @@ export const socialAutomationApi = {
     request<SocialAccount>(socialId('accounts', id), { method: 'PUT', body: JSON.stringify(input) }),
   deleteAccount: (id: string) => request<{ success: boolean }>(socialId('accounts', id), { method: 'DELETE' }),
   testAccount: (id: string) =>
-    request<{ valid: boolean; name?: string; error?: string; webhookError?: string }>(socialId('accounts', id, '/test'), {
-      method: 'POST',
-    }),
+    request<{ valid: boolean; name?: string; error?: string; webhookError?: string }>(
+      socialId('accounts', id, '/test'),
+      {
+        method: 'POST',
+      },
+    ),
   posts: () => request<SocialPost[]>(social('/posts')),
   createPost: (input: SocialPostInput) =>
     request<SocialPost>(social('/posts'), { method: 'POST', body: JSON.stringify(input) }),
-  updatePost: (id: string, input: Partial<Omit<SocialPostInput, 'platform' | 'publishNow' | 'accountId'>> & { status?: 'draft' | 'scheduled' }) =>
-    request<SocialPost>(socialId('posts', id), { method: 'PUT', body: JSON.stringify(input) }),
+  updatePost: (
+    id: string,
+    input: Partial<Omit<SocialPostInput, 'platform' | 'publishNow' | 'accountId'>> & { status?: 'draft' | 'scheduled' },
+  ) => request<SocialPost>(socialId('posts', id), { method: 'PUT', body: JSON.stringify(input) }),
   publishPostNow: (id: string) => request<SocialPost>(socialId('posts', id, '/publish-now'), { method: 'POST' }),
   deletePost: (id: string) => request<{ success: boolean }>(socialId('posts', id), { method: 'DELETE' }),
   rules: () => request<SocialCommentRule[]>(social('/rules')),
@@ -3063,7 +3072,10 @@ export const socialAutomationApi = {
   updateRule: (id: string, input: Partial<SocialRuleInput>) =>
     request<SocialCommentRule>(socialId('rules', id), { method: 'PUT', body: JSON.stringify(input) }),
   toggleRule: (id: string, enabled: boolean) =>
-    request<SocialCommentRule>(socialId('rules', id, '/toggle'), { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+    request<SocialCommentRule>(socialId('rules', id, '/toggle'), {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
   deleteRule: (id: string) => request<{ success: boolean }>(socialId('rules', id), { method: 'DELETE' }),
   simulateComment: (input: { commentText: string; platform?: string; postId?: string; fromUserName?: string }) =>
     request<SimulateCommentResult>(social('/simulate-comment'), { method: 'POST', body: JSON.stringify(input) }),

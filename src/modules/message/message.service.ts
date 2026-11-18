@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,6 +9,7 @@ import { MessageProjector } from '../session/message-projector.service';
 import { SendTextMessageDto, SendMediaMessageDto, SendAudioMessageDto, MessageResponseDto } from './dto';
 import { SendTemplateMessageDto } from './dto/send-template.dto';
 import { assertBase64WithinMediaCap, stripBase64DataUri } from './media-cap.util';
+import { inlineMediaBase64, withMediaUrls } from './message-media-url.util';
 import { MediaInput, IWhatsAppEngine, MessageResult } from '../../engine/interfaces/whatsapp-engine.interface';
 import { Message, MessageDirection, MessageStatus } from './entities/message.entity';
 import { HookManager, applySendingGate } from '../../core/hooks';
@@ -27,6 +28,8 @@ export interface GetMessagesOptions {
   from?: string;
   limit?: number;
   offset?: number;
+  /** Replace inline base64 attachments with a `url` to GET …/messages/:id/media (opt-in; default inline). */
+  omitMedia?: boolean;
 }
 
 /** Default cap on a rendered template's final text; overridable via TEMPLATE_RENDER_MAX_CHARS. */
@@ -370,7 +373,16 @@ export class MessageService {
     }
 
     const [messages, total] = await query.getManyAndCount();
-    return { messages, total };
+    return { messages: options.omitMedia ? withMediaUrls(sessionId, messages) : messages, total };
+  }
+
+  /** Decoded bytes of one stored attachment, scoped to its session so a key can't read another session's media. */
+  async getMessageMedia(sessionId: string, messageId: string): Promise<{ buffer: Buffer; mimetype: string }> {
+    const message = await this.messageRepository.findOne({ where: { id: messageId, sessionId } });
+    const base64 = message ? inlineMediaBase64(message) : undefined;
+    if (!message || !base64) throw new NotFoundException('No stored media for this message');
+    const mimetype = (message.metadata as { media?: { mimetype?: string } }).media?.mimetype;
+    return { buffer: Buffer.from(base64, 'base64'), mimetype: mimetype || 'application/octet-stream' };
   }
 
   /**

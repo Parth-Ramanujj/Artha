@@ -66,12 +66,21 @@ import { useCurrentEngineQuery } from '../hooks/queries';
 import { createTrailingCoalescer } from '../utils/trailingCoalescer';
 import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
+import RemoteMedia from '../components/chats/RemoteMedia';
+import { loadMessageMedia } from '../utils/loadMessageMedia';
 import './Chats.css';
 
 // Quiet window for coalescing mark-as-read RPCs (see markReadCoalescer below).
 const MARK_READ_DEBOUNCE_MS = 750;
 
-type MessageMedia = { mimetype: string; filename?: string; data?: string; omitted?: boolean; sizeBytes?: number };
+type MessageMedia = {
+  mimetype: string;
+  filename?: string;
+  data?: string;
+  omitted?: boolean;
+  sizeBytes?: number;
+  url?: string;
+};
 
 // mergeDeliveryStatus (forward-only delivery-tick merge) is shared with mergeOrAppend in utils/chatMessages
 // so the WS append path and the ack path apply the exact same rule.
@@ -115,6 +124,9 @@ const messageTypeFromMime = (mimetype: string): MessageType => {
   if (mimetype.startsWith('audio/')) return 'audio';
   return 'document';
 };
+
+// 1×1 transparent GIF: lightbox frame for an on-demand image that is still downloading.
+const BLANK_IMAGE = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
 const getMediaSrc = (media?: MessageMedia): string => {
   if (!media || !media.data) return '';
@@ -348,11 +360,7 @@ export function Chats() {
 
   const toggleComposeRecipient = (id: string) => {
     setComposeRecipients(prev =>
-      prev.includes(id)
-        ? prev.filter(r => r !== id)
-        : prev.length >= STATUS_RECIPIENTS_MAX
-          ? prev
-          : [...prev, id],
+      prev.includes(id) ? prev.filter(r => r !== id) : prev.length >= STATUS_RECIPIENTS_MAX ? prev : [...prev, id],
     );
   };
 
@@ -429,6 +437,12 @@ export function Chats() {
 
   // Lightbox state for media viewer
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Object URLs of on-demand attachments (media.url) that have been fetched, keyed by message id.
+  const [remoteSrcs, setRemoteSrcs] = useState<Record<string, string>>({});
+  const rememberRemoteSrc = useCallback(
+    (id: string, src: string) => setRemoteSrcs(prev => (prev[id] === src ? prev : { ...prev, [id]: src })),
+    [],
+  );
 
   // File attachments
   const [attachment, setAttachment] = useState<{
@@ -1275,19 +1289,38 @@ export function Chats() {
 
   // Image media items for the lightbox, in render order. `getMediaSrc` reconstructs a usable src
   // from either a base64 payload or a URL — the ChatMessageView shape stores both in `data`.
+  // On-demand images (media.url) are listed too, so the gallery keeps every image; one not fetched
+  // yet shows a blank frame until the effect below loads it.
   const imageMedia = useMemo<LightboxItem[]>(
     () =>
       messages
-        .filter(m => m.type === 'image' && Boolean(getMediaSrc(m.metadata?.media)))
+        .filter(m => {
+          if (m.type !== 'image') return false;
+          const media = m.metadata?.media;
+          return Boolean(getMediaSrc(media) || (media?.url && !media.omitted));
+        })
         .map(m => ({
           id: m.id,
-          url: getMediaSrc(m.metadata?.media),
+          url: getMediaSrc(m.metadata?.media) || remoteSrcs[m.id] || BLANK_IMAGE,
           alt: m.body || m.metadata?.media?.filename || '',
           senderName: undefined,
           timestamp: formatChatTime(m.timestamp || Math.floor(new Date(m.createdAt).getTime() / 1000)),
         })),
-    [messages, formatChatTime],
+    [messages, formatChatTime, remoteSrcs],
   );
+
+  // While the lightbox is open, fetch the current slide and its neighbours (the carousel preloads 2
+  // each way) if they are on-demand images that haven't scrolled into view yet.
+  useEffect(() => {
+    if (lightboxIndex === null || !selectedSessionId) return;
+    for (const item of imageMedia.slice(Math.max(0, lightboxIndex - 2), lightboxIndex + 3)) {
+      if (item.url !== BLANK_IMAGE) continue;
+      loadMessageMedia(selectedSessionId, item.id).then(
+        src => rememberRemoteSrc(item.id, src),
+        () => undefined,
+      );
+    }
+  }, [lightboxIndex, imageMedia, selectedSessionId, rememberRemoteSrc]);
 
   return (
     <div className="chats-page">
@@ -1374,7 +1407,11 @@ export function Chats() {
 
               {/* Compose a new status — only meaningful on the Status tab. */}
               {activeTab === 'status' && (
-                <button type="button" className="btn-primary status-compose-trigger" onClick={() => setComposeOpen(true)}>
+                <button
+                  type="button"
+                  className="btn-primary status-compose-trigger"
+                  onClick={() => setComposeOpen(true)}
+                >
                   <Plus size={16} />
                   {t('chats.status.compose')}
                 </button>
@@ -1507,452 +1544,479 @@ export function Chats() {
             {activeChat ? (
               <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
                 <div className="room-container">
-                {/* Room header */}
-                <header className="room-header">
-                  <button className="room-back" onClick={() => setActiveChat(null)} aria-label={t('common.back')}>
-                    <ArrowLeft size={20} />
-                  </button>
-                  <div className="room-avatar">
-                    {activePp.data ? (
-                      <img
-                        src={activePp.data}
-                        alt=""
-                        // Signed CDN URLs rotate every few hours; refetch the slice on a stale load.
-                        onError={() => activePp.refetch()}
-                      />
-                    ) : (
-                      <KindIcon kind={activeChat.kind} />
-                    )}
-                  </div>
-                  <div className="room-contact-info">
-                    <h3>{activeChat.name || activeChat.id.split('@')[0]}</h3>
-                    {/* Personal chats show the prettified phone number — local formatting for
+                  {/* Room header */}
+                  <header className="room-header">
+                    <button className="room-back" onClick={() => setActiveChat(null)} aria-label={t('common.back')}>
+                      <ArrowLeft size={20} />
+                    </button>
+                    <div className="room-avatar">
+                      {activePp.data ? (
+                        <img
+                          src={activePp.data}
+                          alt=""
+                          // Signed CDN URLs rotate every few hours; refetch the slice on a stale load.
+                          onError={() => activePp.refetch()}
+                        />
+                      ) : (
+                        <KindIcon kind={activeChat.kind} />
+                      )}
+                    </div>
+                    <div className="room-contact-info">
+                      <h3>{activeChat.name || activeChat.id.split('@')[0]}</h3>
+                      {/* Personal chats show the prettified phone number — local formatting for
                         @c.us ids, engine-resolved for @lid privacy ids (which are NOT phones and
                         must never be formatted as one). Groups fall back to a semantic label;
                         the raw JID follows below for the technical case. */}
-                    <span className="room-contact-phone">
-                      {activePhoneText ??
-                        (activeChat.isGroup ? t('chats.groupSubtitle') : t('chats.privateContactSubtitle'))}
-                    </span>
-                    {/* Raw JID preserved for the technical case (the gateway speaks JIDs everywhere:
+                      <span className="room-contact-phone">
+                        {activePhoneText ??
+                          (activeChat.isGroup ? t('chats.groupSubtitle') : t('chats.privateContactSubtitle'))}
+                      </span>
+                      {/* Raw JID preserved for the technical case (the gateway speaks JIDs everywhere:
                         webhooks, message rows, lid resolution). Monospace + muted so it doesn't compete
                         with the human-facing name/number. */}
-                    <span className="room-contact-jid" title={activeChat.id}>
-                      {activeChat.id}
-                    </span>
-                  </div>
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      type="button"
-                      className={`copilot-toggle-btn ${showAiCopilot ? 'active' : ''}`}
-                      onClick={() => setShowAiCopilot(prev => !prev)}
-                      title="Toggle AI Copilot"
-                    >
-                      <Sparkles size={15} />
-                      <span>AI Copilot</span>
-                    </button>
-                  </div>
-                </header>
+                      <span className="room-contact-jid" title={activeChat.id}>
+                        {activeChat.id}
+                      </span>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={`copilot-toggle-btn ${showAiCopilot ? 'active' : ''}`}
+                        onClick={() => setShowAiCopilot(prev => !prev)}
+                        title="Toggle AI Copilot"
+                      >
+                        <Sparkles size={15} />
+                        <span>AI Copilot</span>
+                      </button>
+                    </div>
+                  </header>
 
-                {/* Messages body. position:relative so the scroll-to-bottom button can float inside. */}
-                <div className="room-messages" ref={messagesContainerRef}>
-                  {/* Floating scroll-to-bottom button. Hidden while loading (no height to measure yet)
+                  {/* Messages body. position:relative so the scroll-to-bottom button can float inside. */}
+                  <div className="room-messages" ref={messagesContainerRef}>
+                    {/* Floating scroll-to-bottom button. Hidden while loading (no height to measure yet)
                       and when the user is already at/near the bottom. */}
-                  {showJumpToBottom && !loadingMessages && (
-                    <button
-                      type="button"
-                      className="scroll-to-bottom-btn"
-                      onClick={handleJumpToBottom}
-                      aria-label={t('chats.scrollToBottom')}
-                      title={t('chats.scrollToBottom')}
-                    >
-                      <ChevronDown size={22} />
-                    </button>
-                  )}
-                  {loadingMessages ? (
-                    <div className="messages-loading">
-                      <Loader2 className="animate-spin" size={32} />
-                      <span>{t('chats.loadingMessages')}</span>
-                    </div>
-                  ) : messagesError ? (
-                    <div className="messages-empty">
-                      <MessageSquare size={32} />
-                      <span>{t('chats.loadMessagesError')}</span>
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="messages-empty">
-                      <MessageSquare size={32} />
-                      <span>{t('chats.noMessagesInChat')}</span>
-                    </div>
-                  ) : (
-                    messages.map((msg, index) => {
-                      const isMe = msg.direction === 'outgoing';
-                      const formattedTime = formatTime(
-                        msg.timestamp || Math.floor(new Date(msg.createdAt).getTime() / 1000),
-                      );
+                    {showJumpToBottom && !loadingMessages && (
+                      <button
+                        type="button"
+                        className="scroll-to-bottom-btn"
+                        onClick={handleJumpToBottom}
+                        aria-label={t('chats.scrollToBottom')}
+                        title={t('chats.scrollToBottom')}
+                      >
+                        <ChevronDown size={22} />
+                      </button>
+                    )}
+                    {loadingMessages ? (
+                      <div className="messages-loading">
+                        <Loader2 className="animate-spin" size={32} />
+                        <span>{t('chats.loadingMessages')}</span>
+                      </div>
+                    ) : messagesError ? (
+                      <div className="messages-empty">
+                        <MessageSquare size={32} />
+                        <span>{t('chats.loadMessagesError')}</span>
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="messages-empty">
+                        <MessageSquare size={32} />
+                        <span>{t('chats.noMessagesInChat')}</span>
+                      </div>
+                    ) : (
+                      messages.map((msg, index) => {
+                        const isMe = msg.direction === 'outgoing';
+                        const formattedTime = formatTime(
+                          msg.timestamp || Math.floor(new Date(msg.createdAt).getTime() / 1000),
+                        );
 
-                      // Label who posted, WhatsApp-style: only in groups, only on incoming messages,
-                      // and only on the first of a consecutive run from the same sender (so a burst
-                      // from one person isn't repeated on every bubble).
-                      const prev = messages[index - 1];
-                      const showSender = Boolean(
-                        activeChat?.isGroup &&
+                        // Label who posted, WhatsApp-style: only in groups, only on incoming messages,
+                        // and only on the first of a consecutive run from the same sender (so a burst
+                        // from one person isn't repeated on every bubble).
+                        const prev = messages[index - 1];
+                        const showSender = Boolean(
+                          activeChat?.isGroup &&
                           !isMe &&
                           msg.chatName &&
                           // Key the run on the stable sender id (participant JID), not the display
                           // name — two participants who share a pushName must still start a new run.
                           (!prev || prev.direction === 'outgoing' || senderKey(prev) !== senderKey(msg)),
-                      );
+                        );
 
-                      const isMediaMessage = msg.type !== 'text';
-                      const mediaInfo = msg.metadata?.media;
+                        const isMediaMessage = msg.type !== 'text';
+                        const mediaInfo = msg.metadata?.media;
 
-                      const renderMedia = () => {
-                        if (msg.type === 'revoked') return null;
-                        // location/call have no downloadable media payload — render them before the
-                        // mediaInfo gate. The raw body (a base64 thumbnail / empty token) is suppressed below.
-                        if (msg.type === 'location') {
-                          // WhatsApp location messages carry a base64 JPEG map-preview thumbnail in `body`.
-                          const thumb = msg.body && msg.body.length > 100 ? `data:image/jpeg;base64,${msg.body}` : '';
-                          return (
-                            <div className="message-location">
-                              {thumb && (
-                                <img
-                                  src={thumb}
-                                  alt=""
-                                  onLoad={onMediaLoad}
-                                  style={{ maxWidth: 220, borderRadius: 8, display: 'block', marginBottom: 4 }}
-                                />
-                              )}
-                              <span className="message-media-omitted">📍 {t('chats.media.location')}</span>
-                            </div>
-                          );
-                        }
-                        if (msg.type === 'call') {
-                          const call = msg.metadata?.call;
-                          const callKey = call?.video
-                            ? call.missed
-                              ? 'callVideoMissed'
-                              : 'callVideo'
-                            : call?.missed
-                              ? 'callMissed'
-                              : 'call';
-                          return (
-                            <div className="message-media-omitted">
-                              {`${call?.video ? '📹' : '📞'} ${t(`chats.media.${callKey}`)}`}
-                            </div>
-                          );
-                        }
-                        if (!mediaInfo) return null;
-                        if (mediaInfo.omitted) {
-                          return <div className="message-media-omitted">📎 {t('chats.media.omitted')}</div>;
-                        }
-                        const mediaSrc = getMediaSrc(mediaInfo);
-                        if (!mediaSrc) return null;
-
-                        switch (msg.type) {
-                          case 'image':
-                          case 'sticker':
+                        const renderMedia = () => {
+                          if (msg.type === 'revoked') return null;
+                          // location/call have no downloadable media payload — render them before the
+                          // mediaInfo gate. The raw body (a base64 thumbnail / empty token) is suppressed below.
+                          if (msg.type === 'location') {
+                            // WhatsApp location messages carry a base64 JPEG map-preview thumbnail in `body`.
+                            const thumb = msg.body && msg.body.length > 100 ? `data:image/jpeg;base64,${msg.body}` : '';
                             return (
-                              <div className="message-media-image">
-                                <img
-                                  src={mediaSrc}
-                                  alt={mediaInfo.filename || t('chats.media.image')}
-                                  className="chat-image-media"
-                                  onLoad={onMediaLoad}
-                                  onClick={() => {
-                                    const idx = imageMedia.findIndex(x => x.id === msg.id);
-                                    if (idx >= 0) setLightboxIndex(idx);
-                                  }}
-                                />
+                              <div className="message-location">
+                                {thumb && (
+                                  <img
+                                    src={thumb}
+                                    alt=""
+                                    onLoad={onMediaLoad}
+                                    style={{ maxWidth: 220, borderRadius: 8, display: 'block', marginBottom: 4 }}
+                                  />
+                                )}
+                                <span className="message-media-omitted">📍 {t('chats.media.location')}</span>
                               </div>
                             );
-                          case 'video':
+                          }
+                          if (msg.type === 'call') {
+                            const call = msg.metadata?.call;
+                            const callKey = call?.video
+                              ? call.missed
+                                ? 'callVideoMissed'
+                                : 'callVideo'
+                              : call?.missed
+                                ? 'callMissed'
+                                : 'call';
                             return (
-                              <div className="message-media-video">
-                                <video
-                                  src={mediaSrc}
-                                  controls
-                                  className="chat-video-media"
-                                  onLoadedData={onMediaLoad}
-                                />
+                              <div className="message-media-omitted">
+                                {`${call?.video ? '📹' : '📞'} ${t(`chats.media.${callKey}`)}`}
                               </div>
                             );
-                          case 'audio':
-                          case 'voice':
-                            return (
-                              <div className="message-media-audio">
-                                <audio src={mediaSrc} controls className="chat-audio-media" />
-                              </div>
-                            );
-                          case 'document':
-                          default:
-                            return (
-                              <div className="message-media-document">
-                                <a
-                                  href={mediaSrc}
-                                  download={mediaInfo.filename || 'document'}
-                                  className="chat-document-media"
-                                >
-                                  📎 {mediaInfo.filename || t('chats.downloadDocument')}
-                                </a>
-                              </div>
-                            );
-                        }
-                      };
+                          }
+                          if (!mediaInfo) return null;
+                          if (mediaInfo.omitted) {
+                            return <div className="message-media-omitted">📎 {t('chats.media.omitted')}</div>;
+                          }
+                          const renderWithSrc = (mediaSrc: string) => {
+                            switch (msg.type) {
+                              case 'image':
+                              case 'sticker':
+                                return (
+                                  <div className="message-media-image">
+                                    <img
+                                      src={mediaSrc}
+                                      alt={mediaInfo.filename || t('chats.media.image')}
+                                      className="chat-image-media"
+                                      onLoad={onMediaLoad}
+                                      onClick={() => {
+                                        const idx = imageMedia.findIndex(x => x.id === msg.id);
+                                        if (idx >= 0) setLightboxIndex(idx);
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              case 'video':
+                                return (
+                                  <div className="message-media-video">
+                                    <video
+                                      src={mediaSrc}
+                                      controls
+                                      className="chat-video-media"
+                                      onLoadedData={onMediaLoad}
+                                    />
+                                  </div>
+                                );
+                              case 'audio':
+                              case 'voice':
+                                return (
+                                  <div className="message-media-audio">
+                                    <audio src={mediaSrc} controls className="chat-audio-media" />
+                                  </div>
+                                );
+                              case 'document':
+                              default:
+                                return (
+                                  <div className="message-media-document">
+                                    <a
+                                      href={mediaSrc}
+                                      download={mediaInfo.filename || 'document'}
+                                      className="chat-document-media"
+                                    >
+                                      📎 {mediaInfo.filename || t('chats.downloadDocument')}
+                                    </a>
+                                  </div>
+                                );
+                            }
+                          };
 
-                      const reactions = msg.metadata?.reactions || {};
-                      const hasReactions = Object.keys(reactions).length > 0;
-                      const isRevoked = msg.type === 'revoked';
-                      const isMasked = msg.type === 'masked';
+                          const inlineSrc = getMediaSrc(mediaInfo);
+                          if (inlineSrc) return renderWithSrc(inlineSrc);
+                          // Stored attachment served by URL (omitMedia list): fetched when it nears the viewport.
+                          if (mediaInfo.url && selectedSessionId) {
+                            return (
+                              <RemoteMedia
+                                sessionId={selectedSessionId}
+                                messageId={msg.id}
+                                fallback={<div className="message-media-omitted">📎 {t('chats.media.omitted')}</div>}
+                                onLoaded={src => rememberRemoteSrc(msg.id, src)}
+                              >
+                                {renderWithSrc}
+                              </RemoteMedia>
+                            );
+                          }
+                          return null;
+                        };
 
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`message-bubble-wrapper ${isMe ? 'outgoing' : 'incoming'}`}
-                          data-wa-message-id={msg.waMessageId}
-                        >
-                          <div className="message-bubble-container">
-                            <div
-                              className={`message-bubble ${isMe ? 'outgoing' : 'incoming'} ${msg.status} ${
-                                isMediaMessage ? 'media-type' : ''
-                              } ${isRevoked ? 'revoked-type' : ''}`}
-                            >
-                              {/* Group sender label (WhatsApp-style: coloured name atop the bubble) */}
-                              {/* Group sender label (WhatsApp-style: coloured name atop the bubble).
+                        const reactions = msg.metadata?.reactions || {};
+                        const hasReactions = Object.keys(reactions).length > 0;
+                        const isRevoked = msg.type === 'revoked';
+                        const isMasked = msg.type === 'masked';
+
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`message-bubble-wrapper ${isMe ? 'outgoing' : 'incoming'}`}
+                            data-wa-message-id={msg.waMessageId}
+                          >
+                            <div className="message-bubble-container">
+                              <div
+                                className={`message-bubble ${isMe ? 'outgoing' : 'incoming'} ${msg.status} ${
+                                  isMediaMessage ? 'media-type' : ''
+                                } ${isRevoked ? 'revoked-type' : ''}`}
+                              >
+                                {/* Group sender label (WhatsApp-style: coloured name atop the bubble) */}
+                                {/* Group sender label (WhatsApp-style: coloured name atop the bubble).
                                   Colour keys on the stable sender id, so same-named participants
                                   still get distinct colours; the label shows the human name. */}
-                              {showSender && (
-                                <div className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
-                                  {msg.chatName}
+                                {showSender && (
+                                  <div className="message-sender" style={{ color: senderColor(senderKey(msg)!) }}>
+                                    {msg.chatName}
+                                  </div>
+                                )}
+
+                                {/* Quoted message display */}
+                                {msg.metadata?.quotedMessage && (
+                                  <div className="message-quote-box">
+                                    <MessageBody text={msg.metadata.quotedMessage.body} className="quote-body" />
+                                  </div>
+                                )}
+
+                                {renderMedia()}
+
+                                {isRevoked ? (
+                                  <div className="message-text">{t('chats.messageDeleted')}</div>
+                                ) : isMasked ? (
+                                  <div className="message-text message-masked">{t('chats.messageMasked')}</div>
+                                ) : (
+                                  msg.body &&
+                                  (!mediaInfo || msg.body !== mediaInfo.filename) &&
+                                  msg.type !== 'location' &&
+                                  msg.type !== 'call' && <MessageBody text={msg.body} className="message-text" />
+                                )}
+
+                                <div className="message-meta">
+                                  <span className="message-time">{formattedTime}</span>
+                                  {isMe && (
+                                    <span className={`message-status-icon ${msg.status}`}>
+                                      {msg.status === 'pending' && '🕒'}
+                                      {msg.status === 'sent' && '✓'}
+                                      {msg.status === 'delivered' && '✓✓'}
+                                      {msg.status === 'read' && '✓✓'}
+                                      {msg.status === 'failed' && '⚠️'}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
 
-                              {/* Quoted message display */}
-                              {msg.metadata?.quotedMessage && (
-                                <div className="message-quote-box">
-                                  <MessageBody text={msg.metadata.quotedMessage.body} className="quote-body" />
-                                </div>
-                              )}
-
-                              {renderMedia()}
-
-                              {isRevoked ? (
-                                <div className="message-text">{t('chats.messageDeleted')}</div>
-                              ) : isMasked ? (
-                                <div className="message-text message-masked">{t('chats.messageMasked')}</div>
-                              ) : (
-                                msg.body &&
-                                (!mediaInfo || msg.body !== mediaInfo.filename) &&
-                                msg.type !== 'location' &&
-                                msg.type !== 'call' && <MessageBody text={msg.body} className="message-text" />
-                              )}
-
-                              <div className="message-meta">
-                                <span className="message-time">{formattedTime}</span>
-                                {isMe && (
-                                  <span className={`message-status-icon ${msg.status}`}>
-                                    {msg.status === 'pending' && '🕒'}
-                                    {msg.status === 'sent' && '✓'}
-                                    {msg.status === 'delivered' && '✓✓'}
-                                    {msg.status === 'read' && '✓✓'}
-                                    {msg.status === 'failed' && '⚠️'}
-                                  </span>
+                                {/* Reactions display */}
+                                {hasReactions && (
+                                  <div className="message-reactions-badge">
+                                    {Object.values(reactions)
+                                      .slice(0, 3)
+                                      .map((emoji, idx) => (
+                                        <span key={idx} className="reaction-emoji-span">
+                                          {emoji}
+                                        </span>
+                                      ))}
+                                    {Object.keys(reactions).length > 1 && (
+                                      <span className="reactions-count-span">{Object.keys(reactions).length}</span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
 
-                              {/* Reactions display */}
-                              {hasReactions && (
-                                <div className="message-reactions-badge">
-                                  {Object.values(reactions)
-                                    .slice(0, 3)
-                                    .map((emoji, idx) => (
-                                      <span key={idx} className="reaction-emoji-span">
-                                        {emoji}
-                                      </span>
-                                    ))}
-                                  {Object.keys(reactions).length > 1 && (
-                                    <span className="reactions-count-span">{Object.keys(reactions).length}</span>
+                              {/* Message actions menu (hover) */}
+                              {!isRevoked && (
+                                <div className="message-actions-menu">
+                                  <button
+                                    type="button"
+                                    className="action-btn"
+                                    onClick={() => setReplyingTo(msg)}
+                                    title={t('chats.actions.reply')}
+                                  >
+                                    <CornerUpLeft size={14} />
+                                  </button>
+
+                                  <div className="reaction-trigger-wrapper">
+                                    <button
+                                      type="button"
+                                      className="action-btn reaction-btn"
+                                      title={t('chats.actions.react')}
+                                    >
+                                      <Smile size={14} />
+                                    </button>
+                                    <div className="reaction-quick-popover">
+                                      {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                                        <button
+                                          key={emoji}
+                                          type="button"
+                                          onClick={() => handleReactMessage(msg, emoji)}
+                                        >
+                                          {emoji}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {isMe && msg.status !== 'pending' && (
+                                    <button
+                                      type="button"
+                                      className="action-btn delete-btn"
+                                      onClick={() => handleDeleteMessage(msg)}
+                                      title={t('chats.actions.delete')}
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
                                   )}
                                 </div>
                               )}
                             </div>
-
-                            {/* Message actions menu (hover) */}
-                            {!isRevoked && (
-                              <div className="message-actions-menu">
-                                <button
-                                  type="button"
-                                  className="action-btn"
-                                  onClick={() => setReplyingTo(msg)}
-                                  title={t('chats.actions.reply')}
-                                >
-                                  <CornerUpLeft size={14} />
-                                </button>
-
-                                <div className="reaction-trigger-wrapper">
-                                  <button
-                                    type="button"
-                                    className="action-btn reaction-btn"
-                                    title={t('chats.actions.react')}
-                                  >
-                                    <Smile size={14} />
-                                  </button>
-                                  <div className="reaction-quick-popover">
-                                    {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                                      <button key={emoji} type="button" onClick={() => handleReactMessage(msg, emoji)}>
-                                        {emoji}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                {isMe && msg.status !== 'pending' && (
-                                  <button
-                                    type="button"
-                                    className="action-btn delete-btn"
-                                    onClick={() => handleDeleteMessage(msg)}
-                                    title={t('chats.actions.delete')}
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                )}
-                              </div>
-                            )}
                           </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Attachment preview banner */}
-                {attachment && (
-                  <div className="attachment-preview-banner">
-                    {previewUrl ? (
-                      <img src={previewUrl} alt={attachment.filename} className="preview-thumbnail" />
-                    ) : (
-                      <div className="preview-file-icon">📎</div>
+                        );
+                      })
                     )}
-                    <div className="preview-file-info">
-                      <span className="preview-filename">{attachment.filename}</span>
-                      <span className="preview-filesize">({(attachment.file.size / 1024).toFixed(1)} KB)</span>
-                    </div>
-                    <button className="btn-remove-attachment" onClick={handleRemoveAttachment}>
-                      <X size={18} />
-                    </button>
                   </div>
-                )}
 
-                {/* Popular emojis panel */}
-                {showEmojiPicker && (
-                  <div className="chats-emoji-picker">
-                    <div className="emoji-grid">
-                      {popularEmojis.map(emoji => (
-                        <button key={emoji} type="button" className="emoji-btn" onClick={() => handleEmojiClick(emoji)}>
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Replying preview banner */}
-                {replyingTo && (
-                  <div className="replying-preview-banner">
-                    <div className="replying-preview-content">
-                      <div className="replying-to-title">
-                        {t('chats.replyingTo', {
-                          name:
-                            replyingTo.direction === 'outgoing'
-                              ? t('chats.you')
-                              : activeChat.name || activeChat.id.split('@')[0],
-                        })}
+                  {/* Attachment preview banner */}
+                  {attachment && (
+                    <div className="attachment-preview-banner">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt={attachment.filename} className="preview-thumbnail" />
+                      ) : (
+                        <div className="preview-file-icon">📎</div>
+                      )}
+                      <div className="preview-file-info">
+                        <span className="preview-filename">{attachment.filename}</span>
+                        <span className="preview-filesize">({(attachment.file.size / 1024).toFixed(1)} KB)</span>
                       </div>
-                      <div className="replying-to-body">
-                        {replyingTo.type !== 'text' ? `[${replyingTo.type}]` : replyingTo.body}
+                      <button className="btn-remove-attachment" onClick={handleRemoveAttachment}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Popular emojis panel */}
+                  {showEmojiPicker && (
+                    <div className="chats-emoji-picker">
+                      <div className="emoji-grid">
+                        {popularEmojis.map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="emoji-btn"
+                            onClick={() => handleEmojiClick(emoji)}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <button className="btn-close-reply" onClick={() => setReplyingTo(null)}>
-                      <X size={18} />
-                    </button>
-                  </div>
+                  )}
+
+                  {/* Replying preview banner */}
+                  {replyingTo && (
+                    <div className="replying-preview-banner">
+                      <div className="replying-preview-content">
+                        <div className="replying-to-title">
+                          {t('chats.replyingTo', {
+                            name:
+                              replyingTo.direction === 'outgoing'
+                                ? t('chats.you')
+                                : activeChat.name || activeChat.id.split('@')[0],
+                          })}
+                        </div>
+                        <div className="replying-to-body">
+                          {replyingTo.type !== 'text' ? `[${replyingTo.type}]` : replyingTo.body}
+                        </div>
+                      </div>
+                      <button className="btn-close-reply" onClick={() => setReplyingTo(null)}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Message input bar */}
+                  <footer className="room-input-footer">
+                    <form onSubmit={handleSend} className="input-form">
+                      <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+
+                      <button
+                        type="button"
+                        onClick={triggerFileSelect}
+                        disabled={!canWrite || sending}
+                        className="btn-input-accessory"
+                        title={t('chats.attachTitle')}
+                      >
+                        <Paperclip size={20} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        disabled={!canWrite || sending}
+                        className={`btn-input-accessory ${showEmojiPicker ? 'active' : ''}`}
+                        title={t('chats.emojiTitle')}
+                      >
+                        <Smile size={20} />
+                      </button>
+
+                      <input
+                        type="text"
+                        placeholder={
+                          canWrite
+                            ? attachment
+                              ? t('chats.captionPlaceholder')
+                              : t('chats.messagePlaceholder')
+                            : t('chats.noPermission')
+                        }
+                        value={messageInput}
+                        onChange={e => setMessageInput(e.target.value)}
+                        disabled={!canWrite || sending}
+                        className="message-text-input"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!canWrite || (!messageInput.trim() && !attachment) || sending}
+                        className="btn-send-message"
+                        aria-label={t('chats.send')}
+                      >
+                        {sending ? (
+                          <Loader2 className="animate-spin" size={24} />
+                        ) : (
+                          <Send size={28} strokeWidth={2.5} />
+                        )}
+                      </button>
+                    </form>
+                  </footer>
+                </div>
+                {showAiCopilot && (
+                  <AiCopilot
+                    activeChat={activeChat}
+                    sessionId={selectedSessionId || undefined}
+                    messages={messages}
+                    currentDraft={messageInput}
+                    onInsertReply={text => setMessageInput(text)}
+                    onClose={() => setShowAiCopilot(false)}
+                    onNavigateToPipeline={(contactName, phone) => {
+                      navigate(
+                        `/sales-pipeline?newDealContact=${encodeURIComponent(contactName)}&phone=${encodeURIComponent(phone)}`,
+                      );
+                    }}
+                  />
                 )}
-
-                {/* Message input bar */}
-                <footer className="room-input-footer">
-                  <form onSubmit={handleSend} className="input-form">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
-
-                    <button
-                      type="button"
-                      onClick={triggerFileSelect}
-                      disabled={!canWrite || sending}
-                      className="btn-input-accessory"
-                      title={t('chats.attachTitle')}
-                    >
-                      <Paperclip size={20} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      disabled={!canWrite || sending}
-                      className={`btn-input-accessory ${showEmojiPicker ? 'active' : ''}`}
-                      title={t('chats.emojiTitle')}
-                    >
-                      <Smile size={20} />
-                    </button>
-
-                    <input
-                      type="text"
-                      placeholder={
-                        canWrite
-                          ? attachment
-                            ? t('chats.captionPlaceholder')
-                            : t('chats.messagePlaceholder')
-                          : t('chats.noPermission')
-                      }
-                      value={messageInput}
-                      onChange={e => setMessageInput(e.target.value)}
-                      disabled={!canWrite || sending}
-                      className="message-text-input"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!canWrite || (!messageInput.trim() && !attachment) || sending}
-                      className="btn-send-message"
-                      aria-label={t('chats.send')}
-                    >
-                      {sending ? <Loader2 className="animate-spin" size={24} /> : <Send size={28} strokeWidth={2.5} />}
-                    </button>
-                  </form>
-                </footer>
               </div>
-              {showAiCopilot && (
-                <AiCopilot
-                  activeChat={activeChat}
-                  sessionId={selectedSessionId || undefined}
-                  messages={messages}
-                  currentDraft={messageInput}
-                  onInsertReply={text => setMessageInput(text)}
-                  onClose={() => setShowAiCopilot(false)}
-                  onNavigateToPipeline={(contactName, phone) => {
-                    navigate(`/sales-pipeline?newDealContact=${encodeURIComponent(contactName)}&phone=${encodeURIComponent(phone)}`);
-                  }}
-                />
-              )}
-            </div>
-          ) : activeChannel ? (
+            ) : activeChannel ? (
               // Read-only channel pane: no send footer, reactions, delete, reply, or markChatRead —
               // subscribed channels are a broadcast feed, not a two-way conversation.
               <div key={activeChannel.id} className="channel-room">
                 <header className="chats-room-header">
-                  <button
-                    className="room-back"
-                    onClick={() => setActiveChannel(null)}
-                    aria-label={t('common.back')}
-                  >
+                  <button className="room-back" onClick={() => setActiveChannel(null)} aria-label={t('common.back')}>
                     <ArrowLeft size={20} />
                   </button>
                   <Megaphone size={20} />
@@ -1998,7 +2062,11 @@ export function Chats() {
                     <ArrowLeft size={20} />
                   </button>
                   <CircleDashed size={20} />
-                  <h2>{activeStatusGroup.contact.name ?? activeStatusGroup.contact.pushName ?? activeStatusGroup.contact.id}</h2>
+                  <h2>
+                    {activeStatusGroup.contact.name ??
+                      activeStatusGroup.contact.pushName ??
+                      activeStatusGroup.contact.id}
+                  </h2>
                 </header>
                 <div className="messages-list" ref={statusFeedRef}>
                   {activeStatusGroup.items.map(item => (
@@ -2011,9 +2079,7 @@ export function Chats() {
                       style={
                         item.type === 'text' && (item.backgroundColor || item.font)
                           ? {
-                              ...(item.backgroundColor
-                                ? { backgroundColor: item.backgroundColor, color: '#fff' }
-                                : {}),
+                              ...(item.backgroundColor ? { backgroundColor: item.backgroundColor, color: '#fff' } : {}),
                               ...statusFontStyle(item.font),
                             }
                           : undefined
@@ -2071,7 +2137,11 @@ export function Chats() {
           }
         >
           <div className="compose-type-toggle">
-            <button type="button" className={composeType === 'text' ? 'active' : ''} onClick={() => setComposeType('text')}>
+            <button
+              type="button"
+              className={composeType === 'text' ? 'active' : ''}
+              onClick={() => setComposeType('text')}
+            >
               {t('chats.status.composeText')}
             </button>
             <button
@@ -2131,12 +2201,7 @@ export function Chats() {
               </div>
               <p className="compose-image-or">{t('chats.status.orLabel')}</p>
               <div className="compose-field">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={composeFileInputRef}
-                  onChange={handleComposeImageFile}
-                />
+                <input type="file" accept="image/*" ref={composeFileInputRef} onChange={handleComposeImageFile} />
               </div>
               <div className="compose-field">
                 <label>{t('chats.status.caption')}</label>
@@ -2173,7 +2238,9 @@ export function Chats() {
                       <input
                         type="checkbox"
                         checked={composeRecipients.includes(c.id)}
-                        disabled={!composeRecipients.includes(c.id) && composeRecipients.length >= STATUS_RECIPIENTS_MAX}
+                        disabled={
+                          !composeRecipients.includes(c.id) && composeRecipients.length >= STATUS_RECIPIENTS_MAX
+                        }
                         onChange={() => toggleComposeRecipient(c.id)}
                       />
                       <span>{c.name || c.pushName || c.number || c.id}</span>

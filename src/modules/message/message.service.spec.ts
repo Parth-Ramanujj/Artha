@@ -592,6 +592,30 @@ describe('MessageService', () => {
 
   // ── getMessages pagination guard ──────────────────────────────────
 
+  describe('getMessageMedia', () => {
+    const ID = '11111111-1111-1111-1111-111111111111';
+
+    it('looks the row up by id AND session, and decodes its inline attachment', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue({
+        id: ID,
+        metadata: { media: { mimetype: 'image/png', data: Buffer.from('png!').toString('base64') } },
+      });
+
+      const out = await service.getMessageMedia('sess-1', ID);
+
+      expect(repository.findOne).toHaveBeenCalledWith({ where: { id: ID, sessionId: 'sess-1' } });
+      expect(out).toEqual({ buffer: Buffer.from('png!'), mimetype: 'image/png' });
+    });
+
+    it('404s for a row in another session (not found) or without a stored payload', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(null);
+      await expect(service.getMessageMedia('sess-2', ID)).rejects.toBeInstanceOf(NotFoundException);
+
+      (repository.findOne as jest.Mock).mockResolvedValue({ id: ID, metadata: { media: { omitted: true } } });
+      await expect(service.getMessageMedia('sess-1', ID)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('getMessages pagination guard', () => {
     interface QbMock {
       where: jest.Mock;

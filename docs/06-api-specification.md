@@ -817,6 +817,7 @@ Get persisted message history for a session from the local DB (paginated, filter
 | from | string | No | — | Filter by sender. A phone also matches any lid that resolves to it. |
 | limit | integer | No | 50 | Clamped to `[1,100]`; a non-finite value falls back to 50. |
 | offset | integer | No | 0 | Clamped to `>=0`; a non-finite value falls back to 0. |
+| omitMedia | boolean | No | false | `true`/`1`: each inline base64 attachment in `metadata.media.data` is replaced by `metadata.media.url` (see `GET …/messages/:messageId/media` below) plus `metadata.media.sizeBytes`. Remote-URL media and all other fields are unchanged. Default: attachments stay inline. |
 
 **Response** `200`
 
@@ -846,6 +847,18 @@ Get persisted message history for a session from the local DB (paginated, filter
 Each `Message`: `{ id (uuid), sessionId, waMessageId (string|null), chatId, from, to, body (string|null), type, direction ('incoming'|'outgoing'), timestamp (number|null), metadata (object|null), status ('pending'|'sent'|'delivered'|'read'|'failed'), createdAt (ISO date) }`. Ordered by `createdAt` DESC. The response is the raw service object (no envelope). Unlike the live `IncomingMessage` shape below, this persisted `Message` does **not** carry `kind` — re-derive the chat kind from `chatId` (see `ChatKind` / `chatKind()`) if needed.
 
 **Errors:** `401` missing/invalid API key
+
+#### GET /api/sessions/:sessionId/messages/:messageId/media
+
+Download one stored attachment as raw bytes — the target of `metadata.media.url` from `GET …/messages?omitMedia=true`. Scoped to `sessionId`: a message from another session returns `404`.
+
+**Auth:** API key
+
+**Path parameters:** `sessionId` (string), `messageId` (uuid — the stored message `id`, not `waMessageId`)
+
+**Response** `200` — the decoded bytes. `Content-Type` is the stored mimetype for `image/*` (except SVG), `audio/*` and `video/*`; anything else is sent as `application/octet-stream`. Headers: `Cache-Control: private, max-age=604800`, `Vary: X-API-Key, Authorization`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`.
+
+**Errors:** `400` `messageId` is not a uuid · `401` · `404` no such message in this session, or it has no stored inline attachment
 
 #### GET /api/sessions/:sessionId/messages/:chatId/history
 
