@@ -159,7 +159,7 @@ export const ENGINE_CAPABILITY_MATRIX: Record<string, MethodCapability> = {
     evidence:
       'baileys no getReactions/fetchReactions; reactions exist only as event-augmented WAMessage.reactions (proto.IReaction @WAProto/index.d.ts:10623) via messages.reaction event; adapter does not persist them into its store; wwjs Message.getReactions (Message.js)',
   },
-  getNumberId: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: NA },
+  getNumberId: { wwjs: { status: 'supported' }, baileys: { status: 'supported' }, cloudApi: { status: 'supported' } },
   getPhoneNumber: {
     wwjs: { status: 'supported' },
     baileys: { status: 'supported' },

@@ -958,8 +958,11 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     throw new EngineNotSupportedError('checkNumberExists');
   }
 
-  async getNumberId(_number: string): Promise<string | null> {
-    throw new EngineNotSupportedError('getNumberId');
+  // shortcut: Cloud API has no "is on WhatsApp" lookup, so any valid E.164 number resolves; an
+  // unreachable recipient surfaces later as a failed-delivery status webhook (error 131026).
+  async getNumberId(number: string): Promise<string | null> {
+    const digits = this.toE164(number).replace(/\D/g, '');
+    return /^\d{7,15}$/.test(digits) ? this.toNeutralJid(digits) : null;
   }
 
   async resolveContactPhone(contactId: string): Promise<string | null> {
