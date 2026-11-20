@@ -1036,6 +1036,36 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Chats outside WhatsApp (Instagram / Facebook DMs) use chat ids with their own prefix ("ig:", "fb:")
+   * and register a sender for it. WhatsApp chat ids never carry these prefixes, so they keep going
+   * through MessageService exactly as before.
+   */
+  private readonly channelSenders = new Map<
+    string,
+    (businessId: string, sessionId: string, chatId: string, text: string) => Promise<{ messageId?: string }>
+  >();
+
+  registerChannelSender(
+    prefix: string,
+    send: (businessId: string, sessionId: string, chatId: string, text: string) => Promise<{ messageId?: string }>,
+  ): void {
+    this.channelSenders.set(prefix, send);
+  }
+
+  private async sendTextTo(
+    businessId: string,
+    sessionId: string,
+    chatId: string,
+    text: string,
+  ): Promise<{ messageId?: string }> {
+    const colon = chatId.indexOf(':');
+    const channel = colon > 0 ? this.channelSenders.get(chatId.slice(0, colon + 1)) : undefined;
+    if (channel) return channel(businessId, sessionId, chatId, text);
+    if (!this.messageService) throw new Error('Message service unavailable');
+    return this.messageService.sendText(sessionId, { chatId, text });
+  }
+
   private async actionSendMessage(
     action: WorkflowAction,
     ctx: TriggerContext,
@@ -1063,10 +1093,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (this.messageService) {
-      const res = await this.messageService.sendText(ctx.sessionId, {
-        chatId: ctx.chatId,
-        text: message,
-      });
+      const res = await this.sendTextTo(ctx.businessId, ctx.sessionId, ctx.chatId, message);
       this.logger.log(`Workflow send message success: session=${ctx.sessionId} chat=${ctx.chatId} id=${res.messageId}`);
       return { sent: true, messageId: res.messageId, chatId: ctx.chatId, text: message, length: message.length };
     }
@@ -1330,10 +1357,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       });
       lines.push('');
       lines.push(`👉 *Reply with number (${buttons.map((_, idx) => idx + 1).join(', ')}) or option name*`);
-      await this.messageService.sendText(ctx.sessionId, {
-        chatId: ctx.chatId,
-        text: lines.join('\n'),
-      });
+      await this.sendTextTo(ctx.businessId, ctx.sessionId, ctx.chatId, lines.join('\n'));
       sentVia = 'formatted_text_menu';
     }
 
@@ -1516,10 +1540,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (this.messageService) {
-      await this.messageService.sendText(ctx.sessionId, {
-        chatId: ctx.chatId,
-        text: prompt,
-      });
+      await this.sendTextTo(ctx.businessId, ctx.sessionId, ctx.chatId, prompt);
     }
 
     if (run) {
@@ -1677,10 +1698,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
 
     const dryRun = this.isDryRun(ctx, action);
     if (this.messageService && res.reply && !dryRun) {
-      await this.messageService.sendText(ctx.sessionId, {
-        chatId: ctx.chatId,
-        text: res.reply,
-      });
+      await this.sendTextTo(ctx.businessId, ctx.sessionId, ctx.chatId, res.reply);
     }
 
     if (res.handoff && this.conversationService && ctx.conversationId && !dryRun) {

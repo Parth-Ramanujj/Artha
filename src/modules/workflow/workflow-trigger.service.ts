@@ -88,6 +88,86 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Runs workflows for an Instagram / Facebook DM: answers a waiting question first, otherwise starts the
+   * first matching published "message received" / "keyword" workflow. Returns true when a workflow took
+   * the message, so the caller's own auto-reply stays quiet. WhatsApp messages never come through here.
+   */
+  async handleSocialMessage(input: {
+    businessId: string;
+    accountId: string;
+    chatId: string;
+    text: string;
+    messageId: string;
+    contactName?: string;
+    channel: 'instagram' | 'facebook';
+  }): Promise<boolean> {
+    const { businessId, accountId, chatId } = input;
+    const ctx: TriggerContext = {
+      businessId,
+      sessionId: accountId,
+      chatId,
+      contactTags: [],
+      messageBody: input.text,
+      messageType: 'text',
+      metadata: {
+        contactName: input.contactName,
+        name: input.contactName,
+        channel: input.channel,
+        messageId: input.messageId,
+      },
+    };
+
+    const paused = await this.workflowService.findActivePausedRun(businessId, accountId, chatId);
+    if (paused) {
+      const wf = await this.workflowService.findOne(paused.workflowId, businessId).catch(() => null);
+      if (!wf) {
+        await this.workflowService.updateRunStatus(paused.id, RunStatus.FAILED, {
+          failureReason: 'Workflow no longer exists',
+        });
+      } else {
+        const outcome = await this.executor.resume(wf, paused, ctx, input.text, {
+          id: input.messageId,
+          timestamp: Date.now(),
+        });
+        if (outcome !== 'restart') return true;
+      }
+    }
+
+    const workflows = [
+      ...(await this.workflowService.getPublishedWorkflowsForTrigger(businessId, TriggerType.KEYWORD_MATCH)),
+      ...(await this.workflowService.getPublishedWorkflowsForTrigger(businessId, TriggerType.MESSAGE_RECEIVED)),
+    ];
+    for (const workflow of workflows) {
+      const def = workflow.definition;
+      if (
+        !this.executor.evaluateTrigger(def.trigger, ctx) ||
+        !this.executor.evaluateConditions(def.conditions ?? [], ctx)
+      ) {
+        continue;
+      }
+      const run = await this.workflowService.createRun(
+        workflow,
+        { ...(ctx.metadata ?? {}), messageBody: input.text.slice(0, 500) },
+        accountId,
+        this.buildIdempotencyKey(workflow.id, input.messageId, accountId),
+        chatId,
+      );
+      if (run) {
+        void this.executor
+          .execute(workflow, run, ctx)
+          .catch(err =>
+            this.logger.error(
+              `Workflow execution failed: workflow=${workflow.id} run=${run.id}`,
+              err instanceof Error ? err.message : String(err),
+            ),
+          );
+      }
+      return true;
+    }
+    return false;
+  }
+
   private async handleMessageTrigger(sessionId: string, msg: IncomingMessage): Promise<void> {
     const session = await this.sessionRepo.findOne({
       where: { id: sessionId },

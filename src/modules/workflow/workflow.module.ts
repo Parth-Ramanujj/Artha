@@ -52,6 +52,14 @@ import { WhatsAppFormModule } from '../whatsapp-form/whatsapp-form.module';
     LeadClassifierService,
     AbTestService,
   ],
-  exports: [WorkflowService, WorkflowExecutor, AgentService, LeadService, AbTestService, LeadClassifierService],
+  exports: [
+    WorkflowService,
+    WorkflowExecutor,
+    WorkflowTriggerService,
+    AgentService,
+    LeadService,
+    AbTestService,
+    LeadClassifierService,
+  ],
 })
 export class WorkflowModule {}

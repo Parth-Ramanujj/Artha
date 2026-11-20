@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
@@ -7,6 +7,8 @@ import { SocialAutomationService } from './social-automation.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { LeadService } from '../workflow/lead.service';
 import { LeadClassifierService } from '../workflow/lead-classifier.service';
+import { WorkflowExecutor } from '../workflow/workflow-executor.service';
+import { WorkflowTriggerService } from '../workflow/workflow-trigger.service';
 
 /** One message from a Meta `messaging` webhook entry (Instagram DM or Messenger). */
 export interface IncomingMessage {
@@ -38,7 +40,7 @@ const THREAD_SCAN = 1000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 
 @Injectable()
-export class SocialInboxService {
+export class SocialInboxService implements OnModuleInit {
   private readonly logger = new Logger(SocialInboxService.name);
 
   constructor(
@@ -51,7 +53,19 @@ export class SocialInboxService {
     @Optional() private readonly conversations?: ConversationService,
     @Optional() private readonly leads?: LeadService,
     @Optional() private readonly classifier?: LeadClassifierService,
+    @Optional() private readonly workflowExecutor?: WorkflowExecutor,
+    @Optional() private readonly workflowTrigger?: WorkflowTriggerService,
   ) {}
+
+  /** Lets workflow "send message" / question steps answer Instagram (ig:) and Facebook (fb:) chats. */
+  onModuleInit(): void {
+    for (const prefix of ['ig:', 'fb:']) {
+      this.workflowExecutor?.registerChannelSender(prefix, async (businessId, accountId, chatId, text) => {
+        const sent = await this.sendMessage(businessId, accountId, chatId.slice(prefix.length), text);
+        return { messageId: sent.remoteMessageId ?? sent.id };
+      });
+    }
+  }
 
   private accountWithToken() {
     return this.accountRepo.createQueryBuilder('a').addSelect('a.accessToken');
@@ -111,12 +125,32 @@ export class SocialInboxService {
         );
       });
     }
+    if (saved.direction === 'in' && saved.text && (await this.runWorkflows(account, saved))) return saved;
     if (saved.direction === 'in' && saved.text) {
       await this.autoReply(account, saved).catch((err: unknown) => {
         this.logger.warn(`Auto-reply to ${saved.threadId} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
     return saved;
+  }
+
+  /** Published workflows get the DM first, like on WhatsApp; true when one took it. */
+  private async runWorkflows(account: SocialAccount, msg: SocialMessage): Promise<boolean> {
+    if (!this.workflowTrigger) return false;
+    try {
+      return await this.workflowTrigger.handleSocialMessage({
+        businessId: account.businessId,
+        accountId: account.id,
+        chatId: `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`,
+        text: msg.text ?? '',
+        messageId: msg.remoteMessageId ?? msg.id,
+        contactName: msg.customerName?.replace(/^@/, '') || undefined,
+        channel: account.platform,
+      });
+    } catch (err) {
+      this.logger.warn(`Workflows for ${msg.threadId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
   }
 
   /** A new Instagram/Facebook customer becomes a contact and a lead, like a new WhatsApp chat does. */

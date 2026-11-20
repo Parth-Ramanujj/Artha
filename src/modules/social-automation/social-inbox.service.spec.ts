@@ -354,3 +354,66 @@ describe('SocialInboxService media', () => {
     await ds.destroy();
   });
 });
+
+describe('SocialInboxService workflows', () => {
+  it('lets a matching workflow take the DM so rules and AI stay quiet', async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
+    const account = await ds.getRepository(SocialAccount).save({
+      businessId: 'b',
+      platform: 'facebook',
+      accountName: 'Page',
+      accountId: '99',
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+      aiAutoReply: true,
+    });
+    const dmAutoReply = jest.fn().mockResolvedValue({ reply: 'rule', delaySeconds: 0 });
+    const trigger = { handleSocialMessage: jest.fn().mockResolvedValue(true) };
+    const executor = { registerChannelSender: jest.fn() };
+    const inbox = new SocialInboxService(
+      ds.getRepository(SocialAccount),
+      ds.getRepository(SocialMessage),
+      new MetaGraphService(),
+      { noteUnmatchedAccount: jest.fn(), dmAutoReply, aiAgentReply: jest.fn() } as unknown as SocialAutomationService,
+      undefined,
+      undefined,
+      undefined,
+      executor as never,
+      trigger as never,
+    );
+    inbox.onModuleInit();
+    expect(executor.registerChannelSender).toHaveBeenCalledWith('ig:', expect.any(Function));
+    expect(executor.registerChannelSender).toHaveBeenCalledWith('fb:', expect.any(Function));
+
+    await inbox.handleIncomingMessage({
+      platform: 'facebook',
+      targetAccountId: '99',
+      senderId: 'cust',
+      recipientId: '99',
+      mid: 'w1',
+      text: 'menu',
+      isEcho: false,
+    });
+    expect(trigger.handleSocialMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'b',
+        accountId: account.id,
+        chatId: 'fb:cust',
+        text: 'menu',
+        channel: 'facebook',
+      }),
+    );
+    expect(dmAutoReply).not.toHaveBeenCalled();
+    await ds.destroy();
+  });
+});
