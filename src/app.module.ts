@@ -60,6 +60,7 @@ import { SocialAutomationModule } from './modules/social-automation/social-autom
 import { MessageCostsModule } from './modules/message-costs/message-costs.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { WhatsAppLogsModule } from './modules/whatsapp-logs/whatsapp-logs.module';
+import { WaBusinessModule } from './modules/wa-business/wa-business.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -223,6 +224,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/message-costs/**/*.entity{.ts,.js}',
             __dirname + '/modules/wallet/**/*.entity{.ts,.js}',
             __dirname + '/modules/whatsapp-logs/**/*.entity{.ts,.js}',
+            __dirname + '/modules/wa-business/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -375,6 +377,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     CustomerCareModule, // Missed-call WhatsApp + AI call follow-up, and the WhatsApp → web AI assistant link
     GrowthModule, // Growth: QR/widget links, greetings, owner summary, compliance, voice-note actions
     WhatsAppLogsModule, // message logs: every Cloud API send and webhook, plus the delivery health check
+    WaBusinessModule, // Click-to-WhatsApp ad leads, WhatsApp calling, quality alerts, invoices
     WalletModule, // customer prepaid wallets: Razorpay recharge, per-message charges
     MessageCostsModule, // WhatsApp message costs from Meta pricing on status webhooks
     SocialAutomationModule, // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook

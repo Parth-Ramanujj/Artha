@@ -348,6 +348,14 @@ const ALLOWLIST = new Map<string, string>([
   ['whatsapp-logs.controller.ts :: check', 'assertSession: business ownership + sessionScopeVisible'],
   ['whatsapp-logs.controller.ts :: subscribe', 'assertSession: business ownership + sessionScopeVisible'],
   ['whatsapp-logs.controller.ts :: enableAi', 'assertSession: business ownership + sessionScopeVisible'],
+  ['wa-business.controller.ts :: ads', 'sessions narrowed to the business + sessionScopeVisible'],
+  ['wa-business.controller.ts :: calls', 'assertSession: business ownership + sessionScopeVisible'],
+  ['wa-business.controller.ts :: setCalling', 'assertSession: business ownership + sessionScopeVisible'],
+  ['wa-business.controller.ts :: askPermission', 'assertSession: business ownership + sessionScopeVisible'],
+  ['wa-business.controller.ts :: invoices', 'rows filtered by the caller business'],
+  ['wa-business.controller.ts :: createInvoice', 'assertSession + caller business'],
+  ['wa-business.controller.ts :: sendInvoice', 'invoice looked up by caller business + assertSession'],
+  ['wa-business.controller.ts :: pdf', 'invoice looked up by caller business'],
 ]);
 
 /**

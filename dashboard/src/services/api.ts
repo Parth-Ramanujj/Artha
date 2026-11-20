@@ -3324,3 +3324,94 @@ export const socialAutomationApi = {
     request<SimulateCommentResult>(social('/simulate-comment'), { method: 'POST', body: JSON.stringify(input) }),
   logs: (limit = 50) => request<SocialCommentLog[]>(social('/logs?limit=' + limit)),
 };
+
+// ── WhatsApp tools: ad leads, calling, invoices ──
+export interface AdLeadGroup {
+  key: string;
+  headline: string;
+  sourceId: string | null;
+  sourceUrl: string | null;
+  sourceType: string;
+  chats: number;
+  people: number;
+  lastAt: string;
+}
+export interface AdReferralRow {
+  id: string;
+  phone: string;
+  customerName: string | null;
+  sourceType: string;
+  headline: string | null;
+  firstMessage: string | null;
+  createdAt: string;
+}
+export interface WaCallRow {
+  id: string;
+  phone: string;
+  direction: string;
+  status: 'ringing' | 'completed' | 'missed' | 'failed';
+  durationSec: number;
+  createdAt: string;
+}
+export interface InvoiceItem {
+  name: string;
+  qty: number;
+  price: number;
+}
+export interface InvoiceRow {
+  id: string;
+  number: string;
+  sessionId: string;
+  customerName: string;
+  phone: string;
+  items: InvoiceItem[];
+  gstPercent: number;
+  totalPaise: number;
+  status: 'paid' | 'unpaid';
+  sendError: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+export interface SellerDetails {
+  sellerName: string;
+  sellerGstin: string | null;
+  sellerAddress: string | null;
+}
+export interface NewInvoice {
+  sessionId: string;
+  sellerName: string;
+  sellerGstin?: string;
+  sellerAddress?: string;
+  customerName: string;
+  phone: string;
+  items: InvoiceItem[];
+  gstPercent: number;
+  status: 'paid' | 'unpaid';
+  send: boolean;
+}
+
+export const waToolsApi = {
+  ads: (sessionId: string, days: number) =>
+    request<{ total: number; people: number; ads: AdLeadGroup[]; recent: AdReferralRow[] }>(
+      `/wa-business/ads?sessionId=${encodeURIComponent(sessionId)}&days=${days}`,
+    ),
+  calls: (sessionId: string) =>
+    request<{ enabled: boolean; callButtonVisible: boolean; settingsError: string | null; recent: WaCallRow[]; missed: number }>(
+      `/wa-business/calls?sessionId=${encodeURIComponent(sessionId)}`,
+    ),
+  setCalling: (sessionId: string, enabled: boolean, showCallButton: boolean) =>
+    request<{ ok: boolean }>('/wa-business/calls/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ sessionId, enabled, showCallButton }),
+    }),
+  askPermission: (sessionId: string, phone: string, text: string) =>
+    request<{ ok: boolean }>('/wa-business/calls/permission', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, phone, text }),
+    }),
+  invoices: () => request<{ invoices: InvoiceRow[]; seller: SellerDetails | null }>('/wa-business/invoices'),
+  createInvoice: (body: NewInvoice) =>
+    request<InvoiceRow>('/wa-business/invoices', { method: 'POST', body: JSON.stringify(body) }),
+  sendInvoice: (id: string) => request<InvoiceRow>(`/wa-business/invoices/${id}/send`, { method: 'POST' }),
+  invoicePdf: (id: string) => requestBlob(`/wa-business/invoices/${id}/pdf`),
+};

@@ -503,6 +503,10 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       if (!changes) return;
 
       for (const change of changes) {
+        if (change.field === 'calls') {
+          this.emitMissedCalls(change.value as Record<string, unknown>);
+          continue;
+        }
         if (change.field !== 'messages') continue;
         const value = change.value as Record<string, unknown>;
         if (!value) continue;
@@ -1514,6 +1518,64 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       id: scalarToString(d.whatsapp_business_api_data?.id),
       name: scalarToString(d.whatsapp_business_api_data?.name),
     }));
+  }
+
+  /**
+   * A customer's WhatsApp call that nobody answered reaches the app as a missed `call` message, the
+   * same shape the other engines use, so the missed-call follow-up works on official numbers too.
+   */
+  private emitMissedCalls(value: Record<string, unknown> | undefined): void {
+    const calls = Array.isArray(value?.calls) ? (value.calls as Array<Record<string, unknown>>) : [];
+    for (const c of calls) {
+      const answered = scalarToString(c.status).toUpperCase() === 'COMPLETED' && Number(c.duration) > 0;
+      if (c.event !== 'terminate' || answered || (c.direction && c.direction !== 'USER_INITIATED')) continue;
+      const from = this.toNeutralJid(scalarToString(c.from));
+      this.callbacks.onMessage?.({
+        id: scalarToString(c.id),
+        from,
+        to: this.toNeutralJid(this.phoneNumber ?? ''),
+        chatId: from,
+        body: '',
+        type: 'call',
+        timestamp: parseInt(scalarToString(c.timestamp), 10) || Math.floor(Date.now() / 1000),
+        fromMe: false,
+        isGroup: false,
+        kind: 'individual',
+        call: { video: false, missed: true },
+      });
+    }
+  }
+
+  /** WhatsApp Calling settings of this number (call button on/off, icon visibility). */
+  async getCallingSettings(): Promise<Record<string, unknown>> {
+    const res = await this.graphRequest<{ calling?: Record<string, unknown> }>(
+      'GET',
+      `/${this.phoneNumberId}/settings`,
+    );
+    return res.calling ?? {};
+  }
+
+  /** Turns WhatsApp Calling on or off and shows / hides the call button in the chat. */
+  async setCallingSettings(enabled: boolean, showCallButton: boolean): Promise<boolean> {
+    const res = await this.graphRequest<{ success?: boolean }>('POST', `/${this.phoneNumberId}/settings`, {
+      calling: {
+        status: enabled ? 'ENABLED' : 'DISABLED',
+        call_icon_visibility: showCallButton ? 'DEFAULT' : 'DISABLE_ALL',
+      },
+    });
+    return res.success === true;
+  }
+
+  /** Asks a customer for permission to call them (needed before a business-initiated call). */
+  async sendCallPermissionRequest(chatId: string, text: string): Promise<MessageResult> {
+    return this.sendMessage(this.toE164(chatId), {
+      type: 'interactive',
+      interactive: {
+        type: 'call_permission_request',
+        action: { name: 'call_permission_request' },
+        body: { text },
+      },
+    });
   }
 
   /** Subscribes the token's app to this WhatsApp Business account so Meta starts sending webhooks. */

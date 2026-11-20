@@ -67,6 +67,8 @@ export const CORE_CONTROLLER_PATHS = [
   'wallet',
   // Customers must be able to see why their own messages were not delivered.
   'whatsapp-logs',
+  // Ad leads, WhatsApp calling, quality alerts and invoices for the customer's own numbers.
+  'wa-business',
 ] as const;
 
 const FEATURE_BY_PATH = new Map<string, FeatureId | 'core'>([

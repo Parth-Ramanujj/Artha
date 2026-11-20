@@ -5,6 +5,7 @@ import { createLogger } from '../../common/services/logger.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { CloudApiAdapter } from '../../engine/adapters/cloud-api.adapter';
 import { WhatsAppLogsService, describeWebhook } from '../whatsapp-logs/whatsapp-logs.service';
+import { WaBusinessService } from '../wa-business/wa-business.service';
 
 @Injectable()
 export class CloudApiWebhookService {
@@ -15,6 +16,7 @@ export class CloudApiWebhookService {
     private readonly configService: ConfigService,
     private readonly engineRegistry: EngineRegistry,
     @Optional() private readonly logs?: WhatsAppLogsService,
+    @Optional() private readonly waBusiness?: WaBusinessService,
   ) {
     this.appSecret = this.configService.get<string>('engine.cloudApi.appSecret') ?? '';
   }
@@ -72,6 +74,7 @@ export class CloudApiWebhookService {
     }
 
     this.recordEvents(body, phoneNumberId, matched);
+    void this.waBusiness?.onWebhook(body, matched);
   }
 
   private recordEvents(body: Record<string, unknown>, phoneNumberId: string | undefined, matched: string[]): void {

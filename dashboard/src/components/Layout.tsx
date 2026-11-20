@@ -58,6 +58,7 @@ import {
   Wallet,
   CreditCard,
   ScrollText,
+  Wrench,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -91,6 +92,7 @@ const allNavItems = [
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
   { to: '/whatsapp-logs', icon: ScrollText, key: 'whatsappLogs' as const, adminOnly: false },
+  { to: '/wa-tools', icon: Wrench, key: 'waTools' as const, adminOnly: false },
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).
   { to: '/infrastructure', icon: Server, key: 'infrastructure' as const, adminOnly: true },
   { to: '/plugins', icon: Puzzle, key: 'plugins' as const, adminOnly: true },
@@ -142,6 +144,7 @@ const NAV_HINTS: Record<string, string> = {
   '/wa-pricing': 'How Meta charges per message',
   '/message-costs': 'What your WhatsApp messages cost and how to spend less',
   '/whatsapp-logs': 'Every official message from send to delivery, and why one did not arrive',
+  '/wa-tools': 'Leads from your WhatsApp ads, WhatsApp calls and GST invoices',
   '/wallet': 'Your prepaid balance: recharge with Razorpay and see every charge',
   '/chatbot-training': 'Teach the AI about your business and let it reply to chats',
   '/ai-agents': 'Separate AI agents with their own instructions and voice',
@@ -159,7 +162,7 @@ const NAV_HINTS: Record<string, string> = {
 const navSections: { id: string; paths: string[] }[] = [
   { id: 'core', paths: ['/', '/sessions', '/wallet'] },
   // Talking to people right now.
-  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/whatsapp-logs', '/notifications'] },
+  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/whatsapp-logs', '/wa-tools', '/notifications'] },
   // What you send: approved templates first (the only way to reach new people), then reusable content.
   {
     id: 'content',
