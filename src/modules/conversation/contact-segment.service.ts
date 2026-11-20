@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { ContactSegment } from './entities/contact-segment.entity';
 import { Contact } from './entities/contact.entity';
 import { CreateContactSegmentDto, UpdateContactSegmentDto } from './dto/contact-segment.dto';
@@ -85,10 +85,19 @@ export class ContactSegmentService {
   ): Promise<Contact[]> {
     const qb = this.contactRepo.createQueryBuilder('c').where('c.businessId = :businessId', { businessId });
 
-    if (filters['tags'] && Array.isArray(filters['tags'])) {
-      for (const tag of filters['tags'] as string[]) {
-        qb.andWhere('c.tags LIKE :tag', { tag: `%${tag}%` });
-      }
+    const tags = Array.isArray(filters['tags'])
+      ? (filters['tags'] as unknown[]).map(t => scalarToString(t).trim().toLowerCase()).filter(Boolean)
+      : [];
+    if (tags.length) {
+      // A contact with ANY of the tags. tags is jsonb on Postgres (LIKE needs text) and JSON text on
+      // SQLite; matching the quoted value avoids "plan" matching "term_plan".
+      qb.andWhere(
+        new Brackets(w =>
+          tags.forEach((tag, i) =>
+            w.orWhere(`LOWER(CAST(c.tags AS TEXT)) LIKE :tag${i}`, { [`tag${i}`]: `%"${tag}"%` }),
+          ),
+        ),
+      );
     }
     if (filters['hasEmail']) qb.andWhere('c.email IS NOT NULL');
     if (filters['hasPhone']) qb.andWhere('c.phone IS NOT NULL');

@@ -224,7 +224,7 @@ export class GrowthSchedulerService implements OnModuleInit, OnModuleDestroy {
         this.conversations
           .createQueryBuilder('c')
           .where('c.businessId = :businessId', { businessId })
-          .andWhere('c.tags LIKE :tag', { tag: '%"complaint"%' })
+          .andWhere('CAST(c.tags AS TEXT) LIKE :tag', { tag: '%"complaint"%' }) // tags is jsonb on Postgres
           .andWhere('c.updatedAt >= :start AND c.updatedAt < :end', { start, end })
           .getCount(),
         this.feedback.count({ where: { businessId, rating: LessThanOrEqual(2), createdAt: today } }),

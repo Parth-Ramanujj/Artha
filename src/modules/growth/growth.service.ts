@@ -139,7 +139,7 @@ export class GrowthService {
       this.conversations
         .createQueryBuilder('c')
         .where('c.businessId = :businessId', { businessId })
-        .andWhere('c.tags LIKE :tag', { tag: `%"${DND_TAG}"%` })
+        .andWhere('CAST(c.tags AS TEXT) LIKE :tag', { tag: `%"${DND_TAG}"%` }) // tags is jsonb on Postgres
         .getCount(),
       this.consents.find({
         where: { businessId, status: Not(ConsentStatus.UNKNOWN), source: Not(IsNull()) },
