@@ -240,3 +240,66 @@ describe('SocialInboxService AI agent', () => {
     await ds.destroy();
   }, 10_000);
 });
+
+describe('SocialInboxService contacts and leads', () => {
+  it('saves a new Instagram customer as a contact and a lead, once', async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
+    const repo = ds.getRepository(SocialAccount);
+    const account = await repo.save({
+      businessId: 'b',
+      platform: 'instagram',
+      accountName: 'Shop',
+      accountId: '1784',
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+    });
+    const conversations = { getOrCreateContact: jest.fn().mockResolvedValue({}) };
+    const leads = {
+      captureInboundLead: jest.fn().mockResolvedValue({ lead: { id: 'L1' }, created: true }),
+      applyAutoClassification: jest.fn().mockResolvedValue(undefined),
+    };
+    const classifier = { classify: jest.fn().mockResolvedValue({ temperature: 'warm' }) };
+    const inbox = new SocialInboxService(
+      repo,
+      ds.getRepository(SocialMessage),
+      new MetaGraphService(),
+      {
+        noteUnmatchedAccount: jest.fn(),
+        dmAutoReply: jest.fn().mockResolvedValue(null),
+      } as unknown as SocialAutomationService,
+      conversations as never,
+      leads as never,
+      classifier as never,
+    );
+    const dm = (mid: string, text: string) => ({
+      platform: 'instagram' as const,
+      targetAccountId: '1784',
+      senderId: 'cust',
+      recipientId: '1784',
+      mid,
+      text,
+      isEcho: false,
+    });
+
+    await inbox.handleIncomingMessage(dm('c1', 'price?'));
+    await inbox.handleIncomingMessage(dm('c2', 'hello?'));
+    expect(conversations.getOrCreateContact).toHaveBeenCalledTimes(1);
+    expect(conversations.getOrCreateContact).toHaveBeenCalledWith('b', 'ig:cust', undefined);
+    expect(leads.captureInboundLead).toHaveBeenCalledTimes(1);
+    expect(leads.captureInboundLead).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: 'b', sessionId: account.id, chatId: 'ig:cust', source: 'instagram' }),
+    );
+    expect(leads.applyAutoClassification).toHaveBeenCalledWith('L1', { temperature: 'warm' });
+    await ds.destroy();
+  });
+});

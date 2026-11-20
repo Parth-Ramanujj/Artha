@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiModule } from '../ai/ai.module';
+import { ConversationModule } from '../conversation/conversation.module';
+import { WorkflowModule } from '../workflow/workflow.module';
 import { BusinessModule } from '../business/business.module';
 import { SocialAutomationController } from './controllers/social-automation.controller';
 import { SocialWebhookController } from './controllers/social-webhook.controller';
@@ -25,6 +27,8 @@ import { SocialInboxService } from './social-inbox.service';
     TypeOrmModule.forFeature([SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage], 'data'),
     BusinessModule,
     AiModule,
+    ConversationModule,
+    WorkflowModule,
   ],
   controllers: [SocialAutomationController, SocialWebhookController],
   providers: [SocialAutomationService, MetaGraphService, SocialInboxService],

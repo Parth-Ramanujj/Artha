@@ -1,9 +1,12 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
 import { SocialAutomationService } from './social-automation.service';
+import { ConversationService } from '../conversation/conversation.service';
+import { LeadService } from '../workflow/lead.service';
+import { LeadClassifierService } from '../workflow/lead-classifier.service';
 
 /** One message from a Meta `messaging` webhook entry (Instagram DM or Messenger). */
 export interface IncomingMessage {
@@ -43,6 +46,9 @@ export class SocialInboxService {
     private readonly messageRepo: Repository<SocialMessage>,
     private readonly metaGraph: MetaGraphService,
     private readonly social: SocialAutomationService,
+    @Optional() private readonly conversations?: ConversationService,
+    @Optional() private readonly leads?: LeadService,
+    @Optional() private readonly classifier?: LeadClassifierService,
   ) {}
 
   private accountWithToken() {
@@ -96,12 +102,38 @@ export class SocialInboxService {
       this.logger.debug(`Message ${event.mid} not stored: ${err instanceof Error ? err.message : String(err)}`);
       return null;
     }
+    if (saved.direction === 'in' && !named) {
+      await this.captureCustomer(account, saved).catch((err: unknown) => {
+        this.logger.warn(
+          `Saving ${saved.threadId} as a contact/lead failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    }
     if (saved.direction === 'in' && saved.text) {
       await this.autoReply(account, saved).catch((err: unknown) => {
         this.logger.warn(`Auto-reply to ${saved.threadId} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
     return saved;
+  }
+
+  /** A new Instagram/Facebook customer becomes a contact and a lead, like a new WhatsApp chat does. */
+  private async captureCustomer(account: SocialAccount, msg: SocialMessage): Promise<void> {
+    const key = `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`;
+    const name = msg.customerName?.replace(/^@/, '') || undefined;
+    await this.conversations?.getOrCreateContact(account.businessId, key, name);
+    if (!this.leads) return;
+    const { lead, created } = await this.leads.captureInboundLead({
+      businessId: account.businessId,
+      sessionId: account.id,
+      chatId: key,
+      customerName: name,
+      firstMessage: msg.text ?? undefined,
+      source: account.platform,
+    });
+    if (created && this.classifier && msg.text) {
+      await this.leads.applyAutoClassification(lead.id, await this.classifier.classify(msg.text));
+    }
   }
 
   /** Answers a customer DM when an enabled rule covers DMs; the recent chat goes to the AI as context. */

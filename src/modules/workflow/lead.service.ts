@@ -150,7 +150,10 @@ export class LeadService {
     customerPhone?: string;
     customerName?: string;
     firstMessage?: string;
+    /** Where the chat came from; WhatsApp unless said otherwise. */
+    source?: 'whatsapp' | 'instagram' | 'facebook';
   }): Promise<{ lead: Lead; created: boolean }> {
+    const source = input.source ?? 'whatsapp';
     const digits = (input.customerPhone ?? '').replace(/[^0-9]/g, '');
     // Empty when WhatsApp hides the number behind a privacy id; the chat then identifies the lead.
     const cleanPhone = digits.length >= 7 ? digits : '';
@@ -176,7 +179,7 @@ export class LeadService {
       return { lead: changed ? await this.leadRepo.save(existing) : existing, created: false };
     }
 
-    const leadNumber = generateLeadNumber('WA');
+    const leadNumber = generateLeadNumber(source === 'instagram' ? 'IG' : source === 'facebook' ? 'FB' : 'WA');
     const saved = await this.leadRepo.save(
       this.leadRepo.create({
         leadNumber,
@@ -186,10 +189,10 @@ export class LeadService {
         customerPhone: cleanPhone,
         customerName: input.customerName || null,
         mainService: INBOUND_MAIN_SERVICE,
-        selectedService: 'whatsapp_enquiry',
+        selectedService: `${source}_enquiry`,
         pincode: '',
         status: LeadStatus.NEW,
-        metadata: { source: 'whatsapp_inbound' },
+        metadata: { source: `${source}_inbound` },
         firstMessage: input.firstMessage?.slice(0, 2000) || null,
       }),
     );
