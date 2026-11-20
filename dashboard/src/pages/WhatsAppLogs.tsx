@@ -14,6 +14,8 @@ import {
   Send,
   XCircle,
   Zap,
+  Bot,
+  Workflow,
 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
@@ -266,7 +268,15 @@ function JourneyCard({ j }: { j: MessageJourney }) {
   );
 }
 
-const ACTIVITY_ICON: Record<string, typeof Zap> = { 'message.incoming': MessageCircle, 'health.subscribed': Zap };
+const ACTIVITY_ICON: Record<string, typeof Zap> = {
+  'message.incoming': MessageCircle,
+  'health.subscribed': Zap,
+  'health.ai_enabled': Bot,
+  'ai.replied': Bot,
+  'ai.skipped': Bot,
+  'ai.handoff': Bot,
+  'automation.handled': Workflow,
+};
 
 function ActivityRow({ e }: { e: WhatsAppLogEvent }) {
   const Icon = ACTIVITY_ICON[e.kind] ?? (e.level === 'error' ? XCircle : Send);
@@ -305,8 +315,9 @@ function HealthPanel({ sessionId }: { sessionId: string }) {
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const health = useQuery({ queryKey: ['whatsapp-logs', 'health', sessionId], queryFn: () => whatsappLogsApi.health(sessionId) });
-  const subscribe = useMutation({
-    mutationFn: () => whatsappLogsApi.subscribe(sessionId),
+  const fix = useMutation({
+    mutationFn: (action: NonNullable<HealthCheck['action']>) =>
+      action === 'enable_ai' ? whatsappLogsApi.enableAi(sessionId) : whatsappLogsApi.subscribe(sessionId),
     onSuccess: r => {
       void health.refetch();
       if (r.ok) toast.success('Fixed', r.message);
@@ -326,11 +337,11 @@ function HealthPanel({ sessionId }: { sessionId: string }) {
           <span className="wl2-muted">Checking delivery setup with Meta…</span>
         ) : broken.length ? (
           <strong>
-            <XCircle size={18} /> {broken.length} problem{broken.length > 1 ? 's' : ''} stop delivery reports
+            <XCircle size={18} /> {broken.length} problem{broken.length > 1 ? 's' : ''} need attention
           </strong>
         ) : (
           <strong>
-            <CheckCircle2 size={18} /> Delivery is working — all {checks.length} checks passed
+            <CheckCircle2 size={18} /> Everything is working — all {checks.length} checks passed
           </strong>
         )}
         <div className="wl2-health-actions">
@@ -348,7 +359,7 @@ function HealthPanel({ sessionId }: { sessionId: string }) {
         <>
           <ul className="wl2-checks">
             {checks.map(c => (
-              <Check key={c.id} check={c} onSubscribe={() => subscribe.mutate()} busy={subscribe.isPending} />
+              <Check key={c.id} check={c} onFix={a => fix.mutate(a)} busy={fix.isPending} />
             ))}
           </ul>
           <div className="wl2-callback">
@@ -364,7 +375,17 @@ function HealthPanel({ sessionId }: { sessionId: string }) {
   );
 }
 
-function Check({ check: c, onSubscribe, busy }: { check: HealthCheck; onSubscribe: () => void; busy: boolean }) {
+const FIX_LABEL = { subscribe_app: ['Subscribe app', 'Subscribing…'], enable_ai: ['Turn on AI', 'Turning on…'] } as const;
+
+function Check({
+  check: c,
+  onFix,
+  busy,
+}: {
+  check: HealthCheck;
+  onFix: (action: NonNullable<HealthCheck['action']>) => void;
+  busy: boolean;
+}) {
   const Icon = c.ok === true ? CheckCircle2 : c.ok === false ? XCircle : CircleHelp;
   return (
     <li className={`wl2-check ${c.ok === true ? 'is-ok' : c.ok === false ? 'is-bad' : 'is-unknown'}`}>
@@ -373,9 +394,9 @@ function Check({ check: c, onSubscribe, busy }: { check: HealthCheck; onSubscrib
         <strong>{c.title}</strong>
         {c.detail && <span className="wl2-muted">{c.detail}</span>}
         {c.fix && c.ok !== true && <span className="wl2-fix">👉 {c.fix}</span>}
-        {c.action === 'subscribe_app' && (
-          <button className="btn btn-primary" onClick={onSubscribe} disabled={busy}>
-            {busy ? 'Subscribing…' : 'Subscribe app'}
+        {c.action && (
+          <button className="btn btn-primary" onClick={() => onFix(c.action!)} disabled={busy}>
+            {FIX_LABEL[c.action][busy ? 1 : 0]}
           </button>
         )}
       </div>

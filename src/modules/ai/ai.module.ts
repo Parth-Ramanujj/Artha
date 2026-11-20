@@ -9,10 +9,14 @@ import { AiController } from './ai.controller';
 import { AiAgent } from './entities/ai-agent.entity';
 import { AiAgentService } from './ai-agent.service';
 import { AiCopilotService } from './ai-copilot.service';
+import { WhatsAppLogsModule } from '../whatsapp-logs/whatsapp-logs.module';
 import { AiAgentController } from './ai-agent.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AiConfig, KnowledgeDocument, AiAgent, Session, Message], 'data')],
+  imports: [
+    TypeOrmModule.forFeature([AiConfig, KnowledgeDocument, AiAgent, Session, Message], 'data'),
+    WhatsAppLogsModule,
+  ],
   controllers: [AiController, AiAgentController],
   providers: [AiService, AiAgentService, AiCopilotService],
   exports: [AiService, AiAgentService],

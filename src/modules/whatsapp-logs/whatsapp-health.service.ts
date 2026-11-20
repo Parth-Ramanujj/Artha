@@ -4,6 +4,15 @@ import { EngineRegistry } from '../../engine/engine-registry.service';
 import { CloudApiAdapter } from '../../engine/adapters/cloud-api.adapter';
 import { WhatsAppLogsService } from './whatsapp-logs.service';
 import { scalarToString } from '../../common/utils/scalar-string';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { BusinessService } from '../business/business.service';
+import { Session } from '../session/entities/session.entity';
+import { AiConfig, AiProvider } from '../ai/entities/ai-config.entity';
+
+/** How many Groq keys the server has (the assistant's default provider). */
+const groqKeyCount = () =>
+  ['', '_1', '_2', '_3', '_4', '_5', '_6'].filter(s => process.env[`GROQ_API_KEY${s}`]?.trim()).length;
 
 export interface HealthCheck {
   id: string;
@@ -13,7 +22,7 @@ export interface HealthCheck {
   detail: string;
   fix?: string;
   /** A button the dashboard can offer to fix it. */
-  action?: 'subscribe_app';
+  action?: 'subscribe_app' | 'enable_ai';
 }
 
 const ago = (d: Date | null) => {
@@ -39,6 +48,9 @@ export class WhatsAppHealthService {
     private readonly engines: EngineRegistry,
     private readonly logs: WhatsAppLogsService,
     private readonly config: ConfigService,
+    private readonly businessService: BusinessService,
+    @InjectRepository(Session, 'data') private readonly sessions: Repository<Session>,
+    @InjectRepository(AiConfig, 'data') private readonly aiConfigs: Repository<AiConfig>,
   ) {}
 
   async check(sessionId: string): Promise<HealthCheck[]> {
@@ -191,6 +203,8 @@ export class WhatsAppHealthService {
           },
     );
 
+    checks.push(await this.aiCheck(sessionId));
+
     const appSecret = this.config.get<string>('engine.cloudApi.appSecret');
     const verifyToken = this.config.get<string>('engine.cloudApi.verifyToken');
     checks.push({
@@ -201,6 +215,83 @@ export class WhatsAppHealthService {
       ...(appSecret && verifyToken ? {} : { fix: 'Set both on the server (Render → Environment) and redeploy.' }),
     });
     return checks;
+  }
+
+  /** AI settings belong to the business that owns the number — not to whoever is logged in. */
+  private async businessOf(sessionId: string): Promise<string> {
+    const session = await this.sessions.findOne({ where: { id: sessionId }, select: { id: true, businessId: true } });
+    return session?.businessId ?? (await this.businessService.getOrCreateDefaultBusiness()).id;
+  }
+
+  private async aiCheck(sessionId: string): Promise<HealthCheck> {
+    const ai = await this.aiConfigs.findOne({ where: { businessId: await this.businessOf(sessionId) } });
+    const hasKey = groqKeyCount() > 0 || (ai?.provider === AiProvider.CUSTOM && Boolean(ai.apiEndpoint));
+    if (!ai?.enabled) {
+      return {
+        id: 'ai',
+        ok: false,
+        title: 'AI auto-reply is OFF for this number',
+        detail: 'Customer messages get no automatic answer. AI settings belong to the business that owns this number.',
+        fix: 'Press “Turn on AI”, or open AI Assistant while logged in as that business.',
+        action: 'enable_ai',
+      };
+    }
+    if (ai.sessionScopes?.length && !ai.sessionScopes.includes(sessionId)) {
+      return {
+        id: 'ai',
+        ok: false,
+        title: 'AI is limited to other numbers',
+        detail: 'Its settings list specific WhatsApp numbers and this one is not among them.',
+        fix: 'Press “Turn on AI” to add this number.',
+        action: 'enable_ai',
+      };
+    }
+    if (!hasKey) {
+      return {
+        id: 'ai',
+        ok: false,
+        title: 'AI is on, but no AI key is set on the server',
+        detail: 'Every answer fails, so customers get at most one “we will get back to you” message a day.',
+        fix: 'Set GROQ_API_KEY on the server (Render → Environment; free key at console.groq.com) and redeploy.',
+      };
+    }
+    return {
+      id: 'ai',
+      ok: true,
+      title: 'AI auto-reply is on',
+      detail: 'It answers messages that no workflow takes and that are not assigned to a person.',
+    };
+  }
+
+  /** Switches the assistant on for the business that owns this number (and adds the number if limited). */
+  async enableAi(sessionId: string): Promise<{ ok: boolean; message: string }> {
+    const businessId = await this.businessOf(sessionId);
+    const ai =
+      (await this.aiConfigs.findOne({ where: { businessId } })) ??
+      this.aiConfigs.create({
+        businessId,
+        provider: AiProvider.GROQ,
+        model: process.env.GROQ_DEFAULT_MODEL || 'openai/gpt-oss-120b',
+        systemPrompt:
+          'You are a helpful and polite WhatsApp customer support assistant. Answer concisely and accurately.',
+      });
+    ai.enabled = true;
+    if (ai.sessionScopes?.length && !ai.sessionScopes.includes(sessionId))
+      ai.sessionScopes = [...ai.sessionScopes, sessionId];
+    await this.aiConfigs.save(ai);
+    this.logs.record({
+      sessionId,
+      kind: 'health.ai_enabled',
+      level: 'success',
+      summary: 'Turned on AI auto-reply for this number',
+    });
+    return {
+      ok: true,
+      message:
+        groqKeyCount() > 0
+          ? 'AI is on. Send a message from another phone to test it.'
+          : 'AI is on, but GROQ_API_KEY is not set on the server yet — set it so AI can answer.',
+    };
   }
 
   async subscribeApp(sessionId: string): Promise<{ ok: boolean; message: string }> {

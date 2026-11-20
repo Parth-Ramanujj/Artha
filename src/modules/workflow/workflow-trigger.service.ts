@@ -19,6 +19,7 @@ import { Optional } from '@nestjs/common';
 import { isFreshPersonalMessage, WORKFLOW_MAX_MESSAGE_AGE_MS } from './inbound-message-filter';
 import { DND_TAG, hasDndTag, isOptInMessage } from '../conversation/dnd';
 import { SALES_AGENT_TAG } from '../sales-agent/sales-rules';
+import { WhatsAppLogsService, type EventLevel } from '../whatsapp-logs/whatsapp-logs.service';
 
 @Injectable()
 export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
@@ -38,6 +39,8 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     private readonly aiService?: AiService,
     @Optional()
     private readonly aiAgents?: AiAgentService,
+    @Optional()
+    private readonly logs?: WhatsAppLogsService,
   ) {}
 
   onModuleInit(): void {
@@ -143,7 +146,16 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
           flowReply: msg.flowReply,
         });
         // 'restart' ("menu", "hi"…) ended the wait; let the message start workflows like a new chat.
-        if (outcome !== 'restart') return;
+        if (outcome !== 'restart') {
+          this.note(
+            sessionId,
+            msg,
+            'automation.handled',
+            'info',
+            `The waiting workflow “${pausedWf.name}” took this message as its answer.`,
+          );
+          return;
+        }
       }
     }
 
@@ -193,6 +205,13 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
       }
       // One workflow per message: two matching flows would each greet the customer and leave two
       // waiting runs in one chat.
+      this.note(
+        sessionId,
+        msg,
+        'automation.handled',
+        'info',
+        `Workflow “${workflow.name}” answered this message (AI stays quiet when a workflow matches).`,
+      );
       break;
     }
 
@@ -207,10 +226,30 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     if (!this.aiService) return;
     // Once a person owns the chat the assistant must not talk over them; the same for the sales agent's prospects.
-    if (conv?.assignedTo || conv?.tags?.includes(SALES_AGENT_TAG)) return;
+    if (conv?.assignedTo || conv?.tags?.includes(SALES_AGENT_TAG)) {
+      this.note(
+        sessionId,
+        msg,
+        'ai.skipped',
+        'warning',
+        conv.assignedTo
+          ? 'AI did not reply: this chat is assigned to a person (unassign it in Shared Inbox to let AI answer).'
+          : 'AI did not reply: this chat belongs to the Sales Agent.',
+      );
+      return;
+    }
 
     // A business agent whose keyword (or chat) this is answers instead of the general assistant, never both.
     const agentOutcome = this.aiAgents ? await this.aiAgents.autoReply(sessionId, businessId, msg) : 'skipped';
+    if (agentOutcome !== 'skipped') {
+      this.note(
+        sessionId,
+        msg,
+        'ai.replied',
+        agentOutcome === 'replied' ? 'success' : 'warning',
+        `An AI agent handled this message (${agentOutcome}).`,
+      );
+    }
     const outcome =
       agentOutcome === 'skipped' ? await this.aiService.autoReply(sessionId, businessId, msg) : agentOutcome;
     if (
@@ -221,6 +260,17 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     ) {
       await this.conversationService.updateConversation(conv.id, businessId, { status: ConversationStatus.PENDING });
     }
+  }
+
+  /** Why a customer message got (or did not get) an automatic answer, for Message Logs. */
+  private note(sessionId: string, msg: IncomingMessage, kind: string, level: EventLevel, summary: string) {
+    this.logs?.record({
+      sessionId,
+      kind,
+      level,
+      phone: msg.chatId.replace(/@.*$/, ''),
+      summary: summary.slice(0, 300),
+    });
   }
 
   private buildIdempotencyKey(workflowId: string, messageId: string | undefined, sessionId: string): string {

@@ -81,4 +81,13 @@ export class WhatsAppLogsController {
     await this.assertSession(apiKey, dto.sessionId);
     return this.health.subscribeApp(dto.sessionId);
   }
+
+  @Post('health/enable-ai')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Turn on AI auto-reply for the business that owns this number' })
+  async enableAi(@CurrentApiKey() apiKey: ApiKey, @Body() dto: SessionDto) {
+    await this.assertSession(apiKey, dto.sessionId);
+    return this.health.enableAi(dto.sessionId);
+  }
 }

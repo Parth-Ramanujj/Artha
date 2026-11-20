@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiConfig, AiProvider } from './entities/ai-config.entity';
@@ -9,6 +16,7 @@ import { BusinessService } from '../business/business.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { IncomingMessage } from '../../engine/interfaces/whatsapp-engine.interface';
 import { Message, MessageDirection } from '../message/entities/message.entity';
+import { WhatsAppLogsService, type EventLevel } from '../whatsapp-logs/whatsapp-logs.service';
 
 const MAX_DOCUMENT_CONTENT_LENGTH = 500_000;
 const MAX_DOCUMENTS_PER_BUSINESS = 100;
@@ -70,7 +78,13 @@ export class AiService implements OnModuleInit {
     private readonly messageRepo: Repository<Message>,
     private readonly businessService: BusinessService,
     private readonly engines: EngineRegistry,
+    @Optional() private readonly logs?: WhatsAppLogsService,
   ) {}
+
+  /** One line in Message Logs saying what the assistant did with a customer message, and why. */
+  private note(sessionId: string, msg: IncomingMessage, kind: string, level: EventLevel, summary: string) {
+    this.logs?.record({ sessionId, kind, level, phone: msg.chatId.replace(/@.*$/, ''), summary });
+  }
 
   onModuleInit(): void {
     const keysCount = this.getGroqApiKeys().length;
@@ -83,19 +97,48 @@ export class AiService implements OnModuleInit {
    * person should pick the conversation up.
    */
   async autoReply(sessionId: string, businessId: string, msg: IncomingMessage): Promise<AutoReplyOutcome> {
-    if (!msg.body?.trim()) return 'skipped';
+    if (!msg.body?.trim()) {
+      this.note(sessionId, msg, 'ai.skipped', 'info', 'AI did not reply: the message has no text (photo, sticker, …).');
+      return 'skipped';
+    }
 
     const config = await this.getConfig(businessId);
-    if (!config.enabled) return 'skipped';
+    if (!config.enabled) {
+      this.note(
+        sessionId,
+        msg,
+        'ai.skipped',
+        'warning',
+        'AI did not reply: AI auto-reply is OFF for the business that owns this number. Turn it on in AI Assistant (or with the health check in Message Logs).',
+      );
+      return 'skipped';
+    }
     if (config.sessionScopes && config.sessionScopes.length > 0 && !config.sessionScopes.includes(sessionId)) {
+      this.note(
+        sessionId,
+        msg,
+        'ai.skipped',
+        'warning',
+        'AI did not reply: AI is limited to other WhatsApp numbers in its settings.',
+      );
       return 'skipped';
     }
 
     const engine = this.engines.get(sessionId);
-    if (!engine) return 'skipped';
+    if (!engine) {
+      this.note(sessionId, msg, 'ai.skipped', 'warning', 'AI did not reply: this number is not connected.');
+      return 'skipped';
+    }
 
     if (this.shouldHandoff(msg.body, config)) {
       await engine.sendTextMessage(msg.chatId, 'Connecting you with a human agent. Please wait.');
+      this.note(
+        sessionId,
+        msg,
+        'ai.handoff',
+        'info',
+        'AI handed the chat to a person (the message had a handoff keyword).',
+      );
       return 'handoff';
     }
 
@@ -135,6 +178,13 @@ export class AiService implements OnModuleInit {
       this.logger.error(
         `AI auto-reply failed for business=${businessId}: ${err instanceof Error ? err.message : String(err)}`,
       );
+      this.note(
+        sessionId,
+        msg,
+        'ai.failed',
+        'error',
+        `AI could not answer: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300),
+      );
       // One apology per chat per day; the conversation is handed to the team either way.
       const key = `${sessionId}:${msg.chatId}`;
       const last = this.lastFallbackAt.get(key) ?? 0;
@@ -148,9 +198,13 @@ export class AiService implements OnModuleInit {
       return 'failed';
     }
 
-    if (!reply?.trim()) return 'failed';
+    if (!reply?.trim()) {
+      this.note(sessionId, msg, 'ai.failed', 'error', 'AI returned an empty answer.');
+      return 'failed';
+    }
     await engine.sendTextMessage(msg.chatId, reply);
     this.logger.log(`AI Assistant sent auto-reply to chat=${msg.chatId} session=${sessionId}`);
+    this.note(sessionId, msg, 'ai.replied', 'success', `AI replied: “${reply.trim().slice(0, 120)}”`);
     return 'replied';
   }
 

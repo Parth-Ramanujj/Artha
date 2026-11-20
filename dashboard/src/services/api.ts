@@ -2361,7 +2361,7 @@ export interface HealthCheck {
   title: string;
   detail: string;
   fix?: string;
-  action?: 'subscribe_app';
+  action?: 'subscribe_app' | 'enable_ai';
 }
 
 /** Message logs of official numbers: every send and webhook, and the delivery health check. */
@@ -2375,6 +2375,11 @@ export const whatsappLogsApi = {
     request<HealthCheck[]>(`/whatsapp-logs/health?sessionId=${encodeURIComponent(sessionId)}`),
   subscribe: (sessionId: string) =>
     request<{ ok: boolean; message: string }>('/whatsapp-logs/health/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    }),
+  enableAi: (sessionId: string) =>
+    request<{ ok: boolean; message: string }>('/whatsapp-logs/health/enable-ai', {
       method: 'POST',
       body: JSON.stringify({ sessionId }),
     }),

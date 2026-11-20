@@ -347,6 +347,7 @@ const ALLOWLIST = new Map<string, string>([
   ],
   ['whatsapp-logs.controller.ts :: check', 'assertSession: business ownership + sessionScopeVisible'],
   ['whatsapp-logs.controller.ts :: subscribe', 'assertSession: business ownership + sessionScopeVisible'],
+  ['whatsapp-logs.controller.ts :: enableAi', 'assertSession: business ownership + sessionScopeVisible'],
 ]);
 
 /**

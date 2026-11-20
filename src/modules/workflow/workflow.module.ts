@@ -1,3 +1,4 @@
+import { WhatsAppLogsModule } from '../whatsapp-logs/whatsapp-logs.module';
 import { IntegrationModule as GoogleIntegrationsModule } from '../integrations/integration.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -36,6 +37,7 @@ import { WhatsAppFormModule } from '../whatsapp-form/whatsapp-form.module';
     MessageModule,
     AiModule,
     MessageStudioModule,
+    WhatsAppLogsModule,
     WhatsAppFormModule,
     GoogleIntegrationsModule,
   ],
