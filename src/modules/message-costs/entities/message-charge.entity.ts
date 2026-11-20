@@ -47,6 +47,10 @@ export class MessageCharge {
   @Column({ type: 'integer', nullable: true })
   errorCode: number | null;
 
+  /** Meta's error text for a failed message (title, plus details when Meta gives them). */
+  @Column({ type: 'varchar', length: 300, nullable: true })
+  errorTitle: string | null;
+
   /** Estimated cost in INR from our rate table (0 when Meta says it is not billable). */
   @Column({ type: 'float', default: 0 })
   estimatedInr: number;

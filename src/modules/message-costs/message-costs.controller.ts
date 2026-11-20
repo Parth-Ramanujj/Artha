@@ -23,6 +23,16 @@ class MetaBillQueryDto extends PeriodQueryDto {
   sessionId: string;
 }
 
+class DeliveryQueryDto {
+  @IsString()
+  @MaxLength(64)
+  sessionId: string;
+
+  @IsString()
+  @MaxLength(128)
+  messageId: string;
+}
+
 class BudgetDto {
   @IsOptional()
   @IsNumber()
@@ -81,6 +91,15 @@ export class MessageCostsController {
       throw new ForbiddenException('This API key may not use that WhatsApp number');
     }
     return this.costs.metaBill(await this.scope(apiKey), q.sessionId, q.days ?? 30);
+  }
+
+  @Get('delivery')
+  @ApiOperation({ summary: 'Delivery status WhatsApp reported for one sent message, with the reason if it failed' })
+  async delivery(@CurrentApiKey() apiKey: ApiKey, @Query() q: DeliveryQueryDto) {
+    if (!sessionScopeVisible(apiKey?.allowedSessions, q.sessionId)) {
+      throw new ForbiddenException('This API key may not use that WhatsApp number');
+    }
+    return this.costs.deliveryStatus(await this.scope(apiKey), q.sessionId, q.messageId);
   }
 
   @Get('settings')

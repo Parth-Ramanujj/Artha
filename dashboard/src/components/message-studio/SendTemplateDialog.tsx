@@ -7,6 +7,7 @@ import { messageStudioApi } from '../../services/api';
 import type { StudioTemplate } from '../../types/messageStudio';
 import { templatePrice } from '../../utils/templatePricing';
 import { CampaignTemplatePicker, type CampaignMetaTemplate } from '../CampaignTemplatePicker';
+import { DeliveryTracker } from './DeliveryTracker';
 
 /** Sends one approved template to one phone now, with the cost shown before sending. */
 export function SendTemplateDialog({
@@ -22,6 +23,7 @@ export function SendTemplateDialog({
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [filled, setFilled] = useState<CampaignMetaTemplate | null>(null);
+  const [sentId, setSentId] = useState<string | null>(null);
   const phoneOk = /^\+?\d{10,15}$/.test(phone.replace(/[\s-]/g, ''));
   const price = templatePrice(template.category);
 
@@ -33,12 +35,32 @@ export function SendTemplateDialog({
         ...(name.trim() ? { contactName: name.trim() } : {}),
         metaTemplate: filled!,
       }),
-    onSuccess: () => {
-      toast.success('Sent', `${template.name} is on its way to ${phone}.`);
-      onClose();
-    },
+    // Stay open: "accepted" is not "delivered" — the tracker shows what WhatsApp reports next.
+    onSuccess: res => setSentId(res.messageId),
     onError: (e: Error) => toast.error('Not sent', e.message),
   });
+
+  if (sentId) {
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        title={`“${template.name}” → ${phone}`}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setSentId(null)}>
+              Send to another number
+            </button>
+            <button className="btn btn-primary" onClick={onClose}>
+              Done
+            </button>
+          </>
+        }
+      >
+        <DeliveryTracker sessionId={sessionId} messageId={sentId} />
+      </Modal>
+    );
+  }
 
   return (
     <Modal

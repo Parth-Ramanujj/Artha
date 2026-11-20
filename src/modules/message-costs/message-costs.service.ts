@@ -12,6 +12,7 @@ import { sessionScopeVisible } from '../../common/security/session-scope';
 import { MessageCharge } from './entities/message-charge.entity';
 import { MessageCostSetting } from './entities/message-cost-setting.entity';
 import { buildCostSuggestions, estimateInr, type CostSuggestion } from './message-cost-rules';
+import { explainDeliveryError } from './delivery-errors';
 
 /** What a Cloud API status webhook says about one message's price and delivery. */
 export interface AckPricing {
@@ -19,6 +20,7 @@ export interface AckPricing {
   category?: string;
   type?: string;
   errorCode?: number;
+  errorTitle?: string;
 }
 
 /** Whose costs a request may see: one business, and for a session-restricted key only its numbers. */
@@ -92,7 +94,7 @@ export class MessageCostsService {
       let row = await this.charges.findOne({ where: { sessionId, waMessageId } });
       if (!row) {
         // Only Cloud API sends carry pricing; other acks (no pricing, no error) are not ours to track.
-        if (info.billable === undefined && !info.category && !info.errorCode) return;
+        if (info.billable === undefined && !info.category && !info.errorCode && !info.errorTitle) return;
         row = this.charges.create({ sessionId, waMessageId, chatId: chatId ?? null, source: 'other', status: 'sent' });
       }
       const before = row.status;
@@ -101,12 +103,13 @@ export class MessageCostsService {
       if (info.type) row.pricingType = info.type.toLowerCase();
       if (info.billable !== undefined) row.billable = info.billable;
       if (info.errorCode) row.errorCode = info.errorCode;
+      if (info.errorTitle) row.errorTitle = info.errorTitle;
       if (!row.chatId && chatId) row.chatId = chatId;
       row.estimatedInr = row.status === 'failed' ? 0 : estimateInr(row.category, row.billable);
       await this.charges.save(row);
 
       if (row.campaignId && row.chatId && row.status !== before)
-        await this.advanceCampaign(row.campaignId, row.chatId, before, row.status);
+        await this.advanceCampaign(row.campaignId, row.chatId, before, row.status, row);
       if (row.estimatedInr > 0 && before === 'sent' && status !== 'sent') await this.checkBudget(sessionId);
     } catch (err) {
       this.logger.warn(`Could not record status for ${waMessageId}: ${String(err)}`);
@@ -114,7 +117,13 @@ export class MessageCostsService {
   }
 
   /** Campaign delivery counters were never fed by acks; this keeps recipients and totals honest. */
-  private async advanceCampaign(campaignId: string, chatId: string, before: string, after: string) {
+  private async advanceCampaign(
+    campaignId: string,
+    chatId: string,
+    before: string,
+    after: string,
+    row: Pick<MessageCharge, 'errorCode' | 'errorTitle'>,
+  ) {
     const recipientStatus =
       after === 'read'
         ? RecipientStatus.READ
@@ -126,7 +135,9 @@ export class MessageCostsService {
     if (!recipientStatus) return;
     await this.recipients.update(
       { campaignId, chatId },
-      { status: recipientStatus, ...(after !== 'failed' ? { deliveredAt: new Date() } : {}) },
+      after === 'failed'
+        ? { status: recipientStatus, errorMessage: explainDeliveryError(row.errorCode, row.errorTitle).why }
+        : { status: recipientStatus, deliveredAt: new Date() },
     );
     const wasDelivered = before === 'delivered' || before === 'read';
     if ((after === 'delivered' || after === 'read') && !wasDelivered) {
@@ -304,6 +315,32 @@ export class MessageCostsService {
       .andWhere('c.chatId IN (:...ids)', { ids })
       .getRawMany<{ chatId: string }>();
     return { inWindow: open.length, failedBefore: failed.length };
+  }
+
+  /**
+   * What WhatsApp reported for one sent message: accepted only (no webhook yet), delivered, read or
+   * failed — with Meta's reason and what to do. Only for numbers in the caller's scope.
+   */
+  async deliveryStatus(scope: CostScope, sessionId: string, waMessageId: string) {
+    if (!(await this.sessionIdsFor(scope)).includes(sessionId)) return { status: 'unknown' as const };
+    const row = await this.charges.findOne({ where: { sessionId, waMessageId } });
+    if (!row) return { status: 'unknown' as const };
+    const base = {
+      status: row.status as 'sent' | 'delivered' | 'read' | 'failed',
+      category: row.category,
+      billable: row.billable,
+      estimatedInr: row.estimatedInr,
+      // Meta sends pricing with the first status webhook; none yet means the webhook may not reach us.
+      webhookSeen: row.category !== null || row.billable !== null || row.status !== 'sent',
+      updatedAt: row.updatedAt,
+    };
+    if (row.status !== 'failed') return base;
+    return {
+      ...base,
+      errorCode: row.errorCode,
+      errorTitle: row.errorTitle,
+      ...explainDeliveryError(row.errorCode, row.errorTitle),
+    };
   }
 
   /** Meta's own bill for a Cloud API number (pricing_analytics), when Meta returns it. */

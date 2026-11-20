@@ -208,6 +208,49 @@ export function draftFromTemplate(t: StudioTemplate): Partial<MetaTemplateDraft>
   };
 }
 
+type WorkflowDef = Record<string, unknown> & {
+  trigger?: { type?: string; config?: Record<string, unknown> };
+  nodes?: Array<{ type?: string; data?: { config?: Record<string, unknown> } }>;
+};
+
+const splitKeywords = (raw: unknown) =>
+  (typeof raw === 'string' ? raw : '')
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean);
+
+/** The keywords a keyword-triggered workflow listens for (lower-cased); empty for other triggers. */
+export function workflowKeywords(def: WorkflowDef): string[] {
+  return def.trigger?.type === 'keyword_match'
+    ? splitKeywords(def.trigger.config?.keyword).map(k => k.toLowerCase())
+    : [];
+}
+
+/**
+ * The same workflow definition with `keyword` added to (or removed from) its keyword trigger — and to
+ * the visual trigger node, so the builder shows the same list. A button tap arrives as its label.
+ */
+export function withKeyword(def: WorkflowDef, keyword: string, add: boolean): WorkflowDef {
+  const word = keyword.replace(/,/g, ' ').trim();
+  const update = (raw: unknown) => {
+    const list = splitKeywords(raw).filter(k => k.toLowerCase() !== word.toLowerCase());
+    return (add ? [...list, word] : list).join(', ');
+  };
+  return {
+    ...def,
+    trigger: { ...def.trigger, config: { ...def.trigger?.config, keyword: update(def.trigger?.config?.keyword) } },
+    ...(def.nodes
+      ? {
+          nodes: def.nodes.map(n =>
+            n.type === 'trigger'
+              ? { ...n, data: { ...n.data, config: { ...n.data?.config, keyword: update(n.data?.config?.keyword) } } }
+              : n,
+          ),
+        }
+      : {}),
+  };
+}
+
 /**
  * A published keyword workflow that answers when someone taps a quick reply button: WhatsApp delivers
  * the tap as a message whose text is the button label, so the label is the keyword.

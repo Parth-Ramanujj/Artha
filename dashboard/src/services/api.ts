@@ -2327,6 +2327,20 @@ export interface MetaBill {
   totalVolume?: number;
 }
 
+/** What WhatsApp reported for one sent message (GET /message-costs/delivery). */
+export interface DeliveryReport {
+  status: 'unknown' | 'sent' | 'delivered' | 'read' | 'failed';
+  category?: string | null;
+  billable?: boolean | null;
+  estimatedInr?: number;
+  /** False while Meta has not sent any status webhook for it yet. */
+  webhookSeen?: boolean;
+  errorCode?: number | null;
+  errorTitle?: string | null;
+  why?: string;
+  fix?: string;
+}
+
 /** WhatsApp message costs: Meta's price per message (from status webhooks), the real Meta bill, advice. */
 export const messageCostsApi = {
   summary: (days: number) => request<MessageCostSummary>(`/message-costs/summary?days=${days}`),
@@ -2338,6 +2352,10 @@ export const messageCostsApi = {
       method: 'POST',
       body: JSON.stringify({ chatIds }),
     }),
+  delivery: (sessionId: string, messageId: string) =>
+    request<DeliveryReport>(
+      `/message-costs/delivery?sessionId=${encodeURIComponent(sessionId)}&messageId=${encodeURIComponent(messageId)}`,
+    ),
   settings: () => request<{ monthlyBudgetInr: number | null }>('/message-costs/settings'),
   saveSettings: (monthlyBudgetInr: number | null) =>
     request<{ monthlyBudgetInr: number | null }>('/message-costs/settings', {
@@ -2997,7 +3015,7 @@ export const messageStudioApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  validate:(input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
+  validate: (input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
     request<ValidationResult>('/message-studio/validate', { method: 'POST', body: JSON.stringify(input), signal }),
   list: (
     filters: { status?: 'draft' | 'ready' | 'archived' | 'active'; search?: string; sort?: 'updated' | 'recent' } = {},

@@ -411,6 +411,8 @@ export interface MessageAckDetails {
   /** Meta pricing type: regular, free_customer_service, free_entry_point … */
   pricingType?: string;
   errorCode?: number;
+  /** Meta's own words for a failure, e.g. "Message failed to send because more than 24 hours have passed…" */
+  errorTitle?: string;
 }
 
 /**

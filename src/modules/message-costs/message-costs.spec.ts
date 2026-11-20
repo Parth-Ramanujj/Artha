@@ -2,9 +2,11 @@ import { DataSource } from 'typeorm';
 import { buildCostSuggestions, estimateInr, type ChargeRow } from './message-cost-rules';
 import { cloudAckDetails } from '../../engine/adapters/cloud-api.adapter';
 import { AddMessageCharges1788800000000 } from '../../database/migrations/1788800000000-AddMessageCharges';
+import { AddMessageChargeErrorTitle1788900000000 } from '../../database/migrations/1788900000000-AddMessageChargeErrorTitle';
 import { MessageCharge } from './entities/message-charge.entity';
 import { MessageCostSetting } from './entities/message-cost-setting.entity';
 import { MessageCostsService } from './message-costs.service';
+import { explainDeliveryError } from './delivery-errors';
 
 const HOUR = 60 * 60 * 1000;
 const now = new Date('2026-11-20T12:00:00Z').getTime();
@@ -68,8 +70,18 @@ describe('message cost rules', () => {
       category: 'marketing',
       pricingType: 'regular',
       errorCode: 131026,
+      errorTitle: 'Undeliverable',
     });
     expect(cloudAckDetails({}, toChat)).toBeUndefined();
+  });
+
+  it('explains a failed delivery in plain words, falling back to Meta text', () => {
+    expect(explainDeliveryError(131049, null).why).toContain('marketing');
+    expect(explainDeliveryError(131042, null).fix).toContain('payment');
+    expect(explainDeliveryError(999999, 'Something odd')).toEqual({
+      why: 'Something odd',
+      fix: "Look up error 999999 in Meta's Cloud API error codes.",
+    });
   });
 });
 
@@ -85,6 +97,8 @@ describe('message costs storage', () => {
     const qr = ds.createQueryRunner();
     await new AddMessageCharges1788800000000().up(qr);
     await new AddMessageCharges1788800000000().up(qr); // idempotent
+    await new AddMessageChargeErrorTitle1788900000000().up(qr);
+    await new AddMessageChargeErrorTitle1788900000000().up(qr); // idempotent
   });
   afterEach(() => ds.destroy());
 

@@ -2005,3 +2005,78 @@
   gap: 0.35rem;
   margin-top: 1rem;
 }
+
+/* Delivery tracker (Send to one number) */
+.message-studio-page .dt-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+.message-studio-page .dt-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+}
+.message-studio-page .dt-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.message-studio-page .dt-steps li.is-done {
+  color: var(--primary-hover);
+  font-weight: 600;
+}
+.message-studio-page .dt-failed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+.message-studio-page .dt-failed strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.message-studio-page .dt-failed p,
+.message-studio-page .dt-box p {
+  margin: 0;
+}
+.message-studio-page .dt-warn {
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  font-size: 0.85rem;
+}
+.message-studio-page .dt-muted {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Template button automations */
+.message-studio-page .ta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.message-studio-page .ta-linked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+.message-studio-page .ta-linked li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}

@@ -1,4 +1,4 @@
-import { Clock, Megaphone, PencilLine, Send, Workflow, XCircle } from 'lucide-react';
+import { Clock, Megaphone, PencilLine, Send, Workflow, XCircle, Zap } from 'lucide-react';
 import type { StudioTemplate, TemplateAutoTest } from '../../types/messageStudio';
 import { templatePrice } from '../../utils/templatePricing';
 
@@ -24,6 +24,7 @@ export interface CardActions {
   onSend: () => void;
   onCampaign: () => void;
   onAutomation: () => void;
+  onButtonAutomations: () => void;
   onFix: () => void;
   onRetryTest: (t: TemplateAutoTest) => void;
   retrying: boolean;
@@ -75,8 +76,13 @@ export function MetaTemplateCard({
             <button className="btn btn-secondary" onClick={actions.onSend}>
               <Send size={15} /> Send to one number
             </button>
+            {t.buttons.some(b => b.type === 'QUICK_REPLY') && (
+              <button className="btn btn-secondary" onClick={actions.onButtonAutomations}>
+                <Zap size={15} /> Button automations
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={actions.onAutomation}>
-              <Workflow size={15} /> Use in an automation
+              <Workflow size={15} /> Send from a workflow
             </button>
           </div>
           <span className="mt-help">{price.free}</span>

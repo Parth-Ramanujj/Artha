@@ -328,6 +328,10 @@ const ALLOWLIST = new Map<string, string>([
     'sessionScopeVisible in the handler + business ownership check in the service',
   ],
   ['message-costs.controller.ts :: getSettings', 'business-wide budget number only; no per-session data'],
+  [
+    'message-costs.controller.ts :: delivery',
+    'sessionScopeVisible in the handler + business ownership check in the service',
+  ],
 ]);
 
 /**

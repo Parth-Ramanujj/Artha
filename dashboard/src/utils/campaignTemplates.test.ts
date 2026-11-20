@@ -7,6 +7,8 @@ import {
   buttonReplyWorkflow,
   countBodyVariables,
   nextVariable,
+  withKeyword,
+  workflowKeywords,
   type MetaTemplateDraft,
 } from './metaTemplate.ts';
 
@@ -143,4 +145,16 @@ test('button reply workflow: keyword is the button label, reply is sent', () => 
   assert.deepEqual(wf.definition.trigger, { type: 'keyword_match', config: { keyword: 'Know More  now' } });
   assert.equal(wf.definition.nodes[1].data.config.message, 'Details here');
   assert.deepEqual(wf.definition.edges, [{ id: 'e-trg-reply', source: 'node-trg', target: 'node-reply' }]);
+});
+
+test('workflow keywords: a template button can be added to and removed from a keyword workflow', () => {
+  const def = {
+    trigger: { type: 'keyword_match', config: { keyword: 'hi, hello' } },
+    nodes: [{ id: 't', type: 'trigger', data: { config: { triggerType: 'keyword_match', keyword: 'hi, hello' } } }],
+  };
+  const added = withKeyword(def, 'Know More', true);
+  assert.deepEqual(workflowKeywords(added), ['hi', 'hello', 'know more']);
+  assert.equal(added.nodes?.[0].data?.config?.keyword, 'hi, hello, Know More');
+  assert.deepEqual(workflowKeywords(withKeyword(withKeyword(added, 'know more', true), 'Know More', false)), ['hi', 'hello']);
+  assert.deepEqual(workflowKeywords({ trigger: { type: 'message_received', config: {} } }), []);
 });

@@ -119,13 +119,21 @@ export function cloudAckDetails(
   toChatId: (phone: string) => string,
 ): MessageAckDetails | undefined {
   const pricing = st.pricing as { billable?: unknown; category?: unknown; type?: unknown } | undefined;
-  const error = Array.isArray(st.errors) ? (st.errors[0] as { code?: unknown } | undefined) : undefined;
+  const error = Array.isArray(st.errors)
+    ? (st.errors[0] as
+        { code?: unknown; title?: unknown; message?: unknown; error_data?: { details?: unknown } } | undefined)
+    : undefined;
+  const errorText = [error?.title ?? error?.message, error?.error_data?.details]
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .join(' — ')
+    .slice(0, 300);
   const details: MessageAckDetails = {
     ...(typeof st.recipient_id === 'string' ? { chatId: toChatId(st.recipient_id) } : {}),
     ...(typeof pricing?.billable === 'boolean' ? { billable: pricing.billable } : {}),
     ...(typeof pricing?.category === 'string' ? { category: pricing.category } : {}),
     ...(typeof pricing?.type === 'string' ? { pricingType: pricing.type } : {}),
     ...(typeof error?.code === 'number' ? { errorCode: error.code } : {}),
+    ...(errorText ? { errorTitle: errorText } : {}),
   };
   return Object.keys(details).length ? details : undefined;
 }

@@ -9,6 +9,7 @@ import type { StudioTemplate, TemplateAutoTest } from '../types/messageStudio';
 import { MetaTemplateForm } from '../components/message-studio/MetaTemplateForm';
 import { MetaTemplateCard } from '../components/message-studio/MetaTemplateCard';
 import { SendTemplateDialog } from '../components/message-studio/SendTemplateDialog';
+import { TemplateAutomationsDialog } from '../components/message-studio/TemplateAutomationsDialog';
 import { draftFromTemplate } from '../utils/metaTemplate';
 import './MessageStudio.css';
 
@@ -36,6 +37,7 @@ export function WhatsAppTemplates() {
   const [tab, setTab] = useState<Tab>('ALL');
   const [creating, setCreating] = useState<StudioTemplate | 'new' | null>(null);
   const [sending, setSending] = useState<StudioTemplate | null>(null);
+  const [automating, setAutomating] = useState<StudioTemplate | null>(null);
 
   const sessions = useQuery({ queryKey: ['sessions', 'list'], queryFn: () => sessionApi.list() });
   const cloudSessions = (sessions.data ?? []).filter(s => s.engineType === 'cloud-api');
@@ -185,6 +187,7 @@ export function WhatsAppTemplates() {
                     onSend: () => setSending(t),
                     onCampaign: () => navigate(`/campaigns?template=${keyOf(t)}&session=${encodeURIComponent(activeId)}`),
                     onAutomation: () => navigate(`/message-studio/new?template=${keyOf(t)}`),
+                    onButtonAutomations: () => setAutomating(t),
                     onFix: () => setCreating(t),
                     onRetryTest: a => retry.mutate(a),
                     retrying: retry.isPending,
@@ -215,6 +218,7 @@ export function WhatsAppTemplates() {
           }}
         />
       )}
+      {automating && <TemplateAutomationsDialog template={automating} onClose={() => setAutomating(null)} />}
       {sending && activeId && (
         <SendTemplateDialog sessionId={activeId} template={sending} onClose={() => setSending(null)} />
       )}

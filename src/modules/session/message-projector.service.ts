@@ -399,6 +399,7 @@ export class MessageProjector {
         category: details.category,
         type: details.pricingType,
         errorCode: details.errorCode,
+        errorTitle: details.errorTitle,
       });
     }
     this.logger.debug(`Message ack: ${messageId} -> ${status}`, {
