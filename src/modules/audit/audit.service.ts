@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan, In } from 'typeorm';
 import { AuditLog, AuditAction, AuditSeverity } from './entities/audit-log.entity';
 import { ApiKey } from '../auth/entities/api-key.entity';
-import { createLogger } from '../../common/services/logger.service';
+import { createLogger, LoggerService, LogLevel } from '../../common/services/logger.service';
 import { getRequestId, getRequestActor } from '../../common/services/request-context';
 import { resolveSessionScope } from '../../common/security/session-scope';
 
@@ -12,6 +12,10 @@ export const MAX_AUDIT_PAGE_SIZE = 200;
 
 interface AuditContext {
   apiKey?: ApiKey;
+  /** Explicit actor, for writes made after the request's async context is gone. */
+  apiKeyId?: string;
+  apiKeyName?: string;
+  businessId?: string;
   sessionId?: string;
   sessionName?: string;
   ipAddress?: string;
@@ -25,6 +29,8 @@ interface AuditContext {
 
 export interface AuditQueryOptions {
   action?: AuditAction;
+  /** A customer sees only its own business's rows (system lines have none). */
+  businessId?: string;
   apiKeyId?: string;
   sessionId?: string;
   severity?: AuditSeverity;
@@ -50,6 +56,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
    * existing cleanup() method was never scheduled or called anywhere.
    */
   onModuleInit(): void {
+    this.captureSystemLogs();
     const parsed = Number.parseInt(process.env.AUDIT_RETENTION_DAYS ?? '', 10);
     const retentionDays = Number.isInteger(parsed) ? Math.max(0, parsed) : 90;
     if (retentionDays <= 0) {
@@ -68,7 +75,59 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
     this.cleanupTimer.unref?.();
   }
 
+  // shortcut: repeats are skipped for a minute per (level, source, text) in memory only; enough to stop
+  // a reconnect loop from flooding the table, move to a counter column if exact counts are needed.
+  private readonly recentSystemLines = new Map<string, number>();
+  private writingSystemLine = false;
+
+  /**
+   * Stores the server's own log lines (errors, warnings, and info unless AUDIT_SYSTEM_LEVEL=warn) so
+   * they appear in Audit Logs. Debug/verbose lines are never stored.
+   */
+  private captureSystemLogs(): void {
+    const minLevel = (process.env.AUDIT_SYSTEM_LEVEL ?? 'info').toLowerCase();
+    const levels: LogLevel[] =
+      minLevel === 'error'
+        ? [LogLevel.ERROR]
+        : minLevel === 'warn'
+          ? [LogLevel.ERROR, LogLevel.WARN]
+          : minLevel === 'off'
+            ? []
+            : [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO];
+    if (!levels.length) return;
+    LoggerService.setSink((level, context, message, meta) => {
+      // The audit writer's own failures would loop back here.
+      if (!levels.includes(level) || context === 'AuditService' || this.writingSystemLine) return;
+      const key = `${level}|${context}|${message}`.slice(0, 500);
+      const now = Date.now();
+      if ((this.recentSystemLines.get(key) ?? 0) > now - 60_000) return;
+      if (this.recentSystemLines.size >= 2000) this.recentSystemLines.clear();
+      this.recentSystemLines.set(key, now);
+      const { timestamp: _t, level: _l, context: _c, message: _m, trace, requestId, ...rest } = meta;
+      this.writingSystemLine = true;
+      void this.log(
+        AuditAction.SYSTEM_LOG,
+        {
+          path: context.slice(0, 500),
+          errorMessage: (typeof trace === 'string' && trace
+            ? `${message}
+${trace}`
+            : message
+          ).slice(0, 4000),
+          metadata: { ...rest, ...(requestId ? { requestId } : {}) },
+        },
+        level === LogLevel.ERROR
+          ? AuditSeverity.ERROR
+          : level === LogLevel.WARN
+            ? AuditSeverity.WARN
+            : AuditSeverity.INFO,
+      );
+      this.writingSystemLine = false;
+    });
+  }
+
   onModuleDestroy(): void {
+    LoggerService.setSink(null);
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
     }
@@ -88,10 +147,10 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
     // blank, defeating the audit trail. Explicit context values still win (e.g. a worker that stamps
     // a system key, or the AUTH_FAILED case which only has an IP).
     const actor = getRequestActor();
-    const apiKeyId = context.apiKey?.id ?? actor?.apiKeyId;
-    const apiKeyName = context.apiKey?.name ?? actor?.apiKeyName;
+    const apiKeyId = context.apiKey?.id ?? context.apiKeyId ?? actor?.apiKeyId;
+    const apiKeyName = context.apiKey?.name ?? context.apiKeyName ?? actor?.apiKeyName;
     const ipAddress = context.ipAddress ?? actor?.ipAddress;
-    const businessId = actor?.businessId;
+    const businessId = context.businessId ?? actor?.businessId;
     const metadata =
       context.metadata || requestId ? { ...(context.metadata ?? {}), ...(requestId ? { requestId } : {}) } : null;
     const auditLog = this.auditRepository.create({
@@ -147,6 +206,7 @@ export class AuditService implements OnModuleInit, OnModuleDestroy {
     const where: Record<string, unknown> = {};
 
     if (options.action) where.action = options.action;
+    if (options.businessId) where.businessId = options.businessId;
     if (options.apiKeyId) where.apiKeyId = options.apiKeyId;
     // The calling key's allowedSessions is authoritative; the query sessionId may only narrow within it.
     // Without this, a session-scoped ADMIN key reads every tenant's rows (no param => where.sessionId

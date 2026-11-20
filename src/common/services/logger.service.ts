@@ -76,6 +76,13 @@ export class LoggerService implements NestLoggerService {
   private context: string = 'Application';
   private static logLevel: LogLevel = LogLevel.INFO;
   private static logFormat: LogFormat | null = null;
+  /** Receives every line that is printed (the audit log stores them); must never throw. */
+  private static sink:
+    ((level: LogLevel, context: string, message: string, meta: Record<string, unknown>) => void) | null = null;
+
+  static setSink(sink: typeof LoggerService.sink): void {
+    LoggerService.sink = sink;
+  }
 
   static setLogLevel(level: LogLevel): void {
     LoggerService.logLevel = level;
@@ -136,6 +143,12 @@ export class LoggerService implements NestLoggerService {
       LoggerService.resolveFormat() === LogFormat.PRETTY
         ? this.formatPretty(level, logEntry)
         : JSON.stringify(logEntry);
+
+    try {
+      LoggerService.sink?.(level, contextName, message, logEntry);
+    } catch {
+      // a broken sink must never break logging
+    }
 
     switch (level) {
       case LogLevel.ERROR:

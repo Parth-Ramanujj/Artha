@@ -12,6 +12,14 @@ import { fetchAllPages } from '../utils/fetchAllPages';
 import { escapeCsvCell } from '../utils/csv';
 import './Logs.css';
 
+/** One readable line: the API call and its result, or the server message and where it came from. */
+function auditDetails(log: AuditLog): string {
+  if (log.action === 'api_request')
+    return `${log.method ?? ''} ${log.path ?? ''} → ${log.statusCode ?? ''}${log.errorMessage ? ` · ${log.errorMessage}` : ''}`;
+  if (log.action === 'system_log') return `[${log.path ?? 'server'}] ${log.errorMessage ?? ''}`;
+  return [log.method, log.path, log.errorMessage].filter(Boolean).join(' ');
+}
+
 export function Logs() {
   const { t } = useTranslation();
   useDocumentTitle(t('logs.title'));
@@ -29,7 +37,7 @@ export function Logs() {
   const filteredLogs = logs.filter(log => {
     const matchesSearch =
       log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (log.errorMessage || '').toLowerCase().includes(searchQuery.toLowerCase());
+      auditDetails(log).toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
@@ -166,6 +174,7 @@ export function Logs() {
           <div className="table-row header">
             <span>{t('logs.columns.timestamp')}</span>
             <span>{t('logs.columns.action')}</span>
+            <span>{t('logs.columns.details', 'Details')}</span>
             <span>{t('logs.columns.session')}</span>
             <span>{t('logs.columns.apiKey')}</span>
             <span>{t('logs.columns.ip')}</span>
@@ -182,6 +191,9 @@ export function Logs() {
               <div key={log.id} className="table-row">
                 <span className="timestamp">{formatTimestamp(log.createdAt)}</span>
                 <span className="action">{log.action}</span>
+                <span className="details" title={auditDetails(log)}>
+                  {auditDetails(log) || '—'}
+                </span>
                 <span>{log.sessionName || log.sessionId || '—'}</span>
                 <span className="api-key">{log.apiKeyName || '—'}</span>
                 <span className="ip">{log.ipAddress || '—'}</span>

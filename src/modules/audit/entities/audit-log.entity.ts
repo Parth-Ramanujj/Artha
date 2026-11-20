@@ -53,6 +53,11 @@ export enum AuditAction {
   INFRA_DATA_IMPORTED = 'infra_data_imported',
   INFRA_STORAGE_EXPORTED = 'infra_storage_exported',
   INFRA_STORAGE_IMPORTED = 'infra_storage_imported',
+
+  // Every API change (POST/PUT/PATCH/DELETE) and every failed API call, with its status.
+  API_REQUEST = 'api_request',
+  // Errors, warnings and info lines written by the server's own logger.
+  SYSTEM_LOG = 'system_log',
 }
 
 export enum AuditSeverity {

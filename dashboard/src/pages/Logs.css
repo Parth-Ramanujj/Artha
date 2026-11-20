@@ -80,7 +80,7 @@
 /* Unified row styling - same class for header and data */
 .logs-page .logs-table .table-row {
   display: grid;
-  grid-template-columns: 180px 200px 150px 150px 150px 1fr 120px;
+  grid-template-columns: 170px 130px minmax(0, 1fr) 130px 130px 120px 80px;
   gap: 1rem;
   padding: 1rem 1.5rem;
   align-items: center;
@@ -244,6 +244,14 @@
 }
 
 /* Mobile Responsive */
+.logs-page .logs-table .details {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 768px) {
   .logs-page {
     padding: 1rem;

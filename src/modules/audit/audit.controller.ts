@@ -34,6 +34,7 @@ export class AuditController {
   ): Promise<{ data: AuditLog[]; total: number }> {
     const options: AuditQueryOptions = {};
     if (action) options.action = action;
+    if (apiKey?.businessId) options.businessId = apiKey.businessId;
     if (severity) options.severity = severity;
     if (sessionId) options.sessionId = sessionId;
     if (apiKeyId) options.apiKeyId = apiKeyId;
