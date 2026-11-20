@@ -27,6 +27,8 @@ import {
   type Session,
   type MessageTemplate,
 } from '../services/api';
+import { CampaignTemplatePicker, type CampaignMetaTemplate } from '../components/CampaignTemplatePicker';
+import { parseCampaignRecipients } from '../utils/campaignRecipients';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useRole } from '../hooks/useRole';
@@ -56,6 +58,9 @@ export function Campaigns() {
   const [sessionTemplates, setSessionTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignRecipientsText, setCampaignRecipientsText] = useState('');
+  // Set by CampaignTemplatePicker: the filled-in template (null until complete) and whether one is picked.
+  const [metaTemplate, setMetaTemplate] = useState<CampaignMetaTemplate | null>(null);
+  const [metaTemplateSelected, setMetaTemplateSelected] = useState(false);
 
   // Starting campaign state
   const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
@@ -106,6 +111,15 @@ export function Campaigns() {
       .catch(() => setSessionTemplates([]));
   }, [campaignSessionId]);
 
+  const canCreateCampaign =
+    Boolean(campaignName.trim() && campaignSessionId) &&
+    (metaTemplateSelected ? Boolean(metaTemplate) : Boolean(campaignMessageContent.trim()));
+
+  const handleMetaTemplateChange = (tpl: CampaignMetaTemplate | null, selected: boolean) => {
+    setMetaTemplate(tpl);
+    setMetaTemplateSelected(selected);
+  };
+
   const loadData = () => {
     setLoading(true);
     if (tab === 'campaigns') {
@@ -122,7 +136,10 @@ export function Campaigns() {
         .list({ limit: 50 })
         .then(setScheduled)
         .catch(err => {
-          toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to load scheduled messages');
+          toast.error(
+            t('common.error', 'Error'),
+            (err instanceof Error && err.message) || 'Failed to load scheduled messages',
+          );
           setScheduled([]);
         })
         .finally(() => setLoading(false));
@@ -149,7 +166,10 @@ export function Campaigns() {
   const handlePause = async (id: string) => {
     try {
       await campaignApi.pause(id);
-      toast.info(t('campaigns.paused', 'Campaign Paused'), t('campaigns.pausedDesc', 'Campaign delivery has been paused.'));
+      toast.info(
+        t('campaigns.paused', 'Campaign Paused'),
+        t('campaigns.pausedDesc', 'Campaign delivery has been paused.'),
+      );
       loadData();
     } catch (err) {
       toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to pause campaign');
@@ -208,24 +228,16 @@ export function Campaigns() {
 
   const handleAddRecipientsToCampaign = async () => {
     if (!recipientModalCampaign || !newRecipientsInput.trim()) return;
-    const rawNumbers = newRecipientsInput
-      .split(/[\n,;]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
+    const { chatIds, names } = parseCampaignRecipients(newRecipientsInput);
 
-    if (rawNumbers.length === 0) return;
+    if (chatIds.length === 0) return;
 
     try {
       setAddingRecipients(true);
-      const res = await campaignApi.addRecipients(recipientModalCampaign.id, rawNumbers);
-      toast.success(
-        t('campaigns.recipientsAdded', 'Recipients Added'),
-        `${res.added} recipient(s) added to campaign.`,
-      );
+      const res = await campaignApi.addRecipients(recipientModalCampaign.id, chatIds, names);
+      toast.success(t('campaigns.recipientsAdded', 'Recipients Added'), `${res.added} recipient(s) added to campaign.`);
       setNewRecipientsInput('');
-      setRecipientModalCampaign(prev =>
-        prev ? { ...prev, totalRecipients: prev.totalRecipients + res.added } : null,
-      );
+      setRecipientModalCampaign(prev => (prev ? { ...prev, totalRecipients: prev.totalRecipients + res.added } : null));
       loadRecipients(recipientModalCampaign.id);
       loadData();
     } catch (err) {
@@ -239,7 +251,10 @@ export function Campaigns() {
     if (!window.confirm(t('campaigns.confirmCancel', 'Are you sure you want to cancel this campaign?'))) return;
     try {
       await campaignApi.cancel(id);
-      toast.success(t('campaigns.cancelled', 'Campaign Cancelled'), t('campaigns.cancelledDesc', 'Campaign was cancelled.'));
+      toast.success(
+        t('campaigns.cancelled', 'Campaign Cancelled'),
+        t('campaigns.cancelledDesc', 'Campaign was cancelled.'),
+      );
       loadData();
     } catch (err) {
       toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to cancel campaign');
@@ -250,40 +265,48 @@ export function Campaigns() {
     if (!window.confirm(t('campaigns.confirmCancelScheduled', 'Cancel this scheduled message?'))) return;
     try {
       await scheduledMessageApi.cancel(id);
-      toast.success(t('campaigns.cancelled', 'Message Cancelled'), t('campaigns.cancelledDesc', 'Scheduled message was cancelled.'));
+      toast.success(
+        t('campaigns.cancelled', 'Message Cancelled'),
+        t('campaigns.cancelledDesc', 'Scheduled message was cancelled.'),
+      );
       loadData();
     } catch (err) {
-      toast.error(t('common.error', 'Error'), (err instanceof Error && err.message) || 'Failed to cancel scheduled message');
+      toast.error(
+        t('common.error', 'Error'),
+        (err instanceof Error && err.message) || 'Failed to cancel scheduled message',
+      );
     }
   };
 
   const handleCreateCampaign = async () => {
-    if (!campaignName.trim() || !campaignMessageContent.trim() || !campaignSessionId) return;
+    if (!canCreateCampaign) return;
     try {
       setCreating(true);
       const camp = await campaignApi.create({
         name: campaignName.trim(),
         description: campaignDescription.trim() || null,
         sessionId: campaignSessionId,
-        templateId: selectedTemplateId || null,
-        messageContent: campaignMessageContent.trim(),
+        ...(metaTemplateSelected && metaTemplate
+          ? { messageOptions: { metaTemplate } }
+          : { templateId: selectedTemplateId || null, messageContent: campaignMessageContent.trim() }),
         ratePerMinute: campaignRate,
       });
 
-      // Parse and add recipients if provided
-      const rawNumbers = campaignRecipientsText
-        .split(/[\n,;]+/)
-        .map(s => s.trim())
-        .filter(Boolean);
-
-      if (rawNumbers.length > 0) {
-        await campaignApi.addRecipients(camp.id, rawNumbers);
+      // Parse and add recipients if provided ("number, name" per line fills {{name}})
+      const { chatIds, names } = parseCampaignRecipients(campaignRecipientsText);
+      if (chatIds.length > 0) {
+        await campaignApi.addRecipients(camp.id, chatIds, names);
       }
 
-      toast.success(t('campaigns.created', 'Campaign Created'), t('campaigns.createdDesc', 'New campaign created successfully.'));
+      toast.success(
+        t('campaigns.created', 'Campaign Created'),
+        t('campaigns.createdDesc', 'New campaign created successfully.'),
+      );
       setCampaignName('');
       setCampaignDescription('');
       setSelectedTemplateId('');
+      setMetaTemplate(null);
+      setMetaTemplateSelected(false);
       setCampaignMessageContent('');
       setCampaignRecipientsText('');
       setCampaignRate(10);
@@ -306,7 +329,10 @@ export function Campaigns() {
         content: scheduleMessage.trim(),
         scheduledAt: new Date(scheduleAt).toISOString(),
       });
-      toast.success(t('campaigns.scheduledSuccess', 'Message Scheduled'), t('campaigns.scheduledSuccessDesc', 'Message will be delivered at the scheduled time.'));
+      toast.success(
+        t('campaigns.scheduledSuccess', 'Message Scheduled'),
+        t('campaigns.scheduledSuccessDesc', 'Message will be delivered at the scheduled time.'),
+      );
       setScheduleChatId('');
       setScheduleMessage('');
       setScheduleAt('');
@@ -430,11 +456,7 @@ export function Campaigns() {
                             <Users size={16} />
                           </button>
                           {c.status === 'running' && (
-                            <button
-                              className="btn-icon btn-ghost"
-                              title="Pause"
-                              onClick={() => void handlePause(c.id)}
-                            >
+                            <button className="btn-icon btn-ghost" title="Pause" onClick={() => void handlePause(c.id)}>
                               <Pause size={16} />
                             </button>
                           )}
@@ -515,11 +537,7 @@ export function Campaigns() {
               <button className="btn-secondary" onClick={() => setShowCreateModal(false)}>
                 {t('common.cancel', 'Cancel')}
               </button>
-              <button
-                className="btn-primary"
-                onClick={handleCreateCampaign}
-                disabled={creating || !campaignName.trim() || !campaignMessageContent.trim() || !campaignSessionId}
-              >
+              <button className="btn-primary" onClick={handleCreateCampaign} disabled={creating || !canCreateCampaign}>
                 {creating ? <Loader2 className="animate-spin" size={16} /> : t('common.create', 'Create')}
               </button>
             </>
@@ -527,9 +545,16 @@ export function Campaigns() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             {sessions.length === 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#d97706', fontSize: '0.875rem' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#d97706', fontSize: '0.875rem' }}
+              >
                 <AlertCircle size={16} />
-                <span>{t('campaigns.noSessionsWarning', 'No WhatsApp sessions found. Please connect a session in the Sessions tab first.')}</span>
+                <span>
+                  {t(
+                    'campaigns.noSessionsWarning',
+                    'No WhatsApp sessions found. Please connect a session in the Sessions tab first.',
+                  )}
+                </span>
               </div>
             )}
             <div className="form-group">
@@ -554,7 +579,11 @@ export function Campaigns() {
             </div>
             <div className="form-group">
               <label className="form-label">{t('common.session', 'Session')} *</label>
-              <select className="form-select" value={campaignSessionId} onChange={e => setCampaignSessionId(e.target.value)}>
+              <select
+                className="form-select"
+                value={campaignSessionId}
+                onChange={e => setCampaignSessionId(e.target.value)}
+              >
                 <option value="">{t('campaigns.selectSession', 'Select a session')}</option>
                 {sessions.map(s => (
                   <option key={s.id} value={s.id}>
@@ -563,7 +592,8 @@ export function Campaigns() {
                 ))}
               </select>
             </div>
-            {sessionTemplates.length > 0 && (
+            <CampaignTemplatePicker sessionId={campaignSessionId} onChange={handleMetaTemplateChange} />
+            {!metaTemplateSelected && sessionTemplates.length > 0 && (
               <div className="form-group">
                 <label className="form-label">{t('templates.title', 'Message Template')} (Optional)</label>
                 <select
@@ -580,23 +610,25 @@ export function Campaigns() {
                 </select>
               </div>
             )}
+            {!metaTemplateSelected && (
+              <div className="form-group">
+                <label className="form-label">{t('campaigns.messageContent', 'Message Content')} *</label>
+                <textarea
+                  className="form-textarea"
+                  placeholder={t('campaigns.messageContentPlaceholder', 'The message text to send')}
+                  value={campaignMessageContent}
+                  onChange={e => setCampaignMessageContent(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            )}
             <div className="form-group">
-              <label className="form-label">{t('campaigns.messageContent', 'Message Content')} *</label>
+              <label className="form-label">{t('campaigns.recipients', 'Recipients')} (Phone Numbers)</label>
               <textarea
                 className="form-textarea"
-                placeholder={t('campaigns.messageContentPlaceholder', 'The message text to send')}
-                value={campaignMessageContent}
-                onChange={e => setCampaignMessageContent(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">
-                {t('campaigns.recipients', 'Recipients')} (Phone Numbers)
-              </label>
-              <textarea
-                className="form-textarea"
-                placeholder="Enter numbers separated by comma or new line (e.g. 919227102108, 919876543210)"
+                placeholder={
+                  'One per line, optionally with a name for {{name}}:\n919227102108, Ravi\n919876543210, Priya'
+                }
                 value={campaignRecipientsText}
                 onChange={e => setCampaignRecipientsText(e.target.value)}
                 rows={3}
@@ -634,7 +666,9 @@ export function Campaigns() {
               <button
                 className="btn-primary"
                 onClick={handleScheduleMessage}
-                disabled={scheduling || !scheduleSessionId || !scheduleChatId.trim() || !scheduleMessage.trim() || !scheduleAt}
+                disabled={
+                  scheduling || !scheduleSessionId || !scheduleChatId.trim() || !scheduleMessage.trim() || !scheduleAt
+                }
               >
                 {scheduling ? <Loader2 className="animate-spin" size={16} /> : t('common.schedule', 'Schedule')}
               </button>
@@ -644,7 +678,11 @@ export function Campaigns() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             <div className="form-group">
               <label className="form-label">{t('common.session', 'Session')} *</label>
-              <select className="form-select" value={scheduleSessionId} onChange={e => setScheduleSessionId(e.target.value)}>
+              <select
+                className="form-select"
+                value={scheduleSessionId}
+                onChange={e => setScheduleSessionId(e.target.value)}
+              >
                 <option value="">{t('campaigns.selectSession', 'Select a session')}</option>
                 {sessions.map(s => (
                   <option key={s.id} value={s.id}>
@@ -675,356 +713,357 @@ export function Campaigns() {
             </div>
             <div className="form-group">
               <label className="form-label">{t('campaigns.scheduledAt', 'Scheduled At')} *</label>
-              <input className="form-input" type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} />
+              <input
+                className="form-input"
+                type="datetime-local"
+                value={scheduleAt}
+                onChange={e => setScheduleAt(e.target.value)}
+              />
             </div>
           </div>
         </Modal>
       )}
 
       {/* Manage Recipients Modal */}
-      {recipientModalCampaign && (() => {
-        const detectedNumbers = newRecipientsInput
-          .split(/[\n,;]+/)
-          .map(s => s.trim())
-          .filter(Boolean);
-        const detectedCount = detectedNumbers.length;
+      {recipientModalCampaign &&
+        (() => {
+          const detectedNumbers = newRecipientsInput
+            .split(/[\n,;]+/)
+            .map(s => s.trim())
+            .filter(Boolean);
+          const detectedCount = detectedNumbers.length;
 
-        const totalCount = recipientModalCampaign.totalRecipients || recipientsList.length;
-        const sentCount = recipientModalCampaign.sentCount || recipientsList.filter(r => r.status === 'sent').length;
-        const failedCount = recipientModalCampaign.failedCount || recipientsList.filter(r => r.status === 'failed').length;
-        const pendingCount = recipientsList.length > 0
-          ? recipientsList.filter(r => r.status === 'pending').length
-          : Math.max(0, totalCount - sentCount - failedCount);
-        const progressPercent = totalCount > 0 ? Math.min(100, Math.round((sentCount / totalCount) * 100)) : 0;
+          const totalCount = recipientModalCampaign.totalRecipients || recipientsList.length;
+          const sentCount = recipientModalCampaign.sentCount || recipientsList.filter(r => r.status === 'sent').length;
+          const failedCount =
+            recipientModalCampaign.failedCount || recipientsList.filter(r => r.status === 'failed').length;
+          const pendingCount =
+            recipientsList.length > 0
+              ? recipientsList.filter(r => r.status === 'pending').length
+              : Math.max(0, totalCount - sentCount - failedCount);
+          const progressPercent = totalCount > 0 ? Math.min(100, Math.round((sentCount / totalCount) * 100)) : 0;
 
-        const filteredRecipients = recipientsList.filter(r => {
-          const cleanPhone = r.chatId.replace(/@c\.us$/, '');
-          const matchesSearch =
-            recipientsSearch.trim() === '' ||
-            r.chatId.toLowerCase().includes(recipientsSearch.trim().toLowerCase()) ||
-            cleanPhone.includes(recipientsSearch.trim());
-          const matchesFilter =
-            recipientsFilter === 'all' || r.status.toLowerCase() === recipientsFilter;
-          return matchesSearch && matchesFilter;
-        });
+          const filteredRecipients = recipientsList.filter(r => {
+            const cleanPhone = r.chatId.replace(/@c\.us$/, '');
+            const matchesSearch =
+              recipientsSearch.trim() === '' ||
+              r.chatId.toLowerCase().includes(recipientsSearch.trim().toLowerCase()) ||
+              cleanPhone.includes(recipientsSearch.trim());
+            const matchesFilter = recipientsFilter === 'all' || r.status.toLowerCase() === recipientsFilter;
+            return matchesSearch && matchesFilter;
+          });
 
-        return (
-          <Modal
-            open
-            className="recipients-modal-dialog"
-            onClose={() => setRecipientModalCampaign(null)}
-            title={
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Users size={20} style={{ color: '#25d366' }} />
-                  <span>Recipients: {recipientModalCampaign.name}</span>
+          return (
+            <Modal
+              open
+              className="recipients-modal-dialog"
+              onClose={() => setRecipientModalCampaign(null)}
+              title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Users size={20} style={{ color: '#25d366' }} />
+                    <span>Recipients: {recipientModalCampaign.name}</span>
+                  </div>
+                  <span className={`campaign-badge ${recipientModalCampaign.status}`}>
+                    {recipientModalCampaign.status}
+                  </span>
                 </div>
-                <span className={`campaign-badge ${recipientModalCampaign.status}`}>
-                  {recipientModalCampaign.status}
-                </span>
-              </div>
-            }
-            footer={
-              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div>
-                  {['draft', 'paused', 'scheduled'].includes(recipientModalCampaign.status) && (
-                    <button
-                      className="btn-send-whatsapp"
-                      onClick={() => void handleStartCampaign(recipientModalCampaign)}
-                      disabled={
-                        startingCampaignId === recipientModalCampaign.id ||
-                        (totalCount === 0 && recipientsList.length === 0)
-                      }
-                    >
-                      {startingCampaignId === recipientModalCampaign.id ? (
-                        <>
-                          <Loader2 className="animate-spin" size={16} />
-                          <span>Sending WhatsApp Campaign...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send size={16} />
-                          <span>
-                            Send Campaign Now {pendingCount > 0 ? `(${pendingCount})` : totalCount > 0 ? `(${totalCount})` : ''}
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                  {recipientModalCampaign.status === 'running' && (
-                    <button
-                      className="btn-secondary"
-                      onClick={() => void handlePause(recipientModalCampaign.id)}
-                    >
-                      <Pause size={16} />
-                      <span style={{ marginLeft: 6 }}>Pause Campaign</span>
-                    </button>
-                  )}
-                </div>
-                <button className="btn-secondary" onClick={() => setRecipientModalCampaign(null)}>
-                  {t('common.close', 'Close')}
-                </button>
-              </div>
-            }
-          >
-            <div className="recipients-modal-body">
-              {/* Overview KPI Cards + Progress */}
-              <div className="recipients-overview-card">
-                <div className="recipients-stats-grid">
-                  <div className="stat-kpi-card total">
-                    <div className="stat-kpi-icon">
-                      <Users size={18} />
-                    </div>
-                    <div className="stat-kpi-info">
-                      <span className="stat-kpi-value">{totalCount}</span>
-                      <span className="stat-kpi-label">Total</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-kpi-card sent">
-                    <div className="stat-kpi-icon">
-                      <CheckCircle2 size={18} />
-                    </div>
-                    <div className="stat-kpi-info">
-                      <span className="stat-kpi-value">{sentCount}</span>
-                      <span className="stat-kpi-label">Sent</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-kpi-card pending">
-                    <div className="stat-kpi-icon">
-                      <Clock size={18} />
-                    </div>
-                    <div className="stat-kpi-info">
-                      <span className="stat-kpi-value">{pendingCount}</span>
-                      <span className="stat-kpi-label">Pending</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-kpi-card failed">
-                    <div className="stat-kpi-icon">
-                      <AlertCircle size={18} />
-                    </div>
-                    <div className="stat-kpi-info">
-                      <span className="stat-kpi-value">{failedCount}</span>
-                      <span className="stat-kpi-label">Failed</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="recipients-progress-section">
-                  <div className="recipients-progress-header">
-                    <span>Delivery Progress</span>
-                    <span>{progressPercent}%</span>
-                  </div>
-                  <div className="recipients-progress-track">
-                    <div
-                      className="recipients-progress-fill"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Add Recipients Card */}
-              {['draft', 'paused', 'scheduled'].includes(recipientModalCampaign.status) && (
-                <div className="recipients-add-card">
-                  <div className="recipients-add-header">
-                    <div className="recipients-add-title">
-                      <Phone size={16} style={{ color: '#25d366' }} />
-                      <span>Add WhatsApp Phone Numbers</span>
-                    </div>
-                    {detectedCount > 0 && (
-                      <span className="detected-badge">
-                        ✨ {detectedCount} {detectedCount === 1 ? 'number' : 'numbers'} detected
-                      </span>
+              }
+              footer={
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div>
+                    {['draft', 'paused', 'scheduled'].includes(recipientModalCampaign.status) && (
+                      <button
+                        className="btn-send-whatsapp"
+                        onClick={() => void handleStartCampaign(recipientModalCampaign)}
+                        disabled={
+                          startingCampaignId === recipientModalCampaign.id ||
+                          (totalCount === 0 && recipientsList.length === 0)
+                        }
+                      >
+                        {startingCampaignId === recipientModalCampaign.id ? (
+                          <>
+                            <Loader2 className="animate-spin" size={16} />
+                            <span>Sending WhatsApp Campaign...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send size={16} />
+                            <span>
+                              Send Campaign Now{' '}
+                              {pendingCount > 0 ? `(${pendingCount})` : totalCount > 0 ? `(${totalCount})` : ''}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {recipientModalCampaign.status === 'running' && (
+                      <button className="btn-secondary" onClick={() => void handlePause(recipientModalCampaign.id)}>
+                        <Pause size={16} />
+                        <span style={{ marginLeft: 6 }}>Pause Campaign</span>
+                      </button>
                     )}
                   </div>
+                  <button className="btn-secondary" onClick={() => setRecipientModalCampaign(null)}>
+                    {t('common.close', 'Close')}
+                  </button>
+                </div>
+              }
+            >
+              <div className="recipients-modal-body">
+                {/* Overview KPI Cards + Progress */}
+                <div className="recipients-overview-card">
+                  <div className="recipients-stats-grid">
+                    <div className="stat-kpi-card total">
+                      <div className="stat-kpi-icon">
+                        <Users size={18} />
+                      </div>
+                      <div className="stat-kpi-info">
+                        <span className="stat-kpi-value">{totalCount}</span>
+                        <span className="stat-kpi-label">Total</span>
+                      </div>
+                    </div>
 
-                  <textarea
-                    className="recipients-textarea"
-                    placeholder="Enter phone numbers separated by comma, space or new line (e.g. 919227102108, 919876543210)"
-                    value={newRecipientsInput}
-                    onChange={e => setNewRecipientsInput(e.target.value)}
-                    rows={3}
-                  />
+                    <div className="stat-kpi-card sent">
+                      <div className="stat-kpi-icon">
+                        <CheckCircle2 size={18} />
+                      </div>
+                      <div className="stat-kpi-info">
+                        <span className="stat-kpi-value">{sentCount}</span>
+                        <span className="stat-kpi-label">Sent</span>
+                      </div>
+                    </div>
 
-                  <div className="recipients-add-actions">
-                    <span className="recipients-helper-text">
-                      Include country code (e.g. 91 for India). Formatting will be normalized automatically.
-                    </span>
-                    <button
-                      className="btn-primary btn-sm"
-                      onClick={handleAddRecipientsToCampaign}
-                      disabled={addingRecipients || detectedCount === 0}
-                    >
-                      {addingRecipients ? (
-                        <Loader2 className="animate-spin" size={14} />
-                      ) : (
-                        <Plus size={14} />
+                    <div className="stat-kpi-card pending">
+                      <div className="stat-kpi-icon">
+                        <Clock size={18} />
+                      </div>
+                      <div className="stat-kpi-info">
+                        <span className="stat-kpi-value">{pendingCount}</span>
+                        <span className="stat-kpi-label">Pending</span>
+                      </div>
+                    </div>
+
+                    <div className="stat-kpi-card failed">
+                      <div className="stat-kpi-icon">
+                        <AlertCircle size={18} />
+                      </div>
+                      <div className="stat-kpi-info">
+                        <span className="stat-kpi-value">{failedCount}</span>
+                        <span className="stat-kpi-label">Failed</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="recipients-progress-section">
+                    <div className="recipients-progress-header">
+                      <span>Delivery Progress</span>
+                      <span>{progressPercent}%</span>
+                    </div>
+                    <div className="recipients-progress-track">
+                      <div className="recipients-progress-fill" style={{ width: `${progressPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Add Recipients Card */}
+                {['draft', 'paused', 'scheduled'].includes(recipientModalCampaign.status) && (
+                  <div className="recipients-add-card">
+                    <div className="recipients-add-header">
+                      <div className="recipients-add-title">
+                        <Phone size={16} style={{ color: '#25d366' }} />
+                        <span>Add WhatsApp Phone Numbers</span>
+                      </div>
+                      {detectedCount > 0 && (
+                        <span className="detected-badge">
+                          ✨ {detectedCount} {detectedCount === 1 ? 'number' : 'numbers'} detected
+                        </span>
                       )}
-                      <span style={{ marginLeft: 4 }}>
-                        Add {detectedCount > 0 ? `(${detectedCount})` : ''}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )}
+                    </div>
 
-              {/* Recipients List & Filter Section */}
-              <div className="recipients-list-section">
-                <div className="recipients-list-controls">
-                  <div className="recipients-search-wrapper">
-                    <Search size={15} className="recipients-search-icon" />
-                    <input
-                      type="text"
-                      className="recipients-search-input"
-                      placeholder="Search phone number..."
-                      value={recipientsSearch}
-                      onChange={e => setRecipientsSearch(e.target.value)}
+                    <textarea
+                      className="recipients-textarea"
+                      placeholder="Enter phone numbers separated by comma, space or new line (e.g. 919227102108, 919876543210)"
+                      value={newRecipientsInput}
+                      onChange={e => setNewRecipientsInput(e.target.value)}
+                      rows={3}
                     />
-                  </div>
 
-                  <div className="recipients-filter-pills">
-                    {(['all', 'pending', 'sent', 'failed'] as const).map(fKey => {
-                      const count =
-                        fKey === 'all'
-                          ? recipientsList.length
-                          : recipientsList.filter(r => r.status.toLowerCase() === fKey).length;
-                      return (
-                        <button
-                          key={fKey}
-                          type="button"
-                          className={`filter-pill-btn ${recipientsFilter === fKey ? 'active' : ''}`}
-                          onClick={() => setRecipientsFilter(fKey)}
-                        >
-                          {fKey.charAt(0).toUpperCase() + fKey.slice(1)} ({count})
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {loadingRecipients ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '2.5rem',
-                      gap: '0.5rem',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary)' }} />
-                    <span style={{ fontSize: '0.85rem' }}>Loading recipients...</span>
-                  </div>
-                ) : filteredRecipients.length === 0 ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '2rem',
-                      textAlign: 'center',
-                      gap: '0.5rem',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <Users size={28} style={{ opacity: 0.4 }} />
-                    <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                      {recipientsList.length === 0
-                        ? 'No recipients added yet'
-                        : 'No matching recipients found'}
+                    <div className="recipients-add-actions">
+                      <span className="recipients-helper-text">
+                        Include country code (e.g. 91 for India). Formatting will be normalized automatically.
+                      </span>
+                      <button
+                        className="btn-primary btn-sm"
+                        onClick={handleAddRecipientsToCampaign}
+                        disabled={addingRecipients || detectedCount === 0}
+                      >
+                        {addingRecipients ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+                        <span style={{ marginLeft: 4 }}>Add {detectedCount > 0 ? `(${detectedCount})` : ''}</span>
+                      </button>
                     </div>
-                    <div style={{ fontSize: '0.75rem', maxWidth: 320 }}>
-                      {recipientsList.length === 0
-                        ? 'Add phone numbers in the input box above to send messages.'
-                        : 'Try searching with another number or change the filter tab.'}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="recipients-table-scroll">
-                    <table className="recipients-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 36 }}>#</th>
-                          <th>WhatsApp Contact</th>
-                          <th>Status</th>
-                          <th>Delivered At</th>
-                          <th style={{ width: 40, textAlign: 'center' }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredRecipients.map((r, idx) => {
-                          const cleanNumber = r.chatId.replace(/@c\.us$/, '');
-                          const isCopied = copiedChatId === cleanNumber;
-                          return (
-                            <tr key={r.id}>
-                              <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                {idx + 1}
-                              </td>
-                              <td>
-                                <div className="recipients-phone-cell">
-                                  <Phone size={13} style={{ color: '#25d366', opacity: 0.8 }} />
-                                  <span>+{cleanNumber}</span>
-                                </div>
-                              </td>
-                              <td>
-                                <span className={`recipient-status-badge ${r.status}`}>
-                                  {r.status === 'sent' && <CheckCircle2 size={11} />}
-                                  {r.status === 'pending' && <Clock size={11} />}
-                                  {r.status === 'failed' && <AlertCircle size={11} />}
-                                  {r.status}
-                                </span>
-                                {r.errorMessage && (
-                                  <div style={{ color: '#ef4444', fontSize: '0.72rem', marginTop: 2 }}>
-                                    {r.errorMessage}
-                                  </div>
-                                )}
-                              </td>
-                              <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                                {r.sentAt
-                                  ? new Date(r.sentAt).toLocaleString([], {
-                                      dateStyle: 'short',
-                                      timeStyle: 'short',
-                                    })
-                                  : '—'}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  title={isCopied ? 'Copied!' : 'Copy number'}
-                                  onClick={() => handleCopyChatId(cleanNumber)}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    color: isCopied ? '#25d366' : 'var(--text-muted)',
-                                    borderRadius: 4,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  <Copy size={13} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
                   </div>
                 )}
+
+                {/* Recipients List & Filter Section */}
+                <div className="recipients-list-section">
+                  <div className="recipients-list-controls">
+                    <div className="recipients-search-wrapper">
+                      <Search size={15} className="recipients-search-icon" />
+                      <input
+                        type="text"
+                        className="recipients-search-input"
+                        placeholder="Search phone number..."
+                        value={recipientsSearch}
+                        onChange={e => setRecipientsSearch(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="recipients-filter-pills">
+                      {(['all', 'pending', 'sent', 'failed'] as const).map(fKey => {
+                        const count =
+                          fKey === 'all'
+                            ? recipientsList.length
+                            : recipientsList.filter(r => r.status.toLowerCase() === fKey).length;
+                        return (
+                          <button
+                            key={fKey}
+                            type="button"
+                            className={`filter-pill-btn ${recipientsFilter === fKey ? 'active' : ''}`}
+                            onClick={() => setRecipientsFilter(fKey)}
+                          >
+                            {fKey.charAt(0).toUpperCase() + fKey.slice(1)} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {loadingRecipients ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '2.5rem',
+                        gap: '0.5rem',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: '0.85rem' }}>Loading recipients...</span>
+                    </div>
+                  ) : filteredRecipients.length === 0 ? (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '2rem',
+                        textAlign: 'center',
+                        gap: '0.5rem',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <Users size={28} style={{ opacity: 0.4 }} />
+                      <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                        {recipientsList.length === 0 ? 'No recipients added yet' : 'No matching recipients found'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', maxWidth: 320 }}>
+                        {recipientsList.length === 0
+                          ? 'Add phone numbers in the input box above to send messages.'
+                          : 'Try searching with another number or change the filter tab.'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="recipients-table-scroll">
+                      <table className="recipients-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 36 }}>#</th>
+                            <th>WhatsApp Contact</th>
+                            <th>Status</th>
+                            <th>Delivered At</th>
+                            <th style={{ width: 40, textAlign: 'center' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRecipients.map((r, idx) => {
+                            const cleanNumber = r.chatId.replace(/@c\.us$/, '');
+                            const isCopied = copiedChatId === cleanNumber;
+                            return (
+                              <tr key={r.id}>
+                                <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{idx + 1}</td>
+                                <td>
+                                  <div className="recipients-phone-cell">
+                                    <Phone size={13} style={{ color: '#25d366', opacity: 0.8 }} />
+                                    <span>+{cleanNumber}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className={`recipient-status-badge ${r.status}`}>
+                                    {r.status === 'sent' && <CheckCircle2 size={11} />}
+                                    {r.status === 'pending' && <Clock size={11} />}
+                                    {r.status === 'failed' && <AlertCircle size={11} />}
+                                    {r.status}
+                                  </span>
+                                  {r.errorMessage && (
+                                    <div style={{ color: '#ef4444', fontSize: '0.72rem', marginTop: 2 }}>
+                                      {r.errorMessage}
+                                    </div>
+                                  )}
+                                </td>
+                                <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                  {r.sentAt
+                                    ? new Date(r.sentAt).toLocaleString([], {
+                                        dateStyle: 'short',
+                                        timeStyle: 'short',
+                                      })
+                                    : '—'}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    type="button"
+                                    title={isCopied ? 'Copied!' : 'Copy number'}
+                                    onClick={() => handleCopyChatId(cleanNumber)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                      color: isCopied ? '#25d366' : 'var(--text-muted)',
+                                      borderRadius: 4,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                    }}
+                                  >
+                                    <Copy size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </Modal>
-        );
-      })()}
+            </Modal>
+          );
+        })()}
     </div>
   );
 }

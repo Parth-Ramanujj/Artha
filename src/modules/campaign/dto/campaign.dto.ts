@@ -112,6 +112,13 @@ export class AddCampaignRecipientsDto {
   @IsArray()
   @IsString({ each: true })
   chatIds: string[];
+
+  /** Optional display name per chatId, same order; used for {{name}} in the message. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  names?: string[];
 }
 
 export class UpdateConsentDto {

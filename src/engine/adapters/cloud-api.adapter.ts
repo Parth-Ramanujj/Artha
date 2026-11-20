@@ -1383,7 +1383,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
     const res = await this.graphRequest<{ data?: Array<Record<string, unknown>> }>(
       'GET',
-      `/${this.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`,
+      `/${this.wabaId}/message_templates?fields=name,language,status,category,components,rejected_reason&limit=200`,
     );
     return (res.data ?? []).map(t => ({
       name: scalarToString(t.name),
@@ -1391,7 +1391,42 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       status: scalarToString(t.status),
       category: scalarToString(t.category),
       components: Array.isArray(t.components) ? (t.components as Array<Record<string, unknown>>) : [],
+      rejectedReason: scalarToString(t.rejected_reason) || undefined,
     }));
+  }
+
+  /**
+   * Uploads a template's sample header image through Meta's resumable upload API and returns the
+   * handle the template's HEADER example needs. Meta ties these uploads to the app, so it needs the app id.
+   */
+  async uploadTemplateSample(data: Buffer, mimetype: string, filename: string): Promise<string> {
+    if (!this.appId) throw new Error('Set CLOUD_API_APP_ID: Meta needs the app id to upload a template image');
+    const query = new URLSearchParams({ file_name: filename, file_length: String(data.length), file_type: mimetype });
+    const upload = await this.graphRequest<{ id: string }>('POST', `/${this.appId}/uploads?${query.toString()}`);
+    const res = await this.graphSend<{ h?: string }>(
+      'POST',
+      `/${upload.id}`,
+      { Authorization: `OAuth ${this.accessToken}`, file_offset: '0', 'Content-Type': mimetype },
+      data,
+    );
+    if (!res.h) throw new Error('Meta did not return a handle for the uploaded image');
+    return res.h;
+  }
+
+  /** Uploads media to this number and returns its Meta media id (usable in sends for 30 days). */
+  async uploadMediaId(media: MediaInput): Promise<string> {
+    return this.uploadMedia(media);
+  }
+
+  /** Submits a template to this WhatsApp Business account for Meta's review. */
+  async createMessageTemplate(payload: Record<string, unknown>): Promise<{ id: string; status: string }> {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const res = await this.graphRequest<{ id: string; status?: string }>(
+      'POST',
+      `/${this.wabaId}/message_templates`,
+      payload,
+    );
+    return { id: res.id, status: res.status ?? 'PENDING' };
   }
 
   // ============================================================================

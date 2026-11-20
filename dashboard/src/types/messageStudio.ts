@@ -139,6 +139,21 @@ export interface StudioTemplate {
   buttons: Array<{ type: string; text: string }>;
   isCarousel: boolean;
   carouselCards?: Array<{ headerFormat: 'IMAGE' | 'VIDEO' | 'NONE'; bodyVariableCount: number }>;
+  rejectedReason?: string;
+}
+
+/** The template builder form, as POST /message-studio/templates takes it. */
+export interface NewMetaTemplate {
+  sessionId: string;
+  name: string;
+  language: string;
+  category: 'MARKETING' | 'UTILITY';
+  headerText?: string;
+  headerImage?: { base64: string; mimetype: 'image/jpeg' | 'image/png'; filename: string };
+  body: string;
+  bodyExamples?: string[];
+  footer?: string;
+  buttons?: Array<{ type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'; text: string; url?: string; phone?: string }>;
 }
 
 export type StudioMessageStatus = 'draft' | 'ready' | 'archived';

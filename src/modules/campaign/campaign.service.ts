@@ -30,6 +30,52 @@ import { hasDndTag } from '../conversation/dnd';
 const OPTED_OUT_REASON = 'Contact opted out (DND)';
 
 const MAX_RECIPIENTS_PER_CAMPAIGN = 10_000;
+
+/** An approved Meta template a Cloud API campaign sends instead of free text (messageOptions.metaTemplate). */
+export interface CampaignMetaTemplate {
+  name: string;
+  language: string;
+  /** One value per body variable ({{1}}, {{2}} …); "{{name}}" inside a value becomes the recipient's name. */
+  bodyParams: string[];
+  /** What {{name}} becomes for a recipient without a name (e.g. "Sir/Madam"). */
+  nameFallback?: string;
+  /** Meta media id of the header image, for templates with an image header. */
+  headerImageId?: string;
+}
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+
+export function readMetaTemplate(options: Record<string, unknown> | null): CampaignMetaTemplate | null {
+  const t = options?.metaTemplate as Partial<CampaignMetaTemplate> | undefined;
+  if (!t || !str(t.name) || !str(t.language)) return null;
+  const bodyParams = Array.isArray(t.bodyParams) ? t.bodyParams.map(p => String(p)) : [];
+  return {
+    name: str(t.name)!,
+    language: str(t.language)!,
+    bodyParams,
+    ...(str(t.nameFallback) ? { nameFallback: str(t.nameFallback) } : {}),
+    ...(str(t.headerImageId) ? { headerImageId: str(t.headerImageId) } : {}),
+  };
+}
+
+export function metaTemplateComponents(
+  t: CampaignMetaTemplate,
+  contactName: string | null | undefined,
+): Array<Record<string, unknown>> | undefined {
+  const components: Array<Record<string, unknown>> = [];
+  if (t.headerImageId) {
+    components.push({ type: 'header', parameters: [{ type: 'image', image: { id: t.headerImageId } }] });
+  }
+  if (t.bodyParams.length) {
+    // Meta rejects an empty parameter, so a missing name falls back to the campaign's chosen word.
+    const name = contactName?.trim() || t.nameFallback || 'there';
+    components.push({
+      type: 'body',
+      parameters: t.bodyParams.map(p => ({ type: 'text', text: p.replace(/\{\{\s*name\s*\}\}/gi, name) || name })),
+    });
+  }
+  return components.length ? components : undefined;
+}
 const MAX_SCHEDULED_PER_BUSINESS = 1_000;
 
 @Injectable()
@@ -240,8 +286,8 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
   // ── Campaigns ──
 
   async createCampaign(businessId: string | null, dto: CreateCampaignDto, apiKeyId?: string): Promise<Campaign> {
-    if (!dto.templateId && !dto.messageContent) {
-      throw new BadRequestException('Either templateId or messageContent is required');
+    if (!dto.templateId && !dto.messageContent && !readMetaTemplate(dto.messageOptions ?? null)) {
+      throw new BadRequestException('Either templateId, messageContent or an approved Meta template is required');
     }
 
     const targetBusinessId = businessId || (await this.businessService.getOrCreateDefaultBusiness()).id;
@@ -428,6 +474,8 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
+      const metaTemplate = readMetaTemplate(campaign.messageOptions);
+
       const pendingRecipients = await this.recipientRepo.find({
         where: { campaignId, status: RecipientStatus.PENDING },
         order: { createdAt: 'ASC' },
@@ -457,12 +505,23 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
             continue;
           }
 
-          let text = baseText;
-          if (recipient.contactName) {
-            text = text.replace(/\{\{\s*name\s*\}\}/gi, recipient.contactName);
+          if (metaTemplate) {
+            if (typeof engine.sendTemplateMessage !== 'function') {
+              throw new Error('This WhatsApp number cannot send approved Meta templates (Cloud API only)');
+            }
+            await engine.sendTemplateMessage(
+              recipient.chatId,
+              metaTemplate.name,
+              metaTemplate.language,
+              metaTemplateComponents(metaTemplate, recipient.contactName),
+            );
+          } else {
+            let text = baseText;
+            if (recipient.contactName) {
+              text = text.replace(/\{\{\s*name\s*\}\}/gi, recipient.contactName);
+            }
+            await engine.sendTextMessage(recipient.chatId, text);
           }
-
-          await engine.sendTextMessage(recipient.chatId, text);
 
           recipient.status = RecipientStatus.SENT;
           recipient.sentAt = new Date();
@@ -528,16 +587,20 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
     });
     const existingSet = new Set(existing.map(r => r.chatId));
 
-    const newRecipients = dto.chatIds
-      .map(id => this.normalizeChatId(id))
-      .filter(chatId => !!chatId && !existingSet.has(chatId))
-      .map(chatId =>
+    const newRecipients: CampaignRecipient[] = [];
+    dto.chatIds.forEach((id, i) => {
+      const chatId = this.normalizeChatId(id);
+      if (!chatId || existingSet.has(chatId)) return;
+      existingSet.add(chatId); // also drops a number pasted twice in the same list
+      newRecipients.push(
         this.recipientRepo.create({
           campaignId,
           chatId,
+          contactName: dto.names?.[i]?.trim() || null,
           status: RecipientStatus.PENDING,
         }),
       );
+    });
 
     if (newRecipients.length > 0) {
       await this.recipientRepo.save(newRecipients);

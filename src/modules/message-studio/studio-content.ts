@@ -144,6 +144,8 @@ export interface TemplateInfo {
   isCarousel: boolean;
   /** One entry per carousel card, in order: its header media kind and body variable count. */
   carouselCards?: Array<{ headerFormat: 'IMAGE' | 'VIDEO' | 'NONE'; bodyVariableCount: number }>;
+  /** Meta's reason when status is REJECTED. */
+  rejectedReason?: string;
 }
 
 export interface SendCapabilities {

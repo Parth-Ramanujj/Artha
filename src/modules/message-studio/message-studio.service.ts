@@ -38,6 +38,8 @@ import {
 } from './studio-content';
 import { SendPart, SendPlan, buildSendPlan } from './send-plan';
 import type {
+  CreateMetaTemplateDto,
+  StudioImageUploadDto,
   ListStudioMessagesQueryDto,
   ProductDto,
   ProductQueryDto,
@@ -62,8 +64,12 @@ type CloudLikeEngine = IWhatsAppEngine & {
       status: string;
       category: string;
       components: Array<Record<string, unknown>>;
+      rejectedReason?: string;
     }>
   >;
+  createMessageTemplate?: (payload: Record<string, unknown>) => Promise<{ id: string; status: string }>;
+  uploadTemplateSample?: (data: Buffer, mimetype: string, filename: string) => Promise<string>;
+  uploadMediaId?: (media: { data: Buffer; mimetype: string; filename?: string }) => Promise<string>;
 };
 
 export interface SessionCaps extends SendCapabilities {
@@ -85,6 +91,7 @@ export function toTemplateInfo(t: {
   status: string;
   category: string;
   components: Array<Record<string, unknown>>;
+  rejectedReason?: string;
 }): TemplateInfo {
   const find = (type: string) => t.components.find(c => String(c.type).toUpperCase() === type);
   const body = find('BODY');
@@ -112,7 +119,48 @@ export function toTemplateInfo(t: {
       : [],
     isCarousel: Boolean(find('CAROUSEL')),
     ...(find('CAROUSEL') ? { carouselCards: carouselCards(find('CAROUSEL')) } : {}),
+    // Meta reports "NONE" for templates that were never rejected.
+    ...(t.rejectedReason && t.rejectedReason !== 'NONE' ? { rejectedReason: t.rejectedReason } : {}),
   };
+}
+
+/** Turns the template builder form into the payload Meta's message_templates endpoint expects. */
+export function buildMetaTemplatePayload(
+  dto: CreateMetaTemplateDto,
+  headerImageHandle?: string,
+): Record<string, unknown> {
+  const varCount = countTemplateVariables(dto.body);
+  const examples = dto.bodyExamples ?? [];
+  if (examples.length !== varCount) {
+    throw new BadRequestException(
+      `The body has ${varCount} variable(s) but ${examples.length} sample value(s) were given; Meta needs one sample per variable`,
+    );
+  }
+  const components: Array<Record<string, unknown>> = [];
+  if (headerImageHandle) {
+    components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerImageHandle] } });
+  } else if (dto.headerText?.trim()) {
+    components.push({ type: 'HEADER', format: 'TEXT', text: dto.headerText.trim() });
+  }
+  components.push({
+    type: 'BODY',
+    text: dto.body,
+    ...(varCount > 0 ? { example: { body_text: [examples] } } : {}),
+  });
+  if (dto.footer?.trim()) components.push({ type: 'FOOTER', text: dto.footer.trim() });
+  if (dto.buttons?.length) {
+    components.push({
+      type: 'BUTTONS',
+      buttons: dto.buttons.map(b =>
+        b.type === 'URL'
+          ? { type: 'URL', text: b.text, url: b.url }
+          : b.type === 'PHONE_NUMBER'
+            ? { type: 'PHONE_NUMBER', text: b.text, phone_number: b.phone }
+            : { type: 'QUICK_REPLY', text: b.text },
+      ),
+    });
+  }
+  return { name: dto.name, language: dto.language, category: dto.category, components };
 }
 
 /** Each card's header kind and body variable count, read from Meta's CAROUSEL component. */
@@ -201,6 +249,52 @@ export class MessageStudioService {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Could not list templates for ${sessionId}: ${reason}`);
       return { templates: null, reason: `Could not load templates from Meta: ${reason}` };
+    }
+  }
+
+  /** Submits a new template to Meta for approval. Meta reviews it; the list shows the outcome. */
+  async createTemplate(sessionId: string, dto: CreateMetaTemplateDto): Promise<{ id: string; status: string }> {
+    const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
+    if (!engine) throw new BadRequestException('This WhatsApp number is not connected.');
+    if (typeof engine.createMessageTemplate !== 'function') {
+      throw new BadRequestException('Templates can only be created on WhatsApp Cloud API numbers.');
+    }
+    buildMetaTemplatePayload(dto); // validate before uploading anything
+    try {
+      let handle: string | undefined;
+      if (dto.headerImage) {
+        if (typeof engine.uploadTemplateSample !== 'function') throw new Error('This number cannot upload images');
+        const { base64, mimetype, filename } = dto.headerImage;
+        handle = await engine.uploadTemplateSample(Buffer.from(base64, 'base64'), mimetype, filename || 'header.jpg');
+      }
+      const created = await engine.createMessageTemplate(buildMetaTemplatePayload(dto, handle));
+      this.templateCache.delete(sessionId);
+      return created;
+    } catch (err) {
+      throw new BadRequestException(
+        `Meta did not accept the template: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /** Uploads an image to a Cloud API number so a campaign can use it as a template header. */
+  async uploadImage(sessionId: string, dto: StudioImageUploadDto): Promise<{ id: string }> {
+    const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
+    if (!engine) throw new BadRequestException('This WhatsApp number is not connected.');
+    if (typeof engine.uploadMediaId !== 'function') {
+      throw new BadRequestException('Images can only be uploaded to WhatsApp Cloud API numbers.');
+    }
+    try {
+      const id = await engine.uploadMediaId({
+        data: Buffer.from(dto.base64, 'base64'),
+        mimetype: dto.mimetype,
+        filename: dto.filename || 'header.jpg',
+      });
+      return { id };
+    } catch (err) {
+      throw new BadRequestException(
+        `Meta did not accept the image: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

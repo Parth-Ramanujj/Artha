@@ -22,6 +22,7 @@ import { Session } from '../session/entities/session.entity';
 import { MessageStudioService } from './message-studio.service';
 import {
   ArchiveStudioMessageDto,
+  CreateMetaTemplateDto,
   ListStudioMessagesQueryDto,
   ProductDto,
   ProductQueryDto,
@@ -32,6 +33,7 @@ import {
   TestSendDto,
   UpdateProductDto,
   UpdateStudioMessageDto,
+  UploadStudioImageDto,
   ValidateStudioMessageDto,
 } from './dto/message-studio.dto';
 
@@ -74,6 +76,24 @@ export class MessageStudioController {
     const businessId = await this.businessId(apiKey);
     const session = await this.session(apiKey, businessId, query.sessionId);
     return this.studio.templates(session!.id, query.refresh === 'true');
+  }
+
+  @Post('templates')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Submit a new WhatsApp template to Meta for approval (Cloud API numbers)' })
+  async createTemplate(@CurrentApiKey() apiKey: ApiKey, @Body() dto: CreateMetaTemplateDto) {
+    const businessId = await this.businessId(apiKey);
+    const session = await this.session(apiKey, businessId, dto.sessionId);
+    return this.studio.createTemplate(session!.id, dto);
+  }
+
+  @Post('media')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Upload an image to a Cloud API number (template header for campaigns)' })
+  async uploadImage(@CurrentApiKey() apiKey: ApiKey, @Body() dto: UploadStudioImageDto) {
+    const businessId = await this.businessId(apiKey);
+    const session = await this.session(apiKey, businessId, dto.sessionId);
+    return this.studio.uploadImage(session!.id, dto);
   }
 
   @Post('validate')

@@ -6,6 +6,7 @@ import type {
   PublishedStudioMessage,
   StudioCapabilities,
   StudioContent,
+  NewMetaTemplate,
   StudioKind,
   StudioMessage,
   StudioProduct,
@@ -1845,6 +1846,8 @@ export interface Campaign {
   sessionId: string;
   templateId: string | null;
   messageContent: string | null;
+  /** `metaTemplate` here makes a Cloud API campaign send an approved Meta template. */
+  messageOptions?: { metaTemplate?: { name: string; language: string; bodyParams: string[] } } | null;
   status: string;
   scheduledAt: string | null;
   totalRecipients: number;
@@ -1899,8 +1902,11 @@ export const campaignApi = {
     request<Campaign>(`/campaigns/${id}/schedule`, { method: 'POST', body: JSON.stringify({ scheduledAt }) }),
   pause: (id: string) => request<Campaign>(`/campaigns/${id}/pause`, { method: 'POST' }),
   start: (id: string) => request<Campaign>(`/campaigns/${id}/start`, { method: 'POST' }),
-  addRecipients: (id: string, chatIds: string[]) =>
-    request<{ added: number }>(`/campaigns/${id}/recipients`, { method: 'POST', body: JSON.stringify({ chatIds }) }),
+  addRecipients: (id: string, chatIds: string[], names?: string[]) =>
+    request<{ added: number }>(`/campaigns/${id}/recipients`, {
+      method: 'POST',
+      body: JSON.stringify({ chatIds, ...(names ? { names } : {}) }),
+    }),
   getRecipients: (id: string, params?: { limit?: number; offset?: number }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set('limit', String(params.limit));
@@ -2892,6 +2898,13 @@ export const messageStudioApi = {
     request<{ templates: StudioTemplate[] | null; reason?: string }>(
       `/message-studio/templates?sessionId=${encodeURIComponent(sessionId)}${refresh ? '&refresh=true' : ''}`,
     ),
+  createTemplate: (input: NewMetaTemplate) =>
+    request<{ id: string; status: string }>('/message-studio/templates', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  uploadImage: (input: { sessionId: string; base64: string; mimetype: string; filename?: string }) =>
+    request<{ id: string }>('/message-studio/media', { method: 'POST', body: JSON.stringify(input) }),
   validate: (input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
     request<ValidationResult>('/message-studio/validate', { method: 'POST', body: JSON.stringify(input), signal }),
   list: (
