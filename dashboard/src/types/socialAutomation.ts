@@ -90,6 +90,12 @@ export interface SocialOverview {
   totalRules: number;
   activeRules: number;
   recentLogs: SocialCommentLog[];
+  /** Absent on servers older than this field. */
+  webhook?: {
+    secretConfigured: boolean;
+    /** reason: 'signature' (App secret mismatch) or 'no-secret' (META_APP_SECRET unset). */
+    lastRejected: { at: string; reason: 'signature' | 'no-secret' } | null;
+  };
 }
 
 export interface SimulateCommentResult {
@@ -104,7 +110,6 @@ export interface SimulateCommentResult {
   generatedReply?: string;
   delaySeconds?: number;
 }
-
 
 export interface SocialAccountInput {
   platform: SocialPlatform;

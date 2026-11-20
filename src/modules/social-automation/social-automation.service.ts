@@ -666,6 +666,18 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       totalRules,
       activeRules,
       recentLogs,
+      webhook: {
+        secretConfigured: !!(process.env.META_APP_SECRET || process.env.CLOUD_API_APP_SECRET || '').trim(),
+        lastRejected: this.lastWebhookRejection,
+      },
     };
+  }
+
+  // shortcut: kept in memory (cleared on restart, not tied to a business since the delivery was unverified).
+  private lastWebhookRejection: { at: string; reason: 'signature' | 'no-secret' } | null = null;
+
+  /** Remembers why Meta's last webhook delivery was refused, so the dashboard can explain it. */
+  noteWebhookRejected(reason: 'signature' | 'no-secret'): void {
+    this.lastWebhookRejection = { at: new Date().toISOString(), reason };
   }
 }

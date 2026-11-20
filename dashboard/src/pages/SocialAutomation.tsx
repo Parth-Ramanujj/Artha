@@ -22,6 +22,8 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { SetupGuide } from '../components/social-automation/SetupGuide';
+import { ActivityFeed } from '../components/social-automation/ActivityFeed';
+import { HealthPanel, type HealthAction } from '../components/social-automation/HealthPanel';
 import { API_BASE_URL, socialAutomationApi } from '../services/api';
 import type {
   SocialAccount,
@@ -72,10 +74,11 @@ function parseMeta(json: string | null | undefined): { lastError?: string; webho
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: Calendar },
+  { id: 'activity', label: 'Activity & Logs', icon: Radio },
   { id: 'posts', label: 'Scheduled Posts', icon: Send },
   { id: 'rules', label: 'Auto-Reply & Like Rules', icon: Sparkles },
   { id: 'accounts', label: 'Connected Accounts', icon: Share2 },
-  { id: 'simulator', label: 'Comment Simulator & Logs', icon: Bot },
+  { id: 'simulator', label: 'Comment Simulator', icon: Bot },
   { id: 'guide', label: 'Setup Guide', icon: BookOpen },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
@@ -151,7 +154,7 @@ export function SocialAutomation() {
         socialAutomationApi.accounts().catch(() => []),
         socialAutomationApi.posts().catch(() => []),
         socialAutomationApi.rules().catch(() => []),
-        socialAutomationApi.logs(50).catch(() => []),
+        socialAutomationApi.logs(100).catch(() => []),
       ]);
 
       if (ovData) setOverview(ovData);
@@ -168,7 +171,17 @@ export function SocialAutomation() {
 
   useEffect(() => {
     void loadData();
+    // Keeps Activity and the health panel current while comments arrive.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadData();
+    }, 20_000);
+    return () => window.clearInterval(timer);
   }, [loadData]);
+
+  const handleHealthAction = (to: HealthAction) => {
+    if (to === 'connect') handleOpenNewAccountModal();
+    else setActiveTab(to);
+  };
 
   const copyToClipboard = (text: string, field: string) => {
     void navigator.clipboard.writeText(text);
@@ -416,6 +429,8 @@ export function SocialAutomation() {
         </p>
       )}
 
+      <HealthPanel overview={overview} accounts={accounts} rules={rules} logs={logs} posts={posts} onAction={handleHealthAction} />
+
       {/* Stats Cards */}
       <section className="sa-stats" aria-label="Social Automation Stats">
         <div className="sa-stat">
@@ -537,57 +552,24 @@ export function SocialAutomation() {
             </div>
           </div>
 
-          {/* Recent Posts preview */}
+          {/* Latest activity preview */}
           <div className="sa-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Recent Posts</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('posts')}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Latest Activity</h3>
+              <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('activity')}>
                 View All
               </button>
             </div>
-
-            {posts.length === 0 ? (
-              <p className="sa-help" style={{ padding: '1rem 0' }}>No posts created yet. Click "New Post" above to schedule your first post.</p>
-            ) : (
-              <div className="social-posts-grid" style={{ marginTop: '0.5rem' }}>
-                {posts.slice(0, 3).map(post => (
-                  <div key={post.id} className="social-post-card">
-                    {post.mediaUrl && (
-                      <div className="social-post-thumb-wrap">
-                        <img src={post.mediaUrl} alt="Thumbnail" className="social-post-thumb" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
-                        <span className={`social-post-status-pill ${post.status}`}>{post.status}</span>
-                      </div>
-                    )}
-                    <div className="social-post-body">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span className={`social-platform-badge ${post.platform}`}>
-                          {post.platform === 'instagram' ? <InstagramIcon size={12} /> : <FacebookIcon size={12} />}
-                          {post.platform}
-                        </span>
-                        <span className="sa-muted" style={{ fontSize: '0.75rem' }}>
-                          {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString() : 'Now'}
-                        </span>
-                      </div>
-                      <p className="social-post-caption">{post.caption}</p>
-                      <div className="social-post-meta">
-                        <span>{post.publishedAt ? `Published ${new Date(post.publishedAt).toLocaleTimeString()}` : 'Scheduled'}</span>
-                        {post.status !== 'published' && post.status !== 'publishing' && (
-                          <button className="btn btn-secondary btn-sm" onClick={() => void handlePublishNow(post.id)}>
-                            <Play size={12} /> Publish
-                          </button>
-                        )}
-                        {post.permalink && (
-                          <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
-                            <ExternalLink size={12} /> View
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <ActivityFeed posts={posts} logs={logs} rules={rules} onPublish={id => void handlePublishNow(id)} limit={6} />
           </div>
+        </div>
+      )}
+
+      {activeTab === 'activity' && (
+        <div className="sa-panel">
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>Activity &amp; Logs</h3>
+          <p className="sa-help">Every post and every customer comment, newest first, with what Artha did and how to fix anything that failed.</p>
+          <ActivityFeed posts={posts} logs={logs} rules={rules} onPublish={id => void handlePublishNow(id)} />
         </div>
       )}
 
@@ -992,59 +974,6 @@ export function SocialAutomation() {
             )}
           </div>
 
-          {/* Activity Logs */}
-          <div className="sa-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Comment Activity Logs ({logs.length})</h3>
-              <button className="btn btn-secondary btn-sm" onClick={() => void loadData()}>
-                <RefreshCw size={12} /> Refresh
-              </button>
-            </div>
-
-            {logs.length === 0 ? (
-              <p className="sa-help" style={{ padding: '1rem 0' }}>No comments logged yet.</p>
-            ) : (
-              <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
-                <table className="social-table">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Platform</th>
-                      <th>User</th>
-                      <th>Comment</th>
-                      <th>Liked ❤️</th>
-                      <th>Auto-Reply Sent 💬</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map(log => (
-                      <tr key={log.id}>
-                        <td className="sa-muted" style={{ whiteSpace: 'nowrap' }}>
-                          {new Date(log.createdAt).toLocaleTimeString()}
-                        </td>
-                        <td>
-                          <span className={`social-platform-badge ${log.platform}`}>
-                            {log.platform === 'instagram' ? <InstagramIcon size={12} /> : <FacebookIcon size={12} />}
-                            {log.platform}
-                          </span>
-                        </td>
-                        <td><strong>@{log.fromUserName || 'user'}</strong></td>
-                        <td style={{ maxWidth: 220 }}>{log.commentText}</td>
-                        <td>{log.liked ? <span style={{ color: '#ec4899' }}>❤️ Liked</span> : '—'}</td>
-                        <td style={{ maxWidth: 260, fontSize: '0.82rem' }}>{log.replyText || '—'}</td>
-                        <td>
-                          <span className={`sa-chip ${log.status === 'success' ? 'whatsapp' : log.status === 'failed' ? 'warn' : ''}`}>
-                            {log.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       )}
 

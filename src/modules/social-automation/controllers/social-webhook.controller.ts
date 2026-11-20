@@ -135,6 +135,8 @@ export class SocialWebhookController {
   receive(@Body() payload: Obj, @Req() req: express.Request): string {
     const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
     if (!this.signatureOk(rawBody, req.headers['x-hub-signature-256'] as string | undefined)) {
+      const reason = this.appSecret ? 'signature' : 'no-secret';
+      this.socialService.noteWebhookRejected(reason);
       this.logger.warn(
         this.appSecret
           ? 'Meta social webhook signature check failed'
