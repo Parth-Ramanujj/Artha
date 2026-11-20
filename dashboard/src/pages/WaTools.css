@@ -180,6 +180,23 @@
   background: rgba(239, 68, 68, 0.15);
   color: var(--error);
 }
+.wa-tools-page .wt-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.wa-tools-page .wt-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+.wa-tools-page .wt-meter.is-warn > span {
+  background: var(--warning, #f59e0b);
+}
+.wa-tools-page .wt-meter.is-bad > span {
+  background: var(--error);
+}
 .wa-tools-page .wt-check {
   display: flex;
   align-items: center;

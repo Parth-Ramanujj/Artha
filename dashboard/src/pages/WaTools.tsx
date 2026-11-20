@@ -7,6 +7,7 @@ import { sessionApi } from '../services/api';
 import { AdsTab } from '../components/wa-tools/AdsTab';
 import { CallsTab } from '../components/wa-tools/CallsTab';
 import { InvoicesTab } from '../components/wa-tools/InvoicesTab';
+import { UsageCard } from '../components/wa-tools/UsageCard';
 import './WaTools.css';
 
 const TABS = [
@@ -77,6 +78,7 @@ export function WaTools() {
               </select>
             )}
           </div>
+          <UsageCard sessionId={activeId} />
           {tab === 'ads' && <AdsTab sessionId={activeId} />}
           {tab === 'calls' && <CallsTab sessionId={activeId} />}
           {tab === 'invoices' && <InvoicesTab sessionId={activeId} />}

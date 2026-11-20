@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BusinessModule } from '../business/business.module';
 import { ConversationModule } from '../conversation/conversation.module';
 import { Session } from '../session/entities/session.entity';
+import { MessageCharge } from '../message-costs/entities/message-charge.entity';
 import { AdReferral } from './entities/ad-referral.entity';
 import { WaCall } from './entities/wa-call.entity';
 import { Invoice } from './entities/invoice.entity';
@@ -12,7 +13,7 @@ import { WaBusinessController } from './wa-business.controller';
 /** Ads leads, WhatsApp calling, quality alerts and invoices. Fed by the Cloud API webhook module. */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AdReferral, WaCall, Invoice, Session], 'data'),
+    TypeOrmModule.forFeature([AdReferral, WaCall, Invoice, Session, MessageCharge], 'data'),
     BusinessModule,
     ConversationModule,
   ],

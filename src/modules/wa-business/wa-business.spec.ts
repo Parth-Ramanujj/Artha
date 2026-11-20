@@ -1,3 +1,5 @@
+import { alertThreshold, monthStartIst, tierLimit } from './usage-limits';
+import { metaRefusal } from './wa-business.service';
 import { readWebhookInsights } from './wa-webhook-insights';
 import { buildInvoicePdf, invoiceTotals } from './invoice-pdf';
 
@@ -103,5 +105,37 @@ describe('invoice', () => {
     expect(pdf.slice(xrefAt, xrefAt + 4)).toBe('xref');
     const offsets = [...pdf.slice(xrefAt).matchAll(/(\d{10}) 00000 n/g)].map(m => Number(m[1]));
     offsets.forEach((o, i) => expect(pdf.startsWith(`${i + 1} 0 obj`, o)).toBe(true));
+  });
+});
+
+describe('metaRefusal', () => {
+  it("turns Meta's error into a 400 with the reason and what to do", () => {
+    const e = metaRefusal(new Error('(#138006) Calling is not enabled for this phone number'), 'Meta refused');
+    expect(e.getStatus()).toBe(400);
+    expect(e.message).toContain('(#138006) Calling is not enabled');
+    expect(e.message).toContain('Turn on WhatsApp Calling');
+  });
+});
+
+describe('usage limits', () => {
+  it("reads Meta's tier as people per 24 hours", () => {
+    expect(tierLimit('TIER_250')).toBe(250);
+    expect(tierLimit('TIER_1K')).toBe(1000);
+    expect(tierLimit('TIER_100K')).toBe(100_000);
+    expect(tierLimit('TIER_UNLIMITED')).toBeNull();
+    expect(tierLimit(null)).toBeNull();
+  });
+
+  it('warns at 80% and at the limit', () => {
+    expect(alertThreshold(799, 1000)).toBeNull();
+    expect(alertThreshold(800, 1000)).toBe(80);
+    expect(alertThreshold(1000, 1000)).toBe(100);
+    expect(alertThreshold(5000, null)).toBeNull();
+  });
+
+  it('starts the month at midnight India time', () => {
+    // 1 Dec 2026 02:00 IST is still 30 Nov in UTC, but already December in India.
+    expect(monthStartIst(new Date('2026-11-30T20:30:00Z')).toISOString()).toBe('2026-11-30T18:30:00.000Z');
+    expect(monthStartIst(new Date('2026-11-21T10:00:00Z')).toISOString()).toBe('2026-10-31T18:30:00.000Z');
   });
 });

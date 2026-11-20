@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { createLogger } from '../../common/services/logger.service';
@@ -14,9 +21,32 @@ import { WaCall } from './entities/wa-call.entity';
 import { Invoice, InvoiceItem } from './entities/invoice.entity';
 import { readWebhookInsights } from './wa-webhook-insights';
 import { buildInvoicePdf, invoiceTotals, rupees } from './invoice-pdf';
+import { MessageCharge } from '../message-costs/entities/message-charge.entity';
+import {
+  FREE_SERVICE_PER_MONTH,
+  TEMPLATE_CATEGORIES,
+  alertThreshold,
+  dailyLimitAlert,
+  freeServiceAlert,
+  monthStartIst,
+  tierLimit,
+} from './usage-limits';
+
+const USAGE_CHECK_MS = 15 * 60_000;
 
 const AD_TAG = 'from-ad';
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Meta's refusal as a 400 with its reason (a plain Error would reach the dashboard as a bare 500). */
+export function metaRefusal(e: unknown, action: string): BadRequestException {
+  const msg = errText(e);
+  const hint = /13800\d|calling|call permission|not (enabled|eligible)/i.test(msg)
+    ? ' Turn on WhatsApp Calling for this number first (above). Meta enables calling only for numbers that are eligible for it.'
+    : /131047|24.?hour|re-?engagement/i.test(msg)
+      ? ' The customer has not messaged you in the last 24 hours: ask them to message you first.'
+      : '';
+  return new BadRequestException(`${action}: ${msg}.${hint}`);
+}
 
 export interface CreateInvoiceInput {
   sessionId: string;
@@ -36,7 +66,7 @@ export interface CreateInvoiceInput {
  * log and call settings, quality alerts from Meta, and GST invoices sent as PDF.
  */
 @Injectable()
-export class WaBusinessService {
+export class WaBusinessService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('WaBusinessService');
 
   constructor(
@@ -48,7 +78,111 @@ export class WaBusinessService {
     private readonly businessService: BusinessService,
     @Optional() private readonly notifications?: NotificationService,
     @Optional() private readonly conversations?: ConversationService,
+    @Optional()
+    @InjectRepository(MessageCharge, 'data')
+    private readonly charges?: Repository<MessageCharge>,
   ) {}
+
+  private timer?: NodeJS.Timeout;
+  // shortcut: alerts already sent live in memory, so a restart can repeat one; store them if that annoys.
+  private readonly alerted = new Set<string>();
+
+  onModuleInit() {
+    this.timer = setInterval(() => void this.checkUsage(), USAGE_CHECK_MS);
+    this.timer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  // ── usage limits ──
+
+  /** People reached with templates in the last 24 h vs the tier, and free replies used this month. */
+  async usage(sessionId: string) {
+    const cloud = this.engines.get(sessionId);
+    let tier: string | null = null;
+    let phone = sessionId;
+    if (cloud instanceof CloudApiAdapter) {
+      try {
+        const p = await cloud.getPhoneNumberStatus();
+        tier = typeof p.messaging_limit_tier === 'string' ? p.messaging_limit_tier : null;
+        if (typeof p.display_phone_number === 'string') phone = p.display_phone_number;
+      } catch {
+        // the counts below still help without Meta's tier
+      }
+    }
+    const since24h = new Date(Date.now() - 86_400_000);
+    const people = this.charges
+      ? await this.charges
+          .createQueryBuilder('c')
+          .select('COUNT(DISTINCT c.chatId)', 'n')
+          .where('c.sessionId = :sessionId', { sessionId })
+          .andWhere('c.createdAt >= :since', { since: since24h })
+          .andWhere('c.category IN (:...cats)', { cats: TEMPLATE_CATEGORIES })
+          .andWhere("c.status != 'failed'")
+          .getRawOne<{ n: string | number }>()
+      : null;
+    const freeReplies = this.charges
+      ? await this.charges.count({
+          where: {
+            sessionId,
+            category: 'service',
+            status: In(['delivered', 'read']),
+            createdAt: MoreThanOrEqual(monthStartIst()),
+          },
+        })
+      : 0;
+    const limit = tierLimit(tier);
+    return {
+      phone,
+      tier,
+      dailyLimit: limit,
+      peopleLast24h: Number(people?.n ?? 0),
+      freeRepliesUsed: freeReplies,
+      freeRepliesLimit: FREE_SERVICE_PER_MONTH,
+    };
+  }
+
+  /** Notifies at 80% and 100% of the daily limit and of the free monthly replies, once per period. */
+  async checkUsage(): Promise<void> {
+    for (const [sessionId, engine] of this.engines.entries()) {
+      if (!(engine instanceof CloudApiAdapter)) continue;
+      try {
+        const u = await this.usage(sessionId);
+        const day = new Date().toISOString().slice(0, 10);
+        const month = monthStartIst().toISOString().slice(0, 7);
+        const daily = alertThreshold(u.peopleLast24h, u.dailyLimit);
+        const free = alertThreshold(u.freeRepliesUsed, u.freeRepliesLimit);
+        const alerts = [
+          daily && u.dailyLimit
+            ? {
+                key: `${sessionId}:daily:${day}:${daily}`,
+                ...dailyLimitAlert(daily, u.peopleLast24h, u.dailyLimit, u.phone),
+              }
+            : null,
+          free
+            ? { key: `${sessionId}:free:${month}:${free}`, ...freeServiceAlert(free, u.freeRepliesUsed, u.phone) }
+            : null,
+        ];
+        for (const a of alerts) {
+          if (!a || this.alerted.has(a.key)) continue;
+          this.alerted.add(a.key);
+          await this.notifications?.notify(
+            await this.businessOf(sessionId),
+            NotificationType.SYSTEM,
+            a.title,
+            a.message,
+            {
+              source: 'wa-usage',
+            },
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Usage check failed for ${sessionId}: ${errText(e)}`);
+      }
+    }
+  }
 
   // ── webhook ──
 
@@ -194,14 +328,23 @@ export class WaBusinessService {
   }
 
   async setCalling(sessionId: string, enabled: boolean, showCallButton: boolean) {
-    return { ok: await this.cloud(sessionId).setCallingSettings(enabled, showCallButton) };
+    try {
+      return { ok: await this.cloud(sessionId).setCallingSettings(enabled, showCallButton) };
+    } catch (e) {
+      throw metaRefusal(e, 'Meta did not change the calling settings');
+    }
   }
 
   async askCallPermission(sessionId: string, phone: string, text: string) {
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 8) throw new BadRequestException('Enter the full number with country code, e.g. 919876543210');
-    const res = await this.cloud(sessionId).sendCallPermissionRequest(`${digits}@c.us`, text);
-    return { ok: true, messageId: res.id };
+    const engine = this.cloud(sessionId);
+    try {
+      const res = await engine.sendCallPermissionRequest(`${digits}@c.us`, text);
+      return { ok: true, messageId: res.id };
+    } catch (e) {
+      throw metaRefusal(e, 'Meta refused the call permission request');
+    }
   }
 
   // ── invoices ──

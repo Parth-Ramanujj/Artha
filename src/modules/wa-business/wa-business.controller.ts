@@ -119,6 +119,13 @@ export class WaBusinessController {
     return this.service.adLeads(q.sessionId ? visible.filter(id => id === q.sessionId) : visible, q.days ?? 30);
   }
 
+  @Get('usage')
+  @ApiOperation({ summary: 'Daily messaging limit and free monthly replies used, for one number' })
+  async usage(@CurrentApiKey() apiKey: ApiKey, @Query() q: SessionQueryDto) {
+    await this.assertSession(apiKey, q.sessionId);
+    return this.service.usage(q.sessionId);
+  }
+
   @Get('calls')
   @ApiOperation({ summary: 'WhatsApp Calling settings and call log for one number' })
   async calls(@CurrentApiKey() apiKey: ApiKey, @Query() q: SessionQueryDto) {

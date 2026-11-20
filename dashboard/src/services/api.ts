@@ -2366,7 +2366,14 @@ export interface HealthCheck {
 
 /** Message logs of official numbers: every send and webhook, and the delivery health check. */
 export const whatsappLogsApi = {
-  list: (params: { sessionId?: string; level?: string; kind?: string; search?: string; sinceMinutes?: number; limit?: number }) => {
+  list: (params: {
+    sessionId?: string;
+    level?: string;
+    kind?: string;
+    search?: string;
+    sinceMinutes?: number;
+    limit?: number;
+  }) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
     return request<WhatsAppLogEvent[]>(`/whatsapp-logs?${q.toString()}`);
@@ -2443,7 +2450,10 @@ export const walletApi = {
   setAlert: (lowBalanceAlertInr: number) =>
     request<unknown>('/wallet/alert', { method: 'PUT', body: JSON.stringify({ lowBalanceAlertInr }) }),
   adminWallets: () => request<AdminWalletRow[]>('/wallet/admin/wallets'),
-  adminUpdate: (businessId: string, patch: { enabled?: boolean; blockWhenEmpty?: boolean; ratesPaise?: WalletRates | null }) =>
+  adminUpdate: (
+    businessId: string,
+    patch: { enabled?: boolean; blockWhenEmpty?: boolean; ratesPaise?: WalletRates | null },
+  ) =>
     request<unknown>(`/wallet/admin/wallets/${encodeURIComponent(businessId)}`, {
       method: 'PUT',
       body: JSON.stringify(patch),
@@ -3390,15 +3400,29 @@ export interface NewInvoice {
   send: boolean;
 }
 
+export interface WaUsage {
+  phone: string;
+  tier: string | null;
+  dailyLimit: number | null;
+  peopleLast24h: number;
+  freeRepliesUsed: number;
+  freeRepliesLimit: number;
+}
+
 export const waToolsApi = {
+  usage: (sessionId: string) => request<WaUsage>(`/wa-business/usage?sessionId=${encodeURIComponent(sessionId)}`),
   ads: (sessionId: string, days: number) =>
     request<{ total: number; people: number; ads: AdLeadGroup[]; recent: AdReferralRow[] }>(
       `/wa-business/ads?sessionId=${encodeURIComponent(sessionId)}&days=${days}`,
     ),
   calls: (sessionId: string) =>
-    request<{ enabled: boolean; callButtonVisible: boolean; settingsError: string | null; recent: WaCallRow[]; missed: number }>(
-      `/wa-business/calls?sessionId=${encodeURIComponent(sessionId)}`,
-    ),
+    request<{
+      enabled: boolean;
+      callButtonVisible: boolean;
+      settingsError: string | null;
+      recent: WaCallRow[];
+      missed: number;
+    }>(`/wa-business/calls?sessionId=${encodeURIComponent(sessionId)}`),
   setCalling: (sessionId: string, enabled: boolean, showCallButton: boolean) =>
     request<{ ok: boolean }>('/wa-business/calls/settings', {
       method: 'PUT',
