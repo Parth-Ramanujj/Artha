@@ -51,6 +51,7 @@ import {
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { EngineNotSupportedError } from '../../common/errors/engine-not-supported.error';
 
 // Message types that carry downloadable media. Any persisted row of these types must have a media
 // marker in metadata — never NULL — or the dashboard renders an empty bubble (no placeholder) and the
@@ -1928,8 +1929,42 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
 
     // Most-recent first, then bound the response window. Sorting before the cap means a capped
     // response is the N newest chats (what clients show first) rather than an arbitrary slice.
-    const chats = [...(await engine.getChats())].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    let engineChats: ChatSummary[];
+    try {
+      engineChats = await engine.getChats();
+    } catch (error) {
+      // Cloud API has no chat-list endpoint: derive the inbox from the messages we persisted.
+      if (!(error instanceof EngineNotSupportedError)) throw error;
+      engineChats = await this.getChatsFromStoredMessages(id);
+    }
+    const chats = [...engineChats].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     return paginate(chats, opts.limit, opts.offset);
+  }
+
+  // shortcut: scans the newest 5000 rows, so a chat silent for longer drops off; upgrade to a
+  // GROUP BY chatId query if Cloud API sessions grow past that.
+  private async getChatsFromStoredMessages(sessionId: string): Promise<ChatSummary[]> {
+    const rows = await this.messageRepository.find({
+      where: { sessionId },
+      order: { createdAt: 'DESC' },
+      take: 5000,
+      select: { chatId: true, chatName: true, body: true, type: true, timestamp: true, createdAt: true },
+    });
+    const byChat = new Map<string, ChatSummary>();
+    for (const m of rows) {
+      if (byChat.has(m.chatId)) continue;
+      const isGroup = m.chatId.endsWith('@g.us');
+      byChat.set(m.chatId, {
+        id: m.chatId,
+        name: m.chatName || m.chatId.replace(/@.*$/, ''),
+        isGroup,
+        kind: isGroup ? 'group' : 'individual',
+        unreadCount: 0,
+        timestamp: m.timestamp || Math.floor(new Date(m.createdAt).getTime() / 1000),
+        lastMessage: m.body || (m.type !== 'text' ? `[${m.type}]` : undefined),
+      });
+    }
+    return [...byChat.values()];
   }
 
   async sendSeen(id: string, chatId: string): Promise<boolean> {

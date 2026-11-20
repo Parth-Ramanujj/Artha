@@ -34,6 +34,7 @@ import { LidMappingStoreService } from '../../engine/identity/lid-mapping-store.
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { EngineNotSupportedError } from '../../common/errors/engine-not-supported.error';
 import { StatusStoreService } from '../status-store/status-store.service';
 import {
   IncomingMessage,
@@ -4127,6 +4128,49 @@ describe('SessionService', () => {
 
       expect(mockEngine.getChats).toHaveBeenCalled();
       expect(result).toEqual(chats);
+    });
+
+    it('builds the chat list from stored messages when the engine has no chat list (Cloud API)', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession());
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      await service.start('sess-uuid-1');
+      mockEngine.getChats.mockRejectedValueOnce(new EngineNotSupportedError('getChats'));
+      (messageRepository.find as jest.Mock).mockResolvedValueOnce([
+        { chatId: '91999@c.us', chatName: 'Ravi', body: 'latest', type: 'text', timestamp: 200 },
+        { chatId: '91999@c.us', chatName: 'Ravi', body: 'older', type: 'text', timestamp: 100 },
+        { chatId: '91888@c.us', chatName: null, body: null, type: 'image', timestamp: 150 },
+      ]);
+
+      const result = await service.getChats('sess-uuid-1');
+
+      expect(result).toEqual([
+        {
+          id: '91999@c.us',
+          name: 'Ravi',
+          isGroup: false,
+          kind: 'individual',
+          unreadCount: 0,
+          timestamp: 200,
+          lastMessage: 'latest',
+        },
+        {
+          id: '91888@c.us',
+          name: '91888',
+          isGroup: false,
+          kind: 'individual',
+          unreadCount: 0,
+          timestamp: 150,
+          lastMessage: '[image]',
+        },
+      ]);
+    });
+
+    it('still surfaces engine errors other than "not supported"', async () => {
+      (repository.findOne as jest.Mock).mockResolvedValue(createMockSession());
+      (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
+      await service.start('sess-uuid-1');
+      mockEngine.getChats.mockRejectedValueOnce(new Error('boom'));
+      await expect(service.getChats('sess-uuid-1')).rejects.toThrow('boom');
     });
 
     it('caps an unbounded chat list at the default limit (1000), most-recent first', async () => {
