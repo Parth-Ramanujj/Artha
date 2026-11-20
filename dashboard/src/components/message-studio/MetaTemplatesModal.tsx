@@ -1,11 +1,37 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import type { TemplateAutoTest } from '../../types/messageStudio';
+import { templatePrice } from '../../utils/templatePricing';
 import { Plus, RefreshCw, FileText } from 'lucide-react';
 import { Modal } from '../Modal';
 import { messageStudioApi, sessionApi } from '../../services/api';
 import { MetaTemplateForm } from './MetaTemplateForm';
 
 const STATUS_CLASS: Record<string, string> = { APPROVED: 'ms-chip ms-chip-success' };
+const STATUS_LABEL: Record<string, string> = {
+  APPROVED: '✓ Approved',
+  PENDING: '⏳ In review',
+  REJECTED: '✕ Rejected',
+  PAUSED: 'Paused',
+  DISABLED: 'Disabled',
+};
+
+/** What happened (or will happen) with the copy sent to the test phone. */
+function AutoTestLine({ test, onRetry, busy }: { test: TemplateAutoTest; onRetry: () => void; busy: boolean }) {
+  if (test.state === 'waiting') {
+    return <span className="mt-status">📱 Will be sent to {test.phone} when approved (only if free).</span>;
+  }
+  return (
+    <span className={`mt-status ${test.state === 'sent' ? 'is-sent' : 'is-warn'}`}>
+      📱 {test.phone}: {test.note}{' '}
+      {test.state === 'not_sent' && (
+        <button className="btn-link" onClick={onRetry} disabled={busy}>
+          {busy ? 'Checking…' : 'Send test now'}
+        </button>
+      )}
+    </span>
+  );
+}
 
 /** Lists a Cloud API number's WhatsApp templates with Meta's approval status, and creates new ones. */
 export function MetaTemplatesModal({ onClose }: { onClose: () => void }) {
@@ -21,7 +47,19 @@ export function MetaTemplatesModal({ onClose }: { onClose: () => void }) {
     queryFn: () => messageStudioApi.templates(activeId),
     enabled: Boolean(activeId),
   });
-  const reload = () => messageStudioApi.templates(activeId, true).then(() => templates.refetch());
+  const tests = useQuery({
+    queryKey: ['message-studio', 'auto-tests'],
+    queryFn: messageStudioApi.autoTests,
+    // Keep the "will send when approved" line fresh while one is waiting.
+    refetchInterval: q => (q.state.data?.autoTests.some(a => a.state === 'waiting') ? 30_000 : false),
+  });
+  const autoTests = tests.data?.autoTests ?? [];
+  const retry = useMutation({
+    mutationFn: (t: TemplateAutoTest) => messageStudioApi.retryAutoTest({ sessionId: t.sessionId, name: t.name, language: t.language }),
+    onSuccess: () => void tests.refetch(),
+  });
+  const reload = () =>
+    messageStudioApi.templates(activeId, true).then(() => Promise.all([templates.refetch(), tests.refetch()]));
 
   if (creating && activeId) {
     return (
@@ -84,21 +122,29 @@ export function MetaTemplatesModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <ul className="ms-product-rows">
-              {list.map(t => (
-                <li key={`${t.name}-${t.language}`} className="ms-product-row">
-                  <div className="ms-product-info">
-                    <strong>
-                      {t.name} <span className="ms-muted">· {t.language}</span>
-                    </strong>
-                    <span className="ms-muted">
-                      {t.category} · {t.bodyText.slice(0, 90)}
-                      {t.bodyText.length > 90 ? '…' : ''}
-                    </span>
-                    {t.rejectedReason && <span className="ms-field-error">Rejected: {t.rejectedReason}</span>}
-                  </div>
-                  <span className={STATUS_CLASS[t.status] ?? 'ms-chip'}>{t.status}</span>
-                </li>
-              ))}
+              {list.map(t => {
+                const price = templatePrice(t.category);
+                const test = autoTests.find(a => a.sessionId === activeId && a.name === t.name && a.language === t.language);
+                return (
+                  <li key={`${t.name}-${t.language}`} className="ms-product-row">
+                    <div className="ms-product-info">
+                      <strong>
+                        {t.name} <span className="ms-muted">· {t.language}</span>
+                      </strong>
+                      <span className="ms-muted">
+                        {t.category} · {t.bodyText.slice(0, 90)}
+                        {t.bodyText.length > 90 ? '…' : ''}
+                      </span>
+                      <span className="mt-price">
+                        <strong>{price.perMessage}</strong> {price.free}
+                      </span>
+                      {t.rejectedReason && <span className="ms-field-error">Rejected: {t.rejectedReason}</span>}
+                      {test && <AutoTestLine test={test} onRetry={() => retry.mutate(test)} busy={retry.isPending} />}
+                    </div>
+                    <span className={STATUS_CLASS[t.status] ?? 'ms-chip'}>{STATUS_LABEL[t.status] ?? t.status}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

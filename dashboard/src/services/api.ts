@@ -12,6 +12,7 @@ import type {
   StudioProduct,
   StudioTemplate,
   StudioTestResult,
+  TemplateAutoTest,
   ValidationResult,
 } from '../types/messageStudio';
 import type {
@@ -2905,7 +2906,14 @@ export const messageStudioApi = {
     }),
   uploadImage: (input: { sessionId: string; base64: string; mimetype: string; filename?: string }) =>
     request<{ id: string }>('/message-studio/media', { method: 'POST', body: JSON.stringify(input) }),
-  validate: (input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
+  autoTests: () =>
+    request<{ testPhone: string | null; autoTests: TemplateAutoTest[] }>('/message-studio/templates/auto-tests'),
+  retryAutoTest: (input: { sessionId: string; name: string; language: string }) =>
+    request<TemplateAutoTest>('/message-studio/templates/auto-tests/retry', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  validate:(input: { kind: StudioKind; content: StudioContent; sessionId?: string }, signal?: AbortSignal) =>
     request<ValidationResult>('/message-studio/validate', { method: 'POST', body: JSON.stringify(input), signal }),
   list: (
     filters: { status?: 'draft' | 'ready' | 'archived' | 'active'; search?: string; sort?: 'updated' | 'recent' } = {},

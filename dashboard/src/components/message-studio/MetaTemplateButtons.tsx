@@ -20,12 +20,24 @@ export function MetaTemplateButtons({
   const update = (i: number, patch: Partial<Button>) => onChange(buttons.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
   return (
-    <section className="ms-section" aria-labelledby="mt-buttons-heading">
-      <h3 id="mt-buttons-heading" className="ms-section-title">
-        Buttons <span className="ms-muted">(optional, up to 10)</span>
-      </h3>
+    <section className="mt-card" aria-labelledby="mt-buttons-heading">
+      <div className="mt-card-head">
+        <span className={`mt-step ${buttons.length ? 'is-done' : ''}`} aria-hidden="true">
+          {buttons.length ? '✓' : 5}
+        </span>
+        <h3 id="mt-buttons-heading" className="mt-card-title">
+          Buttons <span className="mt-optional">optional · up to 10</span>
+        </h3>
+      </div>
+      {buttons.length === 0 && (
+        <p className="mt-help">Add buttons like “Register Now” (opens your website) or “Know More” (customer taps to reply).</p>
+      )}
       {buttons.map((b, i) => (
-        <fieldset key={i} className="ms-field" style={{ border: '1px solid var(--color-border, #e5e7eb)', borderRadius: 8, padding: '0.75rem' }}>
+        <fieldset
+          key={i}
+          className="ms-field"
+          style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem' }}
+        >
           <legend className="ms-label">Button {i + 1}</legend>
           <div className="ms-row">
             <select

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCampaignRecipients } from './campaignRecipients.ts';
+import { templatePrice } from './templatePricing.ts';
 import { buildMetaTemplate, buttonReplyWorkflow, countBodyVariables, type MetaTemplateDraft } from './metaTemplate.ts';
 
 test('recipients: plain comma list stays a list of numbers without names', () => {
@@ -77,6 +78,16 @@ test('template: an image header is sent instead of header text', () => {
   assert.ok(r.ok);
   assert.deepEqual(r.value.headerImage, image);
   assert.equal(r.value.headerText, undefined);
+});
+
+test('price: per message, campaign total and when it is free', () => {
+  assert.deepEqual(templatePrice('MARKETING', 100), {
+    perMessage: '≈ ₹0.78 / message',
+    total: '≈ ₹78.00 for 100 people',
+    free: 'Charged even inside the 24-hour window.',
+  });
+  assert.equal(templatePrice('utility').free, 'Free if the person messaged you in the last 24 hours.');
+  assert.equal(templatePrice('UTILITY').total, undefined);
 });
 
 test('button reply workflow: keyword is the button label, reply is sent', () => {

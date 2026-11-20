@@ -3,6 +3,7 @@ import { Loader2, CheckCircle2 } from 'lucide-react';
 import { messageStudioApi, type Campaign } from '../services/api';
 import type { StudioTemplate } from '../types/messageStudio';
 import { HeaderImagePicker, type PickedImage } from './message-studio/HeaderImagePicker';
+import { templatePrice } from '../utils/templatePricing';
 
 export type CampaignMetaTemplate = NonNullable<NonNullable<Campaign['messageOptions']>['metaTemplate']>;
 
@@ -16,9 +17,12 @@ const keyOf = (t: StudioTemplate) => `${t.name}|${t.language}`;
  */
 export function CampaignTemplatePicker({
   sessionId,
+  recipientsCount = 0,
   onChange,
 }: {
   sessionId: string;
+  /** Numbers typed so far, for the cost estimate. */
+  recipientsCount?: number;
   onChange: (template: CampaignMetaTemplate | null, selected: boolean) => void;
 }) {
   const [templates, setTemplates] = useState<StudioTemplate[]>([]);
@@ -112,7 +116,7 @@ export function CampaignTemplatePicker({
         <option value="">None — plain text (only reaches people who messaged you in the last 24 hours)</option>
         {templates.map(t => (
           <option key={keyOf(t)} value={keyOf(t)}>
-            {t.name} · {t.language} · {t.category.toLowerCase()}
+            {t.name} · {t.language} · {t.category.toLowerCase()} · {templatePrice(t.category).perMessage}
           </option>
         ))}
       </select>
@@ -120,6 +124,18 @@ export function CampaignTemplatePicker({
 
       {selected && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+          <div
+            style={{
+              padding: '0.6rem 0.75rem',
+              borderRadius: 8,
+              border: '1px solid var(--border, #e5e7eb)',
+              fontSize: '0.85rem',
+            }}
+          >
+            <strong>Cost: {templatePrice(selected.category, recipientsCount).perMessage}</strong>
+            {recipientsCount > 0 && <> · {templatePrice(selected.category, recipientsCount).total}</>}
+            <div style={muted}>{templatePrice(selected.category).free} Approx. Meta rate for +91 numbers.</div>
+          </div>
           {needsImage && (
             <div>
               <HeaderImagePicker

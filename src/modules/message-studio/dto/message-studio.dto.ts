@@ -198,6 +198,29 @@ export class CreateMetaTemplateDto extends SessionRefDto {
   @ValidateNested({ each: true })
   @Type(() => MetaTemplateButtonDto)
   buttons?: MetaTemplateButtonDto[];
+
+  @ApiPropertyOptional({
+    description: 'Send the template to this phone once Meta approves it (only when free: inside its 24h window)',
+    example: '916352701839',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  autoTestPhone?: string;
+}
+
+export class AutoTestRetryDto extends SessionRefDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512)
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(10)
+  language: string;
 }
 
 export class TemplatesQueryDto extends SessionRefDto {

@@ -79,6 +79,36 @@ export function buildMetaTemplate(
   };
 }
 
+/** What is still missing, in the order the form asks for it — shown as a checklist instead of one error. */
+export function templateChecklist(d: MetaTemplateDraft): Array<{ label: string; done: boolean }> {
+  const varCount = countBodyVariables(d.body);
+  const items = [
+    { label: 'Template name', done: /^[a-z0-9_]+$/.test(d.name) },
+    { label: 'Message written', done: Boolean(d.body.trim()) },
+  ];
+  if (/^\s*\{\{\s*\d+\s*\}\}|\{\{\s*\d+\s*\}\}\s*$/.test(d.body)) {
+    items.push({ label: 'Message must not start or end with {{1}}', done: false });
+  }
+  if (varCount > 0) {
+    items.push({
+      label: `Example for each placeholder (${varCount})`,
+      done: d.bodyExamples.slice(0, varCount).filter(s => s?.trim()).length === varCount,
+    });
+  }
+  if (d.headerType === 'TEXT') items.push({ label: 'Header text', done: Boolean(d.headerText.trim()) });
+  if (d.headerType === 'IMAGE') items.push({ label: 'Header image chosen', done: Boolean(d.headerImage) });
+  d.buttons.forEach((b, i) =>
+    items.push({
+      label: `Button ${i + 1} complete`,
+      done:
+        Boolean(b.text.trim()) &&
+        (b.type === 'QUICK_REPLY' ||
+          (b.type === 'URL' ? /^https:\/\/\S+$/.test(b.value) : /^\+?\d{7,15}$/.test(b.value))),
+    }),
+  );
+  return items;
+}
+
 /**
  * A published keyword workflow that answers when someone taps a quick reply button: WhatsApp delivers
  * the tap as a message whose text is the button label, so the label is the keyword.

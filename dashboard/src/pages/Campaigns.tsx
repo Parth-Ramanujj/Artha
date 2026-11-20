@@ -592,7 +592,11 @@ export function Campaigns() {
                 ))}
               </select>
             </div>
-            <CampaignTemplatePicker sessionId={campaignSessionId} onChange={handleMetaTemplateChange} />
+            <CampaignTemplatePicker
+              sessionId={campaignSessionId}
+              recipientsCount={parseCampaignRecipients(campaignRecipientsText).chatIds.length}
+              onChange={handleMetaTemplateChange}
+            />
             {!metaTemplateSelected && sessionTemplates.length > 0 && (
               <div className="form-group">
                 <label className="form-label">{t('templates.title', 'Message Template')} (Optional)</label>

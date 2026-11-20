@@ -20,8 +20,10 @@ import { BusinessService } from '../business/business.service';
 import { sessionScopeVisible } from '../../common/security/session-scope';
 import { Session } from '../session/entities/session.entity';
 import { MessageStudioService } from './message-studio.service';
+import { TemplateAutoTestService, normalizeTestPhone } from './template-auto-test.service';
 import {
   ArchiveStudioMessageDto,
+  AutoTestRetryDto,
   CreateMetaTemplateDto,
   ListStudioMessagesQueryDto,
   ProductDto,
@@ -44,6 +46,7 @@ export class MessageStudioController {
   constructor(
     private readonly studio: MessageStudioService,
     private readonly businessService: BusinessService,
+    private readonly autoTests: TemplateAutoTestService,
   ) {}
 
   private async defaultBusinessId(): Promise<string> {
@@ -84,7 +87,29 @@ export class MessageStudioController {
   async createTemplate(@CurrentApiKey() apiKey: ApiKey, @Body() dto: CreateMetaTemplateDto) {
     const businessId = await this.businessId(apiKey);
     const session = await this.session(apiKey, businessId, dto.sessionId);
-    return this.studio.createTemplate(session!.id, dto);
+    const phone = dto.autoTestPhone ? normalizeTestPhone(dto.autoTestPhone) : null;
+    if (dto.autoTestPhone && !phone) throw new BadRequestException('Test number: use a mobile number like 6352701839');
+    const created = await this.studio.createTemplate(session!.id, dto);
+    if (phone) await this.autoTests.watch(businessId, session!.id, dto.name, dto.language, phone);
+    return created;
+  }
+
+  @Get('templates/auto-tests')
+  @ApiOperation({ summary: 'Templates waiting to be sent to the test number once approved, and what happened' })
+  async listAutoTests(@CurrentApiKey() apiKey: ApiKey) {
+    return this.autoTests.list(await this.businessId(apiKey));
+  }
+
+  @Post('templates/auto-tests/retry')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Try sending an approved template to the test number again (still only when free)' })
+  async retryAutoTest(@CurrentApiKey() apiKey: ApiKey, @Body() dto: AutoTestRetryDto) {
+    const businessId = await this.businessId(apiKey);
+    const session = await this.session(apiKey, businessId, dto.sessionId);
+    const result = await this.autoTests.retry(businessId, session!.id, dto.name, dto.language);
+    if (!result) throw new BadRequestException('No test is set up for that template');
+    return result;
   }
 
   @Post('media')

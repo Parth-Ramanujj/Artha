@@ -12,6 +12,7 @@ import { MessageModule } from '../message/message.module';
 import { BusinessModule } from '../business/business.module';
 import { MessageStudioService } from './message-studio.service';
 import { MessageStudioController } from './message-studio.controller';
+import { TemplateAutoTestService } from './template-auto-test.service';
 
 /**
  * Message Studio: reusable WhatsApp messages, the product catalog they draw from, and the sender
@@ -27,7 +28,7 @@ import { MessageStudioController } from './message-studio.controller';
     BusinessModule,
   ],
   controllers: [MessageStudioController],
-  providers: [MessageStudioService],
+  providers: [MessageStudioService, TemplateAutoTestService],
   exports: [MessageStudioService],
 })
 export class MessageStudioModule {}

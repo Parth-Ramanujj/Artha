@@ -154,6 +154,20 @@ export interface NewMetaTemplate {
   bodyExamples?: string[];
   footer?: string;
   buttons?: Array<{ type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'; text: string; url?: string; phone?: string }>;
+  /** Send to this phone once approved (only when free). */
+  autoTestPhone?: string;
+}
+
+/** A template waiting to be sent to the test phone after approval, and what happened. */
+export interface TemplateAutoTest {
+  sessionId: string;
+  name: string;
+  language: string;
+  phone: string;
+  state: 'waiting' | 'sent' | 'not_sent' | 'rejected' | 'expired';
+  note?: string;
+  createdAt: string;
+  doneAt?: string;
 }
 
 export type StudioMessageStatus = 'draft' | 'ready' | 'archived';
