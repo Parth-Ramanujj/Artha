@@ -61,7 +61,7 @@ const TYPE_CONFIG: Record<
     icon: '⏰',
     bg: 'rgba(239, 68, 68, 0.12)',
     color: '#dc2626',
-    route: '/sla-tracking',
+    route: '/sla',
   },
   new_contact: {
     label: 'New Contact Lead',

@@ -122,29 +122,37 @@ const allNavItems = [
 
 type NavItemDef = (typeof allNavItems)[number];
 
+/** Hover help for the look-alike items, so people pick the right one. */
+const NAV_HINTS: Record<string, string> = {
+  '/chats': 'Live WhatsApp chats — read and reply',
+  '/conversations': 'Team inbox — assign chats and track their status',
+  '/message-tester': 'Send any message to any number, or send in bulk',
+  '/whatsapp-templates': 'Meta-approved messages — the only way to message people who have not written to you',
+  '/message-studio': 'Rich messages (buttons, lists, products) used by automations',
+  '/templates': 'Plain-text messages reused in campaigns and automations',
+  '/canned-responses': 'Short /shortcut replies',
+  '/whatsapp-forms': 'In-WhatsApp forms (Meta Flows)',
+  '/wa-pricing': 'How Meta charges per message',
+};
+
 const navSections: { id: string; paths: string[] }[] = [
   { id: 'core', paths: ['/', '/sessions'] },
+  // Talking to people right now.
+  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/notifications'] },
+  // What you send: approved templates first (the only way to reach new people), then reusable content.
   {
-    id: 'messaging',
+    id: 'content',
     paths: [
-      '/chats',
-      '/leads',
-
-      '/ai-calling',
-      '/customer-care',
-      '/sales-pipeline',
-      '/conversations',
-      '/canned-responses',
-      '/templates',
-      '/message-studio',
       '/whatsapp-templates',
+      '/message-studio',
+      '/templates',
+      '/canned-responses',
       '/whatsapp-forms',
       '/wa-pricing',
-      '/message-tester',
-      '/notifications',
-      '/contact-segments',
     ],
   },
+  { id: 'crm', paths: ['/leads', '/sales-pipeline', '/contact-segments'] },
+  { id: 'calling', paths: ['/ai-calling', '/customer-care'] },
   {
     id: 'automation',
     paths: [
@@ -367,7 +375,7 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
                         className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                         end={to === '/'}
                         onClick={handleNavClick}
-                        title={isCollapsed ? label : undefined}
+                        title={isCollapsed ? label : NAV_HINTS[to]}
                       >
                         <Icon size={20} />
                         {!isCollapsed && <span>{label}</span>}

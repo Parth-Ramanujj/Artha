@@ -102,6 +102,9 @@
     "roles": "रोल्स और RBAC",
     "logs": "लॉग्स",
     "sections": {
+      "content": "मैसेज कंटेंट",
+      "crm": "कॉन्टैक्ट्स और सेल्स",
+      "calling": "कॉल्स",
       "core": "सामान्य",
       "messaging": "मैसेजिंग",
       "automation": "ऑटोमेशन",

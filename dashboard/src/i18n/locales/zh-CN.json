@@ -102,6 +102,9 @@
     "leads": "线索",
     "logs": "日志",
     "sections": {
+      "content": "Message Content",
+      "crm": "Contacts & Sales",
+      "calling": "Calls",
       "core": "概览",
       "messaging": "消息",
       "automation": "自动化",

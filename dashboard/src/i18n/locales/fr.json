@@ -102,6 +102,9 @@
     "leads": "Leads",
     "logs": "Journaux",
     "sections": {
+      "content": "Message Content",
+      "crm": "Contacts & Sales",
+      "calling": "Calls",
       "core": "Vue d'ensemble",
       "messaging": "Messagerie",
       "automation": "Automatisation",

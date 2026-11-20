@@ -102,6 +102,9 @@
     "leads": "潛在客戶",
     "logs": "記錄",
     "sections": {
+      "content": "Message Content",
+      "crm": "Contacts & Sales",
+      "calling": "Calls",
       "core": "概覽",
       "messaging": "訊息",
       "automation": "自動化",

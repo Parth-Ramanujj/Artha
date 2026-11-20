@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, type ChangeEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Send, CheckCircle, XCircle, Loader2, Upload, X, Plus } from 'lucide-react';
 import {
@@ -590,7 +591,7 @@ export function MessageTester() {
                   </div>
                 ) : templates.length === 0 ? (
                   <div className="hint" style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                    No templates saved for this session. Please create one on the <a href="/templates" style={{ color: 'var(--primary)' }}>Templates</a> page first.
+                    No templates saved for this session. Please create one on the <Link to="/templates" style={{ color: 'var(--primary)' }}>Saved Messages</Link> page first.
                   </div>
                 ) : (
                   <select

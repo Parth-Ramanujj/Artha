@@ -102,6 +102,9 @@
     "leads": "లీడ్స్",
     "logs": "లాగ్స్",
     "sections": {
+      "content": "Message Content",
+      "crm": "Contacts & Sales",
+      "calling": "Calls",
       "core": "అవలోకనం",
       "messaging": "మెసేజింగ్",
       "automation": "ఆటోమేషన్",

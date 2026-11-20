@@ -128,7 +128,7 @@ export function Conversations() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1280, margin: '0 auto' }}>
       <PageHeader
-        title={t('conversations.title', 'Conversations')}
+        title={t('conversations.title', 'Shared Inbox')}
         subtitle={t('conversations.subtitle', 'Live shared omnichannel inbox for all customer WhatsApp chats')}
       />
 
