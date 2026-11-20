@@ -272,6 +272,75 @@ describe('WorkflowExecutor', () => {
       });
     });
 
+    it('sends an approved Meta template with its language, named variables and the name fallback', async () => {
+      const wf: WorkflowDefinition = {
+        id: 'wf-1',
+        businessId: 'biz-1',
+        name: 'Template WF',
+        slug: 'tmpl',
+        description: null,
+        status: WorkflowStatus.PUBLISHED,
+        version: 1,
+        definition: {
+          trigger: { type: TriggerType.MESSAGE_RECEIVED, config: {} },
+          conditions: [],
+          actions: [
+            {
+              id: 'a1',
+              type: ActionType.SEND_TEMPLATE,
+              config: {
+                templateName: 'welcome_template',
+                language: 'en',
+                metaTemplate: {
+                  name: 'welcome_template',
+                  language: 'en',
+                  bodyParams: ['{{name}}', 'order for {{message}}'],
+                  paramNames: ['first_name', 'item'],
+                  nameFallback: 'Sir/Madam',
+                },
+              },
+            },
+          ],
+        },
+        maxActionsPerRun: 10,
+        maxExecutionSeconds: 30,
+        maxRetries: 0,
+        maxConcurrentRuns: 5,
+        publishedBy: null,
+        publishedAt: null,
+        createdBy: null,
+        updatedBy: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const ctx: TriggerContext = {
+        businessId: 'biz-1',
+        sessionId: 'sess-1',
+        chatId: '919876543210@c.us',
+        metadata: {},
+        messageBody: 'shoes',
+      };
+
+      await executor.execute(wf, { ...mockRun }, ctx);
+
+      expect(messageService.sendTemplate).toHaveBeenCalledWith('sess-1', {
+        chatId: '919876543210@c.us',
+        templateName: 'welcome_template',
+        templateId: undefined,
+        language: 'en',
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              { type: 'text', text: 'Sir/Madam', parameter_name: 'first_name' },
+              { type: 'text', text: 'order for shoes', parameter_name: 'item' },
+            ],
+          },
+        ],
+      });
+    });
+
     it('executes WEBHOOK_CALL action with payload', async () => {
       const originalFetch = global.fetch;
       const mockFetch = jest.fn().mockResolvedValue({

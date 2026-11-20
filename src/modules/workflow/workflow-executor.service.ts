@@ -23,6 +23,7 @@ import { extractPhoneFromText } from '../integrations/google/sheet-lookup';
 import { ConversationService } from '../conversation/conversation.service';
 import { ConversationStatus } from '../conversation/entities/conversation.entity';
 import { MessageService } from '../message/message.service';
+import { metaTemplateComponents, readMetaTemplate } from '../campaign/campaign-meta-template';
 import { AiService } from '../ai/ai.service';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { AgentService } from './agent.service';
@@ -1113,11 +1114,32 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     }
 
     if (this.messageService) {
+      // An approved Meta template picked in the builder: its language, variables (named or numbered),
+      // header and offer code, the same way a campaign sends it.
+      const meta = readMetaTemplate(action.config);
+      const contactName = str(ctx.metadata?.['contactName'] ?? ctx.metadata?.['name'] ?? '');
+      // {{name}} is left to the template's own fallback word ("Sir/Madam"); every other {{…}} is filled here.
+      const NAME = /\{\{\s*name\s*\}\}/gi;
+      const fill = (v: string) =>
+        this.interpolateVariables(v.replace(NAME, '[[name]]'), ctx, run).split('[[name]]').join('{{name}}');
+      const language =
+        meta?.language ?? (typeof action.config['language'] === 'string' ? action.config['language'] : undefined);
+      const components = meta
+        ? metaTemplateComponents(
+            {
+              ...meta,
+              bodyParams: meta.bodyParams.map(fill),
+              ...(meta.headerParam ? { headerParam: fill(meta.headerParam) } : {}),
+            },
+            contactName,
+          )
+        : undefined;
       const res = await this.messageService.sendTemplate(ctx.sessionId, {
         chatId: ctx.chatId,
-        templateName,
+        templateName: meta?.name ?? templateName,
         templateId,
-        vars,
+        ...(language ? { language } : {}),
+        ...(components ? { components } : { vars }),
       });
       this.logger.log(
         `Workflow send template success: session=${ctx.sessionId} chat=${ctx.chatId} template=${templateName || templateId}`,

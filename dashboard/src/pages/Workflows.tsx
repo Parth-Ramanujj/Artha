@@ -34,6 +34,7 @@ import { useToast } from '../components/Toast';
 import { VisualWorkflowBuilder } from '../components/workflow-builder/VisualWorkflowBuilder';
 import { parseWorkflowFile, toWorkflowFile, workflowFileName } from '../utils/workflowShare';
 import { WorkflowRunLog } from '../components/workflows/WorkflowRunLog';
+import { CampaignTemplatePicker } from '../components/CampaignTemplatePicker';
 import type { NodeConfig } from '../components/workflow-builder/types';
 import './Workflows.css';
 
@@ -72,6 +73,8 @@ export function Workflows() {
   const activeSessionId = sessions[0]?.id || '';
   const [selectedSessionId, setSelectedSessionId] = useState(activeSessionId);
   const { data: templates = [] } = useTemplatesQuery(selectedSessionId || activeSessionId, Boolean(selectedSessionId || activeSessionId));
+  // Approved Meta templates belong to the WhatsApp account, so any official number lists them.
+  const cloudSessionId = sessions.find(s => s.engineType === 'cloud-api')?.id ?? '';
 
   // Builder Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -204,13 +207,31 @@ export function Workflows() {
     const updated = [...actions];
     let config: NodeConfig = {};
     if (newType === 'send_message') config = { message: '' };
-    else if (newType === 'send_template') config = { templateName: templates[0]?.name || '', vars: {} };
+    else if (newType === 'send_template') config = { templateName: '', vars: {} };
     else if (newType === 'wait') config = { seconds: 5 };
     else if (newType === 'webhook_call') config = { url: '', method: 'POST' };
     else if (newType === 'handoff_to_human') config = { assignedTo: '' };
     else if (newType === 'add_tag') config = { tag: '' };
     updated[index] = { ...updated[index], type: newType, config };
     setActions(updated);
+  };
+
+  const patchActionConfig = (index: number, patch: NodeConfig) =>
+    setActions(list => list.map((a, i) => (i === index ? { ...a, config: { ...a.config, ...patch } } : a)));
+
+  /** What would make this pipeline do nothing or fail at run time; null when it is ready to save. */
+  const pipelineProblem = (): string | null => {
+    if (triggerType === 'keyword_match' && !keywords.trim()) return 'Enter at least one keyword for the trigger.';
+    for (const [i, a] of actions.entries()) {
+      const step = `Step ${i + 1}`;
+      if (a.type === 'send_message' && !String(a.config.message ?? '').trim()) return `${step}: write the message.`;
+      if (a.type === 'send_template' && !a.config.templateName)
+        return `${step}: choose a template and fill all its variables.`;
+      if (a.type === 'webhook_call' && !/^https?:\/\//i.test(String(a.config.url ?? '')))
+        return `${step}: enter a webhook URL starting with https://`;
+      if (a.type === 'add_tag' && !String(a.config.tag ?? '').trim()) return `${step}: enter the tag name.`;
+    }
+    return null;
   };
 
   const updateActionConfig = (index: number, key: string, value: unknown) => {
@@ -224,6 +245,11 @@ export function Workflows() {
 
   const handleCreateWorkflow = async () => {
     if (!name.trim() || saving) return;
+    const problem = pipelineProblem();
+    if (problem) {
+      toast.error(t('common.error', 'Error'), problem);
+      return;
+    }
     setSaving(true);
     try {
       const triggerConfig = triggerType === 'keyword_match' && keywords.trim() ? { keyword: keywords.trim() } : {};
@@ -621,7 +647,7 @@ export function Workflows() {
                     checked={workingHoursOnly}
                     onChange={e => setWorkingHoursOnly(e.target.checked)}
                   />
-                  <span>Only execute during working hours (9:00 AM - 6:00 PM)</span>
+                  <span>Only run during working hours (Mon–Sat, 9:00 AM – 6:00 PM IST)</span>
                 </label>
               </div>
             </div>
@@ -725,8 +751,25 @@ export function Workflows() {
                         </div>
                       )}
 
-                      {act.type === 'send_template' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {act.type === 'send_template' &&
+                        (cloudSessionId ? (
+                          <CampaignTemplatePicker
+                            sessionId={cloudSessionId}
+                            recipientsCount={1}
+                            initialKey={
+                              act.config.metaTemplate
+                                ? `${act.config.metaTemplate.name}|${act.config.metaTemplate.language}`
+                                : undefined
+                            }
+                            onChange={tpl =>
+                              patchActionConfig(index, {
+                                templateName: tpl?.name ?? '',
+                                language: tpl?.language,
+                                metaTemplate: tpl ?? undefined,
+                              })
+                            }
+                          />
+                        ) : (
                           <div className="form-group">
                             <label className="form-label">Select Template</label>
                             <select
@@ -741,9 +784,13 @@ export function Workflows() {
                                 </option>
                               ))}
                             </select>
+                            <span className="field-hint">
+                              {templates.length
+                                ? 'Saved message templates of this number.'
+                                : 'No saved templates yet. Connect an official (Cloud API) number to use approved WhatsApp templates.'}
+                            </span>
                           </div>
-                        </div>
-                      )}
+                        ))}
 
                       {act.type === 'wait' && (
                         <div className="form-group">
