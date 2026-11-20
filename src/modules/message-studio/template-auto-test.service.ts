@@ -71,15 +71,10 @@ export function decideAutoTest(input: {
       note: 'Approved, but not sent: the test number has not messaged you in the last 24 hours, so it would cost money. Send "hi" from it, then use "Send test now".',
     };
   }
-  if (input.category.toUpperCase() === 'UTILITY' && !input.hasMediaHeader) {
-    return { action: 'send_template', note: 'Approved and sent free (Utility template inside the 24-hour window).' };
-  }
+  // Since 1 Oct 2026 Meta charges for every template, Utility included, even inside the 24-hour window.
   return {
     action: 'send_preview',
-    note:
-      input.category.toUpperCase() === 'UTILITY'
-        ? 'Approved. Sent a free copy as a normal message (its media/location header or offer-code button cannot be filled in automatically).'
-        : 'Approved. Sent a free copy as a normal message — Meta charges for Marketing templates even inside the 24-hour window.',
+    note: 'Approved. Sent a free copy as a normal message — Meta charges for every template, even inside the 24-hour window.',
   };
 }
 

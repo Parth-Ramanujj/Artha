@@ -68,7 +68,7 @@ export function buildCostSuggestions(
       id: 'paid_in_window',
       title: `${paidInWindow.length} paid messages went to people who had just messaged you`,
       detail:
-        'Inside the 24-hour window a normal reply is free (and Utility templates are free too). Reply from Chats or skip these people in campaigns instead of sending a paid template.',
+        'Inside the 24-hour window a normal reply costs nothing for the first 1,000 a month per number, while every template is charged. Reply from Chats or skip these people in campaigns instead of sending a paid template.',
       savingInr: round(saving),
     });
   }

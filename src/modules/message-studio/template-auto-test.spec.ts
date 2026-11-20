@@ -21,8 +21,8 @@ describe('template auto-test', () => {
     expect(decideAutoTest({ ...base, windowOpen: false })).toMatchObject({ action: 'done', state: 'not_sent' });
   });
 
-  it('sends the real template only when it is free (Utility, no media header)', () => {
-    expect(decideAutoTest(base).action).toBe('send_template');
+  it('sends a free plain copy, never the paid template (all templates are charged since 1 Oct 2026)', () => {
+    expect(decideAutoTest(base).action).toBe('send_preview');
     expect(decideAutoTest({ ...base, category: 'MARKETING' }).action).toBe('send_preview');
     expect(decideAutoTest({ ...base, hasMediaHeader: true }).action).toBe('send_preview');
   });

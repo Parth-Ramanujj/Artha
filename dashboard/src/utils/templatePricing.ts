@@ -14,10 +14,8 @@ const inr = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigi
 /** Price per message and, when recipients are known, the campaign total. */
 export function templatePrice(category: string, recipients = 0): { perMessage: string; total?: string; free: string } {
   const rate = INDIA_TEMPLATE_RATES_INR[category.toUpperCase()] ?? INDIA_TEMPLATE_RATES_INR.MARKETING;
-  const free =
-    category.toUpperCase() === 'UTILITY'
-      ? 'Free if the person messaged you in the last 24 hours.'
-      : 'Charged even inside the 24-hour window.';
+  // Since 1 Oct 2026 every template is charged inside the 24h window; only a Click-to-WhatsApp ad window is free.
+  const free = 'Charged even inside the 24-hour window (free only for people who came from a Click-to-WhatsApp ad).';
   return {
     perMessage: `≈ ${inr(rate)} / message`,
     ...(recipients > 0 ? { total: `≈ ${inr(rate * recipients)} for ${recipients} people` } : {}),

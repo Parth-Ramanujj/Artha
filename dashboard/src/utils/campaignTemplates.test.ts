@@ -135,9 +135,9 @@ test('price: per message, campaign total and when it is free', () => {
   assert.deepEqual(templatePrice('MARKETING', 100), {
     perMessage: '≈ ₹0.78 / message',
     total: '≈ ₹78.00 for 100 people',
-    free: 'Charged even inside the 24-hour window.',
+    free: 'Charged even inside the 24-hour window (free only for people who came from a Click-to-WhatsApp ad).',
   });
-  assert.equal(templatePrice('utility').free, 'Free if the person messaged you in the last 24 hours.');
+  assert.equal(templatePrice('utility').free, templatePrice('MARKETING').free);
   assert.equal(templatePrice('UTILITY').total, undefined);
 });
 
