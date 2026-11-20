@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, MessageCircle, Send } from 'lucide-react';
 import { socialAutomationApi } from '../../services/api';
 import type { SocialMessage, SocialPlatform, SocialThread } from '../../types/socialAutomation';
 import { explainError, timeAgo } from '../social-automation/explainError';
+import { QuickReplies } from './QuickReplies';
 import './SocialInbox.css';
 
 const POLL_MS = 5000;
@@ -23,6 +24,8 @@ export function SocialInbox({ platform }: SocialInboxProps) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const loadThreads = useCallback(async () => {
@@ -91,6 +94,14 @@ export function SocialInbox({ platform }: SocialInboxProps) {
     }
   };
 
+  const awaitingCount = (threads ?? []).filter(t => t.lastDirection === 'in').length;
+  const q = search.trim().toLowerCase();
+  const shownThreads = (threads ?? []).filter(
+    t =>
+      (!onlyAwaiting || t.lastDirection === 'in') &&
+      (!q || (t.customerName ?? '').toLowerCase().includes(q) || t.lastText.toLowerCase().includes(q)),
+  );
+
   const help = error ? explainError(error) : null;
   const title = (t: SocialThread) => t.customerName || `${name} user ${t.threadId.slice(-4)}`;
 
@@ -115,20 +126,47 @@ export function SocialInbox({ platform }: SocialInboxProps) {
             Subscribed, then press Test on the account in Social Automation.
           </p>
         ) : (
-          <ul>
-            {threads.map(t => (
-              <li key={key(t)}>
-                <button type="button" className={active && key(active) === key(t) ? 'active' : ''} onClick={() => open(t)}>
-                  <span className="social-inbox-avatar" aria-hidden="true">{title(t).replace('@', '').charAt(0).toUpperCase()}</span>
-                  <span className="social-inbox-meta">
-                    <strong>{title(t)}</strong>
-                    <span>{t.lastDirection === 'out' ? 'You: ' : ''}{t.lastText}</span>
-                  </span>
-                  <time dateTime={t.lastAt}>{timeAgo(t.lastAt)}</time>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <div className="social-inbox-tools">
+              <input
+                className="input"
+                type="search"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name or message"
+                aria-label="Search conversations"
+              />
+              <label className="social-inbox-filter">
+                <input type="checkbox" checked={onlyAwaiting} onChange={e => setOnlyAwaiting(e.target.checked)} />
+                Awaiting reply ({awaitingCount})
+              </label>
+            </div>
+            {shownThreads.length === 0 ? (
+              <p className="social-inbox-empty">No conversation matches.</p>
+            ) : (
+              <ul>
+                {shownThreads.map(t => (
+                  <li key={key(t)}>
+                    <button type="button" className={active && key(active) === key(t) ? 'active' : ''} onClick={() => open(t)}>
+                      <span className="social-inbox-avatar" aria-hidden="true">{title(t).replace('@', '').charAt(0).toUpperCase()}</span>
+                      <span className="social-inbox-meta">
+                        <strong>{title(t)}</strong>
+                        <span>{t.lastDirection === 'out' ? 'You: ' : ''}{t.lastText}</span>
+                      </span>
+                      <span className="social-inbox-side">
+                        <time dateTime={t.lastAt}>{timeAgo(t.lastAt)}</time>
+                        {t.lastDirection === 'in' && (
+                          <span className="social-inbox-awaiting" title="The customer is waiting for a reply">
+                            Reply
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </aside>
 
@@ -163,6 +201,7 @@ export function SocialInbox({ platform }: SocialInboxProps) {
               </p>
             )}
             <form className="social-inbox-composer" onSubmit={e => void send(e)}>
+              <QuickReplies draft={draft} onPick={setDraft} />
               <input
                 className="input"
                 value={draft}
