@@ -558,6 +558,21 @@ export function SocialAutomation() {
           </span>
           <span className="sa-stat-label">Auto-Replies Sent</span>
         </div>
+
+        {(['instagram', 'facebook'] as const).map(p => {
+          const m = overview?.messages?.[p];
+          if (!m) return null;
+          return (
+            <div className="sa-stat" key={p} title="Direct messages in the last 30 days">
+              <span className="sa-stat-value" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {p === 'instagram' ? <InstagramIcon size={16} /> : <FacebookIcon size={16} />} {m.customers}
+              </span>
+              <span className="sa-stat-label">
+                {p === 'instagram' ? 'Instagram' : 'Facebook'} chats, 30 days ({m.received} in, {m.sent} out)
+              </span>
+            </div>
+          );
+        })}
       </section>
 
       {/* Navigation Tabs */}

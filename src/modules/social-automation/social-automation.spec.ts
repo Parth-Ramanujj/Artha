@@ -2,7 +2,13 @@ import { ConflictException } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Test } from '@nestjs/testing';
 import { extractComments } from './controllers/social-webhook.controller';
-import { SocialAccount, SocialCommentLog, SocialCommentRule, SocialPost } from './entities/social-automation.entity';
+import {
+  SocialAccount,
+  SocialCommentLog,
+  SocialMessage,
+  SocialCommentRule,
+  SocialPost,
+} from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
 import { findMatchingRule, SocialAutomationService } from './social-automation.service';
 
@@ -174,6 +180,7 @@ describe('SocialAutomationService', () => {
         { provide: getRepositoryToken(SocialPost, 'data'), useValue: postRepo },
         { provide: getRepositoryToken(SocialCommentRule, 'data'), useValue: ruleRepo },
         { provide: getRepositoryToken(SocialCommentLog, 'data'), useValue: logRepo },
+        { provide: getRepositoryToken(SocialMessage, 'data'), useValue: {} },
         { provide: MetaGraphService, useValue: meta },
       ],
     }).compile();

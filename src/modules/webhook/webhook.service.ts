@@ -393,7 +393,13 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async dispatch(sessionId: string, event: string, data: Record<string, unknown>): Promise<void> {
+  async dispatch(
+    sessionId: string,
+    event: string,
+    data: Record<string, unknown>,
+    /** Skip "*" webhooks: for new event kinds that existing catch-all receivers have never seen. */
+    options?: { explicitOnly?: boolean },
+  ): Promise<void> {
     // Callers fire-and-forget this (`void dispatch(...)`), so a failure looking up webhooks must be
     // logged and swallowed here — otherwise it surfaces as an unhandled promise rejection.
     let webhooks: Webhook[];
@@ -413,7 +419,9 @@ export class WebhookService implements OnModuleInit, OnModuleDestroy {
     // lid-addressed sender (e.g. an unresolved @lid group participant). Absent store -> no resolution.
     const resolveLid = (jid: string): string | null => this.lidMappingStore?.getCached(userPart(jid)) ?? null;
     const matchingWebhooks = webhooks.filter(
-      w => (w.events.includes(event) || w.events.includes('*')) && evaluateFilters(w.filters, event, data, resolveLid),
+      w =>
+        (w.events.includes(event) || (!options?.explicitOnly && w.events.includes('*'))) &&
+        evaluateFilters(w.filters, event, data, resolveLid),
     );
 
     // Base idempotency key for this event occurrence. occurredAt is captured once here and reused for

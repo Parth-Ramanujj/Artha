@@ -25,6 +25,7 @@ import {
   SocialAccount,
   SocialCommentLog,
   SocialCommentRule,
+  SocialMessage,
   SocialPlatform,
   SocialPost,
 } from './entities/social-automation.entity';
@@ -134,6 +135,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     private readonly ruleRepo: Repository<SocialCommentRule>,
     @InjectRepository(SocialCommentLog, 'data')
     private readonly logRepo: Repository<SocialCommentLog>,
+    @InjectRepository(SocialMessage, 'data')
+    private readonly messageRepo: Repository<SocialMessage>,
     private readonly metaGraph: MetaGraphService,
     @Optional() private readonly aiService?: AiService,
   ) {}
@@ -753,6 +756,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       totalRules,
       activeRules,
       recentLogs,
+      messages: await this.messageStats(businessId),
       webhook: {
         secretConfigured: !!(process.env.META_APP_SECRET || process.env.CLOUD_API_APP_SECRET || '').trim(),
         lastRejected: this.lastWebhookRejection,
@@ -767,6 +771,30 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
   private lastWebhookRejection: { at: string; reason: 'signature' | 'no-secret' } | null = null;
 
   /** Remembers why Meta's last webhook delivery was refused, so the dashboard can explain it. */
+  /** Instagram DM / Messenger volume over the last 30 days, per platform. */
+  private async messageStats(
+    businessId: string,
+  ): Promise<Record<SocialPlatform, { received: number; sent: number; customers: number }>> {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const rows = await this.messageRepo
+      .createQueryBuilder('m')
+      .select('m.platform', 'platform')
+      .addSelect("SUM(CASE WHEN m.direction = 'in' THEN 1 ELSE 0 END)", 'received')
+      .addSelect("SUM(CASE WHEN m.direction = 'out' THEN 1 ELSE 0 END)", 'sent')
+      .addSelect('COUNT(DISTINCT m.threadId)', 'customers')
+      .where('m.businessId = :businessId AND m.createdAt >= :since', { businessId, since })
+      .groupBy('m.platform')
+      .getRawMany<{ platform: SocialPlatform; received: string; sent: string; customers: string }>();
+    const empty = { received: 0, sent: 0, customers: 0 };
+    const stats = { instagram: { ...empty }, facebook: { ...empty } };
+    for (const r of rows) {
+      if (r.platform in stats) {
+        stats[r.platform] = { received: Number(r.received), sent: Number(r.sent), customers: Number(r.customers) };
+      }
+    }
+    return stats;
+  }
+
   // shortcut: in memory like the rejection above, cleared on restart.
   private lastWebhookDelivery: { at: string; object: string; comments: number; messages: number } | null = null;
   private lastUnmatched: { at: string; platform: SocialPlatform; accountId: string } | null = null;

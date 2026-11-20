@@ -9,6 +9,8 @@ import { LeadService } from '../workflow/lead.service';
 import { LeadClassifierService } from '../workflow/lead-classifier.service';
 import { WorkflowExecutor } from '../workflow/workflow-executor.service';
 import { WorkflowTriggerService } from '../workflow/workflow-trigger.service';
+import { WebhookService } from '../webhook/webhook.service';
+import { Session } from '../session/entities/session.entity';
 
 /** One message from a Meta `messaging` webhook entry (Instagram DM or Messenger). */
 export interface IncomingMessage {
@@ -58,6 +60,8 @@ export class SocialInboxService implements OnModuleInit {
     @Optional() private readonly classifier?: LeadClassifierService,
     @Optional() private readonly workflowExecutor?: WorkflowExecutor,
     @Optional() private readonly workflowTrigger?: WorkflowTriggerService,
+    @Optional() private readonly webhooks?: WebhookService,
+    @Optional() @InjectRepository(Session, 'data') private readonly sessionRepo?: Repository<Session>,
   ) {}
 
   /** Lets workflow "send message" / question steps answer Instagram (ig:) and Facebook (fb:) chats. */
@@ -121,6 +125,7 @@ export class SocialInboxService implements OnModuleInit {
       this.logger.debug(`Message ${event.mid} not stored: ${err instanceof Error ? err.message : String(err)}`);
       return null;
     }
+    if (saved.direction === 'in') void this.notifyWebhooks(account, saved);
     if (saved.direction === 'in' && !named) {
       await this.captureCustomer(account, saved).catch((err: unknown) => {
         this.logger.warn(
@@ -135,6 +140,35 @@ export class SocialInboxService implements OnModuleInit {
       });
     }
     return saved;
+  }
+
+  /**
+   * Sends "social.message.received" to the business's webhooks (they belong to its WhatsApp numbers),
+   * only to those that ticked this event, so catch-all receivers never get a payload they don't know.
+   */
+  private async notifyWebhooks(account: SocialAccount, msg: SocialMessage): Promise<void> {
+    const { webhooks, sessionRepo } = this;
+    if (!webhooks || !sessionRepo) return;
+    try {
+      const sessions = await sessionRepo.find({ where: { businessId: account.businessId }, select: { id: true } });
+      const payload = {
+        channel: account.platform,
+        accountId: account.id,
+        accountName: account.accountName,
+        chatId: `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`,
+        threadId: msg.threadId,
+        customerName: msg.customerName,
+        text: msg.text,
+        mediaUrl: msg.mediaUrl,
+        messageId: msg.remoteMessageId,
+        timestamp: msg.createdAt.toISOString(),
+      };
+      await Promise.all(
+        sessions.map(s => webhooks.dispatch(s.id, 'social.message.received', payload, { explicitOnly: true })),
+      );
+    } catch (err) {
+      this.logger.warn(`Webhook for ${msg.threadId} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /** Published workflows get the DM first, like on WhatsApp; true when one took it. */

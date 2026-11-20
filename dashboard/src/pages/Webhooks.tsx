@@ -117,6 +117,7 @@ const availableEventNames = [
   'group.update',
   'call.received',
   'status.received',
+  'social.message.received',
   '*',
 ] as const;
 

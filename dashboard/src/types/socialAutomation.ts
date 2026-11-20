@@ -95,6 +95,8 @@ export interface SocialOverview {
   totalRules: number;
   activeRules: number;
   recentLogs: SocialCommentLog[];
+  /** DM / Messenger volume, last 30 days. Absent on servers older than this field. */
+  messages?: Record<SocialPlatform, { received: number; sent: number; customers: number }>;
   /** Absent on servers older than this field. */
   webhook?: {
     secretConfigured: boolean;
