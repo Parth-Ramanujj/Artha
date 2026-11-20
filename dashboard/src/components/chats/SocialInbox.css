@@ -184,3 +184,7 @@
 
 .social-bubble-media { display: block; }
 .social-bubble-media img { display: block; max-width: 240px; max-height: 260px; border-radius: 10px; object-fit: cover; }
+
+.social-inbox-tools-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.social-broadcast-note { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+.social-broadcast-label { display: block; margin-bottom: 0.3rem; font-weight: 600; font-size: 0.85rem; }

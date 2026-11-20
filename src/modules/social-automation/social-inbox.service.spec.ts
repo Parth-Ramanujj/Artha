@@ -417,3 +417,50 @@ describe('SocialInboxService workflows', () => {
     await ds.destroy();
   });
 });
+
+describe('SocialInboxService broadcast', () => {
+  it("reaches only customers who wrote inside Meta's 24-hour window, once each", async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
+    const account = await ds.getRepository(SocialAccount).save({
+      businessId: 'b',
+      platform: 'instagram',
+      accountName: 'Shop',
+      accountId: '1784',
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+    });
+    const messages = ds.getRepository(SocialMessage);
+    const row = (threadId: string, direction: 'in' | 'out', hoursAgo: number) =>
+      messages.save({
+        businessId: 'b',
+        accountId: account.id,
+        platform: 'instagram' as const,
+        threadId,
+        direction,
+        text: 'x',
+        remoteMessageId: `${threadId}-${direction}-${hoursAgo}`,
+        createdAt: new Date(Date.now() - hoursAgo * 3_600_000),
+      });
+    await row('fresh', 'in', 2);
+    await row('fresh', 'in', 1);
+    await row('stale', 'in', 30);
+    await row('onlyOut', 'out', 1);
+    const inbox = new SocialInboxService(ds.getRepository(SocialAccount), messages, new MetaGraphService(), {
+      noteUnmatchedAccount: jest.fn(),
+    } as unknown as SocialAutomationService);
+
+    expect(await inbox.broadcastAudience('b', 'instagram')).toEqual([{ accountId: account.id, threadId: 'fresh' }]);
+    expect(await inbox.broadcastAudience('b', 'facebook')).toEqual([]);
+    await ds.destroy();
+  });
+});

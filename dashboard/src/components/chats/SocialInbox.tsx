@@ -5,6 +5,7 @@ import { socialAutomationApi } from '../../services/api';
 import type { SocialMessage, SocialPlatform, SocialThread } from '../../types/socialAutomation';
 import { explainError, timeAgo } from '../social-automation/explainError';
 import { QuickReplies } from './QuickReplies';
+import { SocialBroadcast } from './SocialBroadcast';
 import { AttachButton, AttachmentPreview } from './SocialAttachment';
 import './SocialInbox.css';
 
@@ -155,10 +156,13 @@ export function SocialInbox({ platform }: SocialInboxProps) {
                 placeholder="Search name or message"
                 aria-label="Search conversations"
               />
+              <div className="social-inbox-tools-row">
               <label className="social-inbox-filter">
                 <input type="checkbox" checked={onlyAwaiting} onChange={e => setOnlyAwaiting(e.target.checked)} />
                 Awaiting reply ({awaitingCount})
               </label>
+                <SocialBroadcast platform={platform} onSent={() => void loadThreads()} />
+              </div>
             </div>
             {shownThreads.length === 0 ? (
               <p className="social-inbox-empty">No conversation matches.</p>

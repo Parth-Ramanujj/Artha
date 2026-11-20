@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
 import { SocialAutomationService } from './social-automation.service';
@@ -38,6 +38,9 @@ export interface InboxThread {
 const THREAD_SCAN = 1000;
 // Under the 25 MB request cap once base64-encoded; also within Meta's attachment limits.
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
+// Meta allows messages within 24 hours of the customer's last message; a little margin for the send itself.
+const REPLY_WINDOW_MS = 23.5 * 60 * 60 * 1000;
+const BROADCAST_GAP_MS = 400;
 
 @Injectable()
 export class SocialInboxService implements OnModuleInit {
@@ -219,6 +222,43 @@ export class SocialInboxService implements OnModuleInit {
       }
     }
     return [...threads.values()];
+  }
+
+  /** Customers on this platform who wrote in Meta's 24-hour window, so a broadcast may reach them. */
+  async broadcastAudience(
+    businessId: string,
+    platform: SocialPlatform,
+  ): Promise<{ accountId: string; threadId: string }[]> {
+    const recent = await this.messageRepo.find({
+      where: {
+        businessId,
+        platform,
+        direction: 'in',
+        createdAt: MoreThanOrEqual(new Date(Date.now() - REPLY_WINDOW_MS)),
+      },
+      select: { accountId: true, threadId: true },
+    });
+    const seen = new Map(
+      recent.map(m => [`${m.accountId}:${m.threadId}`, { accountId: m.accountId, threadId: m.threadId }]),
+    );
+    return [...seen.values()];
+  }
+
+  /**
+   * Sends one text to everyone in the 24-hour window, one by one in the background. Each send lands in its
+   * chat like a normal reply; a failure for one customer doesn't stop the others.
+   */
+  async broadcast(businessId: string, platform: SocialPlatform, text: string): Promise<{ queued: number }> {
+    const audience = await this.broadcastAudience(businessId, platform);
+    void (async () => {
+      let failed = 0;
+      for (const { accountId, threadId } of audience) {
+        await this.sendMessage(businessId, accountId, threadId, text).catch(() => failed++);
+        await new Promise(r => setTimeout(r, BROADCAST_GAP_MS));
+      }
+      this.logger.log(`Broadcast on ${platform}: ${audience.length - failed} sent, ${failed} failed`);
+    })();
+    return { queued: audience.length };
   }
 
   async listMessages(businessId: string, accountId: string, threadId: string): Promise<SocialMessage[]> {

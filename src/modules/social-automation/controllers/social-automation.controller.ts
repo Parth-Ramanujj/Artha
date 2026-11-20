@@ -9,6 +9,7 @@ import {
   CreateSocialAccountDto,
   CreateSocialPostDto,
   SendSocialMediaDto,
+  SocialBroadcastDto,
   SendSocialMessageDto,
   SimulateCommentDto,
   ToggleCommentRuleDto,
@@ -193,6 +194,21 @@ export class SocialAutomationController {
   async listInbox(@CurrentApiKey() apiKey: ApiKey, @Query('platform') platform: string) {
     const p: SocialPlatform = platform === 'facebook' ? 'facebook' : 'instagram';
     return this.inbox.listThreads(await this.businessId(apiKey), p);
+  }
+
+  @Get('inbox/broadcast-audience')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'How many Instagram / Facebook customers a broadcast would reach now (24-hour window)' })
+  async broadcastAudience(@CurrentApiKey() apiKey: ApiKey, @Query('platform') platform: string) {
+    const p: SocialPlatform = platform === 'facebook' ? 'facebook' : 'instagram';
+    return { count: (await this.inbox.broadcastAudience(await this.businessId(apiKey), p)).length };
+  }
+
+  @Post('inbox/broadcast')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: "Message every Instagram / Facebook customer inside Meta's 24-hour window" })
+  async broadcast(@CurrentApiKey() apiKey: ApiKey, @Body() dto: SocialBroadcastDto) {
+    return this.inbox.broadcast(await this.businessId(apiKey), dto.platform, dto.text);
   }
 
   @Get('inbox/:accountId/:threadId')

@@ -283,6 +283,18 @@ export class SendSocialMediaDto {
   filename?: string;
 }
 
+export class SocialBroadcastDto {
+  @ApiProperty({ enum: PLATFORMS })
+  @IsIn(PLATFORMS)
+  platform: SocialPlatform;
+
+  @ApiProperty({ example: 'Diwali offer: 20% off today only!' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  text: string;
+}
+
 export class SendSocialMessageDto {
   @ApiProperty({ example: 'Thanks for your message! The price is ₹499.' })
   @IsString()

@@ -3349,6 +3349,10 @@ export const socialAutomationApi = {
       method: 'POST',
       body: JSON.stringify(file),
     }),
+  broadcastAudience: (platform: SocialPlatform) =>
+    request<{ count: number }>(social('/inbox/broadcast-audience?platform=' + platform)),
+  broadcast: (platform: SocialPlatform, text: string) =>
+    request<{ queued: number }>(social('/inbox/broadcast'), { method: 'POST', body: JSON.stringify({ platform, text }) }),
 };
 
 // ── WhatsApp tools: ad leads, calling, invoices ──
