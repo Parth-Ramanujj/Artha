@@ -40,16 +40,52 @@ import { Modal } from '../components/Modal';
 import './SalesAgent.css';
 import './SocialAutomation.css';
 
-const InstagramIcon = ({ size = 16, color = '#ec4899', style }: { size?: number; color?: string; style?: React.CSSProperties }) => (
-  <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const InstagramIcon = ({
+  size = 16,
+  color = '#ec4899',
+  style,
+}: {
+  size?: number;
+  color?: string;
+  style?: React.CSSProperties;
+}) => (
+  <svg
+    style={style}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
     <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
     <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
   </svg>
 );
 
-const FacebookIcon = ({ size = 16, color = '#1877f2', style }: { size?: number; color?: string; style?: React.CSSProperties }) => (
-  <svg style={style} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const FacebookIcon = ({
+  size = 16,
+  color = '#1877f2',
+  style,
+}: {
+  size?: number;
+  color?: string;
+  style?: React.CSSProperties;
+}) => (
+  <svg
+    style={style}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
   </svg>
 );
@@ -101,6 +137,7 @@ export function SocialAutomation() {
   const [showPostModal, setShowPostModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [addLinkedPage, setAddLinkedPage] = useState(true);
 
   // Post form state
   const [newPost, setNewPost] = useState({
@@ -118,7 +155,8 @@ export function SocialAutomation() {
     platform: 'all' as 'all' | 'instagram' | 'facebook',
     matchType: 'contains' as 'contains' | 'exact' | 'regex' | 'all',
     keywords: 'price, cost, rate, details',
-    replyTemplates: 'Hello {username}! Thanks for reaching out. Please check your DM for pricing! 😊\nHey {username}! Sent all the details directly to your inbox! ✨',
+    replyTemplates:
+      'Hello {username}! Thanks for reaching out. Please check your DM for pricing! 😊\nHey {username}! Sent all the details directly to your inbox! ✨',
     autoLike: false,
     autoDm: false,
     autoDmTemplate: 'Hi {username}, here is our catalog: https://example.com/catalog',
@@ -205,7 +243,14 @@ export function SocialAutomation() {
       });
       setShowPostModal(false);
       if (saved.status === 'failed') setError(`Publishing failed: ${saved.error || 'unknown error'}`);
-      else setNotice(saved.status === 'published' ? 'Post published!' : saved.status === 'scheduled' ? 'Post scheduled!' : 'Draft saved');
+      else
+        setNotice(
+          saved.status === 'published'
+            ? 'Post published!'
+            : saved.status === 'scheduled'
+              ? 'Post scheduled!'
+              : 'Draft saved',
+        );
       setNewPost({
         platform: 'instagram',
         caption: '',
@@ -250,8 +295,14 @@ export function SocialAutomation() {
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const keywordsArray = newRule.keywords.split(',').map(k => k.trim()).filter(Boolean);
-      const templatesArray = newRule.replyTemplates.split('\n').map(t => t.trim()).filter(Boolean);
+      const keywordsArray = newRule.keywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(Boolean);
+      const templatesArray = newRule.replyTemplates
+        .split('\n')
+        .map(t => t.trim())
+        .filter(Boolean);
 
       await socialAutomationApi.createRule({
         ...newRule,
@@ -313,6 +364,8 @@ export function SocialAutomation() {
     setShowAccountModal(true);
   };
 
+  const linkedPageConnected = accounts.some(a => a.platform === 'facebook' && a.accountId === newAccount.pageId.trim());
+
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -333,7 +386,24 @@ export function SocialAutomation() {
           pageId: newAccount.platform === 'instagram' ? newAccount.pageId : undefined,
           webhookVerifyToken: newAccount.webhookVerifyToken || undefined,
         });
-        setNotice('Meta account connected successfully!');
+        let message = 'Meta account connected successfully!';
+        if (addLinkedPage && newAccount.platform === 'instagram' && newAccount.pageId.trim() && !linkedPageConnected) {
+          // The same Page token publishes and replies on the Page, so one form connects both.
+          try {
+            await socialAutomationApi.createAccount({
+              platform: 'facebook',
+              accountId: newAccount.pageId.trim(),
+              accessToken: newAccount.accessToken,
+              accountName: newAccount.accountName.trim() ? `${newAccount.accountName.trim()} (Facebook)` : undefined,
+            });
+            message = 'Instagram and its Facebook Page are both connected!';
+          } catch (err) {
+            message = `Instagram is connected, but the Facebook Page could not be added: ${
+              err instanceof Error ? err.message : 'unknown error'
+            }. Add it with Connect Account → Facebook Page.`;
+          }
+        }
+        setNotice(message);
       }
       setShowAccountModal(false);
       setEditingAccount(null);
@@ -429,7 +499,14 @@ export function SocialAutomation() {
         </p>
       )}
 
-      <HealthPanel overview={overview} accounts={accounts} rules={rules} logs={logs} posts={posts} onAction={handleHealthAction} />
+      <HealthPanel
+        overview={overview}
+        accounts={accounts}
+        rules={rules}
+        logs={logs}
+        posts={posts}
+        onAction={handleHealthAction}
+      />
 
       {/* Stats Cards */}
       <section className="sa-stats" aria-label="Social Automation Stats">
@@ -441,7 +518,9 @@ export function SocialAutomation() {
         </div>
 
         <div className="sa-stat ok">
-          <span className="sa-stat-value">{overview?.publishedPosts ?? posts.filter(p => p.status === 'published').length}</span>
+          <span className="sa-stat-value">
+            {overview?.publishedPosts ?? posts.filter(p => p.status === 'published').length}
+          </span>
           <span className="sa-stat-label">Published Posts</span>
         </div>
 
@@ -453,14 +532,20 @@ export function SocialAutomation() {
         </div>
 
         <div className="sa-stat">
-          <span className="sa-stat-value" style={{ color: '#ec4899', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <span
+            className="sa-stat-value"
+            style={{ color: '#ec4899', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
             <Heart size={16} fill="#ec4899" /> {overview?.autoLikesGiven ?? logs.filter(l => l.liked).length}
           </span>
           <span className="sa-stat-label">Comments Auto-Liked</span>
         </div>
 
         <div className="sa-stat">
-          <span className="sa-stat-value" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <span
+            className="sa-stat-value"
+            style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
             <MessageCircle size={16} /> {overview?.autoRepliesSent ?? logs.filter(l => l.replied).length}
           </span>
           <span className="sa-stat-label">Auto-Replies Sent</span>
@@ -470,11 +555,7 @@ export function SocialAutomation() {
       {/* Navigation Tabs */}
       <nav className="sa-tabs" aria-label="Social automation navigation">
         {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={`sa-tab ${activeTab === id ? 'active' : ''}`}
-            onClick={() => setActiveTab(id)}
-          >
+          <button key={id} className={`sa-tab ${activeTab === id ? 'active' : ''}`} onClick={() => setActiveTab(id)}>
             <Icon size={14} style={{ display: 'inline', marginRight: '0.35rem', verticalAlign: 'middle' }} />
             {label}
             {id === 'posts' && posts.length > 0 && ` (${posts.length})`}
@@ -488,11 +569,15 @@ export function SocialAutomation() {
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {accounts.length === 0 && (
-            <div className="sa-banner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              className="sa-banner"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
               <div>
                 <strong>No Meta Accounts Connected</strong>
                 <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                  Connect your Instagram Business or Facebook Page to start publishing scheduled posts and auto-replying to comments.
+                  Connect your Instagram Business or Facebook Page to start publishing scheduled posts and auto-replying
+                  to comments.
                 </p>
               </div>
               <button className="btn btn-primary" onClick={() => handleOpenNewAccountModal()}>
@@ -508,7 +593,8 @@ export function SocialAutomation() {
                 <Send size={16} color="var(--primary)" /> Automated Post Publishing
               </h3>
               <p className="sa-help">
-                Schedule posts ahead of time with images, reels, and captions. The in-process engine publishes directly to Meta Graph API.
+                Schedule posts ahead of time with images, reels, and captions. The in-process engine publishes directly
+                to Meta Graph API.
               </p>
               <div style={{ marginTop: 'auto', display: 'flex', gap: '0.5rem' }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('posts')}>
@@ -525,7 +611,8 @@ export function SocialAutomation() {
                 <Heart size={16} color="#ec4899" /> Comment Auto-Reply & Likes
               </h3>
               <p className="sa-help">
-                When customers comment on your Instagram/FB posts, OpenWA automatically likes the comment, rotates reply templates, and can trigger AI responses.
+                When customers comment on your Instagram/FB posts, OpenWA automatically likes the comment, rotates reply
+                templates, and can trigger AI responses.
               </p>
               <div style={{ marginTop: 'auto', display: 'flex', gap: '0.5rem' }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setActiveTab('rules')}>
@@ -560,7 +647,13 @@ export function SocialAutomation() {
                 View All
               </button>
             </div>
-            <ActivityFeed posts={posts} logs={logs} rules={rules} onPublish={id => void handlePublishNow(id)} limit={6} />
+            <ActivityFeed
+              posts={posts}
+              logs={logs}
+              rules={rules}
+              onPublish={id => void handlePublishNow(id)}
+              limit={6}
+            />
           </div>
         </div>
       )}
@@ -568,7 +661,10 @@ export function SocialAutomation() {
       {activeTab === 'activity' && (
         <div className="sa-panel">
           <h3 style={{ margin: 0, fontSize: '1rem' }}>Activity &amp; Logs</h3>
-          <p className="sa-help">Every post and every customer comment, newest first, with what Artha did and how to fix anything that failed.</p>
+          <p className="sa-help">
+            Every post and every customer comment, newest first, with what Artha did and how to fix anything that
+            failed.
+          </p>
           <ActivityFeed posts={posts} logs={logs} rules={rules} onPublish={id => void handlePublishNow(id)} />
         </div>
       )}
@@ -579,7 +675,9 @@ export function SocialAutomation() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>All Posts ({posts.length})</h3>
-              <p className="sa-help" style={{ marginTop: '0.2rem' }}>Scheduled and published posts across Instagram and Facebook</p>
+              <p className="sa-help" style={{ marginTop: '0.2rem' }}>
+                Scheduled and published posts across Instagram and Facebook
+              </p>
             </div>
             <button className="btn btn-primary" onClick={() => setShowPostModal(true)}>
               <Plus size={14} /> New Post
@@ -601,7 +699,14 @@ export function SocialAutomation() {
                 <div key={post.id} className="social-post-card">
                   {post.mediaUrl && (
                     <div className="social-post-thumb-wrap">
-                      <img src={post.mediaUrl} alt="Post preview" className="social-post-thumb" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                      <img
+                        src={post.mediaUrl}
+                        alt="Post preview"
+                        className="social-post-thumb"
+                        onError={e => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
                       <span className={`social-post-status-pill ${post.status}`}>{post.status}</span>
                     </div>
                   )}
@@ -632,7 +737,12 @@ export function SocialAutomation() {
                           </button>
                         )}
                         {post.permalink && (
-                          <a href={post.permalink} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
+                          <a
+                            href={post.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary btn-sm"
+                          >
                             <ExternalLink size={12} /> Open
                           </a>
                         )}
@@ -656,7 +766,8 @@ export function SocialAutomation() {
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>Auto-Reply & Like Rules ({rules.length})</h3>
               <p className="sa-help" style={{ marginTop: '0.2rem' }}>
-                When users comment on your posts, automatically hit like (❤️), reply with smart templates (💬), and send direct messages.
+                When users comment on your posts, automatically hit like (❤️), reply with smart templates (💬), and send
+                direct messages.
               </p>
             </div>
             <button className="btn btn-primary" onClick={() => setShowRuleModal(true)}>
@@ -668,7 +779,9 @@ export function SocialAutomation() {
             <div className="social-empty">
               <Sparkles size={36} />
               <h3>No rules configured yet</h3>
-              <p>Create a rule to auto-reply and like comments containing keywords like "price", "info", or "details".</p>
+              <p>
+                Create a rule to auto-reply and like comments containing keywords like "price", "info", or "details".
+              </p>
               <button className="btn btn-primary btn-sm" onClick={() => setShowRuleModal(true)}>
                 <Plus size={14} /> Add First Rule
               </button>
@@ -680,7 +793,11 @@ export function SocialAutomation() {
                   <div className="social-rule-head">
                     <h4 className="social-rule-title">
                       <span className={`social-platform-badge ${rule.platform}`}>
-                        {rule.platform === 'instagram' ? <InstagramIcon size={12} /> : rule.platform === 'facebook' ? <FacebookIcon size={12} /> : null}
+                        {rule.platform === 'instagram' ? (
+                          <InstagramIcon size={12} />
+                        ) : rule.platform === 'facebook' ? (
+                          <FacebookIcon size={12} />
+                        ) : null}
                         {rule.platform}
                       </span>
                       {rule.name}
@@ -712,7 +829,14 @@ export function SocialAutomation() {
                   </div>
 
                   <div className="social-rule-reply-preview">
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        color: 'var(--text-muted)',
+                        marginBottom: '0.2rem',
+                      }}
+                    >
                       REPLY TEMPLATES:
                     </div>
                     {parseList(rule.replyTemplates).join(' / ') || (rule.useAi ? 'AI-written reply' : 'No reply')}
@@ -782,8 +906,12 @@ export function SocialAutomation() {
                             {acc.platform}
                           </span>
                         </td>
-                        <td><strong>{acc.accountName}</strong></td>
-                        <td><code>{acc.accountId}</code></td>
+                        <td>
+                          <strong>{acc.accountName}</strong>
+                        </td>
+                        <td>
+                          <code>{acc.accountId}</code>
+                        </td>
                         <td>{acc.pageId ? <code>{acc.pageId}</code> : '—'}</td>
                         <td>
                           <span className={`sa-chip ${acc.status === 'connected' ? 'whatsapp' : 'warn'}`}>
@@ -802,13 +930,25 @@ export function SocialAutomation() {
                         </td>
                         <td>
                           <div className="sa-actions">
-                            <button className="btn btn-secondary btn-sm" onClick={() => handleEditAccount(acc)} title="Edit / Update credentials">
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleEditAccount(acc)}
+                              title="Edit / Update credentials"
+                            >
                               <Edit2 size={12} /> Edit
                             </button>
-                            <button className="btn btn-secondary btn-sm" onClick={() => void handleTestAccount(acc.id)} title="Test Meta connection">
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => void handleTestAccount(acc.id)}
+                              title="Test Meta connection"
+                            >
                               <CheckCircle2 size={12} /> Test
                             </button>
-                            <button className="btn btn-secondary btn-sm" onClick={() => void handleDeleteAccount(acc.id)} title="Disconnect account">
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => void handleDeleteAccount(acc.id)}
+                              title="Disconnect account"
+                            >
                               <Trash2 size={12} color="#ef4444" />
                             </button>
                           </div>
@@ -827,13 +967,23 @@ export function SocialAutomation() {
               <Radio size={16} color="var(--primary)" /> Meta Webhooks Configuration
             </h3>
             <p className="sa-help">
-              To receive live comments, add these in your Meta App Dashboard &gt; Webhooks (Instagram: <code>comments</code>; Page:{' '}
-              <code>feed</code>). The server must have <code>META_APP_SECRET</code> set, or production refuses the deliveries.
+              To receive live comments, add these in your Meta App Dashboard &gt; Webhooks (Instagram:{' '}
+              <code>comments</code>; Page: <code>feed</code>). The server must have <code>META_APP_SECRET</code> set, or
+              production refuses the deliveries.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '1rem',
+                marginTop: '0.5rem',
+              }}
+            >
               <div>
-                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>CALLBACK URL</label>
+                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                  CALLBACK URL
+                </label>
                 <div style={{ display: 'flex', gap: '0.4rem' }}>
                   <input className="input" readOnly value={webhookUrl} style={{ fontSize: '0.85rem' }} />
                   <button className="btn btn-secondary btn-sm" onClick={() => copyToClipboard(webhookUrl, 'url')}>
@@ -843,7 +993,9 @@ export function SocialAutomation() {
               </div>
 
               <div>
-                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>VERIFY TOKEN</label>
+                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                  VERIFY TOKEN
+                </label>
                 {accounts.filter(a => a.webhookVerifyToken).length === 0 ? (
                   <p className="sa-help">Connect an account first; each account gets its own verify token.</p>
                 ) : (
@@ -899,9 +1051,13 @@ export function SocialAutomation() {
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+            <div
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}
+            >
               <div>
-                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>Commenter Username</label>
+                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                  Commenter Username
+                </label>
                 <input
                   className="input"
                   value={simUser}
@@ -911,7 +1067,9 @@ export function SocialAutomation() {
               </div>
 
               <div>
-                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>Platform</label>
+                <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                  Platform
+                </label>
                 <select
                   className="input"
                   value={simPlatform}
@@ -924,7 +1082,9 @@ export function SocialAutomation() {
             </div>
 
             <div>
-              <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>Comment Text</label>
+              <label className="sa-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                Comment Text
+              </label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   className="input sa-grow"
@@ -942,21 +1102,43 @@ export function SocialAutomation() {
               <div className={`social-sim-result ${simResult.matched ? 'matched' : 'unmatched'}`}>
                 {simResult.matched ? (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981', fontWeight: 600 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        color: '#10b981',
+                        fontWeight: 600,
+                      }}
+                    >
                       <CheckCircle2 size={16} /> Rule Matched: &quot;{simResult.ruleName}&quot; ({simResult.matchType})
                     </div>
                     <div style={{ display: 'flex', gap: '1rem', margin: '0.5rem 0', fontSize: '0.85rem' }}>
-                      <span><strong>Auto-Like:</strong> {simResult.willAutoLike ? '❤️ Yes (Comment will be liked)' : 'No'}</span>
-                      <span><strong>Anti-Spam Delay:</strong> ⏱️ {simResult.delaySeconds}s</span>
+                      <span>
+                        <strong>Auto-Like:</strong> {simResult.willAutoLike ? '❤️ Yes (Comment will be liked)' : 'No'}
+                      </span>
+                      <span>
+                        <strong>Anti-Spam Delay:</strong> ⏱️ {simResult.delaySeconds}s
+                      </span>
                     </div>
                     <div className="social-rule-reply-preview">
-                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
+                      <div
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--text-muted)',
+                          marginBottom: '0.2rem',
+                        }}
+                      >
                         GENERATED AUTO-REPLY MESSAGE:
                       </div>
                       💬 &quot;{simResult.generatedReply}&quot;
                     </div>
                     {simResult.willAutoDm && simResult.dmText && (
-                      <div className="social-rule-reply-preview" style={{ marginTop: '0.5rem', borderLeftColor: '#3b82f6' }}>
+                      <div
+                        className="social-rule-reply-preview"
+                        style={{ marginTop: '0.5rem', borderLeftColor: '#3b82f6' }}
+                      >
                         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#3b82f6', marginBottom: '0.2rem' }}>
                           PRIVATE DIRECT MESSAGE (DM):
                         </div>
@@ -965,7 +1147,15 @@ export function SocialAutomation() {
                     )}
                   </div>
                 ) : (
-                  <div style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
+                  <div
+                    style={{
+                      color: '#d97706',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      fontSize: '0.9rem',
+                    }}
+                  >
                     <AlertCircle size={16} />
                     No active automation rule matched this comment text. It would be safely ignored.
                   </div>
@@ -973,7 +1163,6 @@ export function SocialAutomation() {
               </div>
             )}
           </div>
-
         </div>
       )}
 
@@ -1030,7 +1219,14 @@ export function SocialAutomation() {
             />
             {newPost.mediaUrl && (
               <div style={{ marginTop: '0.5rem', maxHeight: 150, overflow: 'hidden', borderRadius: 8 }}>
-                <img src={newPost.mediaUrl} alt="Preview" style={{ width: '100%', maxHeight: 150, objectFit: 'cover' }} onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                <img
+                  src={newPost.mediaUrl}
+                  alt="Preview"
+                  style={{ width: '100%', maxHeight: 150, objectFit: 'cover' }}
+                  onError={e => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
               </div>
             )}
           </div>
@@ -1117,7 +1313,9 @@ export function SocialAutomation() {
               <select
                 className="input"
                 value={newRule.matchType}
-                onChange={e => setNewRule({ ...newRule, matchType: e.target.value as 'contains' | 'exact' | 'regex' | 'all' })}
+                onChange={e =>
+                  setNewRule({ ...newRule, matchType: e.target.value as 'contains' | 'exact' | 'regex' | 'all' })
+                }
               >
                 <option value="contains">Contains Keywords</option>
                 <option value="exact">Exact Match</option>
@@ -1212,7 +1410,11 @@ export function SocialAutomation() {
           setShowAccountModal(false);
           setEditingAccount(null);
         }}
-        title={editingAccount ? `Update ${editingAccount.platform === 'instagram' ? 'Instagram' : 'Facebook'} Account` : 'Connect Meta Account'}
+        title={
+          editingAccount
+            ? `Update ${editingAccount.platform === 'instagram' ? 'Instagram' : 'Facebook'} Account`
+            : 'Connect Meta Account'
+        }
         footer={
           <div className="sa-actions" style={{ justifyContent: 'flex-end', width: '100%' }}>
             <button
@@ -1269,9 +1471,7 @@ export function SocialAutomation() {
           </div>
 
           <div className="social-form-group">
-            <label>
-              {newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}
-            </label>
+            <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
             <input
               className="input"
               required
@@ -1294,6 +1494,25 @@ export function SocialAutomation() {
             </div>
           )}
 
+          {newAccount.platform === 'instagram' && !editingAccount && (
+            <div className="social-form-group">
+              <label className="social-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={addLinkedPage && !linkedPageConnected}
+                  disabled={linkedPageConnected}
+                  onChange={e => setAddLinkedPage(e.target.checked)}
+                />
+                Also connect this Facebook Page (posts and comment auto-replies on Facebook too)
+              </label>
+              <span className="sa-help">
+                {linkedPageConnected
+                  ? 'This Facebook Page is already connected.'
+                  : 'Uses the same Page ID and token, so nothing else to fill in.'}
+              </span>
+            </div>
+          )}
+
           <div className="social-form-group">
             <label>Meta Long-Lived Access Token</label>
             <textarea
@@ -1305,8 +1524,8 @@ export function SocialAutomation() {
               onChange={e => setNewAccount({ ...newAccount, accessToken: e.target.value })}
             />
             <span className="sa-help">
-              Stored on the server and never shown again. Outside production, <code>mock_token</code> tests the flow without
-              calling Meta.
+              Stored on the server and never shown again. Outside production, <code>mock_token</code> tests the flow
+              without calling Meta.
             </span>
           </div>
         </form>
