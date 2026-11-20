@@ -59,6 +59,7 @@ import {
   CreditCard,
   ScrollText,
   Wrench,
+  Search,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -162,7 +163,10 @@ const NAV_HINTS: Record<string, string> = {
 const navSections: { id: string; paths: string[] }[] = [
   { id: 'core', paths: ['/', '/sessions', '/wallet'] },
   // Talking to people right now.
-  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/whatsapp-logs', '/wa-tools', '/notifications'] },
+  {
+    id: 'messaging',
+    paths: ['/chats', '/conversations', '/message-tester', '/whatsapp-logs', '/wa-tools', '/notifications'],
+  },
   // What you send: approved templates first (the only way to reach new people), then reusable content.
   {
     id: 'content',
@@ -231,11 +235,42 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
       ...section,
       items: section.paths
         .map(path => allNavItems.find(item => item.to === path))
-        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin') &&
+        .filter(
+          (item): item is NavItemDef =>
+            !!item &&
+            (!item.adminOnly || userRole === 'admin') &&
             !(userRole === 'viewer' && OPERATOR_ROUTES.has(item.to)) &&
-            isRouteAllowed(item.to, allowedFeatures)),
+            isRouteAllowed(item.to, allowedFeatures),
+        ),
     }))
     .filter(group => group.items.length > 0);
+
+  // Menu search: matches page name, hover hint and section name, so "invoice" finds WA Tools.
+  const [navQuery, setNavQuery] = useState('');
+  const query = navQuery.trim().toLowerCase();
+  const visibleGroups = query
+    ? navGroups
+        .map(group => ({
+          ...group,
+          items: group.items.filter(item =>
+            `${t(`nav.${item.key}`)} ${NAV_HINTS[item.to] ?? ''} ${t(`nav.sections.${group.id}`)}`
+              .toLowerCase()
+              .includes(query),
+          ),
+        }))
+        .filter(group => group.items.length > 0)
+    : navGroups;
+
+  // Landing on a page (e.g. from global search) inside a closed section opens that section.
+  useEffect(() => {
+    if (!activeSectionId) return;
+    setOpenSections(s => (s[activeSectionId] === false ? { ...s, [activeSectionId]: true } : s));
+  }, [activeSectionId]);
+
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    navRef.current?.querySelector('.nav-item.active')?.scrollIntoView({ block: 'nearest' });
+  }, [location.pathname]);
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -272,6 +307,7 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
   }, []);
 
   const handleNavClick = () => {
+    setNavQuery('');
     if (isMobile) setIsMobileOpen(false);
   };
 
@@ -364,21 +400,54 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
           </button>
         )}
 
-        <nav className="sidebar-nav">
-          {navGroups.map(group => {
+        {!isCollapsed && (
+          <div className="sidebar-search">
+            <Search size={15} className="sidebar-search-icon" aria-hidden="true" />
+            <input
+              type="search"
+              value={navQuery}
+              onChange={e => setNavQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Escape' && setNavQuery('')}
+              placeholder={t('nav.searchPlaceholder', 'Find a page…')}
+              aria-label={t('nav.searchPlaceholder', 'Find a page…')}
+            />
+            {navQuery && (
+              <button
+                type="button"
+                className="sidebar-search-clear"
+                onClick={() => setNavQuery('')}
+                aria-label={t('common.clear', 'Clear')}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
+        <nav className="sidebar-nav" ref={navRef}>
+          {query && visibleGroups.length === 0 && (
+            <p className="nav-empty">{t('nav.noMatches', 'No page matches “{{query}}”', { query: navQuery.trim() })}</p>
+          )}
+          {visibleGroups.map(group => {
             const isCore = group.id === 'core';
-            const open = isCollapsed || isSectionOpen(group.id);
+            const open = isCollapsed || !!query || isSectionOpen(group.id);
+            const hasActive = group.items.some(item => isActivePath(item.to));
             return (
               <div key={group.id} className="nav-section">
                 {!isCore && !isCollapsed && (
                   <button
                     type="button"
-                    className="nav-section-header"
+                    className={`nav-section-header${hasActive ? ' has-active' : ''}`}
                     onClick={() => toggleSection(group.id)}
                     aria-expanded={open}
+                    disabled={!!query}
                   >
                     <span>{t(`nav.sections.${group.id}`)}</span>
-                    <ChevronDown size={14} className={`nav-section-chevron${open ? ' open' : ''}`} />
+                    <span className="nav-section-meta">
+                      {!open && hasActive && <span className="nav-section-dot" aria-hidden="true" />}
+                      {!open && <span className="nav-section-count">{group.items.length}</span>}
+                      {!query && <ChevronDown size={14} className={`nav-section-chevron${open ? ' open' : ''}`} />}
+                    </span>
                   </button>
                 )}
                 {!isCore && isCollapsed && <div className="nav-section-divider" />}
@@ -394,8 +463,8 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
                         onClick={handleNavClick}
                         title={isCollapsed ? label : NAV_HINTS[to]}
                       >
-                        <Icon size={20} />
-                        {!isCollapsed && <span>{label}</span>}
+                        <Icon size={18} />
+                        {!isCollapsed && <span className="nav-item-label">{label}</span>}
                       </NavLink>
                     );
                   })}
