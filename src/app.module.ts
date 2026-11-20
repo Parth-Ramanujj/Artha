@@ -58,6 +58,7 @@ import { CustomerCareModule } from './modules/customer-care/customer-care.module
 import { GrowthModule } from './modules/growth/growth.module';
 import { SocialAutomationModule } from './modules/social-automation/social-automation.module';
 import { MessageCostsModule } from './modules/message-costs/message-costs.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -219,6 +220,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/growth/**/*.entity{.ts,.js}',
             __dirname + '/modules/social-automation/**/*.entity{.ts,.js}',
             __dirname + '/modules/message-costs/**/*.entity{.ts,.js}',
+            __dirname + '/modules/wallet/**/*.entity{.ts,.js}',
           ],
           migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
           logging: configService.get<boolean>('dataDatabase.logging', false),
@@ -370,6 +372,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     LibraryModule, // Library: reusable posts, scheduled/recurring WhatsApp Status posts and messages
     CustomerCareModule, // Missed-call WhatsApp + AI call follow-up, and the WhatsApp → web AI assistant link
     GrowthModule, // Growth: QR/widget links, greetings, owner summary, compliance, voice-note actions
+    WalletModule, // customer prepaid wallets: Razorpay recharge, per-message charges
     MessageCostsModule, // WhatsApp message costs from Meta pricing on status webhooks
     SocialAutomationModule, // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)

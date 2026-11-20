@@ -91,6 +91,7 @@ describe('PUBLIC_PATHS drift guard', () => {
     'src/modules/integrations/google/google.controller.ts',
     'src/modules/metrics/metrics.controller.ts',
     'src/modules/social-automation/controllers/social-webhook.controller.ts',
+    'src/modules/wallet/wallet.controller.ts',
     'src/modules/webhook/webhook-test.controller.ts',
   ];
 

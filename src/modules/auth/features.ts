@@ -63,6 +63,8 @@ export const CORE_CONTROLLER_PATHS = [
   'audit',
   'cloud-api/webhook',
   'social-automation/webhook',
+  // Every customer must reach its wallet to recharge, whatever features it was approved for.
+  'wallet',
 ] as const;
 
 const FEATURE_BY_PATH = new Map<string, FeatureId | 'core'>([

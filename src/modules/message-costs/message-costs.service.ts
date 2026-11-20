@@ -13,6 +13,7 @@ import { MessageCharge } from './entities/message-charge.entity';
 import { MessageCostSetting } from './entities/message-cost-setting.entity';
 import { buildCostSuggestions, estimateInr, type CostSuggestion } from './message-cost-rules';
 import { explainDeliveryError } from './delivery-errors';
+import { WalletService } from '../wallet/wallet.service';
 
 /** What a Cloud API status webhook says about one message's price and delivery. */
 export interface AckPricing {
@@ -55,6 +56,7 @@ export class MessageCostsService {
     @InjectRepository(CampaignRecipient, 'data') private readonly recipients: Repository<CampaignRecipient>,
     @InjectRepository(Notification, 'data') private readonly notifications: Repository<Notification>,
     @Optional() private readonly engines?: EngineRegistry,
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   /** A send whose cost we want to attribute (campaign, one-off template). Never throws. */
@@ -111,6 +113,12 @@ export class MessageCostsService {
       if (row.campaignId && row.chatId && row.status !== before)
         await this.advanceCampaign(row.campaignId, row.chatId, before, row.status, row);
       if (row.estimatedInr > 0 && before === 'sent' && status !== 'sent') await this.checkBudget(sessionId);
+      // Meta bills a paid message once it is delivered; the customer's wallet is charged at the same
+      // moment (failed messages cost nothing). The wallet ignores a repeat for the same message.
+      const delivered = (s: string) => s === 'delivered' || s === 'read';
+      if (this.wallet && row.billable && row.estimatedInr > 0 && delivered(row.status) && !delivered(before)) {
+        await this.wallet.chargeMessage(sessionId, waMessageId, row.category);
+      }
     } catch (err) {
       this.logger.warn(`Could not record status for ${waMessageId}: ${String(err)}`);
     }

@@ -74,6 +74,7 @@
     "roles": "角色与 RBAC",
     "dashboard": "仪表盘",
     "sessions": "会话",
+    "wallet": "Wallet",
     "chats": "聊天",
     "webhooks": "Webhooks",
     "templates": "Templates",

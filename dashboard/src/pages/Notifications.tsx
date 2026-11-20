@@ -71,6 +71,13 @@ const TYPE_CONFIG: Record<
     color: '#9333ea',
     route: '/sync',
   },
+  wallet_low: {
+    label: 'Wallet',
+    icon: '💳',
+    bg: 'rgba(239, 68, 68, 0.12)',
+    color: '#dc2626',
+    route: '/wallet',
+  },
   budget_alert: {
     label: 'WhatsApp Budget',
     icon: '💰',

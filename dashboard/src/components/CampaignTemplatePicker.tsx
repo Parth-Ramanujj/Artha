@@ -79,6 +79,7 @@ export function CampaignTemplatePicker({
       complete
         ? {
             name: selected.name,
+            category: selected.category.toLowerCase(),
             language: selected.language,
             bodyParams: params.map(p => p.trim()),
             ...(selected.parameterFormat === 'NAMED' ? { paramNames: names } : {}),

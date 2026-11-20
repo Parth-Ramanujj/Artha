@@ -74,6 +74,7 @@
     "roles": "역할 및 RBAC",
     "dashboard": "대시보드",
     "sessions": "세션",
+    "wallet": "Wallet",
     "chats": "채팅",
     "webhooks": "웹훅",
     "templates": "템플릿",

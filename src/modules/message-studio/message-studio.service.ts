@@ -40,6 +40,7 @@ import { SendPart, SendPlan, buildSendPlan } from './send-plan';
 import { buildMetaTemplatePayload, templateVariableNames } from './meta-template-payload';
 import { metaTemplateComponents, readMetaTemplate } from '../campaign/campaign-meta-template';
 import { MessageCostsService } from '../message-costs/message-costs.service';
+import { WalletService } from '../wallet/wallet.service';
 import type {
   CreateMetaTemplateDto,
   StudioImageUploadDto,
@@ -170,6 +171,7 @@ export class MessageStudioService {
     private readonly engines: EngineRegistry,
     @Optional() private readonly messageService?: MessageService,
     @Optional() private readonly messageCosts?: MessageCostsService,
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   // ── sessions & capabilities ──
@@ -278,6 +280,8 @@ export class MessageStudioService {
     }
     const template = readMetaTemplate({ metaTemplate });
     if (!template) throw new BadRequestException('Choose an approved template.');
+    const afford = await this.wallet?.canAfford(sessionId, template.category ?? 'marketing');
+    if (afford && !afford.ok) throw new BadRequestException(afford.reason);
     try {
       const result = await engine.sendTemplateMessage(
         `${phone}@c.us`,

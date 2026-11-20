@@ -36,6 +36,8 @@ export const PUBLIC_PATHS = [
   '/api/assistant/{token}',
   '/api/assistant/{token}/chat',
   '/api/assistant/{token}/voice',
+  // Razorpay payment webhook: every request must carry Razorpay's HMAC signature.
+  '/api/wallet/razorpay/webhook',
 ];
 
 const HTTP_METHODS = ['get', 'post', 'put', 'delete', 'patch', 'options', 'head', 'trace', 'search'] as const;

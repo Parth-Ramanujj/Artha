@@ -19,6 +19,8 @@ export interface CampaignMetaTemplate {
   /** COPY_CODE button: its position among the buttons and the code to copy. */
   couponCode?: string;
   couponIndex?: number;
+  /** Meta category of the template (marketing/utility/…), for wallet checks before sending. */
+  category?: string;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -34,6 +36,7 @@ export function readMetaTemplate(options: Record<string, unknown> | null): Campa
     language: str(t.language)!,
     bodyParams: Array.isArray(t.bodyParams) ? t.bodyParams.map(p => String(p)) : [],
     ...(Array.isArray(t.paramNames) ? { paramNames: t.paramNames.map(p => String(p)) } : {}),
+    ...(str(t.category) ? { category: str(t.category)!.toLowerCase() } : {}),
     ...(str(t.headerParam) ? { headerParam: str(t.headerParam) } : {}),
     ...(str(t.headerParamName) ? { headerParamName: str(t.headerParamName) } : {}),
     ...(str(t.nameFallback) ? { nameFallback: str(t.nameFallback) } : {}),

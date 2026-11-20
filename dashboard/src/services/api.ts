@@ -1862,6 +1862,7 @@ export interface Campaign {
       headerLocation?: { latitude: number; longitude: number; name?: string; address?: string };
       couponCode?: string;
       couponIndex?: number;
+      category?: string;
     };
   } | null;
   status: string;
@@ -2342,6 +2343,78 @@ export interface DeliveryReport {
 }
 
 /** WhatsApp message costs: Meta's price per message (from status webhooks), the real Meta bill, advice. */
+export type WalletRates = Record<'marketing' | 'utility' | 'authentication' | 'service', number>;
+
+export interface WalletOverview {
+  enabled: boolean;
+  balancePaise: number;
+  blockWhenEmpty: boolean;
+  lowBalanceAlertPaise: number;
+  ratesPaise: WalletRates;
+  razorpay: { configured: boolean; keyId: string | null };
+  limits: { minRechargeInr: number; maxRechargeInr: number };
+  isPlatformAdmin: boolean;
+}
+
+export interface WalletTx {
+  id: string;
+  type: 'recharge' | 'charge' | 'adjustment';
+  status: 'pending' | 'success' | 'failed';
+  amountPaise: number;
+  balanceAfterPaise: number | null;
+  description: string;
+  reference: string;
+  razorpayPaymentId: string | null;
+  createdAt: string;
+}
+
+export interface AdminWalletRow {
+  businessId: string;
+  name: string;
+  active: boolean;
+  enabled: boolean;
+  balancePaise: number;
+  blockWhenEmpty: boolean;
+  ratesPaise: WalletRates | null;
+}
+
+/** Customer wallet: prepaid balance for WhatsApp messages, recharged through Razorpay. */
+export const walletApi = {
+  overview: () => request<WalletOverview>('/wallet'),
+  transactions: (params: { limit?: number; offset?: number; type?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.offset) q.set('offset', String(params.offset));
+    if (params.type) q.set('type', params.type);
+    return request<{ items: WalletTx[]; total: number }>(`/wallet/transactions?${q.toString()}`);
+  },
+  createOrder: (amountInr: number) =>
+    request<{ orderId: string; amountPaise: number; currency: string; keyId: string }>('/wallet/recharge/order', {
+      method: 'POST',
+      body: JSON.stringify({ amountInr }),
+    }),
+  verify: (input: { orderId: string; paymentId: string; signature: string }) =>
+    request<{ credited: boolean; balancePaise: number | null }>('/wallet/recharge/verify', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  setAlert: (lowBalanceAlertInr: number) =>
+    request<unknown>('/wallet/alert', { method: 'PUT', body: JSON.stringify({ lowBalanceAlertInr }) }),
+  adminWallets: () => request<AdminWalletRow[]>('/wallet/admin/wallets'),
+  adminUpdate: (businessId: string, patch: { enabled?: boolean; blockWhenEmpty?: boolean; ratesPaise?: WalletRates | null }) =>
+    request<unknown>(`/wallet/admin/wallets/${encodeURIComponent(businessId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+  adminAdjust: (businessId: string, amountInr: number, note: string) =>
+    request<{ balancePaise: number }>(`/wallet/admin/wallets/${encodeURIComponent(businessId)}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ amountInr, note }),
+    }),
+  adminSetRates: (rates: WalletRates) =>
+    request<WalletRates>('/wallet/admin/rates', { method: 'PUT', body: JSON.stringify(rates) }),
+};
+
 export const messageCostsApi = {
   summary: (days: number) => request<MessageCostSummary>(`/message-costs/summary?days=${days}`),
   suggestions: (days: number) => request<CostSuggestion[]>(`/message-costs/suggestions?days=${days}`),

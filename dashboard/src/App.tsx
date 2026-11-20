@@ -44,6 +44,7 @@ const FollowupRecovery = lazy(() => import('./pages/FollowupRecovery').then(m =>
 const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads })));
 const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
 const MessageCosts = lazy(() => import('./pages/MessageCosts').then(m => ({ default: m.MessageCosts })));
+const WalletPage = lazy(() => import('./pages/Wallet').then(m => ({ default: m.Wallet })));
 const WhatsAppTemplates = lazy(() =>
   import('./pages/WhatsAppTemplates').then(m => ({ default: m.WhatsAppTemplates })),
 );
@@ -199,6 +200,7 @@ function AppContent() {
               <Route path="message-studio" element={<MessageStudio />} />
               <Route path="whatsapp-templates" element={<WhatsAppTemplates />} />
               <Route path="message-costs" element={<MessageCosts />} />
+              <Route path="wallet" element={<WalletPage />} />
               <Route path="message-studio/:id" element={<MessageComposer />} />
               <Route path="whatsapp-forms" element={<WhatsAppForms />} />
               <Route path="whatsapp-forms/:id" element={<WhatsAppFormBuilder />} />

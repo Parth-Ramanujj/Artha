@@ -1,3 +1,4 @@
+import { WalletModule } from '../wallet/wallet.module';
 import { MessageCostsModule } from '../message-costs/message-costs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -18,6 +19,7 @@ import { CampaignAnalyticsController } from './campaign-analytics.controller';
       'data',
     ),
     MessageCostsModule,
+    WalletModule,
   ],
   controllers: [ScheduledMessageController, CampaignController, ConsentController, CampaignAnalyticsController],
   providers: [CampaignService],

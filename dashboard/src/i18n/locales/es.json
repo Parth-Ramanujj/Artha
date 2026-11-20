@@ -74,6 +74,7 @@
     "roles": "Roles y RBAC",
     "dashboard": "Panel",
     "sessions": "Sesiones",
+    "wallet": "Wallet",
     "chats": "Chats",
     "webhooks": "Webhooks",
     "apiKeys": "Claves API",

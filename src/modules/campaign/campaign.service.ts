@@ -29,6 +29,7 @@ import { Conversation } from '../conversation/entities/conversation.entity';
 import { hasDndTag } from '../conversation/dnd';
 import { metaTemplateComponents, readMetaTemplate } from './campaign-meta-template';
 import { MessageCostsService } from '../message-costs/message-costs.service';
+import { WalletService } from '../wallet/wallet.service';
 
 const OPTED_OUT_REASON = 'Contact opted out (DND)';
 
@@ -57,6 +58,7 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Conversation, 'data')
     private readonly conversationRepo: Repository<Conversation>,
     @Optional() private readonly messageCosts?: MessageCostsService,
+    @Optional() private readonly wallet?: WalletService,
   ) {}
 
   /**
@@ -467,6 +469,19 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
           if (metaTemplate) {
             if (typeof engine.sendTemplateMessage !== 'function') {
               throw new Error('This WhatsApp number cannot send approved Meta templates (Cloud API only)');
+            }
+            // A prepaid customer whose wallet can't cover the next message: pause instead of sending
+            // messages nobody will pay for. Recharging and pressing Start continues where it stopped.
+            const afford = await this.wallet?.canAfford(campaign.sessionId, metaTemplate.category ?? 'marketing');
+            if (afford && !afford.ok) {
+              await this.campaignRepo.update({ id: campaignId }, { status: CampaignStatus.PAUSED });
+              await this.wallet?.notify(
+                campaign.businessId,
+                'Campaign paused: wallet balance too low',
+                `${campaign.name}: ${afford.reason}`,
+              );
+              this.logger.warn(`Campaign ${campaignId} paused: ${afford.reason}`);
+              return;
             }
             const sent = await engine.sendTemplateMessage(
               recipient.chatId,

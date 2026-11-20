@@ -6,6 +6,7 @@ import { Campaign } from '../campaign/entities/campaign.entity';
 import { CampaignRecipient } from '../campaign/entities/campaign-recipient.entity';
 import { Notification } from '../conversation/entities/notification.entity';
 import { BusinessModule } from '../business/business.module';
+import { WalletModule } from '../wallet/wallet.module';
 import { MessageCharge } from './entities/message-charge.entity';
 import { MessageCostSetting } from './entities/message-cost-setting.entity';
 import { MessageCostsService } from './message-costs.service';
@@ -22,6 +23,7 @@ import { MessageCostsController } from './message-costs.controller';
       'data',
     ),
     BusinessModule,
+    WalletModule,
   ],
   controllers: [MessageCostsController],
   providers: [MessageCostsService],

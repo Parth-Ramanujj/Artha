@@ -56,6 +56,7 @@ import {
   ShieldAlert,
   BadgeCheck,
   Wallet,
+  CreditCard,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -74,6 +75,7 @@ interface LayoutProps {
 const allNavItems = [
   { to: '/', icon: LayoutDashboard, key: 'dashboard' as const, adminOnly: false },
   { to: '/sessions', icon: Smartphone, key: 'sessions' as const, adminOnly: false },
+  { to: '/wallet', icon: CreditCard, key: 'wallet' as const, adminOnly: false },
   { to: '/chats', icon: MessageSquare, key: 'chats' as const, adminOnly: false },
   { to: '/webhooks', icon: Webhook, key: 'webhooks' as const, adminOnly: false },
   { to: '/templates', icon: ClipboardList, key: 'templates' as const, adminOnly: false },
@@ -137,6 +139,7 @@ const NAV_HINTS: Record<string, string> = {
   '/whatsapp-forms': 'In-WhatsApp forms (Meta Flows)',
   '/wa-pricing': 'How Meta charges per message',
   '/message-costs': 'What your WhatsApp messages cost and how to spend less',
+  '/wallet': 'Your prepaid balance: recharge with Razorpay and see every charge',
   '/chatbot-training': 'Teach the AI about your business and let it reply to chats',
   '/ai-agents': 'Separate AI agents with their own instructions and voice',
   '/sales-agent': 'Finds new business prospects and messages them',
@@ -151,7 +154,7 @@ const NAV_HINTS: Record<string, string> = {
 };
 
 const navSections: { id: string; paths: string[] }[] = [
-  { id: 'core', paths: ['/', '/sessions'] },
+  { id: 'core', paths: ['/', '/sessions', '/wallet'] },
   // Talking to people right now.
   { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/notifications'] },
   // What you send: approved templates first (the only way to reach new people), then reusable content.
