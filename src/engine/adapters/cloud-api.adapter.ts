@@ -58,7 +58,6 @@ import {
   MessageType,
   ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
-import type { ChatKind } from '../identity/wa-id';
 import { CATALOG_MAX, formatPrice } from './catalog-format';
 import { scalarToString } from '../../common/utils/scalar-string';
 
@@ -563,7 +562,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       timestamp,
       fromMe: false,
       isGroup: false,
-      kind: 'user' as ChatKind,
+      kind: 'individual',
       contact: contactInfo
         ? {
             id: from,
