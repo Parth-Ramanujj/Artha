@@ -1794,3 +1794,70 @@
 .message-studio-page .mt-button-fields > .ms-field {
   flex: 1 1 200px;
 }
+
+/* AI suggestion + category guide */
+.message-studio-page .mt-ai {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.message-studio-page .mt-ai .mt-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.message-studio-page .mt-ai-lang {
+  width: auto;
+}
+.message-studio-page .mt-ai > .btn {
+  align-self: flex-start;
+}
+.message-studio-page .mt-ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--bg-card, var(--bg-white));
+  font-size: 0.85rem;
+}
+.message-studio-page .mt-ai-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.message-studio-page .mt-ai-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+}
+.message-studio-page .mt-ai-text {
+  margin: 0.25rem 0 0.4rem;
+  padding: 0.6rem;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+.message-studio-page .mt-guide {
+  font-size: 0.85rem;
+}
+.message-studio-page .mt-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary-hover);
+}
+.message-studio-page .mt-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0.6rem 0;
+}
+.message-studio-page .mt-guide-example {
+  margin: 0.3rem 0 0;
+  padding: 0.5rem;
+  border-left: 3px solid var(--primary);
+  background: var(--bg-tertiary);
+  font-size: 0.8rem;
+}

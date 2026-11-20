@@ -16,6 +16,7 @@ import {
 import { templatePrice } from '../../utils/templatePricing';
 import { HeaderImagePicker, type PickedImage } from './HeaderImagePicker';
 import { MetaTemplateButtons } from './MetaTemplateButtons';
+import { TemplateAiAdvice } from './TemplateAiAdvice';
 import { WhatsAppPreview } from './WhatsAppPreview';
 
 const LANGUAGES = [
@@ -229,6 +230,35 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
                 </select>
               </label>
             </div>
+            <details className="mt-guide">
+              <summary>Marketing or Utility? How Meta decides</summary>
+              <div className="mt-guide-grid">
+                <div>
+                  <strong>Utility ≈ ₹0.12</strong>
+                  <p className="mt-help">
+                    About something the customer already did or asked for: an order, booking, payment, registration,
+                    appointment or request. No offers, no “join us”, no selling.
+                  </p>
+                  <p className="mt-guide-example">
+                    “Hi {'{{1}}'}, your agent registration #{'{{2}}'} is approved. Log in to view your leads.”
+                  </p>
+                </div>
+                <div>
+                  <strong>Marketing ≈ ₹0.78</strong>
+                  <p className="mt-help">
+                    Anything that promotes, invites, offers a discount, announces something new or asks people to join
+                    or buy — even to existing customers.
+                  </p>
+                  <p className="mt-guide-example">
+                    “Hi {'{{1}}'}! Are you an insurance agent? Join पडोसीAgent and get customers near you.”
+                  </p>
+                </div>
+              </div>
+              <p className="mt-help">
+                A “Utility” template with any promotion inside is changed to Marketing by Meta. Not sure? Use “Check with
+                AI” below.
+              </p>
+            </details>
           </Card>
 
           <Card title="Content">
@@ -421,6 +451,8 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
               </div>
             </label>
           </Card>
+
+          <TemplateAiAdvice draft={draft} onApply={patch => setDraft(d => ({ ...d, ...patch }))} />
 
           <MetaTemplateButtons buttons={draft.buttons} category={draft.category} onChange={b => set('buttons', b)} />
 

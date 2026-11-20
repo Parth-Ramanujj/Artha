@@ -179,6 +179,17 @@ export interface NewMetaTemplate {
   autoTestPhone?: string;
 }
 
+/** AI review of a template draft (POST /message-studio/templates/advice). */
+export interface TemplateAdvice {
+  category: 'MARKETING' | 'UTILITY';
+  reason: string;
+  risks: string[];
+  improvedBody: string;
+  utilityBody: string | null;
+  utilityNote: string;
+  tips: string[];
+}
+
 /** A template waiting to be sent to the test phone after approval, and what happened. */
 export interface TemplateAutoTest {
   sessionId: string;

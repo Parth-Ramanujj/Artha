@@ -21,9 +21,11 @@ import { sessionScopeVisible } from '../../common/security/session-scope';
 import { Session } from '../session/entities/session.entity';
 import { MessageStudioService } from './message-studio.service';
 import { TemplateAutoTestService, normalizeTestPhone } from './template-auto-test.service';
+import { TemplateAdviceService } from './template-advice.service';
 import {
   ArchiveStudioMessageDto,
   AutoTestRetryDto,
+  TemplateAdviceDto,
   CreateMetaTemplateDto,
   ListStudioMessagesQueryDto,
   ProductDto,
@@ -47,6 +49,7 @@ export class MessageStudioController {
     private readonly studio: MessageStudioService,
     private readonly businessService: BusinessService,
     private readonly autoTests: TemplateAutoTestService,
+    private readonly advice: TemplateAdviceService,
   ) {}
 
   private async defaultBusinessId(): Promise<string> {
@@ -92,6 +95,14 @@ export class MessageStudioController {
     const created = await this.studio.createTemplate(session!.id, dto);
     if (phone) await this.autoTests.watch(businessId, session!.id, dto.name, dto.language, phone);
     return created;
+  }
+
+  @Post('templates/advice')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'AI review of a template draft: likely category, approval risks and a rewrite' })
+  async templateAdvice(@Body() dto: TemplateAdviceDto) {
+    return this.advice.advise(dto);
   }
 
   @Get('templates/auto-tests')

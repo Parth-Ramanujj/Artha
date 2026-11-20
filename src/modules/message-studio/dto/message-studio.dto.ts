@@ -256,6 +256,47 @@ export class CreateMetaTemplateDto extends SessionRefDto {
   autoTestPhone?: string;
 }
 
+export class TemplateAdviceDto {
+  @ApiProperty({ enum: ['MARKETING', 'UTILITY'] })
+  @IsIn(['MARKETING', 'UTILITY'])
+  category: 'MARKETING' | 'UTILITY';
+
+  @ApiProperty({ example: 'en' })
+  @IsString()
+  @MaxLength(10)
+  language: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  headerText?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MaxLength(1024)
+  body: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  footer?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Button labels' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(30, { each: true })
+  buttons?: string[];
+
+  @ApiPropertyOptional({ enum: ['en', 'gu'], description: 'Language of the explanations' })
+  @IsOptional()
+  @IsIn(['en', 'gu'])
+  explainIn?: 'en' | 'gu';
+}
+
 export class AutoTestRetryDto extends SessionRefDto {
   @ApiProperty()
   @IsString()

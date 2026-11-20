@@ -12,6 +12,7 @@ import type {
   StudioProduct,
   StudioTemplate,
   StudioTestResult,
+  TemplateAdvice,
   TemplateAutoTest,
   ValidationResult,
 } from '../types/messageStudio';
@@ -2920,6 +2921,15 @@ export const messageStudioApi = {
     }),
   uploadImage: (input: { sessionId: string; base64: string; mimetype: string; filename?: string }) =>
     request<{ id: string }>('/message-studio/media', { method: 'POST', body: JSON.stringify(input) }),
+  templateAdvice: (input: {
+    category: 'MARKETING' | 'UTILITY';
+    language: string;
+    headerText?: string;
+    body: string;
+    footer?: string;
+    buttons?: string[];
+    explainIn?: 'en' | 'gu';
+  }) => request<TemplateAdvice>('/message-studio/templates/advice', { method: 'POST', body: JSON.stringify(input) }),
   autoTests: () =>
     request<{ testPhone: string | null; autoTests: TemplateAutoTest[] }>('/message-studio/templates/auto-tests'),
   retryAutoTest: (input: { sessionId: string; name: string; language: string }) =>
