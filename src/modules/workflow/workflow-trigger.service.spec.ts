@@ -183,6 +183,25 @@ describe('WorkflowTriggerService', () => {
     expect(executor.execute).toHaveBeenCalled();
   });
 
+  it('answers a message only once when the same message arrives twice (Meta retry / number connected twice)', async () => {
+    triggerService.onModuleInit();
+    const msg = {
+      fromMe: false,
+      id: 'wamid.same',
+      chatId: '919876543210@c.us',
+      from: '919876543210@c.us',
+      body: 'Hello bot',
+      type: 'text',
+      kind: 'individual',
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+    await registeredHookCallback?.({ sessionId: 'sess-1', data: { ...msg } });
+    await registeredHookCallback?.({ sessionId: 'sess-2', data: { ...msg } });
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    expect(workflowService.createRun).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
     ['a group', { chatId: '120363000000@g.us', isGroup: true, kind: 'group' }],
     ['a channel', { chatId: '120363158599536155@newsletter', kind: 'channel' }],

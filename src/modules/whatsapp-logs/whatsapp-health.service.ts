@@ -58,6 +58,21 @@ export class WhatsAppHealthService {
     const engine = this.engines.get(sessionId);
     const cloud = engine instanceof CloudApiAdapter ? engine : null;
 
+    if (cloud) {
+      const twins = [...this.engines.entries()]
+        .filter(([id, e]) => id !== sessionId && e instanceof CloudApiAdapter)
+        .filter(([, e]) => (e as CloudApiAdapter).getPhoneNumberId() === cloud.getPhoneNumberId())
+        .map(([id]) => id);
+      if (twins.length)
+        checks.push({
+          id: 'twin',
+          ok: false,
+          title: 'This number is connected more than once in Artha',
+          detail: `Other sessions with the same phone number id: ${twins.join(', ')}. Each customer message reaches all of them, so a workflow in one and the AI in another can both reply.`,
+          fix: 'Keep one session for this number: stop and delete the others in Sessions.',
+        });
+    }
+
     checks.push(
       cloud
         ? {
@@ -114,6 +129,14 @@ export class WhatsAppHealthService {
         const apps = await cloud.getSubscribedApps();
         const appId = cloud.getAppId();
         const ours = appId ? apps.some(a => a.id === appId) : apps.length > 0;
+        if (ours && apps.length > 1)
+          checks.push({
+            id: 'other_apps',
+            ok: null,
+            title: `${apps.length - 1} other app(s) also receive this account’s messages`,
+            detail: `Subscribed apps: ${apps.map(a => `${a.name || '?'} (${a.id})`).join(', ')}.`,
+            fix: 'If another server or bot (e.g. an old Artha site) uses one of them, customers get two replies. Remove that app in Meta Business Settings → Accounts → WhatsApp accounts → Connected apps, or stop that server.',
+          });
         checks.push({
           id: 'subscribed',
           ok: ours,

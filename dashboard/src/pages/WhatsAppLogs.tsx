@@ -276,6 +276,7 @@ const ACTIVITY_ICON: Record<string, typeof Zap> = {
   'ai.skipped': Bot,
   'ai.handoff': Bot,
   'automation.handled': Workflow,
+  'automation.duplicate': Workflow,
 };
 
 function ActivityRow({ e }: { e: WhatsAppLogEvent }) {

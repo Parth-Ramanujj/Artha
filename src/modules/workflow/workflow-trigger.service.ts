@@ -21,10 +21,14 @@ import { DND_TAG, hasDndTag, isOptInMessage } from '../conversation/dnd';
 import { SALES_AGENT_TAG } from '../sales-agent/sales-rules';
 import { WhatsAppLogsService, type EventLevel } from '../whatsapp-logs/whatsapp-logs.service';
 
+/** Messages already answered, so a repeat of the same message gets no second reply. */
+const SEEN_MAX = 5000;
+
 @Injectable()
 export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = createLogger('WorkflowTrigger');
   private readonly hookIds: string[] = [];
+  private readonly seen = new Set<string>();
 
   constructor(
     private readonly hookManager: HookManager,
@@ -54,6 +58,18 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
             return Promise.resolve({ continue: true });
           }
 
+          // Meta re-sends a webhook it thinks we missed (e.g. while the server was waking up), and a
+          // number connected twice delivers each message to both sessions: answer each message once.
+          if (!this.firstTime(msg)) {
+            this.note(
+              hookCtx.sessionId,
+              msg,
+              'automation.duplicate',
+              'warning',
+              'The same message arrived again (Meta re-sent it, or this number is connected twice); it was not answered again.',
+            );
+            return Promise.resolve({ continue: true });
+          }
           void this.handleMessageTrigger(hookCtx.sessionId, msg).catch(err =>
             this.logger.error('Workflow trigger error', err instanceof Error ? err.message : String(err)),
           );
@@ -263,6 +279,17 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     ) {
       await this.conversationService.updateConversation(conv.id, businessId, { status: ConversationStatus.PENDING });
     }
+  }
+
+  /** True the first time a message (by chat + id) is seen; ids without a value are always new. */
+  private firstTime(msg: IncomingMessage): boolean {
+    if (!msg.id) return true;
+    const key = `${msg.chatId}:${msg.id}`;
+    if (this.seen.has(key)) return false;
+    // shortcut: memory only, so it covers one server; two servers on the same number still both reply.
+    if (this.seen.size >= SEEN_MAX) this.seen.delete(this.seen.values().next().value as string);
+    this.seen.add(key);
+    return true;
   }
 
   /** Why a customer message got (or did not get) an automatic answer, for Message Logs. */
