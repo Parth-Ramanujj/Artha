@@ -290,6 +290,44 @@ const ALLOWLIST = new Map<string, string>([
     'message-studio.controller.ts :: updateSettings',
     'business-scoped via businessId(apiKey); a session in query/body is checked against allowedSessions — MessageStudioController',
   ],
+  [
+    'message-studio.controller.ts :: createTemplate',
+    'the body sessionId goes through session() (allowedSessions + business)',
+  ],
+  [
+    'message-studio.controller.ts :: sendApprovedTemplate',
+    'the body sessionId goes through session() (allowedSessions + business)',
+  ],
+  [
+    'message-studio.controller.ts :: uploadImage',
+    'the body sessionId goes through session() (allowedSessions + business)',
+  ],
+  [
+    'message-studio.controller.ts :: retryAutoTest',
+    'the body sessionId goes through session() (allowedSessions + business)',
+  ],
+  ['message-studio.controller.ts :: listAutoTests', 'business-scoped; rows filtered with sessionScopeVisible'],
+  [
+    'message-studio.controller.ts :: templateAdvice',
+    'sends only the posted draft text to the AI; reads no tenant data',
+  ],
+  [
+    'message-costs.controller.ts :: summary',
+    'business-scoped; sessions narrowed with sessionScopeVisible in the service',
+  ],
+  [
+    'message-costs.controller.ts :: suggestions',
+    'business-scoped; sessions narrowed with sessionScopeVisible in the service',
+  ],
+  [
+    'message-costs.controller.ts :: precheck',
+    'business-scoped; sessions narrowed with sessionScopeVisible in the service',
+  ],
+  [
+    'message-costs.controller.ts :: metaBill',
+    'sessionScopeVisible in the handler + business ownership check in the service',
+  ],
+  ['message-costs.controller.ts :: getSettings', 'business-wide budget number only; no per-session data'],
 ]);
 
 /**

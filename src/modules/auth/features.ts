@@ -24,7 +24,7 @@ export const FEATURE_CONTROLLER_PATHS = {
   support: ['sla', 'advisor-alerts', 'feedback'],
   followup: ['followup'],
   workflows: ['workflows', 'workflows/analytics', 'ab-tests'],
-  campaigns: ['campaigns', 'campaigns/analytics', 'scheduled-messages', 'consent'],
+  campaigns: ['campaigns', 'campaigns/analytics', 'scheduled-messages', 'consent', 'message-costs'],
   ai: ['ai'],
   aiCalling: ['ai-calling', 'ai-calling/twilio'],
   customerCare: ['customer-care', 'assistant'],

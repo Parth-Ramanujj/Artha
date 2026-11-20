@@ -40,7 +40,6 @@ import {
   Timer,
   FlaskConical,
   Plug,
-  GraduationCap,
   BarChart3,
   Activity,
   BellRing,
@@ -56,6 +55,7 @@ import {
   ShoppingBag,
   ShieldAlert,
   BadgeCheck,
+  Wallet,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -84,7 +84,6 @@ const allNavItems = [
   { to: '/conversations', icon: Inbox, key: 'conversations' as const, adminOnly: false },
   { to: '/workflows', icon: GitBranch, key: 'workflows' as const, adminOnly: false },
   { to: '/campaigns', icon: Megaphone, key: 'campaigns' as const, adminOnly: false },
-  { to: '/ai', icon: Bot, key: 'ai' as const, adminOnly: false },
   { to: '/workspaces', icon: Building2, key: 'workspaces' as const, adminOnly: true },
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
@@ -98,8 +97,9 @@ const allNavItems = [
   { to: '/sla', icon: Timer, key: 'sla' as const, adminOnly: false },
   { to: '/ab-testing', icon: FlaskConical, key: 'abTesting' as const, adminOnly: false },
   { to: '/integrations', icon: Plug, key: 'integrations' as const, adminOnly: true },
-  { to: '/chatbot-training', icon: GraduationCap, key: 'chatbotTraining' as const, adminOnly: false },
+  { to: '/chatbot-training', icon: Bot, key: 'chatbotTraining' as const, adminOnly: false },
   { to: '/campaign-analytics', icon: BarChart3, key: 'campaignAnalytics' as const, adminOnly: false },
+  { to: '/message-costs', icon: Wallet, key: 'messageCosts' as const, adminOnly: false },
   { to: '/workflow-analytics', icon: Activity, key: 'workflowAnalytics' as const, adminOnly: false },
   { to: '/advisor-alerts', icon: BellRing, key: 'advisorAlerts' as const, adminOnly: false },
   { to: '/feedback', icon: Star, key: 'feedback' as const, adminOnly: false },
@@ -122,6 +122,9 @@ const allNavItems = [
 
 type NavItemDef = (typeof allNavItems)[number];
 
+/** Routes App.tsx only mounts for admins and operators; viewers would land on a silent redirect. */
+const OPERATOR_ROUTES = new Set(['/ai', '/assignment-rules']);
+
 /** Hover help for the look-alike items, so people pick the right one. */
 const NAV_HINTS: Record<string, string> = {
   '/chats': 'Live WhatsApp chats — read and reply',
@@ -133,6 +136,18 @@ const NAV_HINTS: Record<string, string> = {
   '/canned-responses': 'Short /shortcut replies',
   '/whatsapp-forms': 'In-WhatsApp forms (Meta Flows)',
   '/wa-pricing': 'How Meta charges per message',
+  '/message-costs': 'What your WhatsApp messages cost and how to spend less',
+  '/chatbot-training': 'Teach the AI about your business and let it reply to chats',
+  '/ai-agents': 'Separate AI agents with their own instructions and voice',
+  '/sales-agent': 'Finds new business prospects and messages them',
+  '/growth': 'QR code, website chat button, greetings and daily summary',
+  '/library': 'Posts for WhatsApp Status and chats',
+  '/followup': 'Re-engage chats that went quiet',
+  '/sync': 'Sync contacts with Google Sheets and CRMs',
+  '/commerce': 'Preview — not connected to a real Shopify store yet',
+  '/roles': 'Preview — saved only in this browser and not enforced',
+  '/workspaces': 'Your businesses, plans and members',
+  '/logs': 'Who did what, and when',
 };
 
 const navSections: { id: string; paths: string[] }[] = [
@@ -151,28 +166,19 @@ const navSections: { id: string; paths: string[] }[] = [
       '/wa-pricing',
     ],
   },
-  { id: 'crm', paths: ['/leads', '/sales-pipeline', '/contact-segments'] },
-  { id: 'calling', paths: ['/ai-calling', '/customer-care'] },
+  { id: 'crm', paths: ['/leads', '/sales-pipeline', '/contact-segments', '/sales-agent'] },
+  // Reaching people in bulk and on other channels.
   {
-    id: 'automation',
-    paths: [
-      '/workflows',
-      '/campaigns',
-      '/ai',
-      '/ai-agents',
-      '/sales-agent',
-      '/google-business',
-      '/library',
-      '/growth',
-      '/social-automation',
-      '/chatbot-training',
-      '/assignment-rules',
-      '/followup',
-      '/ab-testing',
-    ],
+    id: 'marketing',
+    paths: ['/campaigns', '/growth', '/library', '/social-automation', '/google-business', '/ab-testing'],
   },
+  // Rules that run by themselves.
+  { id: 'automation', paths: ['/workflows', '/followup', '/assignment-rules'] },
+  // /chatbot-training is the full AI assistant page; /ai edits the same settings, so only one is listed.
+  { id: 'ai', paths: ['/chatbot-training', '/ai-agents'] },
+  { id: 'calling', paths: ['/ai-calling', '/customer-care'] },
   { id: 'support', paths: ['/sla', '/advisor-alerts', '/feedback'] },
-  { id: 'analytics', paths: ['/campaign-analytics', '/workflow-analytics'] },
+  { id: 'analytics', paths: ['/message-costs', '/campaign-analytics', '/workflow-analytics'] },
   { id: 'integrations', paths: ['/webhooks', '/integrations', '/commerce', '/sync'] },
   { id: 'admin', paths: ['/workspaces', '/api-keys', '/roles', '/plugins', '/infrastructure', '/logs'] },
 ];
@@ -216,7 +222,9 @@ export function Layout({ onLogout, userRole, allowedFeatures }: LayoutProps) {
       ...section,
       items: section.paths
         .map(path => allNavItems.find(item => item.to === path))
-        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin') && isRouteAllowed(item.to, allowedFeatures)),
+        .filter((item): item is NavItemDef => !!item && (!item.adminOnly || userRole === 'admin') &&
+            !(userRole === 'viewer' && OPERATOR_ROUTES.has(item.to)) &&
+            isRouteAllowed(item.to, allowedFeatures)),
     }))
     .filter(group => group.items.length > 0);
 

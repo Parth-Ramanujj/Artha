@@ -1,3 +1,4 @@
+import { MessageCostsModule } from '../message-costs/message-costs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduledMessage } from './entities/scheduled-message.entity';
@@ -16,6 +17,7 @@ import { CampaignAnalyticsController } from './campaign-analytics.controller';
       [ScheduledMessage, Campaign, CampaignRecipient, ContactConsent, Template, Conversation],
       'data',
     ),
+    MessageCostsModule,
   ],
   controllers: [ScheduledMessageController, CampaignController, ConsentController, CampaignAnalyticsController],
   providers: [CampaignService],

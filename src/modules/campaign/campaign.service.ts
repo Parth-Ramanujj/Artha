@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   OnModuleInit,
   OnModuleDestroy,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, In } from 'typeorm';
@@ -27,6 +28,7 @@ import { BusinessService } from '../business/business.service';
 import { Conversation } from '../conversation/entities/conversation.entity';
 import { hasDndTag } from '../conversation/dnd';
 import { metaTemplateComponents, readMetaTemplate } from './campaign-meta-template';
+import { MessageCostsService } from '../message-costs/message-costs.service';
 
 const OPTED_OUT_REASON = 'Contact opted out (DND)';
 
@@ -54,6 +56,7 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
     private readonly engines: EngineRegistry,
     @InjectRepository(Conversation, 'data')
     private readonly conversationRepo: Repository<Conversation>,
+    @Optional() private readonly messageCosts?: MessageCostsService,
   ) {}
 
   /**
@@ -465,18 +468,36 @@ export class CampaignService implements OnModuleInit, OnModuleDestroy {
             if (typeof engine.sendTemplateMessage !== 'function') {
               throw new Error('This WhatsApp number cannot send approved Meta templates (Cloud API only)');
             }
-            await engine.sendTemplateMessage(
+            const sent = await engine.sendTemplateMessage(
               recipient.chatId,
               metaTemplate.name,
               metaTemplate.language,
               metaTemplateComponents(metaTemplate, recipient.contactName),
             );
+            // Ties Meta's price and delivery status (from the status webhook) back to this campaign.
+            await this.messageCosts?.recordSend({
+              sessionId: campaign.sessionId,
+              waMessageId: sent.id,
+              chatId: recipient.chatId,
+              campaignId,
+              source: 'campaign',
+            });
           } else {
             let text = baseText;
             if (recipient.contactName) {
               text = text.replace(/\{\{\s*name\s*\}\}/gi, recipient.contactName);
             }
-            await engine.sendTextMessage(recipient.chatId, text);
+            const sent = await engine.sendTextMessage(recipient.chatId, text);
+            // Only Cloud API numbers are charged per message; other engines never report a price.
+            if (typeof engine.sendTemplateMessage === 'function') {
+              await this.messageCosts?.recordSend({
+                sessionId: campaign.sessionId,
+                waMessageId: sent.id,
+                chatId: recipient.chatId,
+                campaignId,
+                source: 'campaign',
+              });
+            }
           }
 
           recipient.status = RecipientStatus.SENT;

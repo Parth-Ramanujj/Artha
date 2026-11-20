@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import {
   campaignApi,
+  messageCostsApi,
   scheduledMessageApi,
   sessionApi,
   templateApi,
@@ -63,6 +64,24 @@ export function Campaigns() {
   const [sessionTemplates, setSessionTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignRecipientsText, setCampaignRecipientsText] = useState('');
+  // Before sending: who is inside their free 24h window, and which numbers failed before.
+  const [precheck, setPrecheck] = useState<{ inWindow: number; failedBefore: number } | null>(null);
+  useEffect(() => {
+    const ids = parseCampaignRecipients(campaignRecipientsText)
+      .chatIds.map(n => (n.includes('@') ? n : `${n.replace(/\D/g, '')}@c.us`))
+      .filter(id => id !== '@c.us');
+    if (!ids.length) {
+      setPrecheck(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      messageCostsApi
+        .precheck(ids)
+        .then(setPrecheck)
+        .catch(() => setPrecheck(null));
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [campaignRecipientsText]);
   // Set by CampaignTemplatePicker: the filled-in template (null until complete) and whether one is picked.
   const [metaTemplate, setMetaTemplate] = useState<CampaignMetaTemplate | null>(null);
   const [metaTemplateSelected, setMetaTemplateSelected] = useState(false);
@@ -669,6 +688,21 @@ export function Campaigns() {
               <span style={{ fontSize: '0.8rem', color: 'var(--color-muted, #6b7280)' }}>
                 You can also add or import recipients after creating the campaign.
               </span>
+              {metaTemplateSelected && precheck && (precheck.inWindow > 0 || precheck.failedBefore > 0) && (
+                <div style={{ fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  {precheck.inWindow > 0 && (
+                    <span style={{ color: 'var(--color-success, #16a34a)' }}>
+                      💡 {precheck.inWindow} of these people messaged you in the last 24 hours — a normal reply from Chats
+                      is free for them; a paid template is not needed.
+                    </span>
+                  )}
+                  {precheck.failedBefore > 0 && (
+                    <span style={{ color: 'var(--color-warning, #d97706)' }}>
+                      ⚠️ {precheck.failedBefore} numbers failed before (not on WhatsApp or blocked). Consider removing them.
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">{t('campaigns.ratePerMinute', 'Rate Per Minute')}</label>

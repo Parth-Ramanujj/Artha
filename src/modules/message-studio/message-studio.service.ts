@@ -39,6 +39,7 @@ import {
 import { SendPart, SendPlan, buildSendPlan } from './send-plan';
 import { buildMetaTemplatePayload, templateVariableNames } from './meta-template-payload';
 import { metaTemplateComponents, readMetaTemplate } from '../campaign/campaign-meta-template';
+import { MessageCostsService } from '../message-costs/message-costs.service';
 import type {
   CreateMetaTemplateDto,
   StudioImageUploadDto,
@@ -168,6 +169,7 @@ export class MessageStudioService {
     @InjectRepository(Message, 'data') private readonly sentMessages: Repository<Message>,
     private readonly engines: EngineRegistry,
     @Optional() private readonly messageService?: MessageService,
+    @Optional() private readonly messageCosts?: MessageCostsService,
   ) {}
 
   // ── sessions & capabilities ──
@@ -283,6 +285,12 @@ export class MessageStudioService {
         template.language,
         metaTemplateComponents(template, contactName),
       );
+      await this.messageCosts?.recordSend({
+        sessionId,
+        waMessageId: result.id,
+        chatId: `${phone}@c.us`,
+        source: 'template_send',
+      });
       return { messageId: result.id };
     } catch (err) {
       throw new BadRequestException(`WhatsApp did not send it: ${err instanceof Error ? err.message : String(err)}`);

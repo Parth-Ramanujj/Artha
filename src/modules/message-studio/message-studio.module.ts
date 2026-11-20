@@ -15,6 +15,7 @@ import { MessageStudioController } from './message-studio.controller';
 import { TemplateAutoTestService } from './template-auto-test.service';
 import { TemplateAdviceService } from './template-advice.service';
 import { AiModule } from '../ai/ai.module';
+import { MessageCostsModule } from '../message-costs/message-costs.module';
 
 /**
  * Message Studio: reusable WhatsApp messages, the product catalog they draw from, and the sender
@@ -29,6 +30,7 @@ import { AiModule } from '../ai/ai.module';
     MessageModule,
     BusinessModule,
     AiModule,
+    MessageCostsModule,
   ],
   controllers: [MessageStudioController],
   providers: [MessageStudioService, TemplateAutoTestService, TemplateAdviceService],

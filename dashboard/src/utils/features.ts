@@ -29,6 +29,7 @@ export const ROUTE_FEATURE: Record<string, FeatureId> = {
   '/templates': 'templates',
   '/message-studio': 'messageStudio',
   '/whatsapp-templates': 'messageStudio',
+  '/message-costs': 'campaigns',
   '/whatsapp-forms': 'whatsappForms',
   '/conversations': 'conversations',
   '/canned-responses': 'conversations',

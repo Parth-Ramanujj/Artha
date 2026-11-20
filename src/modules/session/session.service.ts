@@ -1043,7 +1043,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           .catch(err => this.logger.error(`Failed to persist history messages for ${id}`, String(err)));
       },
       onMessageCreate: (message): void => this.messages.handleOwnSendEcho(id, engine, message),
-      onMessageAck: (messageId, status): void => this.messages.handleMessageAck(id, engine, messageId, status),
+      onMessageAck: (messageId, status, details): void =>
+        this.messages.handleMessageAck(id, engine, messageId, status, details),
       onMessageRevoked: (message): void => this.messages.handleMessageRevoked(id, engine, message),
       onMessageReaction: (event): void => {
         if (!this.isLiveEngine(id, engine)) return;

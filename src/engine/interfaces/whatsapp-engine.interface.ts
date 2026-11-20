@@ -399,6 +399,21 @@ export type ChatState = 'typing' | 'recording' | 'paused';
 export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 /**
+ * Extra facts an engine may know about a status update. Only the Cloud API reports them: Meta puts a
+ * `pricing` block (billable, category, type) and any error on its status webhooks.
+ */
+export interface MessageAckDetails {
+  /** Neutral chat id of the recipient. */
+  chatId?: string;
+  billable?: boolean;
+  /** Meta pricing category: marketing, utility, authentication, service … */
+  category?: string;
+  /** Meta pricing type: regular, free_customer_service, free_entry_point … */
+  pricingType?: string;
+  errorCode?: number;
+}
+
+/**
  * Structured payload for a remotely-revoked ("deleted for everyone") message.
  * The engine layer never emits a localized display string; `body` is intentionally
  * empty and the dashboard renders the localized "message deleted" text.
@@ -509,7 +524,7 @@ export interface EngineEventCallbacks {
    * Fired when the delivery status of an outgoing message advances. The adapter maps its native
    * delivery signal to the neutral `DeliveryStatus`, so consumers never see engine-specific codes.
    */
-  onMessageAck?: (messageId: string, status: DeliveryStatus) => void;
+  onMessageAck?: (messageId: string, status: DeliveryStatus, details?: MessageAckDetails) => void;
   onMessageRevoked?: (message: RevokedMessage) => void;
   onMessageReaction?: (event: ReactionEvent) => void;
   onMessageEdited?: (message: EditedMessage) => void;

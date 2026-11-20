@@ -2293,6 +2293,59 @@ export const abTestApi = {
 // Campaign Analytics
 // =============================================================================
 
+export interface MessageCostSummary {
+  days: number;
+  totals: { messages: number; inr: number; free: number; paid: number };
+  byCategory: Array<{ category: string; messages: number; paid: number; free: number; inr: number }>;
+  byDay: Array<{ date: string; messages: number; inr: number }>;
+  campaigns: Array<{
+    id: string;
+    name: string;
+    messages: number;
+    delivered: number;
+    failed: number;
+    inr: number;
+    replies: number;
+    costPerReply: number | null;
+  }>;
+  budget: { monthlyBudgetInr: number | null; monthSpendInr: number };
+}
+
+export interface CostSuggestion {
+  id: 'marketing_share' | 'paid_in_window' | 'failed_numbers' | 'too_frequent' | 'no_replies';
+  title: string;
+  detail: string;
+  savingInr: number;
+  numbers?: string[];
+}
+
+export interface MetaBill {
+  available: boolean;
+  reason?: string;
+  rows?: Array<{ category: string; type: string; volume: number; cost: number }>;
+  totalCost?: number;
+  totalVolume?: number;
+}
+
+/** WhatsApp message costs: Meta's price per message (from status webhooks), the real Meta bill, advice. */
+export const messageCostsApi = {
+  summary: (days: number) => request<MessageCostSummary>(`/message-costs/summary?days=${days}`),
+  suggestions: (days: number) => request<CostSuggestion[]>(`/message-costs/suggestions?days=${days}`),
+  metaBill: (sessionId: string, days: number) =>
+    request<MetaBill>(`/message-costs/meta-bill?sessionId=${encodeURIComponent(sessionId)}&days=${days}`),
+  precheck: (chatIds: string[]) =>
+    request<{ inWindow: number; failedBefore: number }>('/message-costs/precheck', {
+      method: 'POST',
+      body: JSON.stringify({ chatIds }),
+    }),
+  settings: () => request<{ monthlyBudgetInr: number | null }>('/message-costs/settings'),
+  saveSettings: (monthlyBudgetInr: number | null) =>
+    request<{ monthlyBudgetInr: number | null }>('/message-costs/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ monthlyBudgetInr }),
+    }),
+};
+
 export const campaignAnalyticsApi = {
   summary: () =>
     request<{

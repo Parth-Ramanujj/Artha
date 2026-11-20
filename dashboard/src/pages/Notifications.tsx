@@ -15,6 +15,7 @@ import {
 import { notificationApi, type Notification } from '../services/api';
 import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/Toast';
+import { useRole } from '../hooks/useRole';
 import './Notifications.css';
 
 const TYPE_CONFIG: Record<
@@ -70,6 +71,13 @@ const TYPE_CONFIG: Record<
     color: '#9333ea',
     route: '/sync',
   },
+  budget_alert: {
+    label: 'WhatsApp Budget',
+    icon: '💰',
+    bg: 'rgba(245, 158, 11, 0.12)',
+    color: '#d97706',
+    route: '/message-costs',
+  },
   system: {
     label: 'System Notification',
     icon: '🔔',
@@ -82,6 +90,7 @@ export function Notifications() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
+  const { isAdmin } = useRole();
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -254,12 +263,14 @@ export function Notifications() {
       ) : (
         <div className="notif-list">
           {filteredItems.map(item => {
-            const cfg = TYPE_CONFIG[item.type] || {
+            const base = TYPE_CONFIG[item.type] || {
               label: item.type,
               icon: '🔔',
               bg: 'rgba(107, 114, 128, 0.12)',
               color: '#4b5563',
             };
+            // /sync only exists for admins; for others the link would silently land on the dashboard.
+            const cfg = base.route === '/sync' && !isAdmin ? { ...base, route: undefined } : base;
 
             return (
               <div

@@ -121,7 +121,12 @@ export class MessageStudioController {
   @Get('templates/auto-tests')
   @ApiOperation({ summary: 'Templates waiting to be sent to the test number once approved, and what happened' })
   async listAutoTests(@CurrentApiKey() apiKey: ApiKey) {
-    return this.autoTests.list(await this.businessId(apiKey));
+    const result = await this.autoTests.list(await this.businessId(apiKey));
+    // A key limited to some numbers only sees tests for those numbers.
+    return {
+      ...result,
+      autoTests: result.autoTests.filter(t => sessionScopeVisible(apiKey?.allowedSessions, t.sessionId)),
+    };
   }
 
   @Post('templates/auto-tests/retry')

@@ -54,6 +54,7 @@ import {
   ChatSummary,
   ChatState,
   DeliveryStatus,
+  MessageAckDetails,
   MessageType,
   ReactionEvent,
 } from '../interfaces/whatsapp-engine.interface';
@@ -110,6 +111,23 @@ interface GraphApiResponse {
   contacts?: Array<{ input: string; wa_id: string }>;
   messages?: Array<{ id: string }>;
   error?: { message: string; type: string; code: number; fbtrace_id: string };
+}
+
+/** Meta's pricing block and first error on a status webhook, in the engine-neutral ack shape. */
+export function cloudAckDetails(
+  st: Record<string, unknown>,
+  toChatId: (phone: string) => string,
+): MessageAckDetails | undefined {
+  const pricing = st.pricing as { billable?: unknown; category?: unknown; type?: unknown } | undefined;
+  const error = Array.isArray(st.errors) ? (st.errors[0] as { code?: unknown } | undefined) : undefined;
+  const details: MessageAckDetails = {
+    ...(typeof st.recipient_id === 'string' ? { chatId: toChatId(st.recipient_id) } : {}),
+    ...(typeof pricing?.billable === 'boolean' ? { billable: pricing.billable } : {}),
+    ...(typeof pricing?.category === 'string' ? { category: pricing.category } : {}),
+    ...(typeof pricing?.type === 'string' ? { pricingType: pricing.type } : {}),
+    ...(typeof error?.code === 'number' ? { errorCode: error.code } : {}),
+  };
+  return Object.keys(details).length ? details : undefined;
 }
 
 export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
@@ -648,7 +666,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     };
     const status = statusMap[st.status as string];
     if (status && st.id) {
-      this.callbacks.onMessageAck?.(st.id as string, status);
+      this.callbacks.onMessageAck?.(st.id as string, status, cloudAckDetails(st, this.toNeutralJid.bind(this)));
     }
   }
 
@@ -1417,6 +1435,36 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
   /** Uploads media to this number and returns its Meta media id (usable in sends for 30 days). */
   async uploadMediaId(media: MediaInput): Promise<string> {
     return this.uploadMedia(media);
+  }
+
+  /**
+   * Meta's own bill for this WhatsApp Business account: message volume and cost per pricing category
+   * and type between two unix times (pricing_analytics). Cost is in the account's currency.
+   */
+  async getPricingAnalytics(
+    startUnix: number,
+    endUnix: number,
+  ): Promise<Array<{ category: string; type: string; volume: number; cost: number }>> {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const field =
+      `pricing_analytics.start(${startUnix}).end(${endUnix}).granularity(DAILY)` +
+      `.dimensions(["PRICING_CATEGORY","PRICING_TYPE"])`;
+    const res = await this.graphRequest<{
+      pricing_analytics?: { data?: Array<{ data_points?: Array<Record<string, unknown>> }> };
+    }>('GET', `/${this.wabaId}?fields=${encodeURIComponent(field)}`);
+    const totals = new Map<string, { category: string; type: string; volume: number; cost: number }>();
+    for (const block of res.pricing_analytics?.data ?? []) {
+      for (const p of block.data_points ?? []) {
+        const category = scalarToString(p.pricing_category, 'UNKNOWN');
+        const type = scalarToString(p.pricing_type, 'UNKNOWN');
+        const key = `${category}|${type}`;
+        const t = totals.get(key) ?? { category, type, volume: 0, cost: 0 };
+        t.volume += Number(p.volume) || 0;
+        t.cost += Number(p.cost) || 0;
+        totals.set(key, t);
+      }
+    }
+    return [...totals.values()];
   }
 
   /** Submits a template to this WhatsApp Business account for Meta's review. */

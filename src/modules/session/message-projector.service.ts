@@ -17,6 +17,7 @@ import type { StatusUpdate } from '../status-store/entities/status-update.entity
 import {
   IWhatsAppEngine,
   DeliveryStatus,
+  MessageAckDetails,
   IncomingMessage,
   ReactionEvent,
   EditedMessage,
@@ -26,6 +27,7 @@ import { createLogger } from '../../common/services/logger.service';
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { ConversationService } from '../conversation/conversation.service';
+import { MessageCostsService } from '../message-costs/message-costs.service';
 import { HookManager } from '../../core/hooks';
 import {
   deliveryStatusToMessageStatus,
@@ -82,6 +84,8 @@ export class MessageProjector {
     private readonly configService?: ConfigService,
     @Optional()
     private readonly conversationService?: ConversationService,
+    @Optional()
+    private readonly messageCosts?: MessageCostsService,
   ) {}
 
   /** Engine callback body, lifted out of initializeEngine so the wiring table stays readable. */
@@ -380,8 +384,23 @@ export class MessageProjector {
   }
 
   /** Engine callback body, lifted out of initializeEngine so the wiring table stays readable. */
-  handleMessageAck(id: string, engine: IWhatsAppEngine, messageId: string, status: DeliveryStatus): void {
+  handleMessageAck(
+    id: string,
+    engine: IWhatsAppEngine,
+    messageId: string,
+    status: DeliveryStatus,
+    details?: MessageAckDetails,
+  ): void {
     if (!this.engines.isLive(id, engine)) return;
+    // Cloud API acks carry Meta's price for the message; record it (and campaign delivery) off the hot path.
+    if (details && this.messageCosts) {
+      void this.messageCosts.recordStatus(id, messageId, status, details.chatId, {
+        billable: details.billable,
+        category: details.category,
+        type: details.pricingType,
+        errorCode: details.errorCode,
+      });
+    }
     this.logger.debug(`Message ack: ${messageId} -> ${status}`, {
       sessionId: id,
       messageId,

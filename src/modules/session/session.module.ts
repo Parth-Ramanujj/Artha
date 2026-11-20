@@ -1,3 +1,4 @@
+import { MessageCostsModule } from '../message-costs/message-costs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Session } from './entities/session.entity';
@@ -15,7 +16,13 @@ import { ConversationModule } from '../conversation/conversation.module';
 @Module({
   // WebhookModule/StatusStoreModule/ConversationModule do not import SessionModule back, so the
   // dependency is one-directional — no forwardRef() needed.
-  imports: [TypeOrmModule.forFeature([Session, Message], 'data'), WebhookModule, StatusStoreModule, ConversationModule],
+  imports: [
+    TypeOrmModule.forFeature([Session, Message], 'data'),
+    WebhookModule,
+    StatusStoreModule,
+    ConversationModule,
+    MessageCostsModule,
+  ],
   controllers: [SessionController],
   providers: [SessionService, SessionErrorStore, SessionLidResolver, SessionLivenessWatchdog, MessageProjector],
   exports: [SessionService, MessageProjector],
