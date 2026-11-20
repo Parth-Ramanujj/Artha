@@ -257,6 +257,14 @@ describe('studio content readiness', () => {
         { caps: CLOUD, templates: [template({ headerFormat: 'IMAGE' })] },
       );
       expect(errorFields(media)).toEqual(['template.headerMediaUrl']);
+      const uploaded = (mimetype: string) =>
+        check(
+          'template',
+          { template: { ...t, headerMedia: { source: 'upload', base64: 'AAAA', mimetype, filename: 'a.jpg' } } },
+          { caps: CLOUD, templates: [template({ headerFormat: 'IMAGE' })] },
+        );
+      expect(uploaded('image/jpeg').readiness).toBe('ready');
+      expect(errorFields(uploaded('application/pdf'))).toEqual(['template.headerMediaUrl']);
       expect(check('template', { template: t }, { caps: CLOUD, templates: null }).readiness).toBe('template_required');
     });
   });

@@ -652,7 +652,20 @@ export class MessageStudioService {
       case 'template': {
         const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
         if (!engine?.sendTemplateMessage) throw new Error('This number cannot send approved templates');
-        return (await engine.sendTemplateMessage(chatId, part.name, part.language, part.components)).id;
+        let components = part.components;
+        const up = part.headerUpload;
+        if (up) {
+          if (!engine.uploadMediaId) throw new Error('This number cannot upload the header file');
+          // shortcut: uploads the header on every send; cache the media id (valid ~30 days) if volume grows.
+          const id = await engine.uploadMediaId({
+            data: Buffer.from(up.base64, 'base64'),
+            mimetype: up.mimetype,
+            ...(up.filename ? { filename: up.filename } : {}),
+          });
+          const value = { id, ...(up.kind === 'document' && up.filename ? { filename: up.filename } : {}) };
+          components = [{ type: 'header', parameters: [{ type: up.kind, [up.kind]: value }] }, ...components];
+        }
+        return (await engine.sendTemplateMessage(chatId, part.name, part.language, components)).id;
       }
     }
   }

@@ -103,6 +103,8 @@ export interface StudioContent {
     language: string;
     variables: string[];
     headerMediaUrl?: string;
+    /** An uploaded header file, used when there is no link; sent to Meta at send time. */
+    headerMedia?: StudioMedia;
     /** Carousel templates: one entry per card, in the order Meta shows them. */
     cards?: Array<{ headerMediaUrl?: string; variables: string[] }>;
   };
@@ -568,10 +570,17 @@ function checkTemplate(c: Collector, ctx: Ctx): void {
   }
   if (vars.length > info.bodyVariableCount) c.warn('template.variables', 'Extra values are ignored.');
   if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(info.headerFormat) && !isHttpsUrl(chosen.headerMediaUrl)) {
-    c.error(
-      'template.headerMediaUrl',
-      `This template needs a ${info.headerFormat.toLowerCase()} link (https://) for its header.`,
-    );
+    const kind = info.headerFormat.toLowerCase() as 'image' | 'video' | 'document';
+    const up = chosen.headerMedia;
+    if (!up?.base64)
+      c.error(
+        'template.headerMediaUrl',
+        `This template has a ${kind} header: upload the ${kind === 'document' ? 'file' : kind} or paste an https:// link.`,
+      );
+    else if (!up.mimetype || !MEDIA_MIME[kind].includes(up.mimetype))
+      c.error('template.headerMediaUrl', `This file type can't be used as the ${kind} header.`);
+    else if (base64Bytes(up.base64) > LIMITS.mediaBytes)
+      c.error('template.headerMediaUrl', 'The header file is larger than 5 MB.');
   }
   if (info.headerFormat === 'LOCATION')
     c.error('template', 'Location-header templates are not supported yet.', 'unsupported');

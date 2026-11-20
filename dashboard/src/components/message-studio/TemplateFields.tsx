@@ -4,6 +4,7 @@ import { messageStudioApi } from '../../services/api';
 import type { ReadinessIssue, StudioContent } from '../../types/messageStudio';
 import { issuesFor } from '../../utils/messageStudio';
 import { FieldIssues, TextField } from './fields';
+import { MediaField } from './MediaField';
 
 interface TemplateFieldsProps {
   content: StudioContent;
@@ -113,12 +114,17 @@ export function TemplateFields({ content, onChange, issues, sessionId, cloudApi 
             <p>{selected.bodyText}</p>
           </div>
           {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(selected.headerFormat) && (
-            <TextField
-              label={`Header ${selected.headerFormat.toLowerCase()} link (https)`}
-              required
-              type="url"
-              value={t.headerMediaUrl ?? ''}
-              onChange={v => onChange({ template: { ...t, headerMediaUrl: v } })}
+            <MediaField
+              kind={selected.headerFormat.toLowerCase() as 'image' | 'video' | 'document'}
+              media={t.headerMedia ?? { source: 'url', url: t.headerMediaUrl ?? '' }}
+              onChange={m =>
+                onChange({
+                  template:
+                    m.source === 'upload'
+                      ? { ...t, headerMedia: m, headerMediaUrl: undefined }
+                      : { ...t, headerMedia: undefined, headerMediaUrl: m.url ?? '' },
+                })
+              }
               issues={issuesFor(issues, 'template.headerMediaUrl')}
             />
           )}

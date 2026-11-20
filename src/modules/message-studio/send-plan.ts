@@ -22,7 +22,14 @@ export type SendPart =
       caption?: string;
     }
   | { type: 'interactive'; interactive: Record<string, unknown> }
-  | { type: 'template'; name: string; language: string; components: Array<Record<string, unknown>> }
+  | {
+      type: 'template';
+      name: string;
+      language: string;
+      components: Array<Record<string, unknown>>;
+      /** Uploaded header file: sent to Meta first, then used by its media id. */
+      headerUpload?: { kind: 'image' | 'video' | 'document'; base64: string; mimetype: string; filename?: string };
+    }
   | { type: 'location'; latitude: number; longitude: number; name?: string; address?: string }
   | { type: 'contact'; name: string; phone: string }
   | { type: 'reaction'; messageId: string; emoji: string };
@@ -262,9 +269,17 @@ export function buildSendPlan(input: PlanInput): SendPlan {
       const t = content.template!;
       const info = input.templates?.find(x => x.name === t.name && x.language === t.language);
       const components: Array<Record<string, unknown>> = [];
+      let headerUpload: Extract<SendPart, { type: 'template' }>['headerUpload'];
       if (info && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(info.headerFormat) && t.headerMediaUrl) {
         const key = info.headerFormat.toLowerCase();
         components.push({ type: 'header', parameters: [{ type: key, [key]: { link: t.headerMediaUrl } }] });
+      } else if (info && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(info.headerFormat) && t.headerMedia?.base64) {
+        headerUpload = {
+          kind: info.headerFormat.toLowerCase() as 'image' | 'video' | 'document',
+          base64: t.headerMedia.base64,
+          mimetype: t.headerMedia.mimetype ?? 'application/octet-stream',
+          ...(t.headerMedia.filename ? { filename: t.headerMedia.filename } : {}),
+        };
       }
       const count = info?.bodyVariableCount ?? t.variables.length;
       if (count > 0) {
@@ -294,7 +309,13 @@ export function buildSendPlan(input: PlanInput): SendPlan {
         });
         components.push({ type: 'carousel', cards });
       }
-      parts.push({ type: 'template', name: t.name, language: t.language, components });
+      parts.push({
+        type: 'template',
+        name: t.name,
+        language: t.language,
+        components,
+        ...(headerUpload ? { headerUpload } : {}),
+      });
       break;
     }
 

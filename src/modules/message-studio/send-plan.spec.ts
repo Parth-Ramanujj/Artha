@@ -210,6 +210,46 @@ describe('buildSendPlan', () => {
     ]);
   });
 
+  it('sends an uploaded template header through Meta at send time', () => {
+    const p = plan(
+      'template',
+      {
+        template: {
+          name: 'greeting',
+          language: 'en',
+          variables: ['Asha'],
+          headerMedia: { source: 'upload', base64: 'AAAA', mimetype: 'image/png', filename: 'a.png' },
+        },
+      },
+      {
+        ...CLOUD,
+        fill: t => t,
+        templates: [
+          {
+            name: 'greeting',
+            language: 'en',
+            status: 'APPROVED',
+            category: 'MARKETING',
+            bodyText: 'Hi {{1}}',
+            bodyVariableCount: 1,
+            headerFormat: 'IMAGE',
+            buttons: [],
+            isCarousel: false,
+          },
+        ],
+      },
+    );
+    expect(p.parts).toEqual([
+      {
+        type: 'template',
+        name: 'greeting',
+        language: 'en',
+        components: [{ type: 'body', parameters: [{ type: 'text', text: 'Asha' }] }],
+        headerUpload: { kind: 'image', base64: 'AAAA', mimetype: 'image/png', filename: 'a.png' },
+      },
+    ]);
+  });
+
   it('builds template components from the approved template', () => {
     const p = plan(
       'template',

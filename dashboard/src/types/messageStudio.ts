@@ -71,6 +71,8 @@ export interface StudioContent {
     language: string;
     variables: string[];
     headerMediaUrl?: string;
+    /** Uploaded header file, used when there is no link. */
+    headerMedia?: StudioMedia;
     cards?: Array<{ headerMediaUrl?: string; variables: string[] }>;
   };
   location?: { latitude: number; longitude: number; name?: string; address?: string };
