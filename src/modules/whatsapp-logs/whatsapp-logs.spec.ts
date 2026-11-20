@@ -36,6 +36,7 @@ describe('describeWebhook', () => {
     ]);
     expect(events[0].summary).toContain('marketing · billable');
     expect(events[1].summary).toBe('Failed for 918888: (131049) Message failed to send — healthy ecosystem');
+    expect((events[1].details?.explanation as { why: string }).why).toContain('marketing');
   });
 
   it('logs incoming messages and other webhook fields', () => {

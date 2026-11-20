@@ -16,19 +16,6 @@
 .whatsapp-logs-page .wl2-card.is-bad {
   border-color: var(--error);
 }
-.whatsapp-logs-page .wl2-title {
-  margin: 0;
-  font-size: 1rem;
-}
-.whatsapp-logs-page .wl2-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-.whatsapp-logs-page .wl2-between {
-  justify-content: space-between;
-}
 .whatsapp-logs-page .wl2-muted {
   font-size: 0.82rem;
   color: var(--text-secondary);
@@ -135,11 +122,6 @@
 .whatsapp-logs-page .wl2-summary {
   word-break: break-word;
 }
-.whatsapp-logs-page .wl2-trace {
-  color: var(--primary-hover);
-  font-weight: 600;
-  text-decoration: underline;
-}
 .whatsapp-logs-page .wl2-details {
   margin: 0;
   padding: 0.75rem;
@@ -148,4 +130,337 @@
   font-size: 0.78rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── Toolbar, live switch, health fold ── */
+.whatsapp-logs-page .wl2-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.whatsapp-logs-page .wl2-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.whatsapp-logs-page .wl2-live span {
+  padding-left: 0.9rem;
+  background: radial-gradient(circle at 4px 50%, var(--text-muted) 4px, transparent 4.5px);
+}
+.whatsapp-logs-page .wl2-live span.is-on {
+  color: var(--primary-hover);
+  background: radial-gradient(circle at 4px 50%, var(--primary) 4px, transparent 4.5px);
+}
+.whatsapp-logs-page .wl2-health.is-good {
+  border-color: var(--primary);
+}
+.whatsapp-logs-page .wl2-health-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.whatsapp-logs-page .wl2-health-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.whatsapp-logs-page .wl2-health.is-good .wl2-health-head strong {
+  color: var(--primary-hover);
+}
+.whatsapp-logs-page .wl2-health.is-bad .wl2-health-head strong {
+  color: var(--error);
+}
+.whatsapp-logs-page .wl2-health-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.whatsapp-logs-page .wl2-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.whatsapp-logs-page .wl2-more:hover {
+  background: var(--bg-tertiary);
+}
+.whatsapp-logs-page .wl2-more svg {
+  transition: transform 0.15s;
+}
+.whatsapp-logs-page .wl2-more svg.is-open {
+  transform: rotate(180deg);
+}
+.whatsapp-logs-page .wl2-callback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+.whatsapp-logs-page .wl2-callback code {
+  word-break: break-all;
+}
+
+/* ── Summary numbers ── */
+.whatsapp-logs-page .wl2-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+.whatsapp-logs-page .wl2-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card, var(--bg-white));
+}
+.whatsapp-logs-page .wl2-stat strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+.whatsapp-logs-page .wl2-stat span {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.whatsapp-logs-page .wl2-stat.is-good strong {
+  color: var(--primary-hover);
+}
+.whatsapp-logs-page .wl2-stat.is-bad strong {
+  color: var(--error);
+}
+
+/* ── Tabs and filter chips ── */
+.whatsapp-logs-page .wl2-tabs,
+.whatsapp-logs-page .wl2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.whatsapp-logs-page .wl2-tabs {
+  border-bottom: 1px solid var(--border);
+}
+.whatsapp-logs-page .wl2-tabs button {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.whatsapp-logs-page .wl2-tabs button.is-active {
+  border-bottom-color: var(--primary);
+  color: var(--text-primary);
+}
+.whatsapp-logs-page .wl2-chips button {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.whatsapp-logs-page .wl2-chips button.is-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+}
+.whatsapp-logs-page .wl2-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* ── Message journeys ── */
+.whatsapp-logs-page .wl2-journeys,
+.whatsapp-logs-page .wl2-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.whatsapp-logs-page .wl2-journey {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+}
+.whatsapp-logs-page .wl2-journey.is-read,
+.whatsapp-logs-page .wl2-journey.is-delivered {
+  border-left-color: var(--primary);
+}
+.whatsapp-logs-page .wl2-journey.is-accepted,
+.whatsapp-logs-page .wl2-journey.is-sent {
+  border-left-color: var(--warning);
+}
+.whatsapp-logs-page .wl2-journey.is-failed {
+  border-left-color: var(--error);
+}
+.whatsapp-logs-page .wl2-journey-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.whatsapp-logs-page .wl2-journey-icon {
+  flex: none;
+  margin-top: 0.1rem;
+}
+.whatsapp-logs-page .wl2-journey.is-read .wl2-journey-icon,
+.whatsapp-logs-page .wl2-journey.is-delivered .wl2-journey-icon {
+  color: var(--primary);
+}
+.whatsapp-logs-page .wl2-journey.is-failed .wl2-journey-icon {
+  color: var(--error);
+}
+.whatsapp-logs-page .wl2-journey.is-accepted .wl2-journey-icon,
+.whatsapp-logs-page .wl2-journey.is-sent .wl2-journey-icon {
+  color: var(--warning);
+}
+.whatsapp-logs-page .wl2-journey-main {
+  flex: 1;
+  min-width: 0;
+}
+.whatsapp-logs-page .wl2-journey-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.whatsapp-logs-page .wl2-journey-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.whatsapp-logs-page .wl2-tag {
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  text-transform: capitalize;
+}
+.whatsapp-logs-page .wl2-steps {
+  display: flex;
+  margin: 0;
+  padding: 0 0 0 1.9rem;
+  list-style: none;
+}
+.whatsapp-logs-page .wl2-steps li {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.whatsapp-logs-page .wl2-steps li::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 12px;
+  right: 0;
+  height: 2px;
+  background: var(--border);
+}
+.whatsapp-logs-page .wl2-steps li:last-child::before {
+  display: none;
+}
+.whatsapp-logs-page .wl2-steps li.is-done {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.whatsapp-logs-page .wl2-steps li.is-done::before {
+  background: var(--primary);
+}
+.whatsapp-logs-page .wl2-dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card, var(--bg-white));
+}
+.whatsapp-logs-page .wl2-steps li.is-done .wl2-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+.whatsapp-logs-page .wl2-steps time {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.whatsapp-logs-page .wl2-failure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  font-size: 0.85rem;
+}
+.whatsapp-logs-page .wl2-failure p {
+  margin: 0;
+}
+.whatsapp-logs-page .wl2-steps-raw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+  font-size: 0.8rem;
+  list-style: none;
+  word-break: break-word;
+}
+.whatsapp-logs-page .wl2-steps-raw time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Activity ── */
+.whatsapp-logs-page .wl2-act {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+  font-size: 0.85rem;
+}
+.whatsapp-logs-page .wl2-act.is-error {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+.whatsapp-logs-page .wl2-act-text {
+  flex: 1;
+  word-break: break-word;
+}
+.whatsapp-logs-page .wl2-act time {
+  flex: none;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
 }

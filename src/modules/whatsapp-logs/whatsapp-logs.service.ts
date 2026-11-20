@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, LessThan, Like, MoreThanOrEqual, Repository } from 'typeorm';
 import { createLogger } from '../../common/services/logger.service';
 import { WhatsAppEvent } from './entities/whatsapp-event.entity';
+import { explainDeliveryError } from '../message-costs/delivery-errors';
 
 export type EventLevel = 'info' | 'success' | 'warning' | 'error';
 
@@ -70,7 +71,16 @@ export function describeWebhook(body: Record<string, unknown>): Array<NewEvent &
                 pricing ? ` · ${str(pricing.category)} · ${pricing.billable === false ? 'free' : 'billable'}` : ''
               }`
           ).slice(0, 300),
-          details: { status, timestamp: st.timestamp, pricing, conversation: st.conversation, errors },
+          details: {
+            status,
+            timestamp: st.timestamp,
+            pricing,
+            conversation: st.conversation,
+            errors,
+            ...(status === 'failed'
+              ? { explanation: explainDeliveryError(code ? Number(code) : null, reason || null) }
+              : {}),
+          },
           phoneNumberId,
         });
       }
