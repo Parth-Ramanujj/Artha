@@ -48,14 +48,21 @@ export class SocialInboxService {
   }
 
   /** Stores a webhook message once (Meta retries and echoes our own sends). Unknown accounts are skipped. */
-  async handleIncomingMessage(event: IncomingMessage): Promise<SocialMessage | null> {
+  async handleIncomingMessage(
+    event: IncomingMessage,
+    /** Told about IDs that match no connected account, for the dashboard's health panel. */
+    diagnostics?: { noteUnmatchedAccount(platform: SocialPlatform, accountId: string): void },
+  ): Promise<SocialMessage | null> {
     const account = await this.accountWithToken()
       .where('a.accountId = :accountId AND a.platform = :platform', {
         accountId: event.targetAccountId,
         platform: event.platform,
       })
       .getOne();
-    if (!account) return null;
+    if (!account) {
+      diagnostics?.noteUnmatchedAccount(event.platform, event.targetAccountId);
+      return null;
+    }
     if (await this.messageRepo.exists({ where: { remoteMessageId: event.mid } })) return null;
 
     const threadId = event.isEcho ? event.recipientId : event.senderId;

@@ -23,9 +23,11 @@ interface HealthPanelProps {
 
 const ICON = { ok: CheckCircle2, warn: AlertCircle, error: XCircle, wait: Clock };
 
-function meta(acc: SocialAccount): { lastError?: string; webhookError?: string } {
+type AccountMeta = { lastError?: string; webhookError?: string; messagesError?: string };
+
+function meta(acc: SocialAccount): AccountMeta {
   try {
-    return JSON.parse(acc.metadata || '{}') as { lastError?: string; webhookError?: string };
+    return JSON.parse(acc.metadata || '{}') as AccountMeta;
   } catch {
     return {};
   }
@@ -54,9 +56,41 @@ function healthChecks({ overview, accounts, rules, logs, posts }: Omit<HealthPan
         detail: `Meta won't tell Artha about new comments. ${explainError(m.webhookError).fix}`,
         action: { label: 'Open accounts', to: 'accounts' },
       });
+    } else if (m.messagesError) {
+      checks.push({
+        level: 'warn',
+        title: `${acc.accountName}: DMs can't reach Artha`,
+        detail: `Comments work, but Meta refused to send messages to this server. ${explainError(m.messagesError).fix}`,
+        action: { label: 'Open accounts', to: 'accounts' },
+      });
     } else {
       checks.push({ level: 'ok', title: `${acc.accountName} is connected (${acc.platform})` });
     }
+  }
+  const hook = overview?.webhook;
+  if (hook?.lastUnmatched) {
+    checks.push({
+      level: 'error',
+      title: `Meta sent a ${hook.lastUnmatched.platform} message for an account that isn't connected here (${timeAgo(hook.lastUnmatched.at)})`,
+      detail: `It was for ID ${hook.lastUnmatched.accountId}. Connect that account, or fix the Instagram Business Account ID / Page ID on the existing one (Connected Accounts → Edit).`,
+      action: { label: 'Open accounts', to: 'accounts' },
+    });
+  }
+  if (accounts.length > 0 && hook && 'lastDelivery' in hook) {
+    checks.push(
+      hook.lastDelivery
+        ? {
+            level: 'ok',
+            title: `Meta is reaching this server: last delivery ${timeAgo(hook.lastDelivery.at)}`,
+            detail: `${hook.lastDelivery.object}: ${hook.lastDelivery.comments} comment(s), ${hook.lastDelivery.messages} message(s).`,
+          }
+        : {
+            level: 'wait',
+            title: `Meta hasn't sent anything to this server since it started ${timeAgo(hook.serverStartedAt)}`,
+            detail: 'If you commented or sent a DM after that: in the Meta app, Webhooks → Instagram and Page must have "comments", "feed" and "messages" Subscribed, and the app must be Live. While the app has only Standard Access, Meta delivers DMs only from people who have a role on the app (add the tester under App roles → Roles → Instagram Testers).',
+            action: { label: 'Open Setup Guide', to: 'guide' },
+          },
+    );
   }
   if (overview?.webhook && !overview.webhook.secretConfigured) {
     checks.push({

@@ -95,6 +95,11 @@ export interface SocialOverview {
     secretConfigured: boolean;
     /** reason: 'signature' (App secret mismatch) or 'no-secret' (META_APP_SECRET unset). */
     lastRejected: { at: string; reason: 'signature' | 'no-secret' } | null;
+    /** Meta's last accepted webhook since the server started (in memory). */
+    lastDelivery?: { at: string; object: string; comments: number; messages: number } | null;
+    /** A comment or DM for an Instagram/Page ID that no connected account matches. */
+    lastUnmatched?: { at: string; platform: SocialPlatform; accountId: string } | null;
+    serverStartedAt?: string;
   };
 }
 

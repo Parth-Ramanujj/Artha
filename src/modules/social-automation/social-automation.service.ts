@@ -62,16 +62,25 @@ function parseList(json: string | null | undefined): string[] {
 }
 
 /** What the dashboard shows about the last connection check (never the token). */
-const connectionMetadata = (check: { valid: boolean; name?: string; error?: string; webhookError?: string }): string =>
+const connectionMetadata = (check: {
+  valid: boolean;
+  name?: string;
+  error?: string;
+  webhookError?: string;
+  messagesError?: string;
+}): string =>
   JSON.stringify(
     check.valid
       ? {
           verifiedName: check.name,
           webhooks: check.webhookError ? 'failed' : 'subscribed',
           webhookError: check.webhookError,
+          messagesError: check.messagesError,
         }
       : { lastError: check.error },
   );
+
+const SERVER_STARTED_AT = new Date().toISOString();
 
 const fill = (template: string, username: string, comment: string): string =>
   template.replace(/\{username\}/gi, username).replace(/\{comment\}/gi, comment);
@@ -231,7 +240,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
   async testAccountConnection(
     businessId: string,
     id: string,
-  ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string }> {
+  ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string; messagesError?: string }> {
     const account = await this.getAccount(businessId, id, true);
     const check = await this.metaGraph.connectAccount(
       account.platform,
@@ -244,7 +253,13 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       metadata: connectionMetadata(check),
       ...(check.pageAccessToken ? { accessToken: check.pageAccessToken } : {}),
     });
-    return { valid: check.valid, name: check.name, error: check.error, webhookError: check.webhookError };
+    return {
+      valid: check.valid,
+      name: check.name,
+      error: check.error,
+      webhookError: check.webhookError,
+      messagesError: check.messagesError,
+    };
   }
 
   /** Webhook verification: the token must be one a connected account was given. */
@@ -524,6 +539,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         platform: event.platform,
       })
       .getOne();
+    if (!account) this.noteUnmatchedAccount(event.platform, event.targetAccountId);
     if (!account || account.status !== 'connected') return null;
     if (event.fromUserId && (event.fromUserId === account.accountId || event.fromUserId === account.pageId))
       return null;
@@ -669,6 +685,9 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       webhook: {
         secretConfigured: !!(process.env.META_APP_SECRET || process.env.CLOUD_API_APP_SECRET || '').trim(),
         lastRejected: this.lastWebhookRejection,
+        lastDelivery: this.lastWebhookDelivery,
+        lastUnmatched: this.lastUnmatched,
+        serverStartedAt: SERVER_STARTED_AT,
       },
     };
   }
@@ -677,6 +696,20 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
   private lastWebhookRejection: { at: string; reason: 'signature' | 'no-secret' } | null = null;
 
   /** Remembers why Meta's last webhook delivery was refused, so the dashboard can explain it. */
+  // shortcut: in memory like the rejection above, cleared on restart.
+  private lastWebhookDelivery: { at: string; object: string; comments: number; messages: number } | null = null;
+  private lastUnmatched: { at: string; platform: SocialPlatform; accountId: string } | null = null;
+
+  /** Remembers Meta's last accepted delivery, so the dashboard can tell "nothing arrives" from "arrives but unused". */
+  noteWebhookDelivery(object: string, comments: number, messages: number): void {
+    this.lastWebhookDelivery = { at: new Date().toISOString(), object, comments, messages };
+  }
+
+  /** Remembers a comment or DM for an Instagram/Page ID that no connected account here matches. */
+  noteUnmatchedAccount(platform: SocialPlatform, accountId: string): void {
+    this.lastUnmatched = { at: new Date().toISOString(), platform, accountId };
+  }
+
   noteWebhookRejected(reason: 'signature' | 'no-secret'): void {
     this.lastWebhookRejection = { at: new Date().toISOString(), reason };
   }

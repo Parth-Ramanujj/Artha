@@ -177,13 +177,16 @@ export class SocialWebhookController {
     }
 
     // Acknowledge at once (Meta retries slow responses); replies run in the background.
-    for (const comment of extractComments(payload)) {
+    const comments = extractComments(payload);
+    const messages = extractMessages(payload);
+    this.socialService.noteWebhookDelivery(str(payload.object), comments.length, messages.length);
+    for (const comment of comments) {
       this.socialService.handleIncomingComment(comment).catch((err: unknown) => {
         this.logger.error(`Comment ${comment.commentId} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
-    for (const message of extractMessages(payload)) {
-      this.inbox.handleIncomingMessage(message).catch((err: unknown) => {
+    for (const message of messages) {
+      this.inbox.handleIncomingMessage(message, this.socialService).catch((err: unknown) => {
         this.logger.error(`Message ${message.mid} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }

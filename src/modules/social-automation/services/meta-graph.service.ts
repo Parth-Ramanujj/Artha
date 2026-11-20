@@ -96,7 +96,15 @@ export class MetaGraphService {
     accountId: string,
     accessToken: string,
     pageId: string | null,
-  ): Promise<{ valid: boolean; name?: string; pageAccessToken?: string; error?: string; webhookError?: string }> {
+  ): Promise<{
+    valid: boolean;
+    name?: string;
+    pageAccessToken?: string;
+    error?: string;
+    webhookError?: string;
+    /** Comments work but DMs won't arrive (usually a token without pages_messaging). */
+    messagesError?: string;
+  }> {
     const check = await this.verifyAccountToken(platform, accountId, accessToken);
     if (!check.valid || !pageId || this.isTestToken(accessToken)) return check;
 
@@ -117,8 +125,13 @@ export class MetaGraphService {
       const token = pageToken || accessToken;
       const subscribe = (fields: string) =>
         this.graph('POST', `${encodeURIComponent(pageId)}/subscribed_apps`, token, { subscribed_fields: fields });
-      await subscribe('feed,messages').catch(() => subscribe('feed'));
-      return { ...check, pageAccessToken: pageToken };
+      let messagesError: string | undefined;
+      await subscribe('feed,messages').catch(async (err: unknown) => {
+        messagesError = errMsg(err);
+        this.logger.warn(`Subscribing Page ${pageId} to messages failed, comments only: ${messagesError}`);
+        await subscribe('feed');
+      });
+      return { ...check, pageAccessToken: pageToken, messagesError };
     } catch (err) {
       this.logger.warn(`Subscribing Page ${pageId} to webhooks failed: ${errMsg(err)}`);
       return { ...check, pageAccessToken: pageToken, webhookError: errMsg(err) };
