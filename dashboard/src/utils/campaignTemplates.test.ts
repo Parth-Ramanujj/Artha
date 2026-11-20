@@ -5,6 +5,7 @@ import { templatePrice } from './templatePricing.ts';
 import {
   buildMetaTemplate,
   buttonReplyWorkflow,
+  draftFromTemplate,
   countBodyVariables,
   nextVariable,
   withKeyword,
@@ -157,4 +158,31 @@ test('workflow keywords: a template button can be added to and removed from a ke
   assert.equal(added.nodes?.[0].data?.config?.keyword, 'hi, hello, Know More');
   assert.deepEqual(workflowKeywords(withKeyword(withKeyword(added, 'know more', true), 'Know More', false)), ['hi', 'hello']);
   assert.deepEqual(workflowKeywords({ trigger: { type: 'message_received', config: {} } }), []);
+});
+
+test('draftFromTemplate: an edit keeps the name and every saved value; a copy gets _v2', () => {
+  const t = {
+    id: '1',
+    name: 'greeting',
+    language: 'en',
+    status: 'APPROVED',
+    category: 'MARKETING',
+    bodyText: 'Hello {{1}}',
+    bodyVariableCount: 1,
+    bodyExamples: ['Kunal'],
+    headerFormat: 'NONE' as const,
+    isCarousel: false,
+    buttons: [
+      { type: 'URL', text: 'Register', url: 'https://x.co/r' },
+      { type: 'COPY_CODE', text: '', code: 'SAVE20' },
+    ],
+  };
+  const edit = draftFromTemplate(t, { keepName: true });
+  assert.equal(edit.name, 'greeting');
+  assert.deepEqual(edit.bodyExamples, ['Kunal']);
+  assert.deepEqual(
+    edit.buttons?.map(b => b.value),
+    ['https://x.co/r', 'SAVE20'],
+  );
+  assert.equal(draftFromTemplate(t).name, 'greeting_v2');
 });

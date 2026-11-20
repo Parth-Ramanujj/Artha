@@ -1423,6 +1423,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
    */
   async listMessageTemplates(): Promise<
     Array<{
+      id: string;
       name: string;
       language: string;
       status: string;
@@ -1433,9 +1434,10 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
     const res = await this.graphRequest<{ data?: Array<Record<string, unknown>> }>(
       'GET',
-      `/${this.wabaId}/message_templates?fields=name,language,status,category,components,rejected_reason,parameter_format&limit=200`,
+      `/${this.wabaId}/message_templates?fields=id,name,language,status,category,components,rejected_reason,parameter_format&limit=200`,
     );
     return (res.data ?? []).map(t => ({
+      id: scalarToString(t.id),
       name: scalarToString(t.name),
       language: scalarToString(t.language),
       status: scalarToString(t.status),
@@ -1535,6 +1537,16 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
         `/${this.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
       );
     }
+  }
+
+  /**
+   * Edits an existing template (name and language stay); Meta reviews it again and keeps sending the
+   * last approved version until the edit is approved.
+   */
+  async editMessageTemplate(templateId: string, payload: Record<string, unknown>): Promise<{ success: boolean }> {
+    if (!/^\d+$/.test(templateId)) throw new Error('Unknown template');
+    const res = await this.graphRequest<{ success?: boolean }>('POST', `/${templateId}`, payload);
+    return { success: res.success !== false };
   }
 
   /** Submits a template to this WhatsApp Business account for Meta's review. */

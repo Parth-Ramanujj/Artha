@@ -36,6 +36,7 @@ export function WhatsAppTemplates() {
   const [sessionId, setSessionId] = useState('');
   const [tab, setTab] = useState<Tab>('ALL');
   const [creating, setCreating] = useState<StudioTemplate | 'new' | null>(null);
+  const [editing, setEditing] = useState<StudioTemplate | null>(null);
   const [sending, setSending] = useState<StudioTemplate | null>(null);
   const [automating, setAutomating] = useState<StudioTemplate | null>(null);
 
@@ -189,6 +190,7 @@ export function WhatsAppTemplates() {
                     onAutomation: () => navigate(`/message-studio/new?template=${keyOf(t)}`),
                     onButtonAutomations: () => setAutomating(t),
                     onFix: () => setCreating(t),
+                    onEdit: () => setEditing(t),
                     onRetryTest: a => retry.mutate(a),
                     retrying: retry.isPending,
                   }}
@@ -215,6 +217,18 @@ export function WhatsAppTemplates() {
             setCreating(null);
             setTab('PENDING');
             void Promise.all([templates.refetch(), tests.refetch()]);
+          }}
+        />
+      )}
+      {editing?.id && activeId && (
+        <MetaTemplateForm
+          sessionId={activeId}
+          editTemplateId={editing.id}
+          initial={draftFromTemplate(editing, { keepName: true })}
+          onClose={() => setEditing(null)}
+          onSubmitted={() => {
+            setEditing(null);
+            void templates.refetch();
           }}
         />
       )}

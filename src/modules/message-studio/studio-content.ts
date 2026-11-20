@@ -140,7 +140,12 @@ export interface TemplateInfo {
   headerFormat: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
   headerText?: string;
   footerText?: string;
-  buttons: Array<{ type: string; text: string }>;
+  /** Meta's template id (edits go to it). */
+  id?: string;
+  /** Sample values Meta approved, in variable order. */
+  bodyExamples?: string[];
+  headerExample?: string;
+  buttons: Array<{ type: string; text: string; url?: string; phone?: string; code?: string; flowId?: string }>;
   isCarousel: boolean;
   /** One entry per carousel card, in order: its header media kind and body variable count. */
   carouselCards?: Array<{ headerFormat: 'IMAGE' | 'VIDEO' | 'NONE'; bodyVariableCount: number }>;

@@ -63,6 +63,7 @@ type CloudLikeEngine = IWhatsAppEngine & {
   sendReaction?: (chatId: string, messageId: string, emoji: string) => Promise<{ id: string }>;
   listMessageTemplates?: () => Promise<
     Array<{
+      id?: string;
       name: string;
       language: string;
       status: string;
@@ -73,6 +74,7 @@ type CloudLikeEngine = IWhatsAppEngine & {
     }>
   >;
   createMessageTemplate?: (payload: Record<string, unknown>) => Promise<{ id: string; status: string }>;
+  editMessageTemplate?: (templateId: string, payload: Record<string, unknown>) => Promise<{ success: boolean }>;
   uploadTemplateSample?: (data: Buffer, mimetype: string, filename: string) => Promise<string>;
   uploadMediaId?: (media: { data: Buffer; mimetype: string; filename?: string }) => Promise<string>;
 };
@@ -91,6 +93,7 @@ export interface UsedIn {
 
 /** Converts Meta's template JSON into what the composer and the checks need. */
 export function toTemplateInfo(t: {
+  id?: string;
   name: string;
   language: string;
   status: string;
@@ -110,12 +113,25 @@ export function toTemplateInfo(t: {
   const headerVariables = header?.text
     ? templateVariableNames(scalarToString(header.text), named ? 'NAMED' : 'POSITIONAL')
     : [];
+  type Example = {
+    body_text?: string[][];
+    body_text_named_params?: Array<{ example: string }>;
+    header_text?: string[];
+    header_text_named_params?: Array<{ example: string }>;
+  };
+  const bodyEx = (body?.example ?? {}) as Example;
+  const headerEx = (header?.example ?? {}) as Example;
+  const bodyExamples = (bodyEx.body_text_named_params?.map(p => p.example) ?? bodyEx.body_text?.[0] ?? []).map(String);
+  const headerExample = headerEx.header_text_named_params?.[0]?.example ?? headerEx.header_text?.[0];
   return {
+    ...(t.id ? { id: t.id } : {}),
     name: t.name,
     language: t.language,
     status: t.status.toUpperCase(),
     category: t.category,
     bodyText,
+    ...(bodyExamples.length ? { bodyExamples } : {}),
+    ...(headerExample ? { headerExample: String(headerExample) } : {}),
     bodyVariableCount: named ? bodyVariables.length : countTemplateVariables(bodyText),
     ...(named ? { parameterFormat: 'NAMED' as const, bodyVariables } : {}),
     ...(headerVariables.length ? { headerVariable: headerVariables[0] } : {}),
@@ -128,6 +144,12 @@ export function toTemplateInfo(t: {
       ? (buttons.buttons as Array<Record<string, unknown>>).map(b => ({
           type: String(b.type),
           text: scalarToString(b.text),
+          ...(b.url ? { url: scalarToString(b.url) } : {}),
+          ...(b.phone_number ? { phone: scalarToString(b.phone_number) } : {}),
+          ...(b.flow_id ? { flowId: scalarToString(b.flow_id) } : {}),
+          ...(String(b.type) === 'COPY_CODE' && b.example
+            ? { code: scalarToString(Array.isArray(b.example) ? (b.example as unknown[])[0] : b.example) }
+            : {}),
         }))
       : [],
     isCarousel: Boolean(find('CAROUSEL')),
@@ -230,6 +252,34 @@ export class MessageStudioService {
 
   /** Submits a new template to Meta for approval. Meta reviews it; the list shows the outcome. */
   async createTemplate(sessionId: string, dto: CreateMetaTemplateDto): Promise<{ id: string; status: string }> {
+    return this.submitTemplate(sessionId, dto, (engine, payload) => engine.createMessageTemplate!(payload));
+  }
+
+  /**
+   * Edits an existing template in place: same name and language, new content; Meta reviews it again.
+   * Only the components are sent — Meta does not let an edit change the name, language or category.
+   */
+  async editTemplate(
+    sessionId: string,
+    templateId: string,
+    dto: CreateMetaTemplateDto,
+  ): Promise<{ id: string; status: string }> {
+    return this.submitTemplate(sessionId, dto, async (engine, payload) => {
+      if (!engine.editMessageTemplate) throw new Error('This number cannot edit templates');
+      await engine.editMessageTemplate(templateId, {
+        components: payload.components,
+        ...(payload.message_send_ttl_seconds ? { message_send_ttl_seconds: payload.message_send_ttl_seconds } : {}),
+      });
+      return { id: templateId, status: 'PENDING' };
+    });
+  }
+
+  /** Validates the form, uploads the header sample, then hands Meta's payload to `send`. */
+  private async submitTemplate(
+    sessionId: string,
+    dto: CreateMetaTemplateDto,
+    send: (engine: CloudLikeEngine, payload: Record<string, unknown>) => Promise<{ id: string; status: string }>,
+  ): Promise<{ id: string; status: string }> {
     const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
     if (!engine) throw new BadRequestException('This WhatsApp number is not connected.');
     if (typeof engine.createMessageTemplate !== 'function') {
@@ -253,9 +303,9 @@ export class MessageStudioService {
           media.filename || 'header',
         );
       }
-      const created = await engine.createMessageTemplate(buildMetaTemplatePayload(dto, handle));
+      const result = await send(engine, buildMetaTemplatePayload(dto, handle));
       this.templateCache.delete(sessionId);
-      return created;
+      return result;
     } catch (err) {
       throw new BadRequestException(
         `Meta did not accept the template: ${err instanceof Error ? err.message : String(err)}`,

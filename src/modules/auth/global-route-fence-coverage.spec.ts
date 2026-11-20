@@ -332,6 +332,10 @@ const ALLOWLIST = new Map<string, string>([
     'message-costs.controller.ts :: delivery',
     'sessionScopeVisible in the handler + business ownership check in the service',
   ],
+  [
+    'message-studio.controller.ts :: editTemplate',
+    'the body sessionId goes through session(); the template must belong to that number',
+  ],
   ['wallet.controller.ts :: overview', 'business-scoped: only the calling key’s own business wallet'],
   ['wallet.controller.ts :: transactions', 'business-scoped: only the calling key’s own business wallet'],
   ['wallet.controller.ts :: createOrder', 'business-scoped: recharges the calling key’s own business wallet'],

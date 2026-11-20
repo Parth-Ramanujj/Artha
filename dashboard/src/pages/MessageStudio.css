@@ -2080,3 +2080,18 @@
   align-items: center;
   gap: 0.35rem;
 }
+
+/* Template edit: note in the form, Edit link in the card header */
+.message-studio-page .mt-edit-note {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  font-size: 0.85rem;
+}
+.message-studio-page .wt-head-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}

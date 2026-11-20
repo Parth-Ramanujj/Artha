@@ -71,12 +71,15 @@ function Card({ title, optional, children }: { title: string; optional?: boolean
 export function MetaTemplateForm({
   sessionId,
   initial,
+  editTemplateId,
   onClose,
   onSubmitted,
 }: {
   sessionId: string;
   /** Start from an existing template (e.g. "Fix and submit again"). */
   initial?: Partial<MetaTemplateDraft>;
+  /** Edit this existing Meta template in place (name, language and category are locked). */
+  editTemplateId?: string;
   onClose: () => void;
   onSubmitted: () => void;
 }) {
@@ -133,7 +136,8 @@ export function MetaTemplateForm({
   const submit = useMutation({
     mutationFn: async () => {
       if (!built.ok) throw new Error(built.error);
-      await messageStudioApi.createTemplate({ ...built.value, ...(phone ? { autoTestPhone: phone } : {}) });
+      if (editTemplateId) await messageStudioApi.editTemplate(editTemplateId, built.value);
+      else await messageStudioApi.createTemplate({ ...built.value, ...(phone ? { autoTestPhone: phone } : {}) });
       // Auto-replies are best-effort: the template is already with Meta even if one of these fails.
       const failed: string[] = [];
       for (const b of autoReplies) {
@@ -148,7 +152,7 @@ export function MetaTemplateForm({
     },
     onSuccess: failed => {
       toast.success(
-        'Sent to Meta for review',
+        editTemplateId ? 'Changes sent to Meta for review' : 'Sent to Meta for review',
         phone
           ? `We'll send it to ${phone} as soon as it's approved — only if that is free.`
           : 'Approval usually takes a few minutes, at most 24 hours.',
@@ -180,7 +184,7 @@ export function MetaTemplateForm({
     <Modal
       open
       onClose={onClose}
-      title="New WhatsApp template"
+      title={editTemplateId ? `Edit template — ${draft.name}` : "New WhatsApp template"}
       className="ms-modal-wide"
       footer={
         <>
@@ -188,13 +192,20 @@ export function MetaTemplateForm({
             Previous
           </button>
           <button className="btn btn-primary" disabled={!ready || submit.isPending} onClick={() => submit.mutate()}>
-            {submit.isPending ? 'Submitting…' : 'Submit for review'}
+            {submit.isPending ? 'Submitting…' : editTemplateId ? 'Submit changes for review' : 'Submit for review'}
           </button>
         </>
       }
     >
       <div className="mt-layout">
         <div className="mt-steps">
+          {editTemplateId && (
+            <p className="mt-edit-note">
+              ✏️ Editing keeps the name and language. Meta reviews the change again — until it is approved, the last
+              approved version keeps sending. Meta allows only a few edits (about one a day). Media headers need their
+              sample chosen again.
+            </p>
+          )}
           <div className="mt-summary">
             <span className="mt-summary-icon" aria-hidden="true">
               <Bell size={18} />
@@ -216,13 +227,19 @@ export function MetaTemplateForm({
                   value={draft.name}
                   placeholder="Enter a template name"
                   maxLength={512}
+                  disabled={Boolean(editTemplateId)}
                   onChange={e => set('name', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
                 />
                 <span className="mt-counter">{draft.name.length}/512 · lowercase letters, numbers and _</span>
               </label>
               <label className="ms-field">
                 <span className="ms-label">Select language</span>
-                <select className="ms-input" value={draft.language} onChange={e => set('language', e.target.value)}>
+                <select
+                  className="ms-input"
+                  value={draft.language}
+                  disabled={Boolean(editTemplateId)}
+                  onChange={e => set("language", e.target.value)}
+                >
                   {LANGUAGES.map(([code, label]) => (
                     <option key={code} value={code}>
                       {label}
@@ -235,6 +252,7 @@ export function MetaTemplateForm({
                 <select
                   className="ms-input"
                   value={draft.category}
+                  disabled={Boolean(editTemplateId)}
                   onChange={e => setDraft(d => ({ ...d, category: e.target.value as MetaTemplateDraft['category'] }))}
                 >
                   <option value="MARKETING">Marketing</option>
@@ -512,6 +530,7 @@ export function MetaTemplateForm({
             )}
           </Card>
 
+          {!editTemplateId && (
           <Card title="Test on my phone after approval" optional>
             <input
               className="ms-input"
@@ -527,6 +546,7 @@ export function MetaTemplateForm({
               have messaged your WhatsApp number in the last 24 hours. Send “hi” from it first.
             </p>
           </Card>
+          )}
         </div>
 
         <aside className="mt-side" aria-label="Preview and checklist">

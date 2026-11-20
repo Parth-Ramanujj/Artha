@@ -98,6 +98,24 @@ export class MessageStudioController {
     return created;
   }
 
+  @Put('templates/:templateId')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Edit a WhatsApp template (same name and language); Meta reviews it again' })
+  async editTemplate(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Param('templateId') templateId: string,
+    @Body() dto: CreateMetaTemplateDto,
+  ) {
+    if (!/^\d{1,30}$/.test(templateId)) throw new BadRequestException('Unknown template');
+    const businessId = await this.businessId(apiKey);
+    const session = await this.session(apiKey, businessId, dto.sessionId);
+    // The template must belong to this number's WhatsApp account, not just any id.
+    const { templates } = await this.studio.templates(session!.id, true);
+    if (!templates?.some(t => t.id === templateId))
+      throw new BadRequestException('That template is not on this number.');
+    return this.studio.editTemplate(session!.id, templateId, dto);
+  }
+
   @Post('templates/send')
   @HttpCode(HttpStatus.OK)
   @RequireRole(ApiKeyRole.OPERATOR)

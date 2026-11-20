@@ -3095,6 +3095,11 @@ export const messageStudioApi = {
     request<{ templates: StudioTemplate[] | null; reason?: string }>(
       `/message-studio/templates?sessionId=${encodeURIComponent(sessionId)}${refresh ? '&refresh=true' : ''}`,
     ),
+  editTemplate: (templateId: string, input: NewMetaTemplate) =>
+    request<{ id: string; status: string }>(`/message-studio/templates/${encodeURIComponent(templateId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   createTemplate: (input: NewMetaTemplate) =>
     request<{ id: string; status: string }>('/message-studio/templates', {
       method: 'POST',

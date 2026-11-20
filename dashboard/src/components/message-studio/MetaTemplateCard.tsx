@@ -26,6 +26,7 @@ export interface CardActions {
   onAutomation: () => void;
   onButtonAutomations: () => void;
   onFix: () => void;
+  onEdit: () => void;
   onRetryTest: (t: TemplateAutoTest) => void;
   retrying: boolean;
 }
@@ -52,7 +53,15 @@ export function MetaTemplateCard({
             {t.language} · {t.category.toLowerCase()} · {price.perMessage}
           </span>
         </div>
-        <span className={`wt-status ${status.className}`}>{status.label}</span>
+        <div className="wt-head-right">
+          <span className={`wt-status ${status.className}`}>{status.label}</span>
+          {/* Meta allows editing approved, rejected and paused templates; not one still in review. */}
+          {t.id && t.status !== 'PENDING' && t.status !== 'DISABLED' && (
+            <button className="btn-link" onClick={actions.onEdit} aria-label={`Edit ${t.name}`}>
+              <PencilLine size={14} /> Edit
+            </button>
+          )}
+        </div>
       </header>
 
       <p className="wt-body">{t.headerText ? `${t.headerText}\n` : ''}{t.bodyText}</p>
@@ -110,9 +119,16 @@ export function MetaTemplateCard({
               ? (REJECTION_HELP[t.rejectedReason ?? ''] ?? `Meta's reason: ${t.rejectedReason ?? 'not given'}.`)
               : 'Meta stopped it because people blocked or reported it. Make a new, softer version.'}
           </span>
-          <button className="btn btn-secondary" onClick={actions.onFix}>
-            <PencilLine size={15} /> Fix and submit again
-          </button>
+          <div className="wt-actions">
+            {t.id && t.status !== 'DISABLED' && (
+              <button className="btn btn-primary" onClick={actions.onEdit}>
+                <PencilLine size={15} /> Edit and resubmit
+              </button>
+            )}
+            <button className="btn btn-secondary" onClick={actions.onFix}>
+              <PencilLine size={15} /> Make a new copy
+            </button>
+          </div>
         </div>
       )}
 
