@@ -1383,7 +1383,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
     if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
     const res = await this.graphRequest<{ data?: Array<Record<string, unknown>> }>(
       'GET',
-      `/${this.wabaId}/message_templates?fields=name,language,status,category,components,rejected_reason&limit=200`,
+      `/${this.wabaId}/message_templates?fields=name,language,status,category,components,rejected_reason,parameter_format&limit=200`,
     );
     return (res.data ?? []).map(t => ({
       name: scalarToString(t.name),
@@ -1392,6 +1392,7 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       category: scalarToString(t.category),
       components: Array.isArray(t.components) ? (t.components as Array<Record<string, unknown>>) : [],
       rejectedReason: scalarToString(t.rejected_reason) || undefined,
+      parameterFormat: scalarToString(t.parameter_format) || undefined,
     }));
   }
 

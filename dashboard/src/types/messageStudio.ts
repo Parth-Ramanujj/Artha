@@ -140,20 +140,41 @@ export interface StudioTemplate {
   isCarousel: boolean;
   carouselCards?: Array<{ headerFormat: 'IMAGE' | 'VIDEO' | 'NONE'; bodyVariableCount: number }>;
   rejectedReason?: string;
+  /** NAMED templates use {{first_name}}-style variables, listed in bodyVariables in order. */
+  parameterFormat?: 'NAMED';
+  bodyVariables?: string[];
+  /** The one variable a TEXT header may hold ("1" or a name). */
+  headerVariable?: string;
 }
 
 /** The template builder form, as POST /message-studio/templates takes it. */
+export type MetaButtonType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'VOICE_CALL' | 'COPY_CODE' | 'FLOW';
+export type MetaHeaderFormat = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
+export type StudioMediaMime = 'image/jpeg' | 'image/png' | 'video/mp4' | 'application/pdf';
+
 export interface NewMetaTemplate {
   sessionId: string;
   name: string;
   language: string;
   category: 'MARKETING' | 'UTILITY';
+  parameterFormat?: 'POSITIONAL' | 'NAMED';
+  headerFormat?: MetaHeaderFormat;
   headerText?: string;
-  headerImage?: { base64: string; mimetype: 'image/jpeg' | 'image/png'; filename: string };
+  headerExample?: string;
+  headerMedia?: { base64: string; mimetype: StudioMediaMime; filename: string };
+  ttlSeconds?: number;
   body: string;
   bodyExamples?: string[];
   footer?: string;
-  buttons?: Array<{ type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'; text: string; url?: string; phone?: string }>;
+  buttons?: Array<{
+    type: MetaButtonType;
+    text: string;
+    url?: string;
+    phone?: string;
+    code?: string;
+    flowId?: string;
+    flowScreen?: string;
+  }>;
   /** Send to this phone once approved (only when free). */
   autoTestPhone?: string;
 }

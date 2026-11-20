@@ -1848,7 +1848,21 @@ export interface Campaign {
   templateId: string | null;
   messageContent: string | null;
   /** `metaTemplate` here makes a Cloud API campaign send an approved Meta template. */
-  messageOptions?: { metaTemplate?: { name: string; language: string; bodyParams: string[] } } | null;
+  messageOptions?: {
+    metaTemplate?: {
+      name: string;
+      language: string;
+      bodyParams: string[];
+      paramNames?: string[];
+      headerParam?: string;
+      headerParamName?: string;
+      nameFallback?: string;
+      headerMedia?: { type: 'image' | 'video' | 'document'; id: string; filename?: string };
+      headerLocation?: { latitude: number; longitude: number; name?: string; address?: string };
+      couponCode?: string;
+      couponIndex?: number;
+    };
+  } | null;
   status: string;
   scheduledAt: string | null;
   totalRecipients: number;

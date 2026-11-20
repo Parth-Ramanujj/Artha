@@ -2,7 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCampaignRecipients } from './campaignRecipients.ts';
 import { templatePrice } from './templatePricing.ts';
-import { buildMetaTemplate, buttonReplyWorkflow, countBodyVariables, type MetaTemplateDraft } from './metaTemplate.ts';
+import {
+  buildMetaTemplate,
+  buttonReplyWorkflow,
+  countBodyVariables,
+  nextVariable,
+  type MetaTemplateDraft,
+} from './metaTemplate.ts';
 
 test('recipients: plain comma list stays a list of numbers without names', () => {
   assert.deepEqual(parseCampaignRecipients('919227102108, 919876543210'), {
@@ -26,17 +32,27 @@ const draft = (patch: Partial<MetaTemplateDraft> = {}): MetaTemplateDraft => ({
   name: 'padosi_agent_invite',
   language: 'en',
   category: 'MARKETING',
+  variableType: 'NUMBER',
   headerType: 'NONE',
   headerText: '',
-  headerImage: null,
+  headerExample: '',
+  headerMedia: null,
   body: 'Namaste {{1}}! Join us today.',
   bodyExamples: ['Rahul'],
   footer: 'Reply STOP to unsubscribe',
   buttons: [
-    { type: 'URL', text: 'Register Now', value: 'https://example.com/register', autoReply: '' },
-    { type: 'QUICK_REPLY', text: 'Know More', value: '', autoReply: 'Here are the details…' },
+    { type: 'URL', text: 'Register Now', value: 'https://example.com/register', flowId: '', autoReply: '' },
+    { type: 'QUICK_REPLY', text: 'Know More', value: '', flowId: '', autoReply: 'Here are the details…' },
   ],
+  ttlSeconds: null,
   ...patch,
+});
+const btn = (type: MetaTemplateDraft['buttons'][number]['type'], text: string, value = '', flowId = '') => ({
+  type,
+  text,
+  value,
+  flowId,
+  autoReply: '',
 });
 
 test('template: counts distinct variables', () => {
@@ -51,6 +67,7 @@ test('template: builds the request body Meta needs', () => {
     name: 'padosi_agent_invite',
     language: 'en',
     category: 'MARKETING',
+    headerFormat: 'NONE',
     body: 'Namaste {{1}}! Join us today.',
     bodyExamples: ['Rahul'],
     footer: 'Reply STOP to unsubscribe',
@@ -65,19 +82,50 @@ test('template: catches what Meta would reject', () => {
   assert.equal(buildMetaTemplate('s1', draft({ name: 'Bad Name' })).ok, false);
   assert.equal(buildMetaTemplate('s1', draft({ bodyExamples: [] })).ok, false);
   assert.equal(buildMetaTemplate('s1', draft({ body: '{{1}} hello' })).ok, false);
+  assert.equal(buildMetaTemplate('s1', draft({ buttons: [btn('URL', 'Go', 'http://x.com')] })).ok, false);
+  assert.equal(buildMetaTemplate('s1', draft({ headerType: 'IMAGE' })).ok, false);
+  assert.equal(buildMetaTemplate('s1', draft({ body: 'Hi {{2}} there', bodyExamples: ['a'] })).ok, false);
+  assert.equal(buildMetaTemplate('s1', draft({ variableType: 'NAME' })).ok, false); // {{1}} in a named template
   assert.equal(
-    buildMetaTemplate('s1', draft({ buttons: [{ type: 'URL', text: 'Go', value: 'http://x.com', autoReply: '' }] })).ok,
+    buildMetaTemplate('s1', draft({ buttons: [btn('URL', 'a', 'https://a.co'), btn('URL', 'b', 'https://b.co'), btn('URL', 'c', 'https://c.co')] })).ok,
     false,
   );
-  assert.equal(buildMetaTemplate('s1', draft({ headerType: 'IMAGE' })).ok, false);
 });
 
-test('template: an image header is sent instead of header text', () => {
-  const image = { base64: 'AAAA', mimetype: 'image/png' as const, filename: 'b.png' };
-  const r = buildMetaTemplate('s1', draft({ headerType: 'IMAGE', headerImage: image, headerText: 'x' }));
+test('template: a media header is sent instead of header text', () => {
+  const video = { base64: 'AAAA', mimetype: 'video/mp4' as const, filename: 'v.mp4' };
+  const r = buildMetaTemplate('s1', draft({ headerType: 'VIDEO', headerMedia: video, headerText: 'x' }));
   assert.ok(r.ok);
-  assert.deepEqual(r.value.headerImage, image);
+  assert.deepEqual(r.value.headerMedia, video);
   assert.equal(r.value.headerText, undefined);
+});
+
+test('template: named variables, header variable, extra buttons and validity', () => {
+  const r = buildMetaTemplate(
+    's1',
+    draft({
+      category: 'UTILITY',
+      variableType: 'NAME',
+      headerType: 'TEXT',
+      headerText: 'Hi {{first_name}}',
+      headerExample: 'Rahul',
+      body: 'Your {{plan}} is ready.',
+      bodyExamples: ['Gold'],
+      ttlSeconds: 600,
+      buttons: [btn('COPY_CODE', '', 'SAVE20'), btn('FLOW', 'Register', '', '123456'), btn('VOICE_CALL', 'Call us')],
+    }),
+  );
+  assert.ok(r.ok);
+  assert.equal(r.value.parameterFormat, 'NAMED');
+  assert.equal(r.value.headerExample, 'Rahul');
+  assert.equal(r.value.ttlSeconds, 600);
+  assert.deepEqual(r.value.buttons, [
+    { type: 'COPY_CODE', text: 'Copy offer code', code: 'SAVE20' },
+    { type: 'FLOW', text: 'Register', flowId: '123456', flowScreen: 'SCREEN_1' },
+    { type: 'VOICE_CALL', text: 'Call us' },
+  ]);
+  assert.equal(nextVariable('Hi {{first_name}}', 'NAME'), '{{variable_2}}');
+  assert.equal(nextVariable('Hi {{1}}', 'NUMBER'), '{{2}}');
 });
 
 test('price: per message, campaign total and when it is free', () => {

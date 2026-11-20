@@ -1,22 +1,128 @@
-import type { NewMetaTemplate } from '../types/messageStudio';
+import type { MetaButtonType, MetaHeaderFormat, NewMetaTemplate, StudioMediaMime } from '../types/messageStudio';
+
+export type VariableType = 'NUMBER' | 'NAME';
+
+export interface MetaTemplateButtonDraft {
+  type: MetaButtonType;
+  text: string;
+  /** Link (URL), phone number (PHONE_NUMBER) or offer code (COPY_CODE). */
+  value: string;
+  /** FLOW: Meta flow id of the chosen WhatsApp form. */
+  flowId: string;
+  /** QUICK_REPLY: sent back automatically when tapped. */
+  autoReply: string;
+}
 
 export interface MetaTemplateDraft {
   name: string;
   language: string;
   category: 'MARKETING' | 'UTILITY';
-  headerType: 'NONE' | 'TEXT' | 'IMAGE';
+  variableType: VariableType;
+  headerType: MetaHeaderFormat;
   headerText: string;
-  headerImage: { base64: string; mimetype: 'image/jpeg' | 'image/png'; filename: string } | null;
+  headerExample: string;
+  headerMedia: { base64: string; mimetype: StudioMediaMime; filename: string } | null;
   body: string;
   bodyExamples: string[];
   footer: string;
-  /** `value` is the link for URL buttons and the phone number for call buttons. `autoReply` is sent when a quick reply is tapped. */
-  buttons: Array<{ type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER'; text: string; value: string; autoReply: string }>;
+  buttons: MetaTemplateButtonDraft[];
+  /** Utility only: seconds Meta keeps trying to deliver; null = WhatsApp's default. */
+  ttlSeconds: number | null;
+}
+
+export const BUTTON_LIMITS: Partial<Record<MetaButtonType, number>> = {
+  URL: 2,
+  PHONE_NUMBER: 1,
+  VOICE_CALL: 1,
+  COPY_CODE: 1,
+  FLOW: 1,
+};
+
+/** Variables in order of first appearance: "1", "2" … or "first_name" … */
+export function templateVariables(text: string, type: VariableType = 'NUMBER'): string[] {
+  const re = type === 'NAME' ? /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g : /\{\{\s*(\d+)\s*\}\}/g;
+  return [...new Set([...text.matchAll(re)].map(m => m[1]))];
 }
 
 /** Distinct {{n}} variables in a template body, as Meta counts them. */
-export function countBodyVariables(body: string): number {
-  return new Set([...body.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map(m => m[1])).size;
+export function countBodyVariables(body: string, type: VariableType = 'NUMBER'): number {
+  return templateVariables(body, type).length;
+}
+
+/** The placeholder "Add variable" inserts next: {{3}}, or {{variable_3}} for named templates. */
+export function nextVariable(body: string, type: VariableType): string {
+  const n = countBodyVariables(body, type) + 1;
+  return type === 'NAME' ? `{{variable_${n}}}` : `{{${n}}}`;
+}
+
+const MEDIA_HEADERS: MetaHeaderFormat[] = ['IMAGE', 'VIDEO', 'DOCUMENT'];
+
+/** What is still missing, in the order the form asks for it — shown as a checklist. */
+export function templateChecklist(d: MetaTemplateDraft): Array<{ label: string; done: boolean }> {
+  const vars = templateVariables(d.body, d.variableType);
+  const wrongSyntax = templateVariables(d.body, d.variableType === 'NAME' ? 'NUMBER' : 'NAME').length > 0;
+  const items = [
+    { label: 'Template name', done: /^[a-z0-9_]+$/.test(d.name) },
+    { label: 'Message written', done: Boolean(d.body.trim()) },
+  ];
+  if (wrongSyntax) {
+    items.push({
+      label: d.variableType === 'NAME' ? 'Use {{name_like_this}} variables' : 'Use {{1}} {{2}} variables',
+      done: false,
+    });
+  }
+  if (d.variableType === 'NUMBER' && vars.some((v, i) => v !== String(i + 1))) {
+    items.push({ label: 'Variables numbered in order {{1}}, {{2}} …', done: false });
+  }
+  if (/^\s*\{\{[^}]+\}\}|\{\{[^}]+\}\}\s*$/.test(d.body)) {
+    items.push({ label: 'Message must not start or end with a variable', done: false });
+  }
+  if (vars.length) {
+    items.push({
+      label: `Sample for each variable (${vars.length})`,
+      done: d.bodyExamples.slice(0, vars.length).filter(s => s?.trim()).length === vars.length,
+    });
+  }
+  if (d.headerType === 'TEXT') {
+    items.push({ label: 'Header text', done: Boolean(d.headerText.trim()) });
+    const hv = templateVariables(d.headerText, d.variableType);
+    if (hv.length > 1) items.push({ label: 'Header: only one variable', done: false });
+    if (hv.length === 1) items.push({ label: 'Sample for the header variable', done: Boolean(d.headerExample.trim()) });
+  }
+  if (MEDIA_HEADERS.includes(d.headerType)) {
+    items.push({ label: `Sample ${d.headerType.toLowerCase()} chosen`, done: Boolean(d.headerMedia) });
+  }
+  for (const [type, max] of Object.entries(BUTTON_LIMITS)) {
+    if (d.buttons.filter(b => b.type === type).length > (max ?? 10)) {
+      items.push({ label: `At most ${max} ${BUTTON_LABEL[type as MetaButtonType]} button(s)`, done: false });
+    }
+  }
+  d.buttons.forEach((b, i) => items.push({ label: `Button ${i + 1}: ${BUTTON_LABEL[b.type]}`, done: buttonReady(b) }));
+  return items;
+}
+
+export const BUTTON_LABEL: Record<MetaButtonType, string> = {
+  QUICK_REPLY: 'Custom (quick reply)',
+  URL: 'Visit website',
+  VOICE_CALL: 'Call on WhatsApp',
+  PHONE_NUMBER: 'Call phone number',
+  COPY_CODE: 'Copy offer code',
+  FLOW: 'Complete form (flow)',
+};
+
+function buttonReady(b: MetaTemplateButtonDraft): boolean {
+  switch (b.type) {
+    case 'URL':
+      return Boolean(b.text.trim()) && /^https:\/\/\S+$/.test(b.value);
+    case 'PHONE_NUMBER':
+      return Boolean(b.text.trim()) && /^\+?\d{7,15}$/.test(b.value);
+    case 'COPY_CODE':
+      return /^[A-Za-z0-9_-]{1,15}$/.test(b.value);
+    case 'FLOW':
+      return Boolean(b.text.trim()) && Boolean(b.flowId);
+    default:
+      return Boolean(b.text.trim());
+  }
 }
 
 /** Checks the form the way Meta will, and builds the request body. */
@@ -24,27 +130,12 @@ export function buildMetaTemplate(
   sessionId: string,
   d: MetaTemplateDraft,
 ): { ok: true; value: NewMetaTemplate } | { ok: false; error: string } {
-  const fail = (error: string) => ({ ok: false as const, error });
-  if (!/^[a-z0-9_]+$/.test(d.name)) return fail('Name: use lowercase letters, numbers and _ only.');
-  if (!/^[a-z]{2,3}(_[A-Z]{2})?$/.test(d.language)) return fail('Language: pick a language.');
-  if (d.headerType === 'TEXT' && !d.headerText.trim())
-    return fail('Header: write the header text or choose "No header".');
-  if (d.headerType === 'IMAGE' && !d.headerImage) return fail('Header: choose an image or choose "No header".');
-  const body = d.body.trim();
-  if (!body) return fail('Write the message.');
-  if (/^\{\{\s*\d+\s*\}\}|\{\{\s*\d+\s*\}\}$/.test(body)) {
-    return fail('The message cannot start or end with a {{1}} placeholder. Add a word before/after it.');
-  }
-  const varCount = countBodyVariables(body);
-  const examples = d.bodyExamples.slice(0, varCount).map(s => (s ?? '').trim());
-  if (examples.length < varCount || examples.some(s => !s)) return fail('Give an example for every {{n}} placeholder.');
-  for (const [i, b] of d.buttons.entries()) {
-    if (!b.text.trim()) return fail(`Button ${i + 1}: write its text.`);
-    if (b.type === 'URL' && !/^https:\/\/\S+$/.test(b.value)) return fail(`Button ${i + 1}: needs an https:// link.`);
-    if (b.type === 'PHONE_NUMBER' && !/^\+?\d{7,15}$/.test(b.value)) {
-      return fail(`Button ${i + 1}: needs a phone number with country code.`);
-    }
-  }
+  const missing = templateChecklist(d).find(i => !i.done);
+  if (missing) return { ok: false, error: missing.label };
+  if (!/^[a-z]{2,3}(_[A-Z]{2})?$/.test(d.language)) return { ok: false, error: 'Pick a language' };
+
+  const vars = templateVariables(d.body, d.variableType);
+  const headerHasVar = d.headerType === 'TEXT' && templateVariables(d.headerText, d.variableType).length === 1;
   return {
     ok: true,
     value: {
@@ -52,61 +143,38 @@ export function buildMetaTemplate(
       name: d.name,
       language: d.language,
       category: d.category,
-      body,
-      ...(varCount ? { bodyExamples: examples } : {}),
+      ...(d.variableType === 'NAME' ? { parameterFormat: 'NAMED' as const } : {}),
+      headerFormat: d.headerType,
+      body: d.body.trim(),
+      ...(vars.length ? { bodyExamples: d.bodyExamples.slice(0, vars.length).map(s => s.trim()) } : {}),
       ...(d.headerType === 'TEXT' ? { headerText: d.headerText.trim() } : {}),
+      ...(headerHasVar ? { headerExample: d.headerExample.trim() } : {}),
       // Copy only the fields the API accepts (the picker also carries a local preview URL).
-      ...(d.headerType === 'IMAGE' && d.headerImage
+      ...(MEDIA_HEADERS.includes(d.headerType) && d.headerMedia
         ? {
-            headerImage: {
-              base64: d.headerImage.base64,
-              mimetype: d.headerImage.mimetype,
-              filename: d.headerImage.filename,
+            headerMedia: {
+              base64: d.headerMedia.base64,
+              mimetype: d.headerMedia.mimetype,
+              filename: d.headerMedia.filename,
             },
           }
         : {}),
+      ...(d.category === 'UTILITY' && d.ttlSeconds ? { ttlSeconds: d.ttlSeconds } : {}),
       ...(d.footer.trim() ? { footer: d.footer.trim() } : {}),
       ...(d.buttons.length
         ? {
             buttons: d.buttons.map(b => ({
               type: b.type,
-              text: b.text.trim(),
-              ...(b.type === 'URL' ? { url: b.value } : b.type === 'PHONE_NUMBER' ? { phone: b.value } : {}),
+              text: b.type === 'COPY_CODE' ? 'Copy offer code' : b.text.trim(),
+              ...(b.type === 'URL' ? { url: b.value } : {}),
+              ...(b.type === 'PHONE_NUMBER' ? { phone: b.value } : {}),
+              ...(b.type === 'COPY_CODE' ? { code: b.value } : {}),
+              ...(b.type === 'FLOW' ? { flowId: b.flowId, flowScreen: 'SCREEN_1' } : {}),
             })),
           }
         : {}),
     },
   };
-}
-
-/** What is still missing, in the order the form asks for it — shown as a checklist instead of one error. */
-export function templateChecklist(d: MetaTemplateDraft): Array<{ label: string; done: boolean }> {
-  const varCount = countBodyVariables(d.body);
-  const items = [
-    { label: 'Template name', done: /^[a-z0-9_]+$/.test(d.name) },
-    { label: 'Message written', done: Boolean(d.body.trim()) },
-  ];
-  if (/^\s*\{\{\s*\d+\s*\}\}|\{\{\s*\d+\s*\}\}\s*$/.test(d.body)) {
-    items.push({ label: 'Message must not start or end with {{1}}', done: false });
-  }
-  if (varCount > 0) {
-    items.push({
-      label: `Example for each placeholder (${varCount})`,
-      done: d.bodyExamples.slice(0, varCount).filter(s => s?.trim()).length === varCount,
-    });
-  }
-  if (d.headerType === 'TEXT') items.push({ label: 'Header text', done: Boolean(d.headerText.trim()) });
-  if (d.headerType === 'IMAGE') items.push({ label: 'Header image chosen', done: Boolean(d.headerImage) });
-  d.buttons.forEach((b, i) =>
-    items.push({
-      label: `Button ${i + 1} complete`,
-      done:
-        Boolean(b.text.trim()) &&
-        (b.type === 'QUICK_REPLY' ||
-          (b.type === 'URL' ? /^https:\/\/\S+$/.test(b.value) : /^\+?\d{7,15}$/.test(b.value))),
-    }),
-  );
-  return items;
 }
 
 /**

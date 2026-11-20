@@ -37,6 +37,7 @@ import {
   referencedProductIds,
 } from './studio-content';
 import { SendPart, SendPlan, buildSendPlan } from './send-plan';
+import { buildMetaTemplatePayload, templateVariableNames } from './meta-template-payload';
 import type {
   CreateMetaTemplateDto,
   StudioImageUploadDto,
@@ -65,6 +66,7 @@ type CloudLikeEngine = IWhatsAppEngine & {
       category: string;
       components: Array<Record<string, unknown>>;
       rejectedReason?: string;
+      parameterFormat?: string;
     }>
   >;
   createMessageTemplate?: (payload: Record<string, unknown>) => Promise<{ id: string; status: string }>;
@@ -92,6 +94,7 @@ export function toTemplateInfo(t: {
   category: string;
   components: Array<Record<string, unknown>>;
   rejectedReason?: string;
+  parameterFormat?: string;
 }): TemplateInfo {
   const find = (type: string) => t.components.find(c => String(c.type).toUpperCase() === type);
   const body = find('BODY');
@@ -99,13 +102,20 @@ export function toTemplateInfo(t: {
   const footer = find('FOOTER');
   const buttons = find('BUTTONS');
   const bodyText = scalarToString(body?.text);
+  const named = t.parameterFormat?.toUpperCase() === 'NAMED';
+  const bodyVariables = templateVariableNames(bodyText, named ? 'NAMED' : 'POSITIONAL');
+  const headerVariables = header?.text
+    ? templateVariableNames(scalarToString(header.text), named ? 'NAMED' : 'POSITIONAL')
+    : [];
   return {
     name: t.name,
     language: t.language,
     status: t.status.toUpperCase(),
     category: t.category,
     bodyText,
-    bodyVariableCount: countTemplateVariables(bodyText),
+    bodyVariableCount: named ? bodyVariables.length : countTemplateVariables(bodyText),
+    ...(named ? { parameterFormat: 'NAMED' as const, bodyVariables } : {}),
+    ...(headerVariables.length ? { headerVariable: headerVariables[0] } : {}),
     headerFormat: header
       ? (scalarToString(header.format, 'TEXT').toUpperCase() as TemplateInfo['headerFormat'])
       : 'NONE',
@@ -122,45 +132,6 @@ export function toTemplateInfo(t: {
     // Meta reports "NONE" for templates that were never rejected.
     ...(t.rejectedReason && t.rejectedReason !== 'NONE' ? { rejectedReason: t.rejectedReason } : {}),
   };
-}
-
-/** Turns the template builder form into the payload Meta's message_templates endpoint expects. */
-export function buildMetaTemplatePayload(
-  dto: CreateMetaTemplateDto,
-  headerImageHandle?: string,
-): Record<string, unknown> {
-  const varCount = countTemplateVariables(dto.body);
-  const examples = dto.bodyExamples ?? [];
-  if (examples.length !== varCount) {
-    throw new BadRequestException(
-      `The body has ${varCount} variable(s) but ${examples.length} sample value(s) were given; Meta needs one sample per variable`,
-    );
-  }
-  const components: Array<Record<string, unknown>> = [];
-  if (headerImageHandle) {
-    components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerImageHandle] } });
-  } else if (dto.headerText?.trim()) {
-    components.push({ type: 'HEADER', format: 'TEXT', text: dto.headerText.trim() });
-  }
-  components.push({
-    type: 'BODY',
-    text: dto.body,
-    ...(varCount > 0 ? { example: { body_text: [examples] } } : {}),
-  });
-  if (dto.footer?.trim()) components.push({ type: 'FOOTER', text: dto.footer.trim() });
-  if (dto.buttons?.length) {
-    components.push({
-      type: 'BUTTONS',
-      buttons: dto.buttons.map(b =>
-        b.type === 'URL'
-          ? { type: 'URL', text: b.text, url: b.url }
-          : b.type === 'PHONE_NUMBER'
-            ? { type: 'PHONE_NUMBER', text: b.text, phone_number: b.phone }
-            : { type: 'QUICK_REPLY', text: b.text },
-      ),
-    });
-  }
-  return { name: dto.name, language: dto.language, category: dto.category, components };
 }
 
 /** Each card's header kind and body variable count, read from Meta's CAROUSEL component. */
@@ -259,13 +230,23 @@ export class MessageStudioService {
     if (typeof engine.createMessageTemplate !== 'function') {
       throw new BadRequestException('Templates can only be created on WhatsApp Cloud API numbers.');
     }
-    buildMetaTemplatePayload(dto); // validate before uploading anything
+    const media = dto.headerMedia;
+    const expectedMime = { IMAGE: /^image\//, VIDEO: /^video\//, DOCUMENT: /^application\/pdf$/ }[
+      dto.headerFormat as 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+    ];
+    if (expectedMime && media && !expectedMime.test(media.mimetype)) {
+      throw new BadRequestException(`The header sample must be a ${dto.headerFormat!.toLowerCase()} file.`);
+    }
+    buildMetaTemplatePayload(dto, media ? 'pending-upload' : undefined); // validate before uploading anything
     try {
       let handle: string | undefined;
-      if (dto.headerImage) {
-        if (typeof engine.uploadTemplateSample !== 'function') throw new Error('This number cannot upload images');
-        const { base64, mimetype, filename } = dto.headerImage;
-        handle = await engine.uploadTemplateSample(Buffer.from(base64, 'base64'), mimetype, filename || 'header.jpg');
+      if (media && expectedMime) {
+        if (typeof engine.uploadTemplateSample !== 'function') throw new Error('This number cannot upload files');
+        handle = await engine.uploadTemplateSample(
+          Buffer.from(media.base64, 'base64'),
+          media.mimetype,
+          media.filename || 'header',
+        );
       }
       const created = await engine.createMessageTemplate(buildMetaTemplatePayload(dto, handle));
       this.templateCache.delete(sessionId);

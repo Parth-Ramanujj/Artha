@@ -26,56 +26,12 @@ import { createLogger } from '../../common/services/logger.service';
 import { BusinessService } from '../business/business.service';
 import { Conversation } from '../conversation/entities/conversation.entity';
 import { hasDndTag } from '../conversation/dnd';
+import { metaTemplateComponents, readMetaTemplate } from './campaign-meta-template';
 
 const OPTED_OUT_REASON = 'Contact opted out (DND)';
 
 const MAX_RECIPIENTS_PER_CAMPAIGN = 10_000;
 
-/** An approved Meta template a Cloud API campaign sends instead of free text (messageOptions.metaTemplate). */
-export interface CampaignMetaTemplate {
-  name: string;
-  language: string;
-  /** One value per body variable ({{1}}, {{2}} …); "{{name}}" inside a value becomes the recipient's name. */
-  bodyParams: string[];
-  /** What {{name}} becomes for a recipient without a name (e.g. "Sir/Madam"). */
-  nameFallback?: string;
-  /** Meta media id of the header image, for templates with an image header. */
-  headerImageId?: string;
-}
-
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-
-export function readMetaTemplate(options: Record<string, unknown> | null): CampaignMetaTemplate | null {
-  const t = options?.metaTemplate as Partial<CampaignMetaTemplate> | undefined;
-  if (!t || !str(t.name) || !str(t.language)) return null;
-  const bodyParams = Array.isArray(t.bodyParams) ? t.bodyParams.map(p => String(p)) : [];
-  return {
-    name: str(t.name)!,
-    language: str(t.language)!,
-    bodyParams,
-    ...(str(t.nameFallback) ? { nameFallback: str(t.nameFallback) } : {}),
-    ...(str(t.headerImageId) ? { headerImageId: str(t.headerImageId) } : {}),
-  };
-}
-
-export function metaTemplateComponents(
-  t: CampaignMetaTemplate,
-  contactName: string | null | undefined,
-): Array<Record<string, unknown>> | undefined {
-  const components: Array<Record<string, unknown>> = [];
-  if (t.headerImageId) {
-    components.push({ type: 'header', parameters: [{ type: 'image', image: { id: t.headerImageId } }] });
-  }
-  if (t.bodyParams.length) {
-    // Meta rejects an empty parameter, so a missing name falls back to the campaign's chosen word.
-    const name = contactName?.trim() || t.nameFallback || 'there';
-    components.push({
-      type: 'body',
-      parameters: t.bodyParams.map(p => ({ type: 'text', text: p.replace(/\{\{\s*name\s*\}\}/gi, name) || name })),
-    });
-  }
-  return components.length ? components : undefined;
-}
 const MAX_SCHEDULED_PER_BUSINESS = 1_000;
 
 @Injectable()

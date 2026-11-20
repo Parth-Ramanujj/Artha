@@ -94,10 +94,13 @@ export class SessionRefDto {
   sessionId: string;
 }
 
+export const META_BUTTON_TYPES = ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL', 'COPY_CODE', 'FLOW'] as const;
+export type MetaButtonType = (typeof META_BUTTON_TYPES)[number];
+
 export class MetaTemplateButtonDto {
-  @ApiProperty({ enum: ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'] })
-  @IsIn(['QUICK_REPLY', 'URL', 'PHONE_NUMBER'])
-  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+  @ApiProperty({ enum: META_BUTTON_TYPES })
+  @IsIn(META_BUTTON_TYPES)
+  type: MetaButtonType;
 
   @ApiProperty({ example: 'Register Now' })
   @IsString()
@@ -118,19 +121,37 @@ export class MetaTemplateButtonDto {
   @ValidateIf((b: MetaTemplateButtonDto) => b.type === 'PHONE_NUMBER')
   @Matches(/^\+?\d{7,15}$/, { message: 'Phone buttons need a number with country code' })
   phone?: string;
+
+  @ApiPropertyOptional({ description: 'COPY_CODE: sample offer code', example: 'SAVE20' })
+  @ValidateIf((b: MetaTemplateButtonDto) => b.type === 'COPY_CODE')
+  @Matches(/^[A-Za-z0-9_-]{1,15}$/, { message: 'Offer codes: up to 15 letters or numbers' })
+  code?: string;
+
+  @ApiPropertyOptional({ description: 'FLOW: the published Meta flow id' })
+  @ValidateIf((b: MetaTemplateButtonDto) => b.type === 'FLOW')
+  @Matches(/^\d{5,30}$/, { message: 'Choose a published WhatsApp form' })
+  flowId?: string;
+
+  @ApiPropertyOptional({ description: 'FLOW: first screen to open' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  flowScreen?: string;
 }
 
-/** A JPEG/PNG image sent as base64 (header samples and campaign header images). */
+export const STUDIO_MEDIA_TYPES = ['image/jpeg', 'image/png', 'video/mp4', 'application/pdf'] as const;
+
+/** Media sent as base64 (template header samples and campaign header media). */
 export class StudioImageUploadDto {
-  @ApiProperty({ description: 'Image bytes, base64 encoded (max 5 MB)' })
+  @ApiProperty({ description: 'File bytes, base64 encoded (image 5 MB, video/PDF 16 MB)' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(7_000_000)
+  @MaxLength(22_000_000)
   base64: string;
 
-  @ApiProperty({ enum: ['image/jpeg', 'image/png'] })
-  @IsIn(['image/jpeg', 'image/png'])
-  mimetype: 'image/jpeg' | 'image/png';
+  @ApiProperty({ enum: STUDIO_MEDIA_TYPES })
+  @IsIn(STUDIO_MEDIA_TYPES)
+  mimetype: (typeof STUDIO_MEDIA_TYPES)[number];
 
   @ApiPropertyOptional({ example: 'banner.jpg' })
   @IsOptional()
@@ -160,17 +181,43 @@ export class CreateMetaTemplateDto extends SessionRefDto {
   @IsIn(['MARKETING', 'UTILITY'])
   category: 'MARKETING' | 'UTILITY';
 
-  @ApiPropertyOptional({ description: 'Plain text header (no variables)' })
+  @ApiPropertyOptional({
+    enum: ['POSITIONAL', 'NAMED'],
+    description: 'Variables as numbers ({{1}}) or names ({{first_name}})',
+  })
+  @IsOptional()
+  @IsIn(['POSITIONAL', 'NAMED'])
+  parameterFormat?: 'POSITIONAL' | 'NAMED';
+
+  @ApiPropertyOptional({ enum: ['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'] })
+  @IsOptional()
+  @IsIn(['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'])
+  headerFormat?: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
+
+  @ApiPropertyOptional({ description: 'Header text (may hold one variable)' })
   @IsOptional()
   @IsString()
   @MaxLength(60)
   headerText?: string;
 
-  @ApiPropertyOptional({ description: 'Sample image for an image header (instead of headerText)' })
+  @ApiPropertyOptional({ description: 'Sample value for the header variable' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  headerExample?: string;
+
+  @ApiPropertyOptional({ description: 'Sample image/video/PDF for a media header' })
   @IsOptional()
   @ValidateNested()
   @Type(() => StudioImageUploadDto)
-  headerImage?: StudioImageUploadDto;
+  headerMedia?: StudioImageUploadDto;
+
+  @ApiPropertyOptional({ description: 'Utility only: drop the message if not delivered within this many seconds' })
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(43_200)
+  ttlSeconds?: number;
 
   @ApiProperty({ description: 'Body with {{1}}, {{2}} … variables' })
   @IsString()

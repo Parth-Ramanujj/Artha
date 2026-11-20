@@ -146,6 +146,11 @@ export interface TemplateInfo {
   carouselCards?: Array<{ headerFormat: 'IMAGE' | 'VIDEO' | 'NONE'; bodyVariableCount: number }>;
   /** Meta's reason when status is REJECTED. */
   rejectedReason?: string;
+  /** NAMED templates use {{first_name}}-style variables, listed in bodyVariables in order. */
+  parameterFormat?: 'NAMED';
+  bodyVariables?: string[];
+  /** The one variable a TEXT header may hold ("1" or a name). */
+  headerVariable?: string;
 }
 
 export interface SendCapabilities {

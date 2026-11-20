@@ -1,15 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CheckCircle2, Circle, Plus } from 'lucide-react';
+import { Bell, CheckCircle2, Circle, Code, Plus, Smile, Strikethrough, Bold, Italic } from 'lucide-react';
 import { Modal } from '../Modal';
 import { useToast } from '../Toast';
 import { messageStudioApi, workflowApi } from '../../services/api';
-import type { StudioTemplate } from '../../types/messageStudio';
+import type { MetaHeaderFormat, StudioTemplate } from '../../types/messageStudio';
 import {
   buildMetaTemplate,
   buttonReplyWorkflow,
-  countBodyVariables,
+  nextVariable,
   templateChecklist,
+  templateVariables,
   type MetaTemplateDraft,
 } from '../../utils/metaTemplate';
 import { templatePrice } from '../../utils/templatePricing';
@@ -31,46 +32,61 @@ const LANGUAGES = [
   ['pa', 'Punjabi'],
 ] as const;
 
-const HEADER_TYPES: Array<[MetaTemplateDraft['headerType'], string]> = [
-  ['NONE', 'No header'],
-  ['TEXT', 'Title text'],
+const MEDIA_OPTIONS: Array<[MetaHeaderFormat, string]> = [
+  ['NONE', 'None'],
   ['IMAGE', 'Image'],
+  ['VIDEO', 'Video'],
+  ['DOCUMENT', 'Document'],
+  ['LOCATION', 'Location'],
 ];
 
+const VALIDITY = [
+  [30, '30 seconds'],
+  [60, '1 minute'],
+  [300, '5 minutes'],
+  [600, '10 minutes'],
+  [1800, '30 minutes'],
+  [3600, '1 hour'],
+  [10800, '3 hours'],
+  [21600, '6 hours'],
+  [43200, '12 hours'],
+] as const;
+
+const EMOJIS = ['👋', '🙏', '😊', '🎉', '✅', '📢', '🔥', '💰', '🛡️', '📈', '🤝', '📞', '⭐', '🇮🇳', '👉', '❤️'];
 const STOP_FOOTER = 'Reply STOP to unsubscribe';
 
-function Step({ n, title, optional, done, children }: { n: number; title: string; optional?: boolean; done?: boolean; children: ReactNode }) {
+function Card({ title, optional, children }: { title: string; optional?: boolean; children: ReactNode }) {
   return (
-    <section className="mt-card" aria-labelledby={`mt-step-${n}`}>
-      <div className="mt-card-head">
-        <span className={`mt-step ${done ? 'is-done' : ''}`} aria-hidden="true">
-          {done ? '✓' : n}
-        </span>
-        <h3 id={`mt-step-${n}`} className="mt-card-title">
-          {title} {optional && <span className="mt-optional">optional</span>}
-        </h3>
-      </div>
+    <section className="mt-card">
+      <h3 className="mt-card-title">
+        {title} {optional && <span className="mt-optional">· Optional</span>}
+      </h3>
       {children}
     </section>
   );
 }
 
-/** Builds a WhatsApp template step by step, with a live preview, and submits it to Meta for approval. */
+/** Builds a WhatsApp template like Meta's own builder, with a live preview, and submits it for approval. */
 export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionId: string; onClose: () => void; onSubmitted: () => void }) {
   const toast = useToast();
-  const [image, setImage] = useState<PickedImage | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [media, setMedia] = useState<PickedImage | null>(null);
   const [testPhone, setTestPhone] = useState<string | null>(null);
   const [draft, setDraft] = useState<MetaTemplateDraft>({
     name: '',
     language: 'en',
     category: 'MARKETING',
+    variableType: 'NUMBER',
     headerType: 'NONE',
     headerText: '',
-    headerImage: null,
+    headerExample: '',
+    headerMedia: null,
     body: '',
     bodyExamples: [],
     footer: '',
     buttons: [],
+    ttlSeconds: null,
   });
   const set = <K extends keyof MetaTemplateDraft>(key: K, value: MetaTemplateDraft[K]) => setDraft(d => ({ ...d, [key]: value }));
 
@@ -79,13 +95,27 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
   const phone = (testPhone ?? saved.data?.testPhone ?? '').trim();
   const phoneOk = !phone || /^\+?\d{10,15}$/.test(phone.replace(/[\s-]/g, ''));
 
-  const full = { ...draft, headerImage: image };
-  const varCount = countBodyVariables(draft.body);
+  const full = { ...draft, headerMedia: media };
+  const vars = templateVariables(draft.body, draft.variableType);
+  const headerVars = draft.headerType === 'TEXT' ? templateVariables(draft.headerText, draft.variableType) : [];
   const checklist = [...templateChecklist(full), ...(phoneOk ? [] : [{ label: 'Valid test number', done: false }])];
   const built = buildMetaTemplate(sessionId, full);
   const ready = built.ok && phoneOk;
   const price = templatePrice(draft.category);
   const autoReplies = draft.buttons.filter(b => b.type === 'QUICK_REPLY' && b.text.trim() && b.autoReply.trim());
+
+  /** Wraps the selected body text (or inserts at the cursor), like Meta's formatting toolbar. */
+  const wrap = (before: string, after = before) => {
+    const el = bodyRef.current;
+    const start = el?.selectionStart ?? draft.body.length;
+    const end = el?.selectionEnd ?? draft.body.length;
+    const next = draft.body.slice(0, start) + before + draft.body.slice(start, end) + after + draft.body.slice(end);
+    set('body', next.slice(0, 1024));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + before.length, end + before.length);
+    });
+  };
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -116,19 +146,22 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
     onError: (e: Error) => toast.error('Meta did not accept the template', e.message),
   });
 
+  const fill = (text: string, examples: string[], names: string[]) =>
+    text.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (m, key: string) => examples[names.indexOf(key)]?.trim() || m);
   const preview: StudioTemplate = {
     name: draft.name,
     language: draft.language,
     status: 'DRAFT',
     category: draft.category,
-    bodyText: draft.body || 'Your message will appear here…',
-    bodyVariableCount: varCount,
+    bodyText: fill(draft.body, draft.bodyExamples, vars) || 'Your message will appear here…',
+    bodyVariableCount: 0,
     headerFormat: draft.headerType,
-    headerText: draft.headerText,
+    headerText: fill(draft.headerText, [draft.headerExample], headerVars),
     footerText: draft.footer,
-    buttons: draft.buttons.map(b => ({ type: b.type, text: b.text || 'Button' })),
+    buttons: draft.buttons.map(b => ({ type: b.type, text: b.type === 'COPY_CODE' ? 'Copy offer code' : b.text || 'Button' })),
     isCarousel: false,
   };
+  const languageLabel = LANGUAGES.find(([c]) => c === draft.language)?.[1] ?? draft.language;
 
   return (
     <Modal
@@ -139,30 +172,43 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose}>
-            Back
+            Previous
           </button>
           <button className="btn btn-primary" disabled={!ready || submit.isPending} onClick={() => submit.mutate()}>
-            {submit.isPending ? 'Submitting…' : 'Submit to Meta for approval'}
+            {submit.isPending ? 'Submitting…' : 'Submit for review'}
           </button>
         </>
       }
     >
       <div className="mt-layout">
         <div className="mt-steps">
-          <Step n={1} title="Name, language and type" done={/^[a-z0-9_]+$/.test(draft.name)}>
-            <div className="ms-form-grid">
-              <label className="ms-field">
-                <span className="ms-label">Template name</span>
+          <div className="mt-summary">
+            <span className="mt-summary-icon" aria-hidden="true">
+              <Bell size={18} />
+            </span>
+            <div>
+              <strong>
+                {draft.name || 'your_template_name'} • {languageLabel}
+              </strong>
+              <span className="mt-help">{draft.category === 'UTILITY' ? 'Utility' : 'Marketing'} • Default</span>
+            </div>
+          </div>
+
+          <Card title="Template name and language">
+            <div className="mt-row">
+              <label className="ms-field mt-grow">
+                <span className="ms-label">Name your template</span>
                 <input
                   className="ms-input"
                   value={draft.name}
-                  placeholder="padosi_agent_invite"
+                  placeholder="Enter a template name"
                   maxLength={512}
                   onChange={e => set('name', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))}
                 />
+                <span className="mt-counter">{draft.name.length}/512 · lowercase letters, numbers and _</span>
               </label>
               <label className="ms-field">
-                <span className="ms-label">Language</span>
+                <span className="ms-label">Select language</span>
                 <select className="ms-input" value={draft.language} onChange={e => set('language', e.target.value)}>
                   {LANGUAGES.map(([code, label]) => (
                     <option key={code} value={code}>
@@ -172,109 +218,257 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
                 </select>
               </label>
               <label className="ms-field">
-                <span className="ms-label">Type</span>
-                <select className="ms-input" value={draft.category} onChange={e => set('category', e.target.value as MetaTemplateDraft['category'])}>
-                  <option value="MARKETING">Marketing — offers, invitations</option>
-                  <option value="UTILITY">Utility — orders, reminders</option>
+                <span className="ms-label">Category</span>
+                <select
+                  className="ms-input"
+                  value={draft.category}
+                  onChange={e => setDraft(d => ({ ...d, category: e.target.value as MetaTemplateDraft['category'] }))}
+                >
+                  <option value="MARKETING">Marketing</option>
+                  <option value="UTILITY">Utility</option>
                 </select>
               </label>
             </div>
-            <p className="mt-help">Only you see the name. Customers never see it.</p>
-          </Step>
+          </Card>
 
-          <Step n={2} title="Header" optional done={draft.headerType !== 'NONE' && (draft.headerType === 'TEXT' ? Boolean(draft.headerText.trim()) : Boolean(image))}>
-            <div className="ms-tabs" role="radiogroup" aria-label="Header type">
-              {HEADER_TYPES.map(([value, label]) => (
-                <button
-                  key={value}
-                  role="radio"
-                  aria-checked={draft.headerType === value}
-                  className={`ms-tab ${draft.headerType === value ? 'is-active' : ''}`}
-                  onClick={() => set('headerType', value)}
+          <Card title="Content">
+            <p className="mt-help">
+              Add a header, body and footer for your template. Meta reviews the variables and content before approving it.
+            </p>
+            <div className="mt-row">
+              <label className="ms-field">
+                <span className="ms-label" title="Numbers: {{1}}, {{2}}. Names: {{first_name}} — easier to read.">
+                  Type of variable ⓘ
+                </span>
+                <select
+                  className="ms-input"
+                  value={draft.variableType}
+                  onChange={e => set('variableType', e.target.value as MetaTemplateDraft['variableType'])}
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {draft.headerType === 'TEXT' && (
-              <input
-                className="ms-input"
-                aria-label="Header text"
-                placeholder="A bold title shown at the top (max 60 letters)"
-                maxLength={60}
-                value={draft.headerText}
-                onChange={e => set('headerText', e.target.value)}
-              />
-            )}
-            {draft.headerType === 'IMAGE' && (
-              <HeaderImagePicker
-                value={image}
-                onChange={setImage}
-                label="Image"
-                hint="JPG or PNG, up to 5 MB. Meta reviews this sample; each campaign can use its own image."
-              />
-            )}
-          </Step>
-
-          <Step n={3} title="Message" done={Boolean(draft.body.trim()) && built.ok}>
-            <textarea
-              className="ms-input"
-              rows={8}
-              maxLength={1024}
-              aria-label="Message"
-              placeholder={'👋 Namaste {{1}}!\n\nWrite what the customer will read…'}
-              value={draft.body}
-              onChange={e => set('body', e.target.value)}
-            />
-            <div className="mt-toolbar">
-              <button className="mt-chip" onClick={() => set('body', `${draft.body}{{${varCount + 1}}}`)}>
-                <Plus size={13} /> Add a value that changes per person
-              </button>
-              <span className="mt-counter">
-                {draft.body.length}/1024 · *bold* · _italic_
-              </span>
-            </div>
-            {varCount > 0 && (
-              <>
-                <p className="mt-help">Meta needs an example for each {'{{n}}'} to approve it. Customers get their own values.</p>
-                <div className="ms-form-grid">
-                  {Array.from({ length: varCount }, (_, i) => (
-                    <label key={i} className="ms-field">
-                      <span className="ms-label">Example for {`{{${i + 1}}}`}</span>
-                      <input
-                        className="ms-input"
-                        value={draft.bodyExamples[i] ?? ''}
-                        placeholder={i === 0 ? 'Rahul' : 'example'}
-                        onChange={e => set('bodyExamples', Object.assign([...draft.bodyExamples], { [i]: e.target.value }))}
-                      />
-                    </label>
+                  <option value="NUMBER">Number — {'{{1}}'}</option>
+                  <option value="NAME">Name — {'{{first_name}}'}</option>
+                </select>
+              </label>
+              <label className="ms-field">
+                <span className="ms-label">
+                  Media sample <span className="mt-optional">· Optional</span>
+                </span>
+                <select
+                  className="ms-input"
+                  value={draft.headerType === 'TEXT' ? 'NONE' : draft.headerType}
+                  onChange={e => {
+                    const v = e.target.value as MetaHeaderFormat;
+                    setMedia(null);
+                    // "None" media keeps a text header the user already typed.
+                    set('headerType', v === 'NONE' && draft.headerText.trim() ? 'TEXT' : v);
+                  }}
+                >
+                  {MEDIA_OPTIONS.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
                   ))}
-                </div>
-              </>
-            )}
-          </Step>
+                </select>
+              </label>
+            </div>
 
-          <Step n={4} title="Footer" optional done={Boolean(draft.footer.trim())}>
-            <input
-              className="ms-input"
-              aria-label="Footer"
-              placeholder="Small grey line at the bottom (max 60 letters)"
-              value={draft.footer}
-              maxLength={60}
-              onChange={e => set('footer', e.target.value)}
-            />
-            {draft.category === 'MARKETING' && draft.footer !== STOP_FOOTER && (
-              <div>
-                <button className="mt-chip" onClick={() => set('footer', STOP_FOOTER)}>
-                  <Plus size={13} /> Use “{STOP_FOOTER}”
+            {(draft.headerType === 'IMAGE' || draft.headerType === 'VIDEO' || draft.headerType === 'DOCUMENT') && (
+              <HeaderImagePicker
+                kind={draft.headerType}
+                value={media}
+                onChange={setMedia}
+                label="Sample for Meta's review"
+              />
+            )}
+            {draft.headerType === 'LOCATION' && (
+              <p className="mt-help">📍 A map pin is shown at the top. You choose the exact place when you send each campaign.</p>
+            )}
+
+            {(draft.headerType === 'NONE' || draft.headerType === 'TEXT') && (
+              <label className="ms-field">
+                <span className="ms-label">
+                  Header <span className="mt-optional">· Optional</span>
+                </span>
+                <input
+                  className="ms-input"
+                  maxLength={60}
+                  placeholder={`Add a short line of text to the header of your message in ${languageLabel}`}
+                  value={draft.headerText}
+                  onChange={e => setDraft(d => ({ ...d, headerText: e.target.value, headerType: e.target.value ? 'TEXT' : 'NONE' }))}
+                />
+                <div className="mt-toolbar">
+                  <span className="mt-counter">{draft.headerText.length}/60</span>
+                  <button
+                    className="mt-tool"
+                    disabled={headerVars.length > 0}
+                    onClick={() =>
+                      setDraft(d => ({
+                        ...d,
+                        headerType: 'TEXT',
+                        headerText: `${d.headerText}${d.variableType === 'NAME' ? '{{first_name}}' : '{{1}}'}`,
+                      }))
+                    }
+                  >
+                    <Plus size={13} /> Add variable
+                  </button>
+                </div>
+                {headerVars.length === 1 && (
+                  <input
+                    className="ms-input"
+                    aria-label="Header variable sample"
+                    placeholder={`Sample for {{${headerVars[0]}}}, e.g. Rahul`}
+                    value={draft.headerExample}
+                    onChange={e => set('headerExample', e.target.value)}
+                  />
+                )}
+              </label>
+            )}
+
+            <label className="ms-field">
+              <span className="ms-label">Body</span>
+              <textarea
+                ref={bodyRef}
+                className="ms-input"
+                rows={7}
+                maxLength={1024}
+                placeholder="Hello"
+                value={draft.body}
+                onChange={e => set('body', e.target.value)}
+              />
+            </label>
+            <div className="mt-toolbar">
+              <span className="mt-counter">{draft.body.length}/1024</span>
+              <div className="mt-tools" role="toolbar" aria-label="Formatting">
+                <div className="mt-menu-wrap">
+                  <button className="mt-tool" aria-label="Emoji" onClick={() => setEmojiOpen(o => !o)}>
+                    <Smile size={15} />
+                  </button>
+                  {emojiOpen && (
+                    <div className="mt-menu mt-emoji" role="menu">
+                      {EMOJIS.map(e => (
+                        <button
+                          key={e}
+                          role="menuitem"
+                          className="mt-tool"
+                          onClick={() => {
+                            wrap(e, '');
+                            setEmojiOpen(false);
+                          }}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button className="mt-tool" aria-label="Bold" title="Bold" onClick={() => wrap('*')}>
+                  <Bold size={15} />
+                </button>
+                <button className="mt-tool" aria-label="Italic" title="Italic" onClick={() => wrap('_')}>
+                  <Italic size={15} />
+                </button>
+                <button className="mt-tool" aria-label="Strikethrough" title="Strikethrough" onClick={() => wrap('~')}>
+                  <Strikethrough size={15} />
+                </button>
+                <button className="mt-tool" aria-label="Monospace" title="Monospace" onClick={() => wrap('```')}>
+                  <Code size={15} />
+                </button>
+                <button className="mt-tool" onClick={() => wrap(nextVariable(draft.body, draft.variableType), '')}>
+                  <Plus size={13} /> Add variable
                 </button>
               </div>
+            </div>
+
+            {vars.length > 0 && (
+              <div className="mt-samples">
+                <span className="ms-label">Variable samples</span>
+                <p className="mt-help">Meta needs an example for each variable to review it. Customers get their own values.</p>
+                {vars.map((v, i) => (
+                  <label key={v} className="mt-sample">
+                    <code>{`{{${v}}}`}</code>
+                    <input
+                      className="ms-input"
+                      value={draft.bodyExamples[i] ?? ''}
+                      placeholder={i === 0 ? 'Rahul' : 'Sample value'}
+                      onChange={e => set('bodyExamples', Object.assign([...draft.bodyExamples], { [i]: e.target.value }))}
+                    />
+                  </label>
+                ))}
+                {draft.variableType === 'NAME' && (
+                  <p className="mt-help">Rename a variable by editing it in the body, e.g. {'{{variable_1}}'} → {'{{first_name}}'}.</p>
+                )}
+              </div>
             )}
-          </Step>
 
-          <MetaTemplateButtons buttons={draft.buttons} onChange={b => set('buttons', b)} />
+            <label className="ms-field">
+              <span className="ms-label">
+                Footer <span className="mt-optional">· Optional</span>
+              </span>
+              <input
+                className="ms-input"
+                maxLength={60}
+                placeholder={`Add a short line of text to the bottom of your message in ${languageLabel}`}
+                value={draft.footer}
+                onChange={e => set('footer', e.target.value)}
+              />
+              <div className="mt-toolbar">
+                <span className="mt-counter">{draft.footer.length}/60</span>
+                {draft.category === 'MARKETING' && draft.footer !== STOP_FOOTER && (
+                  <button className="mt-tool" onClick={() => set('footer', STOP_FOOTER)}>
+                    <Plus size={13} /> Use “{STOP_FOOTER}”
+                  </button>
+                )}
+              </div>
+            </label>
+          </Card>
 
-          <Step n={6} title="Test on my phone after approval" optional done={Boolean(phone) && phoneOk}>
+          <MetaTemplateButtons buttons={draft.buttons} category={draft.category} onChange={b => set('buttons', b)} />
+
+          <Card title="Message validity period">
+            {draft.category === 'UTILITY' ? (
+              <>
+                <p className="mt-help">
+                  If the customer&apos;s phone is off or offline, WhatsApp keeps trying to deliver. Choose how long it
+                  should keep trying. If it can&apos;t deliver in time, the message is dropped — the customer never sees
+                  it and <strong>you are not charged</strong>. Useful for time-sensitive messages like OTPs or “your
+                  appointment is in 30 minutes”.
+                </p>
+                <div className="mt-toolbar">
+                  <label className="mt-switch">
+                    <input
+                      type="checkbox"
+                      checked={draft.ttlSeconds !== null}
+                      onChange={e => set('ttlSeconds', e.target.checked ? 600 : null)}
+                    />
+                    Set custom validity period for your message
+                  </label>
+                  {draft.ttlSeconds !== null && (
+                    <select
+                      className="ms-input"
+                      aria-label="Validity period"
+                      value={draft.ttlSeconds}
+                      onChange={e => set('ttlSeconds', Number(e.target.value))}
+                    >
+                      {VALIDITY.map(([s, l]) => (
+                        <option key={s} value={s}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {draft.ttlSeconds === null && (
+                  <p className="mt-help">Off: WhatsApp&apos;s standard validity period applies.</p>
+                )}
+              </>
+            ) : (
+              <p className="mt-help">
+                Only for Utility templates. Marketing messages use WhatsApp&apos;s standard validity period.
+              </p>
+            )}
+          </Card>
+
+          <Card title="Test on my phone after approval" optional>
             <input
               className="ms-input"
               aria-label="Test phone number"
@@ -286,19 +480,21 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
             {!phoneOk && <span className="ms-field-error">Enter a mobile number, e.g. 6352701839.</span>}
             <p className="mt-help">
               When Meta approves it we send it here automatically — <strong>only if it&apos;s free</strong>: this number must
-              have messaged your WhatsApp number in the last 24 hours. So send “hi” from it first. If the window is closed,
-              nothing is sent and you&apos;ll see why in the templates list.
+              have messaged your WhatsApp number in the last 24 hours. Send “hi” from it first.
             </p>
-          </Step>
+          </Card>
         </div>
 
         <aside className="mt-side" aria-label="Preview and checklist">
+          <span className="ms-label">Template preview</span>
           <WhatsAppPreview
             kind="template"
-            content={{ template: { name: draft.name, language: draft.language, variables: draft.bodyExamples } }}
+            content={{ template: { name: draft.name, language: draft.language, variables: [] } }}
             products={[]}
             template={preview}
           />
+          {media && <p className="mt-help">Header: {media.filename}</p>}
+          {draft.headerType === 'LOCATION' && <p className="mt-help">Header: 📍 location</p>}
           <ul className="mt-checklist" aria-label="Before you submit">
             {checklist.map(item => (
               <li key={item.label} className={item.done ? 'is-done' : ''}>

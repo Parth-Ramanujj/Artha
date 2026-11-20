@@ -18,6 +18,7 @@ type MetaTemplate = {
   status: string;
   category: string;
   components: Array<Record<string, unknown>>;
+  parameterFormat?: string;
 };
 type AutoTestEngine = {
   listMessageTemplates?: () => Promise<MetaTemplate[]>;
@@ -77,42 +78,62 @@ export function decideAutoTest(input: {
     action: 'send_preview',
     note:
       input.category.toUpperCase() === 'UTILITY'
-        ? 'Approved. Sent a free copy as a normal message (an image header cannot be filled in automatically).'
+        ? 'Approved. Sent a free copy as a normal message (its media/location header or offer-code button cannot be filled in automatically).'
         : 'Approved. Sent a free copy as a normal message — Meta charges for Marketing templates even inside the 24-hour window.',
   };
 }
 
+type Example = {
+  body_text?: string[][];
+  body_text_named_params?: Array<{ param_name: string; example: string }>;
+  header_text?: string[];
+  header_text_named_params?: Array<{ param_name: string; example: string }>;
+};
+const part = (t: MetaTemplate, type: string) => t.components.find(c => scalarToString(c.type).toUpperCase() === type);
+
+/** Example values Meta approved, keyed by variable ("1", "2" … or a name). */
+function examplesOf(component: Record<string, unknown> | undefined, kind: 'body' | 'header'): Array<[string, string]> {
+  const ex = (component?.example ?? {}) as Example;
+  const named = kind === 'body' ? ex.body_text_named_params : ex.header_text_named_params;
+  if (named?.length) return named.map(p => [p.param_name, String(p.example)]);
+  const positional = kind === 'body' ? (ex.body_text?.[0] ?? []) : (ex.header_text ?? []);
+  return positional.map((v, i) => [String(i + 1), String(v)]);
+}
+
+function fillExamples(text: string, examples: Array<[string, string]>): string {
+  const map = new Map(examples);
+  return text.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (m, key: string) => map.get(key) ?? m);
+}
+
 /** Plain-text copy of a template, filled with Meta's example values. */
 export function templatePreviewText(t: MetaTemplate): string {
-  const find = (type: string) => t.components.find(c => scalarToString(c.type).toUpperCase() === type);
-  const header = find('HEADER');
-  const body = find('BODY');
-  const examples = ((body?.example as { body_text?: string[][] } | undefined)?.body_text?.[0] ?? []).map(String);
-  const bodyText = scalarToString(body?.text).replace(
-    /\{\{\s*(\d+)\s*\}\}/g,
-    (m, n: string) => examples[Number(n) - 1] ?? m,
-  );
-  const buttons = Array.isArray(find('BUTTONS')?.buttons)
-    ? (find('BUTTONS')!.buttons as Array<Record<string, unknown>>)
+  const header = part(t, 'HEADER');
+  const body = part(t, 'BODY');
+  const buttons = Array.isArray(part(t, 'BUTTONS')?.buttons)
+    ? (part(t, 'BUTTONS')!.buttons as Array<Record<string, unknown>>)
     : [];
   return [
     `🧪 Approved template: ${t.name} (${t.language})`,
-    header?.text ? `*${scalarToString(header.text)}*` : '',
-    bodyText,
-    scalarToString(find('FOOTER')?.text) ? `_${scalarToString(find('FOOTER')?.text)}_` : '',
-    buttons.length ? buttons.map(b => `▫️ ${scalarToString(b.text)}`).join('\n') : '',
+    header?.text ? `*${fillExamples(scalarToString(header.text), examplesOf(header, 'header'))}*` : '',
+    fillExamples(scalarToString(body?.text), examplesOf(body, 'body')),
+    scalarToString(part(t, 'FOOTER')?.text) ? `_${scalarToString(part(t, 'FOOTER')?.text)}_` : '',
+    buttons.length ? buttons.map(b => `▫️ ${scalarToString(b.text) || 'Copy code'}`).join('\n') : '',
   ]
     .filter(Boolean)
     .join('\n\n');
 }
 
-/** Body parameters for a real template send, taken from the examples Meta approved. */
+/** Parameters for a real template send (header text + body), taken from the examples Meta approved. */
 function exampleComponents(t: MetaTemplate): Array<Record<string, unknown>> | undefined {
-  const body = t.components.find(c => scalarToString(c.type).toUpperCase() === 'BODY');
-  const examples = (body?.example as { body_text?: string[][] } | undefined)?.body_text?.[0] ?? [];
-  return examples.length
-    ? [{ type: 'body', parameters: examples.map(text => ({ type: 'text', text: String(text) })) }]
-    : undefined;
+  const named = (t.parameterFormat ?? '').toUpperCase() === 'NAMED';
+  const params = (examples: Array<[string, string]>) =>
+    examples.map(([key, text]) => ({ type: 'text', text, ...(named ? { parameter_name: key } : {}) }));
+  const out: Array<Record<string, unknown>> = [];
+  const header = examplesOf(part(t, 'HEADER'), 'header');
+  if (header.length) out.push({ type: 'header', parameters: params(header) });
+  const body = examplesOf(part(t, 'BODY'), 'body');
+  if (body.length) out.push({ type: 'body', parameters: params(body) });
+  return out.length ? out : undefined;
 }
 
 /**
@@ -219,7 +240,9 @@ export class TemplateAutoTestService implements OnModuleInit, OnModuleDestroy {
       const decision = decideAutoTest({
         status: tpl?.status,
         category: tpl?.category ?? '',
-        hasMediaHeader: Boolean(header && scalarToString(header.format, 'TEXT').toUpperCase() !== 'TEXT'),
+        hasMediaHeader:
+          Boolean(header && scalarToString(header.format, 'TEXT').toUpperCase() !== 'TEXT') ||
+          JSON.stringify(tpl?.components ?? []).includes('"COPY_CODE"'),
         windowOpen:
           tpl?.status?.toUpperCase() === 'APPROVED' ? await this.windowOpen(test.sessionId, test.phone) : false,
         ageMs: Date.now() - new Date(test.createdAt).getTime(),
