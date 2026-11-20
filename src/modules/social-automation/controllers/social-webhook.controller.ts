@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Param,
   Post,
   Query,
   Req,
@@ -18,6 +19,7 @@ import * as express from 'express';
 import { constantTimeEqual } from '../../../common/security/constantTimeEqual';
 import { Public } from '../../auth/decorators/auth.decorators';
 import type { SocialPlatform } from '../entities/social-automation.entity';
+import { MetaGraphService } from '../services/meta-graph.service';
 import { IncomingComment, SocialAutomationService } from '../social-automation.service';
 
 type Obj = Record<string, unknown>;
@@ -76,6 +78,7 @@ export class SocialWebhookController {
 
   constructor(
     private readonly socialService: SocialAutomationService,
+    private readonly metaGraph: MetaGraphService,
     config: ConfigService,
   ) {
     this.appSecret = (config.get<string>('META_APP_SECRET') || config.get<string>('CLOUD_API_APP_SECRET') || '').trim();
@@ -100,6 +103,20 @@ export class SocialWebhookController {
     }
     this.logger.warn('Meta social webhook verification rejected');
     res.status(HttpStatus.FORBIDDEN).send('Verification failed');
+  }
+
+  /** The fitted Instagram photo Meta downloads while publishing; ids are random and expire in minutes. */
+  @Public()
+  @Get('media/:file')
+  media(@Param('file') file: string, @Res() res: express.Response): void {
+    const data = this.metaGraph.getFittedImage(file.replace(/\.jpg$/i, ''));
+    if (!data) {
+      res.status(HttpStatus.NOT_FOUND).send('Not found');
+      return;
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=900');
+    res.status(HttpStatus.OK).send(data);
   }
 
   private signatureOk(rawBody: Buffer | undefined, signature: string | undefined): boolean {

@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { loadRemoteMediaBuffer } from '../../../common/media/load-remote-media';
 import type { SocialMediaType, SocialPlatform } from '../entities/social-automation.entity';
+import { fitForInstagram } from './instagram-image';
 
 export interface MetaPublishResult {
   remotePostId: string;
@@ -21,6 +24,8 @@ const REQUEST_TIMEOUT_MS = 20_000;
 // Reels containers transcode before they can be published; Meta suggests polling status_code.
 const VIDEO_POLL_MS = 5_000;
 const VIDEO_POLL_ATTEMPTS = 36; // ~3 minutes
+// Meta fetches the photo while creating the container, within seconds; 15 minutes covers retries.
+const FITTED_IMAGE_TTL_MS = 15 * 60_000;
 
 const errMsg = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 const text = (v: unknown): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
@@ -28,6 +33,8 @@ const text = (v: unknown): string => (typeof v === 'string' || typeof v === 'num
 @Injectable()
 export class MetaGraphService {
   private readonly logger = new Logger(MetaGraphService.name);
+  // shortcut: in-memory, so it assumes one API instance; use shared storage if the API is scaled out.
+  private readonly fittedImages = new Map<string, { data: Buffer; expires: number }>();
 
   /** Calls the Graph API and throws with Meta's own error message on failure. */
   private async graph(
@@ -127,6 +134,7 @@ export class MetaGraphService {
       return { remotePostId: id, permalink: `https://www.instagram.com/p/${id}/`, success: true };
     }
     try {
+      if (mediaType !== 'VIDEO') mediaUrl = await this.fittedImageUrl(mediaUrl);
       const user = encodeURIComponent(igUserId);
       const media: Record<string, string> =
         mediaType === 'VIDEO' ? { media_type: 'REELS', video_url: mediaUrl } : { image_url: mediaUrl };
@@ -149,6 +157,33 @@ export class MetaGraphService {
     } catch (err) {
       this.logger.error(`Instagram publish failed: ${errMsg(err)}`);
       return { remotePostId: '', success: false, error: errMsg(err) };
+    }
+  }
+
+  /** A fitted JPEG for Meta to fetch, served from memory by SocialWebhookController (GET media/:id). */
+  getFittedImage(id: string): Buffer | undefined {
+    const hit = this.fittedImages.get(id);
+    return hit && hit.expires > Date.now() ? hit.data : undefined;
+  }
+
+  /**
+   * Re-encodes the photo so Instagram accepts it (JPEG, allowed size and aspect ratio) and returns a public
+   * URL for it. Falls back to the original URL when the server has no public BASE_URL or the photo
+   * can't be read, so Meta reports its own error instead.
+   */
+  private async fittedImageUrl(mediaUrl: string): Promise<string> {
+    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+    if (!/^https:\/\//i.test(base)) return mediaUrl;
+    try {
+      const { data } = await loadRemoteMediaBuffer(mediaUrl);
+      const now = Date.now();
+      for (const [key, v] of this.fittedImages) if (v.expires <= now) this.fittedImages.delete(key);
+      const id = randomUUID();
+      this.fittedImages.set(id, { data: await fitForInstagram(data), expires: now + FITTED_IMAGE_TTL_MS });
+      return `${base}/api/social-automation/webhook/media/${id}.jpg`;
+    } catch (err) {
+      this.logger.warn(`Could not prepare the photo for Instagram, sending it as is: ${errMsg(err)}`);
+      return mediaUrl;
     }
   }
 
