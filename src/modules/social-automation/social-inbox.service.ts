@@ -113,7 +113,11 @@ export class SocialInboxService {
       .filter(m => m.text)
       .map(m => ({ from: m.direction === 'in' ? ('customer' as const) : ('business' as const), text: m.text ?? '' }));
     const name = msg.customerName?.replace(/^@/, '') || 'friend';
-    const auto = await this.social.dmAutoReply(account.businessId, account.platform, name, chat);
+    let auto = await this.social.dmAutoReply(account.businessId, account.platform, name, chat);
+    if (!auto && account.aiAutoReply) {
+      const reply = await this.social.aiAgentReply(account.businessId, account.id, chat);
+      if (reply) auto = { reply, delaySeconds: 2 };
+    }
     if (!auto) return;
     if (auto.delaySeconds > 0) await new Promise(r => setTimeout(r, auto.delaySeconds * 1000));
     // Someone answered by hand, or the customer wrote again, during the delay: don't talk over it.

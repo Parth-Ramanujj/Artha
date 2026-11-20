@@ -176,6 +176,7 @@ export function SocialAutomation() {
     accessToken: '',
     pageId: '',
     webhookVerifyToken: '',
+    aiAutoReply: false,
   });
 
   // Simulator state
@@ -349,6 +350,7 @@ export function SocialAutomation() {
       accessToken: '',
       pageId: '',
       webhookVerifyToken: '',
+      aiAutoReply: false,
     });
     setShowAccountModal(true);
   };
@@ -362,6 +364,7 @@ export function SocialAutomation() {
       accessToken: '',
       pageId: acc.pageId || '',
       webhookVerifyToken: acc.webhookVerifyToken || '',
+      aiAutoReply: acc.aiAutoReply ?? false,
     });
     setShowAccountModal(true);
   };
@@ -380,6 +383,7 @@ export function SocialAutomation() {
           accessToken: newAccount.accessToken.trim() || undefined,
           pageId: newAccount.pageId || undefined,
           webhookVerifyToken: newAccount.webhookVerifyToken || undefined,
+          aiAutoReply: newAccount.aiAutoReply,
         });
         setNotice('Meta account updated and re-verified successfully!');
       } else {
@@ -396,6 +400,7 @@ export function SocialAutomation() {
               platform: 'facebook',
               accountId: newAccount.pageId.trim(),
               accessToken: newAccount.accessToken,
+              aiAutoReply: newAccount.aiAutoReply,
               accountName: newAccount.accountName.trim() ? `${newAccount.accountName.trim()} (Facebook)` : undefined,
             });
             message = 'Instagram and its Facebook Page are both connected!';
@@ -416,6 +421,7 @@ export function SocialAutomation() {
         accessToken: '',
         pageId: '',
         webhookVerifyToken: '',
+        aiAutoReply: false,
       });
       await loadData();
     } catch (err) {
@@ -914,6 +920,7 @@ export function SocialAutomation() {
                         </td>
                         <td>
                           <strong>{acc.accountName}</strong>
+                          {acc.aiAutoReply && <div className="sa-help">🤖 AI answers DMs</div>}
                         </td>
                         <td>
                           <code>{acc.accountId}</code>
@@ -1551,6 +1558,21 @@ export function SocialAutomation() {
             <span className="sa-help">
               Stored on the server and never shown again. Outside production, <code>mock_token</code> tests the flow
               without calling Meta.
+            </span>
+          </div>
+
+          <div className="social-form-group">
+            <label className="social-checkbox-row">
+              <input
+                type="checkbox"
+                checked={newAccount.aiAutoReply}
+                onChange={e => setNewAccount({ ...newAccount, aiAutoReply: e.target.checked })}
+              />
+              AI Agent answers direct messages automatically
+            </label>
+            <span className="sa-help">
+              When no auto-reply rule matches a DM, your AI chatbot (Chatbot Training: knowledge, tone, hand-off words)
+              replies in the chat. It needs the chatbot turned on in Chatbot Training.
             </span>
           </div>
         </form>

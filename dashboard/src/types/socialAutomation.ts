@@ -13,6 +13,8 @@ export interface SocialAccount {
   accountId: string;
   pageId: string | null;
   webhookVerifyToken: string | null;
+  /** Absent on servers older than this field. */
+  aiAutoReply?: boolean;
   status: 'connected' | 'disconnected';
   tokenExpiresAt: string | null;
   metadata: string;
@@ -127,6 +129,7 @@ export interface SocialAccountInput {
   accessToken?: string;
   pageId?: string;
   webhookVerifyToken?: string;
+  aiAutoReply?: boolean;
 }
 
 export interface SocialPostInput {

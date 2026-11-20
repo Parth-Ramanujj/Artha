@@ -42,6 +42,10 @@ export class SocialAccount {
   @Column({ type: 'varchar', length: 150, nullable: true })
   webhookVerifyToken: string | null;
 
+  /** The business's AI chatbot answers DMs on this account that no rule answered. */
+  @Column({ type: 'boolean', default: false })
+  aiAutoReply: boolean;
+
   @Column({ type: 'varchar', length: 20, default: 'connected' })
   status: 'connected' | 'disconnected';
 

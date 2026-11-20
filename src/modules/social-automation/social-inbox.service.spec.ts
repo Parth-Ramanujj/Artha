@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { AddSocialAutomation1788600000000 } from '../../database/migrations/1788600000000-AddSocialAutomation';
 import { AddSocialMessages1789400000000 } from '../../database/migrations/1789400000000-AddSocialMessages';
+import { AddSocialAccountAiAutoReply1789600000000 } from '../../database/migrations/1789600000000-AddSocialAccountAiAutoReply';
 import { extractMessages } from './controllers/social-webhook.controller';
 import {
   SocialAccount,
@@ -62,6 +63,7 @@ describe('SocialInboxService', () => {
     const qr = ds.createQueryRunner();
     await new AddSocialAutomation1788600000000().up(qr);
     await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
     await new AddSocialMessages1789400000000().up(qr); // idempotent
     account = await ds.getRepository(SocialAccount).save({
       businessId: 'b',
@@ -141,6 +143,7 @@ describe('SocialInboxService auto-reply', () => {
     const qr = ds.createQueryRunner();
     await new AddSocialAutomation1788600000000().up(qr);
     await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
     const account = await ds.getRepository(SocialAccount).save({
       businessId: 'b',
       platform: 'facebook',
@@ -186,4 +189,54 @@ describe('SocialInboxService auto-reply', () => {
     expect(dmAutoReply).not.toHaveBeenCalled();
     await ds.destroy();
   });
+});
+
+describe('SocialInboxService AI agent', () => {
+  it('lets the AI chatbot answer when no rule does, only on accounts that switched it on', async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
+    const repo = ds.getRepository(SocialAccount);
+    const base = {
+      businessId: 'b',
+      platform: 'instagram' as const,
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+    };
+    const on = await repo.save({ ...base, accountName: 'On', accountId: 'ig-on', aiAutoReply: true });
+    const off = await repo.save({ ...base, accountName: 'Off', accountId: 'ig-off' });
+    const aiAgentReply = jest.fn().mockResolvedValue('Our shop opens at 10.');
+    const inbox = new SocialInboxService(repo, ds.getRepository(SocialMessage), new MetaGraphService(), {
+      noteUnmatchedAccount: jest.fn(),
+      dmAutoReply: jest.fn().mockResolvedValue(null),
+      aiAgentReply,
+    } as unknown as SocialAutomationService);
+    const dm = (accountId: string, mid: string) => ({
+      platform: 'instagram' as const,
+      targetAccountId: accountId,
+      senderId: 'cust',
+      recipientId: accountId,
+      mid,
+      text: 'timing?',
+      isEcho: false,
+    });
+
+    await inbox.handleIncomingMessage(dm('ig-off', 'a1'));
+    expect(aiAgentReply).not.toHaveBeenCalled();
+    expect(await inbox.listMessages('b', off.id, 'cust')).toHaveLength(1);
+
+    await inbox.handleIncomingMessage(dm('ig-on', 'a2'));
+    expect(aiAgentReply).toHaveBeenCalledWith('b', on.id, [{ from: 'customer', text: 'timing?' }]);
+    const msgs = await inbox.listMessages('b', on.id, 'cust');
+    expect(msgs.map(m => m.text)).toEqual(['timing?', 'Our shop opens at 10.']);
+    await ds.destroy();
+  }, 10_000);
 });

@@ -191,6 +191,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         accessToken: check.pageAccessToken || dto.accessToken,
         pageId,
         webhookVerifyToken: dto.webhookVerifyToken?.trim() || randomBytes(18).toString('hex'),
+        aiAutoReply: dto.aiAutoReply ?? false,
         status: check.valid ? 'connected' : 'disconnected',
         metadata: connectionMetadata(check),
       }),
@@ -210,6 +211,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (dto.pageId !== undefined) account.pageId = dto.pageId || null;
     if (account.platform === 'facebook') account.pageId = account.accountId;
     if (dto.webhookVerifyToken) account.webhookVerifyToken = dto.webhookVerifyToken.trim();
+    if (dto.aiAutoReply !== undefined) account.aiAutoReply = dto.aiAutoReply;
     if (account.platform === 'instagram' && !account.pageId) {
       throw new BadRequestException('Instagram accounts need the linked Facebook Page ID');
     }
@@ -564,6 +566,33 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (!reply) return null;
     await this.ruleRepo.increment({ id: rule.id }, 'triggerCount', 1);
     return { reply: fill(reply, username, last), delaySeconds: Math.min(rule.delaySeconds, MAX_REPLY_DELAY_S) };
+  }
+
+  /**
+   * A DM reply from the business's AI chatbot (Chatbot Training: knowledge base, handoff words, tone).
+   * Null when the chatbot is off or has nothing to say, so the DM simply waits for a person.
+   */
+  async aiAgentReply(
+    businessId: string,
+    accountId: string,
+    chat: { from: 'customer' | 'business'; text: string }[],
+  ): Promise<string | null> {
+    if (!this.aiService) return null;
+    const config = await this.aiService.getConfig(businessId);
+    if (!config.enabled) return null;
+    const last = chat.at(-1);
+    if (!last || last.from !== 'customer') return null;
+    const res = await this.aiService.chat({
+      businessId,
+      // Session scopes list WhatsApp numbers; Instagram/Facebook are switched on per account instead.
+      sessionId: config.sessionScopes?.[0] ?? accountId,
+      chatId: `social:${accountId}`,
+      message: last.text,
+      conversationHistory: chat
+        .slice(0, -1)
+        .map(m => ({ role: m.from === 'customer' ? ('user' as const) : ('assistant' as const), content: m.text })),
+    });
+    return res.reply?.trim() || null;
   }
 
   /**

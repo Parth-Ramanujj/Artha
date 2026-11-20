@@ -55,6 +55,12 @@ export class CreateSocialAccountDto {
   @IsOptional()
   @MaxLength(150)
   webhookVerifyToken?: string;
+
+  @ApiPropertyOptional({ description: 'AI chatbot answers DMs that no rule answered', default: false })
+  @ToStrictBoolean()
+  @IsBoolean()
+  @IsOptional()
+  aiAutoReply?: boolean;
 }
 
 export class UpdateSocialAccountDto extends PartialType(CreateSocialAccountDto) {
