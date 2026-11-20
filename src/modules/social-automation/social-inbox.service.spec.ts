@@ -10,6 +10,7 @@ import {
   SocialPost,
 } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { SocialAutomationService } from './social-automation.service';
 import { SocialInboxService } from './social-inbox.service';
 
 describe('extractMessages', () => {
@@ -48,6 +49,8 @@ describe('SocialInboxService', () => {
   let ds: DataSource;
   let inbox: SocialInboxService;
   let account: SocialAccount;
+  let autoReply: { reply: string; delaySeconds: number } | null;
+  let social: { noteUnmatchedAccount: jest.Mock; dmAutoReply: jest.Mock };
 
   beforeEach(async () => {
     ds = new DataSource({
@@ -69,10 +72,16 @@ describe('SocialInboxService', () => {
       pageId: '99',
       metadata: '{}',
     });
+    autoReply = null;
+    social = {
+      noteUnmatchedAccount: jest.fn(),
+      dmAutoReply: jest.fn(() => Promise.resolve(autoReply)),
+    };
     inbox = new SocialInboxService(
       ds.getRepository(SocialAccount),
       ds.getRepository(SocialMessage),
       new MetaGraphService(),
+      social as unknown as SocialAutomationService,
     );
   });
 
@@ -118,5 +127,63 @@ describe('SocialInboxService', () => {
     expect(sent).toMatchObject({ direction: 'out', text: 'Rs 499', threadId: 'cust' });
     expect(await inbox.listMessages('b', account.id, 'cust')).toHaveLength(2);
     await expect(inbox.sendMessage('other-business', account.id, 'cust', 'x')).rejects.toThrow('Account not found');
+  });
+});
+
+describe('SocialInboxService auto-reply', () => {
+  it('answers a customer DM with the rule reply and gives the AI the chat so far', async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    const account = await ds.getRepository(SocialAccount).save({
+      businessId: 'b',
+      platform: 'facebook',
+      accountName: 'Page',
+      accountId: '99',
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+    });
+    const dmAutoReply = jest.fn().mockResolvedValue({ reply: 'Rs 499 only!', delaySeconds: 0 });
+    const inbox = new SocialInboxService(
+      ds.getRepository(SocialAccount),
+      ds.getRepository(SocialMessage),
+      new MetaGraphService(),
+      { noteUnmatchedAccount: jest.fn(), dmAutoReply } as unknown as SocialAutomationService,
+    );
+    const dm = {
+      platform: 'facebook' as const,
+      targetAccountId: '99',
+      senderId: 'cust',
+      recipientId: '99',
+      isEcho: false,
+    };
+
+    await inbox.handleIncomingMessage({ ...dm, mid: 'm1', text: 'price?' });
+    expect(dmAutoReply).toHaveBeenCalledWith('b', 'facebook', 'friend', [{ from: 'customer', text: 'price?' }]);
+    const msgs = await inbox.listMessages('b', account.id, 'cust');
+    expect(msgs.map(m => [m.direction, m.text])).toEqual([
+      ['in', 'price?'],
+      ['out', 'Rs 499 only!'],
+    ]);
+
+    // Our own echo is stored but never answered.
+    dmAutoReply.mockClear();
+    await inbox.handleIncomingMessage({
+      ...dm,
+      senderId: '99',
+      recipientId: 'cust',
+      isEcho: true,
+      mid: 'm9',
+      text: 'hi',
+    });
+    expect(dmAutoReply).not.toHaveBeenCalled();
+    await ds.destroy();
   });
 });

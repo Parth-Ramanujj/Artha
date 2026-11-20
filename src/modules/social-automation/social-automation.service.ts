@@ -458,6 +458,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       businessId,
       name: dto.name,
       platform: dto.platform || 'all',
+      appliesTo: dto.appliesTo || 'comments',
       postId: dto.postId || null,
       matchType: dto.matchType || 'contains',
       keywords: JSON.stringify(dto.keywords || []),
@@ -479,6 +480,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (!rule) throw new NotFoundException('Comment rule not found');
     if (dto.name !== undefined) rule.name = dto.name;
     if (dto.platform !== undefined) rule.platform = dto.platform;
+    if (dto.appliesTo !== undefined) rule.appliesTo = dto.appliesTo;
     if (dto.postId !== undefined) rule.postId = dto.postId || null;
     if (dto.matchType !== undefined) rule.matchType = dto.matchType;
     if (dto.keywords !== undefined) rule.keywords = JSON.stringify(dto.keywords);
@@ -508,7 +510,13 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
 
   // ── Incoming comments (webhook) ──
 
-  private async aiReply(rule: SocialCommentRule, username: string, comment: string): Promise<string> {
+  private async aiReply(
+    rule: SocialCommentRule,
+    username: string,
+    comment: string,
+    /** Set for DMs: the recent chat, oldest first, so the AI answers in context. */
+    chat?: { from: 'customer' | 'business'; text: string }[],
+  ): Promise<string> {
     if (!rule.useAi || !this.aiService) return '';
     try {
       const completion = await this.aiService.complete(
@@ -516,7 +524,13 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
           { role: 'system', content: rule.aiPrompt || DEFAULT_AI_PROMPT },
           {
             role: 'user',
-            content: `Instagram/Facebook user "${username}" commented: """${comment}"""\nWrite one short, friendly reply (max 2 sentences). Reply with the text only.`,
+            content: chat
+              ? `Instagram/Facebook direct message conversation with "${username}":\n${chat
+                  .map(m => `${m.from === 'customer' ? username : 'You'}: ${m.text}`)
+                  .join(
+                    '\n',
+                  )}\nWrite the next reply to their last message: short and friendly (max 3 sentences). Reply with the text only.`
+              : `Instagram/Facebook user "${username}" commented: """${comment}"""\nWrite one short, friendly reply (max 2 sentences). Reply with the text only.`,
           },
         ],
         { maxTokens: 120 },
@@ -526,6 +540,30 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`AI comment reply failed, using templates: ${errMsg(err)}`);
       return '';
     }
+  }
+
+  /**
+   * The auto-reply for a customer DM, from the first enabled rule that answers DMs and matches the
+   * last message; null when no rule applies. Sending is up to the caller (the inbox).
+   */
+  async dmAutoReply(
+    businessId: string,
+    platform: SocialPlatform,
+    username: string,
+    chat: { from: 'customer' | 'business'; text: string }[],
+  ): Promise<{ reply: string; delaySeconds: number } | null> {
+    const last = chat.at(-1)?.text ?? '';
+    const rules = (
+      await this.ruleRepo.find({ where: { businessId, enabled: true }, order: { createdAt: 'ASC' } })
+    ).filter(r => r.appliesTo !== 'comments');
+    const rule = findMatchingRule(rules, last, platform);
+    if (!rule) return null;
+    const templates = parseList(rule.replyTemplates).filter(t => t.trim());
+    let reply = await this.aiReply(rule, username, last, chat);
+    if (!reply && templates.length) reply = templates[Math.floor(Math.random() * templates.length)];
+    if (!reply) return null;
+    await this.ruleRepo.increment({ id: rule.id }, 'triggerCount', 1);
+    return { reply: fill(reply, username, last), delaySeconds: Math.min(rule.delaySeconds, MAX_REPLY_DELAY_S) };
   }
 
   /**
@@ -558,7 +596,9 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       commentText,
     };
 
-    const rules = await this.ruleRepo.find({ where: { businessId, enabled: true }, order: { createdAt: 'ASC' } });
+    const rules = (
+      await this.ruleRepo.find({ where: { businessId, enabled: true }, order: { createdAt: 'ASC' } })
+    ).filter(r => r.appliesTo !== 'dms');
     const rule = findMatchingRule(rules, commentText, event.platform, event.postId);
     if (!rule) {
       return this.logRepo.save(this.logRepo.create({ ...base, liked: false, replied: false, status: 'ignored' }));
@@ -611,7 +651,9 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
 
   /** Dry run from the dashboard: which rule matches and what it would send. Nothing is sent to Meta. */
   async simulateComment(businessId: string, dto: SimulateCommentDto) {
-    const rules = await this.ruleRepo.find({ where: { businessId, enabled: true }, order: { createdAt: 'ASC' } });
+    const rules = (
+      await this.ruleRepo.find({ where: { businessId, enabled: true }, order: { createdAt: 'ASC' } })
+    ).filter(r => r.appliesTo !== 'dms');
     const platform = dto.platform || 'instagram';
     const rule = findMatchingRule(rules, dto.commentText, platform, dto.postId);
     if (!rule) return { matched: false, message: 'No enabled rule matches this comment' };

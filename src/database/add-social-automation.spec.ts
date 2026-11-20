@@ -1,5 +1,6 @@
 import { DataSource, In } from 'typeorm';
 import { AddSocialAutomation1788600000000 } from './migrations/1788600000000-AddSocialAutomation';
+import { AddRuleAppliesTo1789500000000 } from './migrations/1789500000000-AddRuleAppliesTo';
 import {
   SocialAccount,
   SocialCommentLog,
@@ -19,6 +20,8 @@ describe('AddSocialAutomation migration', () => {
     const qr = ds.createQueryRunner();
     await new AddSocialAutomation1788600000000().up(qr);
     await new AddSocialAutomation1788600000000().up(qr); // idempotent
+    await new AddRuleAppliesTo1789500000000().up(qr);
+    await new AddRuleAppliesTo1789500000000().up(qr); // idempotent
 
     const acc = await ds.getRepository(SocialAccount).save({
       businessId: 'b',

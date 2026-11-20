@@ -186,7 +186,7 @@ export class SocialWebhookController {
       });
     }
     for (const message of messages) {
-      this.inbox.handleIncomingMessage(message, this.socialService).catch((err: unknown) => {
+      this.inbox.handleIncomingMessage(message).catch((err: unknown) => {
         this.logger.error(`Message ${message.mid} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }

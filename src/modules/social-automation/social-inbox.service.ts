@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { SocialAutomationService } from './social-automation.service';
 
 /** One message from a Meta `messaging` webhook entry (Instagram DM or Messenger). */
 export interface IncomingMessage {
@@ -41,6 +42,7 @@ export class SocialInboxService {
     @InjectRepository(SocialMessage, 'data')
     private readonly messageRepo: Repository<SocialMessage>,
     private readonly metaGraph: MetaGraphService,
+    private readonly social: SocialAutomationService,
   ) {}
 
   private accountWithToken() {
@@ -48,11 +50,7 @@ export class SocialInboxService {
   }
 
   /** Stores a webhook message once (Meta retries and echoes our own sends). Unknown accounts are skipped. */
-  async handleIncomingMessage(
-    event: IncomingMessage,
-    /** Told about IDs that match no connected account, for the dashboard's health panel. */
-    diagnostics?: { noteUnmatchedAccount(platform: SocialPlatform, accountId: string): void },
-  ): Promise<SocialMessage | null> {
+  async handleIncomingMessage(event: IncomingMessage): Promise<SocialMessage | null> {
     const account = await this.accountWithToken()
       .where('a.accountId = :accountId AND a.platform = :platform', {
         accountId: event.targetAccountId,
@@ -60,7 +58,7 @@ export class SocialInboxService {
       })
       .getOne();
     if (!account) {
-      diagnostics?.noteUnmatchedAccount(event.platform, event.targetAccountId);
+      this.social.noteUnmatchedAccount(event.platform, event.targetAccountId);
       return null;
     }
     if (await this.messageRepo.exists({ where: { remoteMessageId: event.mid } })) return null;
@@ -76,8 +74,9 @@ export class SocialInboxService {
         ? null
         : ((await this.metaGraph.customerName(event.platform, threadId, account.accessToken)) ?? null));
 
+    let saved: SocialMessage;
     try {
-      return await this.messageRepo.save(
+      saved = await this.messageRepo.save(
         this.messageRepo.create({
           businessId: account.businessId,
           accountId: account.id,
@@ -97,6 +96,30 @@ export class SocialInboxService {
       this.logger.debug(`Message ${event.mid} not stored: ${err instanceof Error ? err.message : String(err)}`);
       return null;
     }
+    if (saved.direction === 'in' && saved.text) {
+      await this.autoReply(account, saved).catch((err: unknown) => {
+        this.logger.warn(`Auto-reply to ${saved.threadId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+    return saved;
+  }
+
+  /** Answers a customer DM when an enabled rule covers DMs; the recent chat goes to the AI as context. */
+  private async autoReply(account: SocialAccount, msg: SocialMessage): Promise<void> {
+    const thread = { accountId: account.id, threadId: msg.threadId };
+    const recent = await this.messageRepo.find({ where: thread, order: { createdAt: 'DESC' }, take: 10 });
+    const chat = recent
+      .reverse()
+      .filter(m => m.text)
+      .map(m => ({ from: m.direction === 'in' ? ('customer' as const) : ('business' as const), text: m.text ?? '' }));
+    const name = msg.customerName?.replace(/^@/, '') || 'friend';
+    const auto = await this.social.dmAutoReply(account.businessId, account.platform, name, chat);
+    if (!auto) return;
+    if (auto.delaySeconds > 0) await new Promise(r => setTimeout(r, auto.delaySeconds * 1000));
+    // Someone answered by hand, or the customer wrote again, during the delay: don't talk over it.
+    const latest = await this.messageRepo.findOne({ where: thread, order: { createdAt: 'DESC' } });
+    if (latest && latest.id !== msg.id) return;
+    await this.sendMessage(account.businessId, account.id, msg.threadId, auto.reply);
   }
 
   async listThreads(businessId: string, platform: SocialPlatform): Promise<InboxThread[]> {

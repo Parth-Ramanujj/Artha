@@ -7,6 +7,7 @@ export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';
 export type CommentLogStatus = 'success' | 'failed' | 'ignored';
+export type RuleAppliesTo = 'comments' | 'dms' | 'both';
 
 /** Connected Instagram / Facebook Page Account */
 @Entity('social_accounts')
@@ -171,6 +172,10 @@ export class SocialCommentRule {
 
   @Column({ type: 'boolean', default: true })
   enabled: boolean;
+
+  /** What the rule answers: post comments, Instagram/Facebook DMs, or both. */
+  @Column({ type: 'varchar', length: 20, default: 'comments' })
+  appliesTo: RuleAppliesTo;
 
   @Column({ type: 'integer', default: 0 })
   triggerCount: number;

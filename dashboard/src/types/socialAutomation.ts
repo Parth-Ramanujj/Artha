@@ -3,6 +3,7 @@ export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';
 export type CommentLogStatus = 'success' | 'failed' | 'ignored';
+export type RuleAppliesTo = 'comments' | 'dms' | 'both';
 
 export interface SocialAccount {
   id: string;
@@ -54,6 +55,8 @@ export interface SocialCommentRule {
   aiPrompt: string | null;
   delaySeconds: number;
   enabled: boolean;
+  /** Absent on servers older than this field: treat as comments. */
+  appliesTo?: RuleAppliesTo;
   triggerCount: number;
   createdAt: string;
   updatedAt: string;
@@ -139,6 +142,7 @@ export interface SocialPostInput {
 export interface SocialRuleInput {
   name: string;
   platform: 'all' | SocialPlatform;
+  appliesTo?: RuleAppliesTo;
   postId?: string;
   matchType: RuleMatchType;
   keywords: string[];

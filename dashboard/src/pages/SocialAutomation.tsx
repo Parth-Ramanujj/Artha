@@ -33,6 +33,7 @@ import type {
   SocialOverview,
   SimulateCommentResult,
   SocialMediaType,
+  RuleAppliesTo,
 } from '../types/socialAutomation';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { PageHeader } from '../components/PageHeader';
@@ -153,6 +154,7 @@ export function SocialAutomation() {
   const [newRule, setNewRule] = useState({
     name: '',
     platform: 'all' as 'all' | 'instagram' | 'facebook',
+    appliesTo: 'comments' as RuleAppliesTo,
     matchType: 'contains' as 'contains' | 'exact' | 'regex' | 'all',
     keywords: 'price, cost, rate, details',
     replyTemplates:
@@ -818,6 +820,10 @@ export function SocialAutomation() {
 
                   <div className="social-rule-tags">
                     <span className="social-tag">
+                      <strong>Replies to:</strong>{' '}
+                      {rule.appliesTo === 'dms' ? 'DMs only' : rule.appliesTo === 'both' ? 'Comments + DMs' : 'Comments'}
+                    </span>
+                    <span className="social-tag">
                       <strong>Match:</strong> {rule.matchType}
                       {rule.matchType !== 'all' && ` (${parseList(rule.keywords).join(', ')})`}
                     </span>
@@ -1293,6 +1299,25 @@ export function SocialAutomation() {
               value={newRule.name}
               onChange={e => setNewRule({ ...newRule, name: e.target.value })}
             />
+          </div>
+
+          <div className="social-form-group">
+            <label htmlFor="rule-applies-to">Reply to</label>
+            <select
+              id="rule-applies-to"
+              className="input"
+              value={newRule.appliesTo}
+              onChange={e => setNewRule({ ...newRule, appliesTo: e.target.value as RuleAppliesTo })}
+            >
+              <option value="comments">Comments on posts</option>
+              <option value="dms">Direct messages (Instagram DMs and Messenger)</option>
+              <option value="both">Both comments and direct messages</option>
+            </select>
+            <span className="sa-help">
+              For direct messages the reply goes into the chat (Chats → Instagram / Facebook). With AI on, the AI reads
+              the last few messages so it answers in context. Meta allows replies within 24 hours of the customer&apos;s
+              message.
+            </span>
           </div>
 
           <div className="social-form-row">

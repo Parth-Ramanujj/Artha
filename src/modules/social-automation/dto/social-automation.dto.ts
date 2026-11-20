@@ -146,6 +146,11 @@ export class CreateCommentRuleDto {
   @IsOptional()
   platform?: 'all' | SocialPlatform;
 
+  @ApiPropertyOptional({ enum: ['comments', 'dms', 'both'], default: 'comments' })
+  @IsIn(['comments', 'dms', 'both'])
+  @IsOptional()
+  appliesTo?: 'comments' | 'dms' | 'both';
+
   @ApiPropertyOptional({ description: 'Only comments on this Meta post/media ID; empty for all posts' })
   @IsString()
   @MaxLength(100)
