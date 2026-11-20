@@ -527,6 +527,15 @@ export interface EngineEventCallbacks {
    * delivery signal to the neutral `DeliveryStatus`, so consumers never see engine-specific codes.
    */
   onMessageAck?: (messageId: string, status: DeliveryStatus, details?: MessageAckDetails) => void;
+  /** Cloud API only: what Meta answered to a send, for the message logs. */
+  onApiEvent?: (event: {
+    kind: string;
+    level: 'info' | 'success' | 'warning' | 'error';
+    phone?: string;
+    waMessageId?: string;
+    summary: string;
+    details?: Record<string, unknown>;
+  }) => void;
   onMessageRevoked?: (message: RevokedMessage) => void;
   onMessageReaction?: (event: ReactionEvent) => void;
   onMessageEdited?: (message: EditedMessage) => void;

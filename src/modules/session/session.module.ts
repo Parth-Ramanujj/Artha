@@ -1,3 +1,4 @@
+import { WhatsAppLogsModule } from '../whatsapp-logs/whatsapp-logs.module';
 import { MessageCostsModule } from '../message-costs/message-costs.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -22,6 +23,7 @@ import { ConversationModule } from '../conversation/conversation.module';
     StatusStoreModule,
     ConversationModule,
     MessageCostsModule,
+    WhatsAppLogsModule,
   ],
   controllers: [SessionController],
   providers: [SessionService, SessionErrorStore, SessionLidResolver, SessionLivenessWatchdog, MessageProjector],

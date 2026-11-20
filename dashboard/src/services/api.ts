@@ -2343,6 +2343,43 @@ export interface DeliveryReport {
 }
 
 /** WhatsApp message costs: Meta's price per message (from status webhooks), the real Meta bill, advice. */
+export interface WhatsAppLogEvent {
+  id: string;
+  sessionId: string | null;
+  kind: string;
+  level: 'info' | 'success' | 'warning' | 'error';
+  waMessageId: string | null;
+  phone: string | null;
+  summary: string;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface HealthCheck {
+  id: string;
+  ok: boolean | null;
+  title: string;
+  detail: string;
+  fix?: string;
+  action?: 'subscribe_app';
+}
+
+/** Message logs of official numbers: every send and webhook, and the delivery health check. */
+export const whatsappLogsApi = {
+  list: (params: { sessionId?: string; level?: string; kind?: string; search?: string; sinceMinutes?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
+    return request<WhatsAppLogEvent[]>(`/whatsapp-logs?${q.toString()}`);
+  },
+  health: (sessionId: string) =>
+    request<HealthCheck[]>(`/whatsapp-logs/health?sessionId=${encodeURIComponent(sessionId)}`),
+  subscribe: (sessionId: string) =>
+    request<{ ok: boolean; message: string }>('/whatsapp-logs/health/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    }),
+};
+
 export type WalletRates = Record<'marketing' | 'utility' | 'authentication' | 'service', number>;
 
 export interface WalletOverview {

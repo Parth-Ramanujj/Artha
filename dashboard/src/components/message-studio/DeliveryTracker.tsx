@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { CheckCheck, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { messageCostsApi } from '../../services/api';
 
@@ -64,12 +65,14 @@ export function DeliveryTracker({ sessionId, messageId }: { sessionId: string; m
 
       {status !== 'failed' && status !== 'read' && !r?.webhookSeen && elapsed > NO_WEBHOOK_AFTER_MS && (
         <div className="dt-warn">
-          <strong>No report from WhatsApp yet.</strong> If the message does not arrive, WhatsApp is probably not sending
-          delivery reports to this app. Check in Meta: App → WhatsApp → Configuration → Webhook: the Callback URL is
-          this server&apos;s <code>/api/cloud-api/webhook</code>, the <code>messages</code> field is subscribed, and the
-          app is Live (published).
+          <strong>No report from WhatsApp yet.</strong> WhatsApp is probably not sending delivery reports to this
+          server. <Link to="/whatsapp-logs">Open Message Logs</Link> — its health check finds the broken step and can
+          fix the most common one in one click.
         </div>
       )}
+      <Link className="dt-muted" to={`/whatsapp-logs?search=${encodeURIComponent(messageId)}`}>
+        See every step of this message in Message Logs →
+      </Link>
       {status === 'delivered' && (
         <p className="dt-muted">It is on their phone. “Read” appears if they open it and have read receipts on.</p>
       )}

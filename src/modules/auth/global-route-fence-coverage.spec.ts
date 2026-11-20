@@ -337,6 +337,12 @@ const ALLOWLIST = new Map<string, string>([
   ['wallet.controller.ts :: createOrder', 'business-scoped: recharges the calling key’s own business wallet'],
   ['wallet.controller.ts :: verify', 'business-scoped; the order must belong to the calling key’s business'],
   ['wallet.controller.ts :: setAlert', 'business-scoped: only the calling key’s own business wallet'],
+  [
+    'whatsapp-logs.controller.ts :: list',
+    'sessions narrowed to the business + sessionScopeVisible; global rows for unscoped admins only',
+  ],
+  ['whatsapp-logs.controller.ts :: check', 'assertSession: business ownership + sessionScopeVisible'],
+  ['whatsapp-logs.controller.ts :: subscribe', 'assertSession: business ownership + sessionScopeVisible'],
 ]);
 
 /**

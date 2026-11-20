@@ -45,10 +45,12 @@ export class CloudApiWebhookController {
     const rawBody = (req as express.Request & { rawBody?: Buffer }).rawBody;
     if (this.webhookService.isSignatureValidationEnabled && rawBody) {
       const signature = req.headers['x-hub-signature-256'] as string;
-      if (!this.webhookService.validateSignature(rawBody, signature)) {
+      const problem = this.webhookService.signatureProblem(rawBody, signature);
+      if (problem) {
         this.logger.warn('Cloud API webhook signature validation failed', {
           action: 'cloud_api_webhook_sig_failed',
         });
+        this.webhookService.recordRejected(problem, body);
         throw new ForbiddenException('Invalid webhook signature');
       }
     }

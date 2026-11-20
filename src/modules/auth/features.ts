@@ -65,6 +65,8 @@ export const CORE_CONTROLLER_PATHS = [
   'social-automation/webhook',
   // Every customer must reach its wallet to recharge, whatever features it was approved for.
   'wallet',
+  // Customers must be able to see why their own messages were not delivered.
+  'whatsapp-logs',
 ] as const;
 
 const FEATURE_BY_PATH = new Map<string, FeatureId | 'core'>([

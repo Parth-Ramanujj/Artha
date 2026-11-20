@@ -295,14 +295,38 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
 
   private async sendMessage(to: string, messageBody: Record<string, unknown>): Promise<MessageResult> {
     this.ensureReady();
-    const response = await this.graphRequest<GraphApiResponse>('POST', `/${this.phoneNumberId}/messages`, {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to,
-      ...messageBody,
-    });
+    const what =
+      messageBody.type === 'template'
+        ? `template “${scalarToString((messageBody.template as Record<string, unknown> | undefined)?.name)}”`
+        : scalarToString(messageBody.type, 'message');
+    let response: GraphApiResponse;
+    try {
+      response = await this.graphRequest<GraphApiResponse>('POST', `/${this.phoneNumberId}/messages`, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to,
+        ...messageBody,
+      });
+    } catch (error) {
+      this.callbacks.onApiEvent?.({
+        kind: 'send.rejected',
+        level: 'error',
+        phone: to,
+        summary: `Meta refused the ${what} to ${to}: ${error instanceof Error ? error.message : String(error)}`,
+        details: { request: messageBody },
+      });
+      throw error;
+    }
 
     const messageId = response.messages?.[0]?.id ?? `cloud_${Date.now()}`;
+    this.callbacks.onApiEvent?.({
+      kind: 'send.accepted',
+      level: 'info',
+      phone: to,
+      waMessageId: messageId,
+      summary: `Sent ${what} to ${to} — Meta accepted it (delivery comes by webhook)`,
+      details: { request: messageBody, contacts: response.contacts },
+    });
     return { id: messageId, timestamp: Math.floor(Date.now() / 1000) };
   }
 
@@ -1473,6 +1497,44 @@ export class CloudApiAdapter extends EventEmitter implements IWhatsAppEngine {
       }
     }
     return [...totals.values()];
+  }
+
+  getAppId(): string {
+    return this.appId;
+  }
+
+  /** Apps receiving this WhatsApp Business account's webhooks. Meta sends nothing to an app not listed. */
+  async getSubscribedApps(): Promise<Array<{ id: string; name: string }>> {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const res = await this.graphRequest<{
+      data?: Array<{ whatsapp_business_api_data?: { id?: unknown; name?: unknown } }>;
+    }>('GET', `/${this.wabaId}/subscribed_apps`);
+    return (res.data ?? []).map(d => ({
+      id: scalarToString(d.whatsapp_business_api_data?.id),
+      name: scalarToString(d.whatsapp_business_api_data?.name),
+    }));
+  }
+
+  /** Subscribes the token's app to this WhatsApp Business account so Meta starts sending webhooks. */
+  async subscribeApp(): Promise<boolean> {
+    if (!this.wabaId) throw new Error('The WhatsApp Business account id (WABA id) is not configured');
+    const res = await this.graphRequest<{ success?: boolean }>('POST', `/${this.wabaId}/subscribed_apps`);
+    return res.success === true;
+  }
+
+  /** The phone number as Meta sees it: name, quality, whether it is connected and live. */
+  async getPhoneNumberStatus(): Promise<Record<string, unknown>> {
+    const full =
+      'display_phone_number,verified_name,quality_rating,code_verification_status,name_status,status,platform_type,account_mode,messaging_limit_tier';
+    try {
+      return await this.graphRequest<Record<string, unknown>>('GET', `/${this.phoneNumberId}?fields=${full}`);
+    } catch {
+      // Older API versions reject some fields; the basics are enough to show something useful.
+      return this.graphRequest<Record<string, unknown>>(
+        'GET',
+        `/${this.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
+      );
+    }
   }
 
   /** Submits a template to this WhatsApp Business account for Meta's review. */

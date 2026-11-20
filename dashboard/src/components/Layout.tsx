@@ -57,6 +57,7 @@ import {
   BadgeCheck,
   Wallet,
   CreditCard,
+  ScrollText,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -89,6 +90,7 @@ const allNavItems = [
   { to: '/workspaces', icon: Building2, key: 'workspaces' as const, adminOnly: true },
   { to: '/api-keys', icon: Key, key: 'apiKeys' as const, adminOnly: true },
   { to: '/message-tester', icon: Send, key: 'messageTester' as const, adminOnly: false },
+  { to: '/whatsapp-logs', icon: ScrollText, key: 'whatsappLogs' as const, adminOnly: false },
   // Backend /infra/* is ADMIN-only; hide the nav item from non-admins (UX + defense-in-depth).
   { to: '/infrastructure', icon: Server, key: 'infrastructure' as const, adminOnly: true },
   { to: '/plugins', icon: Puzzle, key: 'plugins' as const, adminOnly: true },
@@ -139,6 +141,7 @@ const NAV_HINTS: Record<string, string> = {
   '/whatsapp-forms': 'In-WhatsApp forms (Meta Flows)',
   '/wa-pricing': 'How Meta charges per message',
   '/message-costs': 'What your WhatsApp messages cost and how to spend less',
+  '/whatsapp-logs': 'Every official message from send to delivery, and why one did not arrive',
   '/wallet': 'Your prepaid balance: recharge with Razorpay and see every charge',
   '/chatbot-training': 'Teach the AI about your business and let it reply to chats',
   '/ai-agents': 'Separate AI agents with their own instructions and voice',
@@ -156,7 +159,7 @@ const NAV_HINTS: Record<string, string> = {
 const navSections: { id: string; paths: string[] }[] = [
   { id: 'core', paths: ['/', '/sessions', '/wallet'] },
   // Talking to people right now.
-  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/notifications'] },
+  { id: 'messaging', paths: ['/chats', '/conversations', '/message-tester', '/whatsapp-logs', '/notifications'] },
   // What you send: approved templates first (the only way to reach new people), then reusable content.
   {
     id: 'content',

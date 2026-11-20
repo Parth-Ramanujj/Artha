@@ -51,6 +51,7 @@ import {
 import { EventsGateway } from '../events/events.gateway';
 import { WebhookService } from '../webhook/webhook.service';
 import { HookManager } from '../../core/hooks';
+import { WhatsAppLogsService } from '../whatsapp-logs/whatsapp-logs.service';
 import { EngineNotSupportedError } from '../../common/errors/engine-not-supported.error';
 
 // Message types that carry downloadable media. Any persisted row of these types must have a media
@@ -239,6 +240,8 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
     // service degrades to today's behaviour if it is ever constructed without the (global) LoggerModule.
     @Optional()
     private readonly shutdownService?: ShutdownService,
+    @Optional()
+    private readonly whatsappLogs?: WhatsAppLogsService,
   ) {}
 
   /**
@@ -1043,6 +1046,7 @@ export class SessionService implements OnModuleDestroy, OnModuleInit, OnApplicat
           .catch(err => this.logger.error(`Failed to persist history messages for ${id}`, String(err)));
       },
       onMessageCreate: (message): void => this.messages.handleOwnSendEcho(id, engine, message),
+      onApiEvent: (event): void => this.whatsappLogs?.record({ ...event, sessionId: id }),
       onMessageAck: (messageId, status, details): void =>
         this.messages.handleMessageAck(id, engine, messageId, status, details),
       onMessageRevoked: (message): void => this.messages.handleMessageRevoked(id, engine, message),
