@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Loader2,
@@ -49,12 +50,16 @@ export function Campaigns() {
 
   // Create Campaign modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // Opened from WhatsApp Templates → "Send to many people": ?template=name|lang&session=id
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [templateFromLink, setTemplateFromLink] = useState('');
   const [creating, setCreating] = useState(false);
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [campaignSessionId, setCampaignSessionId] = useState('');
   const [campaignMessageContent, setCampaignMessageContent] = useState('');
   const [campaignRate, setCampaignRate] = useState(10);
+  const [startNow, setStartNow] = useState(true);
   const [sessionTemplates, setSessionTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [campaignRecipientsText, setCampaignRecipientsText] = useState('');
@@ -98,6 +103,18 @@ export function Campaigns() {
       })
       .catch(() => setSessions([]));
   }, []);
+
+  // A link from WhatsApp Templates opens "New campaign" with that number and template already chosen.
+  useEffect(() => {
+    const template = searchParams.get('template');
+    if (!template) return;
+    const session = searchParams.get('session');
+    if (session) setCampaignSessionId(session);
+    setTemplateFromLink(template);
+    setCampaignName(prev => prev || `${template.split('|')[0]} campaign`);
+    setShowCreateModal(true);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Fetch templates when session changes in create modal
   useEffect(() => {
@@ -298,10 +315,18 @@ export function Campaigns() {
         await campaignApi.addRecipients(camp.id, chatIds, names);
       }
 
-      toast.success(
-        t('campaigns.created', 'Campaign Created'),
-        t('campaigns.createdDesc', 'New campaign created successfully.'),
-      );
+      if (startNow && chatIds.length > 0) {
+        await campaignApi.start(camp.id);
+        toast.success('Sending started', `${chatIds.length} message(s) are going out. Follow the progress in the list.`);
+      } else {
+        toast.success(
+          t('campaigns.created', 'Campaign Created'),
+          chatIds.length
+            ? 'Saved as a draft. Press ▶ Start on it when you are ready.'
+            : 'Saved. Add recipients (👥), then press ▶ Start.',
+        );
+      }
+      setTemplateFromLink('');
       setCampaignName('');
       setCampaignDescription('');
       setSelectedTemplateId('');
@@ -530,7 +555,10 @@ export function Campaigns() {
       {showCreateModal && (
         <Modal
           open
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => {
+            setShowCreateModal(false);
+            setTemplateFromLink('');
+          }}
           title={t('campaigns.createCampaign', 'Create Campaign')}
           footer={
             <>
@@ -594,6 +622,7 @@ export function Campaigns() {
             </div>
             <CampaignTemplatePicker
               sessionId={campaignSessionId}
+              initialKey={templateFromLink || undefined}
               recipientsCount={parseCampaignRecipients(campaignRecipientsText).chatIds.length}
               onChange={handleMetaTemplateChange}
             />
@@ -652,6 +681,10 @@ export function Campaigns() {
                 onChange={e => setCampaignRate(Number(e.target.value))}
               />
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+              <input type="checkbox" checked={startNow} onChange={e => setStartNow(e.target.checked)} />
+              Start sending right after creating
+            </label>
           </div>
         </Modal>
       )}

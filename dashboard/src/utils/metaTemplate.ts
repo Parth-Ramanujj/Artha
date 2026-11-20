@@ -1,4 +1,10 @@
-import type { MetaButtonType, MetaHeaderFormat, NewMetaTemplate, StudioMediaMime } from '../types/messageStudio';
+import type {
+  MetaButtonType,
+  MetaHeaderFormat,
+  NewMetaTemplate,
+  StudioMediaMime,
+  StudioTemplate,
+} from '../types/messageStudio';
 
 export type VariableType = 'NUMBER' | 'NAME';
 
@@ -174,6 +180,31 @@ export function buildMetaTemplate(
           }
         : {}),
     },
+  };
+}
+
+/**
+ * Starts a new draft from an existing (e.g. rejected) template so it can be fixed and resubmitted.
+ * Meta keeps rejected names, so the copy gets a new one; links, numbers and media must be re-entered.
+ */
+export function draftFromTemplate(t: StudioTemplate): Partial<MetaTemplateDraft> {
+  const base = t.name.replace(/_v\d+$/, '');
+  const version = Number(/_v(\d+)$/.exec(t.name)?.[1] ?? 1) + 1;
+  const known: MetaButtonType[] = ['QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL', 'COPY_CODE', 'FLOW'];
+  return {
+    name: `${base}_v${version}`,
+    language: t.language,
+    category: t.category.toUpperCase() === 'UTILITY' ? 'UTILITY' : 'MARKETING',
+    variableType: t.parameterFormat === 'NAMED' ? 'NAME' : 'NUMBER',
+    headerType: (['NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION'] as const).includes(t.headerFormat)
+      ? t.headerFormat
+      : 'NONE',
+    headerText: t.headerText ?? '',
+    body: t.bodyText,
+    footer: t.footerText ?? '',
+    buttons: t.buttons
+      .filter(b => known.includes(b.type as MetaButtonType))
+      .map(b => ({ type: b.type as MetaButtonType, text: b.text, value: '', flowId: '', autoReply: '' })),
   };
 }
 

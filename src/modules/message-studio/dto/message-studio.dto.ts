@@ -256,6 +256,23 @@ export class CreateMetaTemplateDto extends SessionRefDto {
   autoTestPhone?: string;
 }
 
+export class SendApprovedTemplateDto extends SessionRefDto {
+  @ApiProperty({ example: '6352701839', description: 'Mobile number (10 digits = India)' })
+  @IsString()
+  @MaxLength(20)
+  phone: string;
+
+  @ApiPropertyOptional({ description: 'Used for {{name}} in the values' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  contactName?: string;
+
+  @ApiProperty({ description: 'Template and its filled values, same shape as a campaign metaTemplate' })
+  @IsObject()
+  metaTemplate: Record<string, unknown>;
+}
+
 export class TemplateAdviceDto {
   @ApiProperty({ enum: ['MARKETING', 'UTILITY'] })
   @IsIn(['MARKETING', 'UTILITY'])

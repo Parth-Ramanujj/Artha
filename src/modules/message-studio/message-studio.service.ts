@@ -38,6 +38,7 @@ import {
 } from './studio-content';
 import { SendPart, SendPlan, buildSendPlan } from './send-plan';
 import { buildMetaTemplatePayload, templateVariableNames } from './meta-template-payload';
+import { metaTemplateComponents, readMetaTemplate } from '../campaign/campaign-meta-template';
 import type {
   CreateMetaTemplateDto,
   StudioImageUploadDto,
@@ -255,6 +256,36 @@ export class MessageStudioService {
       throw new BadRequestException(
         `Meta did not accept the template: ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+  }
+
+  /**
+   * Sends one approved template to one phone now, filled the same way a campaign fills it
+   * ({{name}} → contactName). Meta charges per its category; the UI shows the price first.
+   */
+  async sendApprovedTemplate(
+    sessionId: string,
+    phone: string,
+    metaTemplate: Record<string, unknown>,
+    contactName?: string,
+  ): Promise<{ messageId: string }> {
+    const engine: CloudLikeEngine | undefined = this.engines.get(sessionId);
+    if (!engine) throw new BadRequestException('This WhatsApp number is not connected.');
+    if (typeof engine.sendTemplateMessage !== 'function') {
+      throw new BadRequestException('Approved templates can only be sent from WhatsApp Cloud API numbers.');
+    }
+    const template = readMetaTemplate({ metaTemplate });
+    if (!template) throw new BadRequestException('Choose an approved template.');
+    try {
+      const result = await engine.sendTemplateMessage(
+        `${phone}@c.us`,
+        template.name,
+        template.language,
+        metaTemplateComponents(template, contactName),
+      );
+      return { messageId: result.id };
+    } catch (err) {
+      throw new BadRequestException(`WhatsApp did not send it: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

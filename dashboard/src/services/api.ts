@@ -2919,6 +2919,13 @@ export const messageStudioApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  sendTemplate: (input: {
+    sessionId: string;
+    phone: string;
+    contactName?: string;
+    metaTemplate: NonNullable<NonNullable<Campaign['messageOptions']>['metaTemplate']>;
+  }) =>
+    request<{ messageId: string }>('/message-studio/templates/send', { method: 'POST', body: JSON.stringify(input) }),
   uploadImage: (input: { sessionId: string; base64: string; mimetype: string; filename?: string }) =>
     request<{ id: string }>('/message-studio/media', { method: 'POST', body: JSON.stringify(input) }),
   templateAdvice: (input: {

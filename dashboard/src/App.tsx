@@ -43,6 +43,9 @@ const SyncManager = lazy(() => import('./pages/SyncManager').then(m => ({ defaul
 const FollowupRecovery = lazy(() => import('./pages/FollowupRecovery').then(m => ({ default: m.FollowupRecovery })));
 const Leads = lazy(() => import('./pages/Leads').then(m => ({ default: m.Leads })));
 const MessageStudio = lazy(() => import('./pages/MessageStudio').then(m => ({ default: m.MessageStudio })));
+const WhatsAppTemplates = lazy(() =>
+  import('./pages/WhatsAppTemplates').then(m => ({ default: m.WhatsAppTemplates })),
+);
 const WhatsAppForms = lazy(() => import('./pages/WhatsAppForms').then(m => ({ default: m.WhatsAppForms })));
 const SalesAgent = lazy(() => import('./pages/SalesAgent').then(m => ({ default: m.SalesAgent })));
 const Library = lazy(() => import('./pages/Library').then(m => ({ default: m.Library })));
@@ -193,6 +196,7 @@ function AppContent() {
               <Route path="leads" element={<Leads />} />
               <Route path="ai-calling" element={<AiCalling />} />
               <Route path="message-studio" element={<MessageStudio />} />
+              <Route path="whatsapp-templates" element={<WhatsAppTemplates />} />
               <Route path="message-studio/:id" element={<MessageComposer />} />
               <Route path="whatsapp-forms" element={<WhatsAppForms />} />
               <Route path="whatsapp-forms/:id" element={<WhatsAppFormBuilder />} />

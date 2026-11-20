@@ -68,7 +68,18 @@ function Card({ title, optional, children }: { title: string; optional?: boolean
 }
 
 /** Builds a WhatsApp template like Meta's own builder, with a live preview, and submits it for approval. */
-export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionId: string; onClose: () => void; onSubmitted: () => void }) {
+export function MetaTemplateForm({
+  sessionId,
+  initial,
+  onClose,
+  onSubmitted,
+}: {
+  sessionId: string;
+  /** Start from an existing template (e.g. "Fix and submit again"). */
+  initial?: Partial<MetaTemplateDraft>;
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
   const toast = useToast();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -88,6 +99,7 @@ export function MetaTemplateForm({ sessionId, onClose, onSubmitted }: { sessionI
     footer: '',
     buttons: [],
     ttlSeconds: null,
+    ...initial,
   });
   const set = <K extends keyof MetaTemplateDraft>(key: K, value: MetaTemplateDraft[K]) => setDraft(d => ({ ...d, [key]: value }));
 

@@ -28,6 +28,7 @@ export const ROUTE_FEATURE: Record<string, FeatureId> = {
   '/webhooks': 'webhooks',
   '/templates': 'templates',
   '/message-studio': 'messageStudio',
+  '/whatsapp-templates': 'messageStudio',
   '/whatsapp-forms': 'whatsappForms',
   '/conversations': 'conversations',
   '/canned-responses': 'conversations',

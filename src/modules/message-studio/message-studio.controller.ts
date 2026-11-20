@@ -26,6 +26,7 @@ import {
   ArchiveStudioMessageDto,
   AutoTestRetryDto,
   TemplateAdviceDto,
+  SendApprovedTemplateDto,
   CreateMetaTemplateDto,
   ListStudioMessagesQueryDto,
   ProductDto,
@@ -95,6 +96,18 @@ export class MessageStudioController {
     const created = await this.studio.createTemplate(session!.id, dto);
     if (phone) await this.autoTests.watch(businessId, session!.id, dto.name, dto.language, phone);
     return created;
+  }
+
+  @Post('templates/send')
+  @HttpCode(HttpStatus.OK)
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Send an approved template to one phone now (Meta charges per its category)' })
+  async sendApprovedTemplate(@CurrentApiKey() apiKey: ApiKey, @Body() dto: SendApprovedTemplateDto) {
+    const businessId = await this.businessId(apiKey);
+    const session = await this.session(apiKey, businessId, dto.sessionId);
+    const phone = normalizeTestPhone(dto.phone);
+    if (!phone) throw new BadRequestException('Use a mobile number like 6352701839');
+    return this.studio.sendApprovedTemplate(session!.id, phone, dto.metaTemplate, dto.contactName);
   }
 
   @Post('templates/advice')

@@ -22,11 +22,17 @@ const usesName = (v: string) => /\{\{\s*name\s*\}\}/i.test(v);
 export function CampaignTemplatePicker({
   sessionId,
   recipientsCount = 0,
+  initialKey,
+  lockTemplate = false,
   onChange,
 }: {
   sessionId: string;
   /** Numbers typed so far, for the cost estimate. */
   recipientsCount?: number;
+  /** "name|language" of the template to start with. */
+  initialKey?: string;
+  /** Hide the template dropdown (the caller already chose one). */
+  lockTemplate?: boolean;
   onChange: (template: CampaignMetaTemplate | null, selected: boolean) => void;
 }) {
   const [templates, setTemplates] = useState<StudioTemplate[]>([]);
@@ -122,6 +128,12 @@ export function CampaignTemplatePicker({
     setParams(Array.from({ length: t?.bodyVariableCount ?? 0 }, (_, i) => (i === 0 ? '{{name}}' : '')));
   };
 
+  // Opened from the templates page ("Send to many"/"Send test"): start with that template chosen.
+  useEffect(() => {
+    if (initialKey && !key && templates.some(t => keyOf(t) === initialKey)) choose(initialKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates, initialKey]);
+
   const pickMedia = async (picked: PickedImage | null) => {
     setMedia(picked);
     setMediaId('');
@@ -150,18 +162,22 @@ export function CampaignTemplatePicker({
 
   return (
     <div className="form-group">
-      <label className="form-label" htmlFor="campaign-meta-template">
-        Approved WhatsApp template
-      </label>
-      <select id="campaign-meta-template" className="form-select" value={key} onChange={e => choose(e.target.value)}>
-        <option value="">None — plain text (only reaches people who messaged you in the last 24 hours)</option>
-        {templates.map(t => (
-          <option key={keyOf(t)} value={keyOf(t)}>
-            {t.name} · {t.language} · {t.category.toLowerCase()} · {templatePrice(t.category).perMessage}
-          </option>
-        ))}
-      </select>
-      {!selected && <span style={muted}>To message new people, pick an approved template.</span>}
+      {!lockTemplate && (
+        <>
+          <label className="form-label" htmlFor="campaign-meta-template">
+            Approved WhatsApp template
+          </label>
+          <select id="campaign-meta-template" className="form-select" value={key} onChange={e => choose(e.target.value)}>
+            <option value="">None — plain text (only reaches people who messaged you in the last 24 hours)</option>
+            {templates.map(t => (
+              <option key={keyOf(t)} value={keyOf(t)}>
+                {t.name} · {t.language} · {t.category.toLowerCase()} · {templatePrice(t.category).perMessage}
+              </option>
+            ))}
+          </select>
+          {!selected && <span style={muted}>To message new people, pick an approved template.</span>}
+        </>
+      )}
 
       {selected && price && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>

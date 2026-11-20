@@ -18,7 +18,6 @@ import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { ProductCatalogModal } from '../components/message-studio/ProductCatalogModal';
-import { MetaTemplatesModal } from '../components/message-studio/MetaTemplatesModal';
 import { messageStudioApi } from '../services/api';
 import type { StudioMessage } from '../types/messageStudio';
 import { KIND_LABEL, READINESS_META } from '../utils/messageStudio';
@@ -49,7 +48,6 @@ export function MessageStudio() {
   const [filter, setFilter] = useState<Filter>('active');
   const [archiving, setArchiving] = useState<StudioMessage | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
-  const [showMetaTemplates, setShowMetaTemplates] = useState(false);
 
   const messages = useQuery({
     queryKey: ['message-studio', 'list', filter, search],
@@ -103,7 +101,7 @@ export function MessageStudio() {
         icon={<Palette size={24} />}
         actions={
           <>
-            <button className="btn btn-secondary" onClick={() => setShowMetaTemplates(true)}>
+            <button className="btn btn-secondary" onClick={() => navigate('/whatsapp-templates')}>
               <FileText size={16} /> WhatsApp Templates
             </button>
             <button className="btn btn-secondary" onClick={() => setShowCatalog(true)}>
@@ -267,7 +265,6 @@ export function MessageStudio() {
       </Modal>
 
       {showCatalog && <ProductCatalogModal onClose={() => setShowCatalog(false)} />}
-      {showMetaTemplates && <MetaTemplatesModal onClose={() => setShowMetaTemplates(false)} />}
     </div>
   );
 }

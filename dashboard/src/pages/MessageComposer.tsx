@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Check, GitBranch, Save, Send, Undo2 } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { messageStudioApi } from '../services/api';
@@ -94,6 +94,21 @@ export function MessageComposer() {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+
+  // From WhatsApp Templates → "Use in an automation": start a template message with it chosen.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const picked = searchParams.get('template');
+    if (!isNew || draft || !picked) return;
+    const [name, language = 'en'] = picked.split('|');
+    setDraft({
+      kind: 'template',
+      content: { ...defaultContent('template'), template: { name, language, variables: [] } },
+      name: `Template: ${name}`,
+    });
+    setDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, searchParams]);
 
   const { result, checking } = useValidation(draft, studio.sessionId);
   const issues = result?.issues ?? [];

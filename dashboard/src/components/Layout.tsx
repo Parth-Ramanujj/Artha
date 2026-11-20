@@ -55,6 +55,7 @@ import {
   Sparkles,
   ShoppingBag,
   ShieldAlert,
+  BadgeCheck,
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { type UserRole } from '../hooks/useRole';
@@ -77,6 +78,7 @@ const allNavItems = [
   { to: '/webhooks', icon: Webhook, key: 'webhooks' as const, adminOnly: false },
   { to: '/templates', icon: ClipboardList, key: 'templates' as const, adminOnly: false },
   { to: '/message-studio', icon: Palette, key: 'messageStudio' as const, adminOnly: false },
+  { to: '/whatsapp-templates', icon: BadgeCheck, key: 'whatsappTemplates' as const, adminOnly: false },
   { to: '/whatsapp-forms', icon: FileText, key: 'whatsappForms' as const, adminOnly: false },
   { to: '/wa-pricing', icon: IndianRupee, key: 'waPricing' as const, adminOnly: false },
   { to: '/conversations', icon: Inbox, key: 'conversations' as const, adminOnly: false },
@@ -135,6 +137,7 @@ const navSections: { id: string; paths: string[] }[] = [
       '/canned-responses',
       '/templates',
       '/message-studio',
+      '/whatsapp-templates',
       '/whatsapp-forms',
       '/wa-pricing',
       '/message-tester',

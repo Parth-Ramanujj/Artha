@@ -1861,3 +1861,147 @@
   background: var(--bg-tertiary);
   font-size: 0.8rem;
 }
+
+/* ── WhatsApp Templates page ── */
+.message-studio-page .wt-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+.message-studio-page .wt-step {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card, var(--bg-white));
+  color: var(--primary-hover);
+}
+.message-studio-page .wt-step > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: var(--text-primary);
+}
+.message-studio-page .wt-session {
+  width: auto;
+}
+.message-studio-page .wt-count {
+  margin-left: 0.25rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  font-size: 0.72rem;
+}
+.message-studio-page .wt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.message-studio-page .wt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card, var(--bg-white));
+}
+.message-studio-page .wt-card.is-approved {
+  border-top-color: var(--primary);
+}
+.message-studio-page .wt-card.is-pending {
+  border-top-color: var(--warning);
+}
+.message-studio-page .wt-card.is-rejected {
+  border-top-color: var(--error);
+}
+.message-studio-page .wt-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.message-studio-page .wt-name {
+  margin: 0;
+  font-size: 1rem;
+  word-break: break-word;
+}
+.message-studio-page .wt-status {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.message-studio-page .wt-status.is-approved {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+}
+.message-studio-page .wt-status.is-pending {
+  color: var(--warning);
+}
+.message-studio-page .wt-status.is-rejected {
+  color: var(--error);
+}
+.message-studio-page .wt-body {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+}
+.message-studio-page .wt-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.message-studio-page .wt-btn-chip {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--primary-hover);
+}
+.message-studio-page .wt-next {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--bg-tertiary);
+}
+.message-studio-page .wt-next-bad {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+.message-studio-page .wt-next-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.message-studio-page .wt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.message-studio-page .wt-next .btn {
+  align-self: flex-start;
+}
+.message-studio-page .wt-footnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
