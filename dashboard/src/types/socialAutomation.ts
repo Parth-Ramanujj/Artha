@@ -146,3 +146,26 @@ export interface SocialRuleInput {
   delaySeconds: number;
   enabled: boolean;
 }
+
+/** One Instagram DM / Facebook Messenger conversation in the Chats inbox. */
+export interface SocialThread {
+  accountId: string;
+  accountName: string;
+  threadId: string;
+  customerName: string | null;
+  lastText: string;
+  lastDirection: 'in' | 'out';
+  lastAt: string;
+}
+
+export interface SocialMessage {
+  id: string;
+  accountId: string;
+  platform: SocialPlatform;
+  threadId: string;
+  customerName: string | null;
+  direction: 'in' | 'out';
+  text: string | null;
+  mediaUrl: string | null;
+  createdAt: string;
+}

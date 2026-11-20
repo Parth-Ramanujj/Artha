@@ -251,3 +251,11 @@ export class SimulateCommentDto {
   @IsOptional()
   fromUserName?: string;
 }
+
+export class SendSocialMessageDto {
+  @ApiProperty({ example: 'Thanks for your message! The price is ₹499.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  text: string;
+}

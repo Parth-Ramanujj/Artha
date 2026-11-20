@@ -1,0 +1,183 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Loader2, MessageCircle, Send } from 'lucide-react';
+import { socialAutomationApi } from '../../services/api';
+import type { SocialMessage, SocialPlatform, SocialThread } from '../../types/socialAutomation';
+import { explainError, timeAgo } from '../social-automation/explainError';
+import './SocialInbox.css';
+
+const POLL_MS = 5000;
+const key = (t: { accountId: string; threadId: string }) => `${t.accountId}:${t.threadId}`;
+
+interface SocialInboxProps {
+  platform: SocialPlatform;
+}
+
+/** Instagram DMs or Facebook Messenger chats, read and answered from the Chats page. */
+export function SocialInbox({ platform }: SocialInboxProps) {
+  const name = platform === 'instagram' ? 'Instagram' : 'Facebook';
+  const [threads, setThreads] = useState<SocialThread[] | null>(null);
+  const [hasAccount, setHasAccount] = useState(true);
+  const [active, setActive] = useState<SocialThread | null>(null);
+  const [messages, setMessages] = useState<SocialMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const loadThreads = useCallback(async () => {
+    try {
+      const [list, accounts] = await Promise.all([socialAutomationApi.inbox(platform), socialAutomationApi.accounts()]);
+      setThreads(list);
+      setHasAccount(accounts.some(a => a.platform === platform));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load conversations');
+      setThreads(t => t ?? []);
+    }
+  }, [platform]);
+
+  const loadMessages = useCallback(async (t: SocialThread) => {
+    try {
+      setMessages(await socialAutomationApi.threadMessages(t.accountId, t.threadId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load messages');
+    }
+  }, []);
+
+  useEffect(() => {
+    setThreads(null);
+    setActive(null);
+    setMessages([]);
+    setError(null);
+    void loadThreads();
+  }, [loadThreads]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void loadThreads();
+      if (active) void loadMessages(active);
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [active, loadThreads, loadMessages]);
+
+  useEffect(() => {
+    // Braces matter: newer Chrome returns a Promise here, and React would treat it as a cleanup.
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length]);
+
+  const open = (t: SocialThread) => {
+    setActive(t);
+    setMessages([]);
+    setError(null);
+    void loadMessages(t);
+  };
+
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!active || !text || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const sent = await socialAutomationApi.sendMessage(active.accountId, active.threadId, text);
+      setMessages(m => [...m, sent]);
+      setDraft('');
+      void loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Message not sent');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const help = error ? explainError(error) : null;
+  const title = (t: SocialThread) => t.customerName || `${name} user ${t.threadId.slice(-4)}`;
+
+  return (
+    <div className={`social-inbox ${active ? 'has-active' : ''}`}>
+      <aside className="social-inbox-list" aria-label={`${name} conversations`}>
+        {help && !active && (
+          <p className="social-inbox-error" role="alert">
+            <strong>{help.title}.</strong> {help.fix}
+          </p>
+        )}
+        {threads === null ? (
+          <p className="social-inbox-empty"><Loader2 size={18} className="animate-spin" /> Loading conversations…</p>
+        ) : !hasAccount ? (
+          <p className="social-inbox-empty">
+            No {name} account is connected. <Link to="/social-automation">Connect it in Social Automation</Link>, then messages appear here.
+          </p>
+        ) : threads.length === 0 ? (
+          <p className="social-inbox-empty">
+            No {name} messages yet. Send a DM to your {name === 'Instagram' ? 'Instagram account' : 'Facebook Page'} from another account to test.
+            If nothing arrives within a minute: in the Meta app, Webhooks → {name === 'Instagram' ? 'Instagram' : 'Page'} → "messages" must be
+            Subscribed, then press Test on the account in Social Automation.
+          </p>
+        ) : (
+          <ul>
+            {threads.map(t => (
+              <li key={key(t)}>
+                <button type="button" className={active && key(active) === key(t) ? 'active' : ''} onClick={() => open(t)}>
+                  <span className="social-inbox-avatar" aria-hidden="true">{title(t).replace('@', '').charAt(0).toUpperCase()}</span>
+                  <span className="social-inbox-meta">
+                    <strong>{title(t)}</strong>
+                    <span>{t.lastDirection === 'out' ? 'You: ' : ''}{t.lastText}</span>
+                  </span>
+                  <time dateTime={t.lastAt}>{timeAgo(t.lastAt)}</time>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
+
+      <section className="social-inbox-thread" aria-label="Conversation">
+        {!active ? (
+          <div className="social-inbox-placeholder">
+            <MessageCircle size={40} aria-hidden="true" />
+            <p>Select a conversation to read and reply.</p>
+          </div>
+        ) : (
+          <>
+            <header className="social-inbox-head">
+              <button type="button" className="social-inbox-back" onClick={() => setActive(null)} aria-label="Back to conversations">
+                <ArrowLeft size={18} />
+              </button>
+              <strong>{title(active)}</strong>
+              <span>via {active.accountName}</span>
+            </header>
+            <div className="social-inbox-messages">
+              {messages.map(m => (
+                <div key={m.id} className={`social-bubble ${m.direction}`}>
+                  {m.text && <p>{m.text}</p>}
+                  {m.mediaUrl && <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer">📎 Open attachment</a>}
+                  <time dateTime={m.createdAt} title={new Date(m.createdAt).toLocaleString()}>{timeAgo(m.createdAt)}</time>
+                </div>
+              ))}
+              <div ref={endRef} />
+            </div>
+            {help && (
+              <p className="social-inbox-error" role="alert">
+                <strong>{help.title}.</strong> {help.fix}
+              </p>
+            )}
+            <form className="social-inbox-composer" onSubmit={e => void send(e)}>
+              <input
+                className="input"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                placeholder={`Reply on ${name}…`}
+                aria-label="Message"
+                maxLength={1000}
+              />
+              <button type="submit" className="btn btn-primary" disabled={sending || !draft.trim()} aria-label="Send">
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </form>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}

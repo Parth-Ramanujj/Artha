@@ -1,0 +1,135 @@
+/* Instagram / Facebook inbox inside the Chats page; mirrors the WhatsApp chat layout. */
+.social-inbox {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 14rem);
+  margin-top: 1rem;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.social-inbox-list {
+  width: clamp(220px, 36%, 340px);
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.social-inbox-list ul { list-style: none; margin: 0; padding: 0; }
+.social-inbox-list li button {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.social-inbox-list li button:hover,
+.social-inbox-list li button.active { background: var(--bg-secondary); }
+.social-inbox-list li button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.social-inbox-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+.social-inbox-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; font-size: 0.85rem; }
+.social-inbox-meta strong,
+.social-inbox-meta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.social-inbox-meta span { color: var(--text-secondary); }
+.social-inbox-list time { color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; align-self: flex-start; }
+
+.social-inbox-empty { padding: 1.25rem; margin: 0; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.55; }
+.social-inbox-empty a { color: var(--primary); }
+
+.social-inbox-thread { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.social-inbox-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+.social-inbox-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.social-inbox-head span { color: var(--text-muted); font-size: 0.8rem; }
+.social-inbox-back { display: none; border: 0; background: transparent; color: var(--text-primary); cursor: pointer; padding: 0.2rem; }
+
+.social-inbox-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--bg-secondary);
+}
+.social-bubble {
+  max-width: 70%;
+  padding: 0.55rem 0.8rem;
+  border-radius: 14px;
+  background: var(--bg-white);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.social-bubble.out { align-self: flex-end; background: var(--primary); border-color: var(--primary); color: #fff; }
+.social-bubble p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.social-bubble a { color: inherit; text-decoration: underline; }
+.social-bubble time { display: block; margin-top: 0.2rem; font-size: 0.7rem; opacity: 0.7; text-align: right; }
+
+.social-inbox-error {
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-top: 1px solid var(--border);
+}
+.social-inbox-composer { display: flex; gap: 0.5rem; padding: 0.75rem; border-top: 1px solid var(--border); }
+.social-inbox-composer .input { flex: 1; }
+
+/* Channel switch above the chat area */
+.chats-channel-switch { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.chats-channel-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-white);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.chats-channel-switch button[aria-pressed='true'] { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+@media (max-width: 768px) {
+  .social-inbox { height: calc(100vh - 12rem); }
+  .social-inbox-list { width: 100%; border-right: 0; }
+  .social-inbox.has-active .social-inbox-list { display: none; }
+  .social-inbox:not(.has-active) .social-inbox-thread { display: none; }
+  .social-inbox-back { display: inline-flex; }
+  .social-bubble { max-width: 85%; }
+}

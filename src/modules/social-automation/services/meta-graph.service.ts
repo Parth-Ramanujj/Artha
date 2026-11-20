@@ -111,10 +111,13 @@ export class MetaGraphService {
     }
 
     try {
-      // `feed` is required by the API; the Instagram `comments` field rides on the same Page subscription.
-      await this.graph('POST', `${encodeURIComponent(pageId)}/subscribed_apps`, pageToken || accessToken, {
-        subscribed_fields: 'feed',
-      });
+      // `feed` brings comments (the Instagram ones ride on the same Page subscription); `messages` brings
+      // DMs and Messenger chats to the inbox. A token without pages_messaging can't add `messages`, so
+      // fall back to `feed` alone rather than losing comments too.
+      const token = pageToken || accessToken;
+      const subscribe = (fields: string) =>
+        this.graph('POST', `${encodeURIComponent(pageId)}/subscribed_apps`, token, { subscribed_fields: fields });
+      await subscribe('feed,messages').catch(() => subscribe('feed'));
       return { ...check, pageAccessToken: pageToken };
     } catch (err) {
       this.logger.warn(`Subscribing Page ${pageId} to webhooks failed: ${errMsg(err)}`);
@@ -286,6 +289,41 @@ export class MetaGraphService {
     } catch (err) {
       this.logger.warn(`Private reply to comment ${commentId} failed: ${errMsg(err)}`);
       return { success: false, error: errMsg(err) };
+    }
+  }
+
+  /** Sends a DM (Instagram, via the linked Page) or Messenger message from the Page to a customer. */
+  async sendMessage(
+    pageId: string,
+    recipientId: string,
+    message: string,
+    accessToken: string,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    if (this.isTestToken(accessToken)) return { success: true, messageId: `mock_mid_${Date.now()}` };
+    try {
+      const data = await this.graph(
+        'POST',
+        `${encodeURIComponent(pageId)}/messages`,
+        accessToken,
+        {},
+        { recipient: { id: recipientId }, message: { text: message }, messaging_type: 'RESPONSE' },
+      );
+      return { success: true, messageId: text(data.message_id) || undefined };
+    } catch (err) {
+      this.logger.warn(`Sending a message to ${recipientId} failed: ${errMsg(err)}`);
+      return { success: false, error: errMsg(err) };
+    }
+  }
+
+  /** The customer's display name for the inbox; undefined when Meta won't share it. */
+  async customerName(platform: SocialPlatform, userId: string, accessToken: string): Promise<string | undefined> {
+    if (this.isTestToken(accessToken)) return undefined;
+    try {
+      const fields = platform === 'instagram' ? 'name,username' : 'name';
+      const data = await this.graph('GET', encodeURIComponent(userId), accessToken, { fields });
+      return text(data.username) ? `@${text(data.username)}` : text(data.name) || undefined;
+    } catch {
+      return undefined;
     }
   }
 

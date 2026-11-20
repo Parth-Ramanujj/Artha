@@ -42,10 +42,13 @@ import type {
   SocialAccountInput,
   SocialCommentLog,
   SocialCommentRule,
+  SocialMessage,
   SocialOverview,
+  SocialPlatform,
   SocialPost,
   SocialPostInput,
   SocialRuleInput,
+  SocialThread,
 } from '../types/socialAutomation';
 import type {
   LibraryAutomation,
@@ -3333,6 +3336,14 @@ export const socialAutomationApi = {
   simulateComment: (input: { commentText: string; platform?: string; postId?: string; fromUserName?: string }) =>
     request<SimulateCommentResult>(social('/simulate-comment'), { method: 'POST', body: JSON.stringify(input) }),
   logs: (limit = 50) => request<SocialCommentLog[]>(social('/logs?limit=' + limit)),
+  inbox: (platform: SocialPlatform) => request<SocialThread[]>(social('/inbox?platform=' + platform)),
+  threadMessages: (accountId: string, threadId: string) =>
+    request<SocialMessage[]>(socialId('inbox', accountId, '/' + encodeURIComponent(threadId))),
+  sendMessage: (accountId: string, threadId: string, text: string) =>
+    request<SocialMessage>(socialId('inbox', accountId, '/' + encodeURIComponent(threadId)), {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 };
 
 // ── WhatsApp tools: ad leads, calling, invoices ──

@@ -8,6 +8,7 @@ import {
   CreateCommentRuleDto,
   CreateSocialAccountDto,
   CreateSocialPostDto,
+  SendSocialMessageDto,
   SimulateCommentDto,
   ToggleCommentRuleDto,
   UpdateCommentRuleDto,
@@ -15,6 +16,8 @@ import {
   UpdateSocialPostDto,
 } from '../dto/social-automation.dto';
 import { SocialAutomationService } from '../social-automation.service';
+import { SocialInboxService } from '../social-inbox.service';
+import type { SocialPlatform } from '../entities/social-automation.entity';
 
 @ApiTags('social-automation')
 @Controller('social-automation')
@@ -24,6 +27,7 @@ export class SocialAutomationController {
   constructor(
     private readonly socialService: SocialAutomationService,
     private readonly businessService: BusinessService,
+    private readonly inbox: SocialInboxService,
   ) {}
 
   private async businessId(apiKey?: ApiKey): Promise<string> {
@@ -179,5 +183,37 @@ export class SocialAutomationController {
   @ApiOperation({ summary: 'List comment activity logs' })
   async listLogs(@CurrentApiKey() apiKey: ApiKey, @Query('limit') limit?: string) {
     return this.socialService.listLogs(await this.businessId(apiKey), Number(limit) || 50);
+  }
+
+  // --- INBOX (Instagram DMs, Messenger) ---
+  @Get('inbox')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Instagram or Facebook conversations, newest first' })
+  async listInbox(@CurrentApiKey() apiKey: ApiKey, @Query('platform') platform: string) {
+    const p: SocialPlatform = platform === 'facebook' ? 'facebook' : 'instagram';
+    return this.inbox.listThreads(await this.businessId(apiKey), p);
+  }
+
+  @Get('inbox/:accountId/:threadId')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Messages of one Instagram / Facebook conversation' })
+  async listInboxMessages(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Param('accountId', ParseUUIDPipe) accountId: string,
+    @Param('threadId') threadId: string,
+  ) {
+    return this.inbox.listMessages(await this.businessId(apiKey), accountId, threadId);
+  }
+
+  @Post('inbox/:accountId/:threadId')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Reply in an Instagram / Facebook conversation' })
+  async sendInboxMessage(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Param('accountId', ParseUUIDPipe) accountId: string,
+    @Param('threadId') threadId: string,
+    @Body() dto: SendSocialMessageDto,
+  ) {
+    return this.inbox.sendMessage(await this.businessId(apiKey), accountId, threadId, dto.text);
   }
 }

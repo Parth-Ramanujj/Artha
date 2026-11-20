@@ -4,9 +4,16 @@ import { AiModule } from '../ai/ai.module';
 import { BusinessModule } from '../business/business.module';
 import { SocialAutomationController } from './controllers/social-automation.controller';
 import { SocialWebhookController } from './controllers/social-webhook.controller';
-import { SocialAccount, SocialCommentLog, SocialCommentRule, SocialPost } from './entities/social-automation.entity';
+import {
+  SocialAccount,
+  SocialCommentLog,
+  SocialCommentRule,
+  SocialMessage,
+  SocialPost,
+} from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
 import { SocialAutomationService } from './social-automation.service';
+import { SocialInboxService } from './social-inbox.service';
 
 /**
  * Social Media Automation Module
@@ -15,12 +22,12 @@ import { SocialAutomationService } from './social-automation.service';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog], 'data'),
+    TypeOrmModule.forFeature([SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage], 'data'),
     BusinessModule,
     AiModule,
   ],
   controllers: [SocialAutomationController, SocialWebhookController],
-  providers: [SocialAutomationService, MetaGraphService],
+  providers: [SocialAutomationService, MetaGraphService, SocialInboxService],
   exports: [SocialAutomationService, MetaGraphService],
 })
 export class SocialAutomationModule {}

@@ -43,8 +43,8 @@ const RULES: [RegExp, Explained][] = [
   [
     /7 days|outside (of )?(the )?allowed window|already (been )?replied|only one (private )?(reply|message)/i,
     {
-      title: 'Instagram allows only one DM per comment, within 7 days',
-      fix: 'Nothing to fix. The customer can still be answered once they reply to the DM.',
+      title: "Meta's reply window has closed",
+      fix: 'A chat can be answered within 24 hours of the customer\'s last message, and a comment gets one DM within 7 days. Wait for the customer to write again, then reply.',
     },
   ],
   [

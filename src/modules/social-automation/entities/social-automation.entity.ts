@@ -232,3 +232,46 @@ export class SocialCommentLog {
   @CreateDateColumn()
   createdAt: Date;
 }
+
+/** One Instagram DM or Facebook Messenger message, in or out. A thread is (accountId, threadId). */
+@Entity('social_messages')
+@Index(['businessId', 'platform', 'createdAt'])
+@Index(['accountId', 'threadId'])
+export class SocialMessage {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 36 })
+  businessId: string;
+
+  /** SocialAccount.id the conversation belongs to. */
+  @Column({ type: 'varchar', length: 36 })
+  accountId: string;
+
+  @Column({ type: 'varchar', length: 20 })
+  platform: SocialPlatform;
+
+  /** The customer's Instagram-scoped or Page-scoped user ID. */
+  @Column({ type: 'varchar', length: 100 })
+  threadId: string;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  customerName: string | null;
+
+  @Column({ type: 'varchar', length: 10 })
+  direction: 'in' | 'out';
+
+  @Column({ type: 'text', nullable: true })
+  text: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  mediaUrl: string | null;
+
+  /** Meta's message id (mid); unique, so a webhook retry or the echo of our own send is stored once. */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  remoteMessageId: string | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}

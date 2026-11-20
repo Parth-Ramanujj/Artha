@@ -21,6 +21,7 @@ import { Public } from '../../auth/decorators/auth.decorators';
 import type { SocialPlatform } from '../entities/social-automation.entity';
 import { MetaGraphService } from '../services/meta-graph.service';
 import { IncomingComment, SocialAutomationService } from '../social-automation.service';
+import { IncomingMessage, SocialInboxService } from '../social-inbox.service';
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === 'object' ? (v as Obj) : {});
@@ -65,8 +66,37 @@ export function extractComments(payload: Obj): IncomingComment[] {
   return out.filter(c => c.targetAccountId && c.commentId && c.commentText.trim());
 }
 
+/** Pulls DMs out of a Meta webhook payload (Instagram `messages`, Facebook Page / Messenger `messages`). */
+export function extractMessages(payload: Obj): IncomingMessage[] {
+  const platform: SocialPlatform | null =
+    payload.object === 'instagram' ? 'instagram' : payload.object === 'page' ? 'facebook' : null;
+  if (!platform) return [];
+  const out: IncomingMessage[] = [];
+  for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
+    const targetAccountId = str(obj(entry).id);
+    const events = obj(entry).messaging;
+    for (const event of Array.isArray(events) ? events : []) {
+      const e = obj(event);
+      const message = obj(e.message);
+      const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+      out.push({
+        platform,
+        targetAccountId,
+        senderId: str(obj(e.sender).id),
+        recipientId: str(obj(e.recipient).id),
+        mid: str(message.mid),
+        text: str(message.text),
+        mediaUrl: str(obj(obj(attachments[0]).payload).url) || undefined,
+        isEcho: message.is_echo === true,
+      });
+    }
+  }
+  // Reads, reactions and deletions carry no message id or content: not inbox messages.
+  return out.filter(m => m.targetAccountId && m.mid && m.senderId && m.recipientId && (m.text || m.mediaUrl));
+}
+
 /**
- * Meta webhook for Instagram and Facebook Page comments. Configure in the Meta app with the callback
+ * Meta webhook for Instagram and Facebook Page comments and DMs. Configure in the Meta app with the callback
  * URL `<api>/api/social-automation/webhook`, a verify token from a connected account, and set
  * META_APP_SECRET so every delivery's X-Hub-Signature-256 is checked.
  */
@@ -79,6 +109,7 @@ export class SocialWebhookController {
   constructor(
     private readonly socialService: SocialAutomationService,
     private readonly metaGraph: MetaGraphService,
+    private readonly inbox: SocialInboxService,
     config: ConfigService,
   ) {
     this.appSecret = (config.get<string>('META_APP_SECRET') || config.get<string>('CLOUD_API_APP_SECRET') || '').trim();
@@ -149,6 +180,11 @@ export class SocialWebhookController {
     for (const comment of extractComments(payload)) {
       this.socialService.handleIncomingComment(comment).catch((err: unknown) => {
         this.logger.error(`Comment ${comment.commentId} failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+    for (const message of extractMessages(payload)) {
+      this.inbox.handleIncomingMessage(message).catch((err: unknown) => {
+        this.logger.error(`Message ${message.mid} failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
     return 'EVENT_RECEIVED';

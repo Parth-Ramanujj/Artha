@@ -68,7 +68,15 @@ import MessageBody from '../components/chats/MessageBody';
 import MediaLightbox, { type LightboxItem } from '../components/chats/MediaLightbox';
 import RemoteMedia from '../components/chats/RemoteMedia';
 import { loadMessageMedia } from '../utils/loadMessageMedia';
+import { SocialInbox } from '../components/chats/SocialInbox';
 import './Chats.css';
+
+const CHAT_CHANNELS = [
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'facebook', label: 'Facebook' },
+] as const;
+type ChatChannel = (typeof CHAT_CHANNELS)[number]['id'];
 
 // Quiet window for coalescing mark-as-read RPCs (see markReadCoalescer below).
 const MARK_READ_DEBOUNCE_MS = 750;
@@ -248,6 +256,7 @@ export function Chats() {
   const initialChatHandled = useRef(false);
   const navigate = useNavigate();
   const [showAiCopilot, setShowAiCopilot] = useState(false);
+  const [chatChannel, setChatChannel] = useState<ChatChannel>('whatsapp');
 
   // Sessions list & active session
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -1327,12 +1336,23 @@ export function Chats() {
       <PageHeader
         title={t('nav.chats')}
         subtitle={t('chats.subtitle')}
-        actions={sessions.length > 0 && <GlobalSearch currentSessionId={selectedSessionId} onHit={handleSearchHit} />}
+        actions={
+          chatChannel === 'whatsapp' &&
+          sessions.length > 0 && <GlobalSearch currentSessionId={selectedSessionId} onHit={handleSearchHit} />
+        }
       />
+
+      <div className="chats-channel-switch" role="group" aria-label="Chat channel">
+        {CHAT_CHANNELS.map(c => (
+          <button key={c.id} type="button" aria-pressed={chatChannel === c.id} onClick={() => setChatChannel(c.id)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
 
       {/* Real-time connection permanently dropped — let the user re-establish it instead of
           silently showing stale chats. */}
-      {connectionFailed && (
+      {connectionFailed && chatChannel === 'whatsapp' && (
         <div className="chats-reconnect-banner" role="alert">
           <AlertCircle size={16} />
           <span>{t('common.disconnected')}</span>
@@ -1342,7 +1362,9 @@ export function Chats() {
         </div>
       )}
 
-      {loadingSessions ? (
+      {chatChannel !== 'whatsapp' ? (
+        <SocialInbox platform={chatChannel} />
+      ) : loadingSessions ? (
         <div className="chats-loading-container">
           <Loader2 className="animate-spin" size={32} />
           <p>{t('common.loading')}</p>
