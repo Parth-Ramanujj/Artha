@@ -242,12 +242,15 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     // A business agent whose keyword (or chat) this is answers instead of the general assistant, never both.
     const agentOutcome = this.aiAgents ? await this.aiAgents.autoReply(sessionId, businessId, msg) : 'skipped';
     if (agentOutcome !== 'skipped') {
+      const failed = agentOutcome === 'failed';
       this.note(
         sessionId,
         msg,
-        'ai.replied',
-        agentOutcome === 'replied' ? 'success' : 'warning',
-        `An AI agent handled this message (${agentOutcome}).`,
+        failed ? 'ai.failed' : 'ai.replied',
+        failed ? 'error' : 'success',
+        failed
+          ? 'An AI agent (AI Agents page) took this message but could not answer — check its model / webhook there.'
+          : 'An AI agent (AI Agents page) answered this message.',
       );
     }
     const outcome =

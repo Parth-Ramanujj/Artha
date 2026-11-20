@@ -159,6 +159,9 @@ export class AiService implements OnModuleInit {
             role: m.direction === MessageDirection.OUTGOING ? ('assistant' as const) : ('user' as const),
             content: m.body.trim(),
           }));
+        // The message being answered is stored before hooks run; it is sent once, as the question.
+        const last = conversationHistory[conversationHistory.length - 1];
+        if (last?.role === 'user' && last.content === msg.body.trim()) conversationHistory.pop();
       }
     } catch {
       // Non-critical: continue without history if query fails
@@ -202,7 +205,21 @@ export class AiService implements OnModuleInit {
       this.note(sessionId, msg, 'ai.failed', 'error', 'AI returned an empty answer.');
       return 'failed';
     }
-    await engine.sendTextMessage(msg.chatId, reply);
+    try {
+      await engine.sendTextMessage(msg.chatId, reply);
+    } catch (err) {
+      this.note(
+        sessionId,
+        msg,
+        'ai.failed',
+        'error',
+        `AI wrote an answer but WhatsApp did not send it: ${err instanceof Error ? err.message : String(err)}`.slice(
+          0,
+          300,
+        ),
+      );
+      return 'failed';
+    }
     this.logger.log(`AI Assistant sent auto-reply to chat=${msg.chatId} session=${sessionId}`);
     this.note(sessionId, msg, 'ai.replied', 'success', `AI replied: “${reply.trim().slice(0, 120)}”`);
     return 'replied';
