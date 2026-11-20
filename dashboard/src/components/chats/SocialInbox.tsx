@@ -5,6 +5,7 @@ import { socialAutomationApi } from '../../services/api';
 import type { SocialMessage, SocialPlatform, SocialThread } from '../../types/socialAutomation';
 import { explainError, timeAgo } from '../social-automation/explainError';
 import { QuickReplies } from './QuickReplies';
+import { AttachButton, AttachmentPreview } from './SocialAttachment';
 import './SocialInbox.css';
 
 const POLL_MS = 5000;
@@ -76,6 +77,21 @@ export function SocialInbox({ platform }: SocialInboxProps) {
     void loadMessages(t);
   };
 
+  const sendFile = async (file: { base64: string; mimetype: string; filename: string }) => {
+    if (!active || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const sent = await socialAutomationApi.sendMedia(active.accountId, active.threadId, file);
+      setMessages(m => [...m, sent]);
+      void loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'File not sent');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = draft.trim();
@@ -102,7 +118,10 @@ export function SocialInbox({ platform }: SocialInboxProps) {
       (!q || (t.customerName ?? '').toLowerCase().includes(q) || t.lastText.toLowerCase().includes(q)),
   );
 
-  const help = error ? explainError(error) : null;
+  // Our own messages (file too big, Instagram takes no documents) are clearer than the generic Meta wording.
+  const explained = error ? explainError(error) : null;
+  const help =
+    explained && explained.title === 'Meta returned an error' ? { title: 'Not sent', fix: error ?? '' } : explained;
   const title = (t: SocialThread) => t.customerName || `${name} user ${t.threadId.slice(-4)}`;
 
   return (
@@ -189,7 +208,7 @@ export function SocialInbox({ platform }: SocialInboxProps) {
               {messages.map(m => (
                 <div key={m.id} className={`social-bubble ${m.direction}`}>
                   {m.text && <p>{m.text}</p>}
-                  {m.mediaUrl && <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer">📎 Open attachment</a>}
+                  {m.mediaUrl && <AttachmentPreview url={m.mediaUrl} />}
                   <time dateTime={m.createdAt} title={new Date(m.createdAt).toLocaleString()}>{timeAgo(m.createdAt)}</time>
                 </div>
               ))}
@@ -202,6 +221,12 @@ export function SocialInbox({ platform }: SocialInboxProps) {
             )}
             <form className="social-inbox-composer" onSubmit={e => void send(e)}>
               <QuickReplies draft={draft} onPick={setDraft} />
+              <AttachButton
+                platform={platform}
+                disabled={sending}
+                onFile={file => void sendFile(file)}
+                onError={setError}
+              />
               <input
                 className="input"
                 value={draft}

@@ -303,3 +303,54 @@ describe('SocialInboxService contacts and leads', () => {
     await ds.destroy();
   });
 });
+
+describe('SocialInboxService media', () => {
+  it('hosts the file, sends it, and refuses documents on Instagram', async () => {
+    const ds = new DataSource({
+      type: 'better-sqlite3',
+      database: ':memory:',
+      entities: [SocialAccount, SocialPost, SocialCommentRule, SocialCommentLog, SocialMessage],
+    });
+    await ds.initialize();
+    const qr = ds.createQueryRunner();
+    await new AddSocialAutomation1788600000000().up(qr);
+    await new AddSocialMessages1789400000000().up(qr);
+    await new AddSocialAccountAiAutoReply1789600000000().up(qr);
+    const account = await ds.getRepository(SocialAccount).save({
+      businessId: 'b',
+      platform: 'instagram',
+      accountName: 'Shop',
+      accountId: '1784',
+      accessToken: 'mock_token',
+      pageId: '99',
+      metadata: '{}',
+    });
+    const graph = new MetaGraphService();
+    const inbox = new SocialInboxService(ds.getRepository(SocialAccount), ds.getRepository(SocialMessage), graph, {
+      noteUnmatchedAccount: jest.fn(),
+    } as unknown as SocialAutomationService);
+    const png = Buffer.from('fake-png').toString('base64');
+    const prev = process.env.BASE_URL;
+
+    process.env.BASE_URL = '';
+    await expect(inbox.sendMedia('b', account.id, 'cust', { base64: png, mimetype: 'image/png' })).rejects.toThrow(
+      'BASE_URL',
+    );
+
+    process.env.BASE_URL = 'https://shop.example';
+    await expect(
+      inbox.sendMedia('b', account.id, 'cust', { base64: png, mimetype: 'application/pdf', filename: 'a.pdf' }),
+    ).rejects.toThrow('photos, videos and audio');
+    const sent = await inbox.sendMedia('b', account.id, 'cust', {
+      base64: png,
+      mimetype: 'image/png',
+      filename: 'p.png',
+    });
+    expect(sent).toMatchObject({ direction: 'out', text: '📎 p.png' });
+    const id = /media\/([\w-]+)\.png$/.exec(sent.mediaUrl ?? '')?.[1] ?? '';
+    expect(graph.getHostedMedia(id)?.mimetype).toBe('image/png');
+
+    process.env.BASE_URL = prev;
+    await ds.destroy();
+  });
+});

@@ -181,3 +181,6 @@
 .quick-replies-menu button:hover,
 .quick-replies-menu button:focus-visible { background: var(--bg-secondary); outline: none; }
 .quick-replies-menu button span { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.social-bubble-media { display: block; }
+.social-bubble-media img { display: block; max-width: 240px; max-height: 260px; border-radius: 10px; object-fit: cover; }

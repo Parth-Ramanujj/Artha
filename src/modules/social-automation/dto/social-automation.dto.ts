@@ -263,6 +263,26 @@ export class SimulateCommentDto {
   fromUserName?: string;
 }
 
+export class SendSocialMediaDto {
+  @ApiProperty({ description: 'File content, base64 (max 16 MB file)' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(22_400_000)
+  base64: string;
+
+  @ApiProperty({ example: 'image/jpeg' })
+  @IsString()
+  @Matches(/^[\w.+-]+\/[\w.+-]+$/)
+  @MaxLength(100)
+  mimetype: string;
+
+  @ApiPropertyOptional({ example: 'price-list.pdf' })
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  filename?: string;
+}
+
 export class SendSocialMessageDto {
   @ApiProperty({ example: 'Thanks for your message! The price is ₹499.' })
   @IsString()

@@ -8,6 +8,7 @@ import {
   CreateCommentRuleDto,
   CreateSocialAccountDto,
   CreateSocialPostDto,
+  SendSocialMediaDto,
   SendSocialMessageDto,
   SimulateCommentDto,
   ToggleCommentRuleDto,
@@ -215,5 +216,17 @@ export class SocialAutomationController {
     @Body() dto: SendSocialMessageDto,
   ) {
     return this.inbox.sendMessage(await this.businessId(apiKey), accountId, threadId, dto.text);
+  }
+
+  @Post('inbox/:accountId/:threadId/media')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Send a photo, video, audio or file in an Instagram / Facebook conversation' })
+  async sendInboxMedia(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Param('accountId', ParseUUIDPipe) accountId: string,
+    @Param('threadId') threadId: string,
+    @Body() dto: SendSocialMediaDto,
+  ) {
+    return this.inbox.sendMedia(await this.businessId(apiKey), accountId, threadId, dto);
   }
 }

@@ -136,16 +136,21 @@ export class SocialWebhookController {
     res.status(HttpStatus.FORBIDDEN).send('Verification failed');
   }
 
-  /** The fitted Instagram photo Meta downloads while publishing; ids are random and expire in minutes. */
+  /** Files Meta downloads (post photos, DM attachments); ids are random and expire in minutes. */
   @Public()
   @Get('media/:file')
   media(@Param('file') file: string, @Res() res: express.Response): void {
-    const data = this.metaGraph.getFittedImage(file.replace(/\.jpg$/i, ''));
-    if (!data) {
+    const hit = this.metaGraph.getHostedMedia(file.replace(/\.[a-z0-9]+$/i, ''));
+    if (!hit) {
       res.status(HttpStatus.NOT_FOUND).send('Not found');
       return;
     }
-    res.setHeader('Content-Type', 'image/jpeg');
+    const { data, mimetype } = hit;
+    // Uploaded files are served from our own domain: only media and PDFs render, anything else (HTML, SVG) downloads.
+    const inline = /^(image\/(jpeg|png|gif|webp)|video\/|audio\/|application\/pdf$)/i.test(mimetype);
+    res.setHeader('Content-Type', inline ? mimetype : 'application/octet-stream');
+    if (!inline) res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=900');
     res.status(HttpStatus.OK).send(data);
   }

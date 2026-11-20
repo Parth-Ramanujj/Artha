@@ -34,7 +34,7 @@ const text = (v: unknown): string => (typeof v === 'string' || typeof v === 'num
 export class MetaGraphService {
   private readonly logger = new Logger(MetaGraphService.name);
   // shortcut: in-memory, so it assumes one API instance; use shared storage if the API is scaled out.
-  private readonly fittedImages = new Map<string, { data: Buffer; expires: number }>();
+  private readonly hostedMedia = new Map<string, { data: Buffer; mimetype: string; expires: number }>();
 
   /** Calls the Graph API and throws with Meta's own error message on failure. */
   private async graph(
@@ -176,10 +176,21 @@ export class MetaGraphService {
     }
   }
 
-  /** A fitted JPEG for Meta to fetch, served from memory by SocialWebhookController (GET media/:id). */
-  getFittedImage(id: string): Buffer | undefined {
-    const hit = this.fittedImages.get(id);
-    return hit && hit.expires > Date.now() ? hit.data : undefined;
+  /** A file for Meta to fetch, served from memory by SocialWebhookController (GET media/:id). */
+  getHostedMedia(id: string): { data: Buffer; mimetype: string } | undefined {
+    const hit = this.hostedMedia.get(id);
+    return hit && hit.expires > Date.now() ? hit : undefined;
+  }
+
+  /** Public https URL for a file Meta downloads (photo for a post, attachment for a DM); null without BASE_URL. */
+  hostMedia(data: Buffer, mimetype: string, extension: string): string | null {
+    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+    if (!/^https:\/\//i.test(base)) return null;
+    const now = Date.now();
+    for (const [key, v] of this.hostedMedia) if (v.expires <= now) this.hostedMedia.delete(key);
+    const id = randomUUID();
+    this.hostedMedia.set(id, { data, mimetype, expires: now + FITTED_IMAGE_TTL_MS });
+    return `${base}/api/social-automation/webhook/media/${id}.${extension.replace(/[^a-z0-9]/gi, '') || 'bin'}`;
   }
 
   /**
@@ -188,15 +199,10 @@ export class MetaGraphService {
    * can't be read, so Meta reports its own error instead.
    */
   private async fittedImageUrl(mediaUrl: string): Promise<string> {
-    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
-    if (!/^https:\/\//i.test(base)) return mediaUrl;
+    if (!/^https:\/\//i.test((process.env.BASE_URL || '').trim())) return mediaUrl;
     try {
       const { data } = await loadRemoteMediaBuffer(mediaUrl);
-      const now = Date.now();
-      for (const [key, v] of this.fittedImages) if (v.expires <= now) this.fittedImages.delete(key);
-      const id = randomUUID();
-      this.fittedImages.set(id, { data: await fitForInstagram(data), expires: now + FITTED_IMAGE_TTL_MS });
-      return `${base}/api/social-automation/webhook/media/${id}.jpg`;
+      return this.hostMedia(await fitForInstagram(data), 'image/jpeg', 'jpg') ?? mediaUrl;
     } catch (err) {
       this.logger.warn(`Could not prepare the photo for Instagram, sending it as is: ${errMsg(err)}`);
       return mediaUrl;
@@ -324,6 +330,34 @@ export class MetaGraphService {
       return { success: true, messageId: text(data.message_id) || undefined };
     } catch (err) {
       this.logger.warn(`Sending a message to ${recipientId} failed: ${errMsg(err)}`);
+      return { success: false, error: errMsg(err) };
+    }
+  }
+
+  /** Sends a photo, video, audio or file (by public URL) from the Page to a customer. */
+  async sendAttachment(
+    pageId: string,
+    recipientId: string,
+    kind: 'image' | 'video' | 'audio' | 'file',
+    url: string,
+    accessToken: string,
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    if (this.isTestToken(accessToken)) return { success: true, messageId: `mock_mid_${Date.now()}` };
+    try {
+      const data = await this.graph(
+        'POST',
+        `${encodeURIComponent(pageId)}/messages`,
+        accessToken,
+        {},
+        {
+          recipient: { id: recipientId },
+          message: { attachment: { type: kind, payload: { url } } },
+          messaging_type: 'RESPONSE',
+        },
+      );
+      return { success: true, messageId: text(data.message_id) || undefined };
+    } catch (err) {
+      this.logger.warn(`Sending a ${kind} to ${recipientId} failed: ${errMsg(err)}`);
       return { success: false, error: errMsg(err) };
     }
   }

@@ -3344,6 +3344,11 @@ export const socialAutomationApi = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  sendMedia: (accountId: string, threadId: string, file: { base64: string; mimetype: string; filename?: string }) =>
+    request<SocialMessage>(socialId('inbox', accountId, '/' + encodeURIComponent(threadId) + '/media'), {
+      method: 'POST',
+      body: JSON.stringify(file),
+    }),
 };
 
 // ── WhatsApp tools: ad leads, calling, invoices ──

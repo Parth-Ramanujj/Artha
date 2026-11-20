@@ -34,6 +34,8 @@ export interface InboxThread {
 
 // shortcut: threads are grouped from the newest 1000 messages; move to a SQL GROUP BY if inboxes grow past that.
 const THREAD_SCAN = 1000;
+// Under the 25 MB request cap once base64-encoded; also within Meta's attachment limits.
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 
 @Injectable()
 export class SocialInboxService {
@@ -192,6 +194,58 @@ export class SocialInboxService {
       take: 200,
     });
     return rows.reverse();
+  }
+
+  /** Sends a file from the dashboard. Instagram takes photos, videos and audio; Messenger also takes documents. */
+  async sendMedia(
+    businessId: string,
+    accountId: string,
+    threadId: string,
+    file: { base64: string; mimetype: string; filename?: string },
+  ): Promise<SocialMessage> {
+    const account = await this.accountWithToken()
+      .where('a.id = :accountId AND a.businessId = :businessId', { accountId, businessId })
+      .getOne();
+    if (!account) throw new NotFoundException('Account not found');
+    const pageId = account.platform === 'facebook' ? account.accountId : account.pageId;
+    if (!pageId) throw new BadRequestException('This Instagram account has no linked Facebook Page');
+
+    const top = file.mimetype.split('/')[0];
+    const kind = top === 'image' || top === 'video' || top === 'audio' ? top : 'file';
+    if (kind === 'file' && account.platform === 'instagram') {
+      throw new BadRequestException(
+        'Instagram DMs accept photos, videos and audio only. Send documents on Facebook or as a link.',
+      );
+    }
+    const data = Buffer.from(file.base64, 'base64');
+    if (data.length === 0) throw new BadRequestException('The file is empty');
+    if (data.length > MAX_MEDIA_BYTES) throw new BadRequestException('The file is larger than 16 MB');
+    const extension = (file.filename?.split('.').pop() || file.mimetype.split('/')[1] || 'bin').slice(0, 8);
+    const url = this.metaGraph.hostMedia(data, file.mimetype, extension);
+    if (!url) {
+      throw new BadRequestException('Sending files needs BASE_URL set to the public https address of this server');
+    }
+
+    const res = await this.metaGraph.sendAttachment(pageId, threadId, kind, url, account.accessToken);
+    if (!res.success) throw new BadRequestException(res.error || 'Meta refused the file');
+    const echoed = res.messageId ? await this.messageRepo.findOne({ where: { remoteMessageId: res.messageId } }) : null;
+    if (echoed) return echoed;
+    const last = await this.messageRepo.findOne({ where: { accountId, threadId }, order: { createdAt: 'DESC' } });
+    return this.messageRepo.save(
+      this.messageRepo.create({
+        businessId,
+        accountId,
+        platform: account.platform,
+        threadId,
+        customerName: last?.customerName ?? null,
+        direction: 'out',
+        text: file.filename ? `📎 ${file.filename}` : null,
+        // shortcut: the hosted copy expires after 15 minutes, so older sent files show the name only.
+        mediaUrl: url,
+        remoteMessageId: res.messageId ?? null,
+        createdAt: new Date(),
+      }),
+    );
   }
 
   async sendMessage(businessId: string, accountId: string, threadId: string, text: string): Promise<SocialMessage> {
