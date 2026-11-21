@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 import { dateColumnType } from '../../../common/utils/column-types';
 import { DateTransformer } from '../../../common/transformers/date.transformer';
 
-export type SocialPlatform = 'instagram' | 'facebook' | 'telegram';
+export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube';
 export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';

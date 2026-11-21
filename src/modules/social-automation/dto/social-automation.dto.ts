@@ -21,13 +21,15 @@ import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-bo
 import type { RuleMatchType, SocialMediaType, SocialPlatform } from '../entities/social-automation.entity';
 
 const PLATFORMS = ['instagram', 'facebook'] as const;
+/** Platforms comment rules and posts can target (YouTube has comments and video uploads but no DMs). */
+const RULE_PLATFORMS = [...PLATFORMS, 'youtube'] as const;
 const MEDIA_TYPES = ['IMAGE', 'VIDEO'] as const;
 const META_ID = /^\d{5,30}$/;
 const httpsUrl = { protocols: ['https'], require_protocol: true };
 
 export class CreateSocialAccountDto {
-  @ApiProperty({ enum: [...PLATFORMS, 'telegram'] })
-  @IsIn([...PLATFORMS, 'telegram'])
+  @ApiProperty({ enum: [...PLATFORMS, 'telegram', 'youtube'] })
+  @IsIn([...PLATFORMS, 'telegram', 'youtube'])
   platform: SocialPlatform;
 
   @ApiPropertyOptional({ example: 'My Brand Instagram' })
@@ -40,15 +42,23 @@ export class CreateSocialAccountDto {
     example: '17841400000000000',
     description: 'Instagram Business account ID or Facebook Page ID. Not needed for Telegram (read from the bot).',
   })
-  @ValidateIf((o: CreateSocialAccountDto) => o.platform !== 'telegram')
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform !== 'telegram' && o.platform !== 'youtube')
   @Matches(META_ID, { message: 'accountId must be the numeric Meta ID' })
   accountId: string;
 
-  @ApiProperty({ description: 'Meta Page access token, or the Telegram bot token from @BotFather (never returned)' })
+  @ApiPropertyOptional({
+    description: 'Meta Page access token, or the Telegram bot token from @BotFather (never returned). Not for YouTube.',
+  })
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform !== 'youtube')
   @IsString()
   @IsNotEmpty()
   @MaxLength(1000)
   accessToken: string;
+
+  @ApiPropertyOptional({ description: 'YouTube only: id of the connected google_youtube integration' })
+  @IsUUID()
+  @IsOptional()
+  integrationId?: string;
 
   @ApiPropertyOptional({ description: 'Facebook Page linked to the Instagram account (required for Instagram)' })
   @Matches(META_ID, { message: 'pageId must be the numeric Facebook Page ID' })
@@ -83,8 +93,8 @@ export class CreateSocialPostDto {
   @IsOptional()
   accountId?: string;
 
-  @ApiProperty({ enum: PLATFORMS })
-  @IsIn(PLATFORMS)
+  @ApiProperty({ enum: RULE_PLATFORMS })
+  @IsIn(RULE_PLATFORMS)
   platform: SocialPlatform;
 
   @ApiProperty({ example: 'Check out our new launch! #innovation' })
@@ -152,8 +162,8 @@ export class CreateCommentRuleDto {
   @MaxLength(150)
   name: string;
 
-  @ApiPropertyOptional({ enum: ['all', ...PLATFORMS], default: 'all' })
-  @IsIn(['all', ...PLATFORMS])
+  @ApiPropertyOptional({ enum: ['all', ...RULE_PLATFORMS], default: 'all' })
+  @IsIn(['all', ...RULE_PLATFORMS])
   @IsOptional()
   platform?: 'all' | SocialPlatform;
 
@@ -250,8 +260,8 @@ export class SimulateCommentDto {
   @MaxLength(2200)
   commentText: string;
 
-  @ApiPropertyOptional({ enum: PLATFORMS })
-  @IsIn(PLATFORMS)
+  @ApiPropertyOptional({ enum: RULE_PLATFORMS })
+  @IsIn(RULE_PLATFORMS)
   @IsOptional()
   platform?: SocialPlatform;
 

@@ -322,6 +322,12 @@ export class IntegrationService {
         category: 'google',
         description: 'Read reviews, reply to them and publish posts',
       },
+      {
+        type: IntegrationType.GOOGLE_YOUTUBE,
+        label: 'YouTube',
+        category: 'google',
+        description: 'Read comments on your channel and reply to them automatically',
+      },
     ];
   }
 }

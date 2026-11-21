@@ -30,10 +30,12 @@ import {
   SocialPost,
 } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { SocialYoutubeService } from './services/social-youtube.service';
 import { constantTimeEqual } from '../../common/security/constantTimeEqual';
 import { telegramDeleteWebhook, telegramGetMe, telegramSetWebhook } from './services/telegram.api';
 
 const SCHEDULER_INTERVAL_MS = 30_000;
+const YOUTUBE_POLL_MS = 5 * 60_000;
 const DUE_BATCH = 10;
 // A post left in 'publishing' this long (process crashed mid-publish) is failed so it never sticks.
 const STUCK_PUBLISHING_MS = 15 * 60_000;
@@ -127,6 +129,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SocialAutomationService.name);
   private schedulerTimer?: ReturnType<typeof setInterval>;
   private ticking = false;
+  private polling = false;
+  private lastYoutubePoll = 0;
 
   constructor(
     @InjectRepository(SocialAccount, 'data')
@@ -141,6 +145,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     private readonly messageRepo: Repository<SocialMessage>,
     private readonly metaGraph: MetaGraphService,
     @Optional() private readonly aiService?: AiService,
+    @Optional() private readonly youtube?: SocialYoutubeService,
   ) {}
 
   onModuleInit(): void {
@@ -217,7 +222,30 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     return this.getAccount(businessId, saved.id);
   }
 
+  /** YouTube: no token is stored; the account points (pageId) at the business's google_youtube connection. */
+  private async createYoutubeAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    if (!this.youtube) throw new BadRequestException('YouTube is not available on this server');
+    const channel = await this.youtube.channel(businessId, dto.integrationId ?? null);
+    await this.assertAccountFree('youtube', channel.id);
+    const saved = await this.accountRepo.save(
+      this.accountRepo.create({
+        businessId,
+        platform: 'youtube',
+        accountName: dto.accountName?.trim() || channel.title || 'YouTube channel',
+        accountId: channel.id,
+        accessToken: '',
+        pageId: dto.integrationId,
+        webhookVerifyToken: null,
+        aiAutoReply: false,
+        status: 'connected',
+        metadata: JSON.stringify({ title: channel.title }),
+      }),
+    );
+    return this.getAccount(businessId, saved.id);
+  }
+
   async createAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    if (dto.platform === 'youtube') return this.createYoutubeAccount(businessId, dto);
     if (dto.platform === 'telegram') return this.createTelegramAccount(businessId, dto);
     await this.assertAccountFree(dto.platform, dto.accountId);
     if (dto.platform === 'instagram' && !dto.pageId) {
@@ -263,7 +291,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (dto.status === 'disconnected') {
       account.status = 'disconnected';
     } else if (
-      account.platform !== 'telegram' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
+      account.platform !== 'telegram' &&
+      account.platform !== 'youtube' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
       (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status)
     ) {
       const check = await this.metaGraph.connectAccount(
@@ -296,6 +325,14 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     id: string,
   ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string; messagesError?: string }> {
     const account = await this.getAccount(businessId, id, true);
+    if (account.platform === 'youtube') {
+      const channel = await this.youtube?.channel(businessId, account.pageId).catch((err: unknown) => err as Error);
+      const valid = !!channel && !(channel instanceof Error);
+      await this.accountRepo.update(account.id, { status: valid ? 'connected' : 'disconnected' });
+      return valid
+        ? { valid, name: channel.title }
+        : { valid, error: channel instanceof Error ? channel.message : 'YouTube is not available' };
+    }
     if (account.platform === 'telegram') {
       const bot = await telegramGetMe(account.accessToken).catch((err: unknown) => err as Error);
       const valid = !(bot instanceof Error);
@@ -360,6 +397,9 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       if (account.platform !== dto.platform) {
         throw new BadRequestException(`That account is a ${account.platform} account, not ${dto.platform}`);
       }
+    }
+    if (dto.platform === 'youtube' && dto.mediaType !== 'VIDEO') {
+      throw new BadRequestException('YouTube posts must be a video (mediaType VIDEO)');
     }
     const scheduledAt = dto.publishNow ? null : this.parseSchedule(dto.scheduledAt);
     const saved = await this.postRepo.save(
@@ -433,6 +473,19 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         return await finish({ status: 'failed', error: `${account.accountName} is disconnected; reconnect it first` });
       }
 
+      if (post.platform === 'youtube') {
+        if (!this.youtube) return await finish({ status: 'failed', error: 'YouTube is not available on this server' });
+        const videoId = await this.youtube.upload(account, post.caption, post.mediaUrl);
+        return await finish({
+          status: 'published',
+          publishedAt: new Date(),
+          remotePostId: videoId,
+          permalink: `https://www.youtube.com/watch?v=${videoId}`,
+          accountId: account.id,
+          error: null,
+        });
+      }
+
       const result =
         post.platform === 'instagram'
           ? await this.metaGraph.publishToInstagram(
@@ -466,8 +519,30 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Comments on YouTube arrive by polling (no webhook): every 5 minutes, 1 quota unit per connected channel.
+   * Each reply costs 50 units of the project's default 10,000/day, so about 190 replies/day fit (see the docs).
+   */
+  private async pollYoutube(now: number): Promise<void> {
+    if (!this.youtube || this.polling || now - this.lastYoutubePoll < YOUTUBE_POLL_MS) return;
+    this.polling = true;
+    this.lastYoutubePoll = now;
+    try {
+      for (const account of await this.accountRepo.find({ where: { platform: 'youtube', status: 'connected' } })) {
+        try {
+          for (const comment of await this.youtube.newComments(account)) await this.handleIncomingComment(comment);
+        } catch (err) {
+          this.logger.warn(`YouTube poll for ${account.accountName} failed: ${errMsg(err)}`);
+        }
+      }
+    } finally {
+      this.polling = false;
+    }
+  }
+
   /** Publishes due scheduled posts. Each post is claimed atomically before publishing. */
   async tick(now = new Date()): Promise<void> {
+    void this.pollYoutube(now.getTime());
     if (this.ticking) return;
     this.ticking = true;
     try {
@@ -727,13 +802,19 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (!reply && templates.length) reply = templates[Math.floor(Math.random() * templates.length)];
     if (reply) {
       reply = fill(reply, username, commentText);
-      const res = await this.metaGraph.replyToComment(event.platform, event.commentId, reply, account.accessToken);
+      const res =
+        event.platform === 'youtube' && this.youtube
+          ? await this.youtube.reply(account, event.commentId, reply).then(
+              () => ({ success: true, error: undefined as string | undefined }),
+              (err: unknown) => ({ success: false, error: errMsg(err) }),
+            )
+          : await this.metaGraph.replyToComment(event.platform, event.commentId, reply, account.accessToken);
       log.replied = res.success;
       log.replyText = reply;
       if (!res.success) errors.push(`Reply failed: ${res.error}`);
     }
 
-    if (rule.autoDm && rule.autoDmTemplate && account.pageId) {
+    if (rule.autoDm && rule.autoDmTemplate && account.pageId && event.platform !== 'youtube') {
       const res = await this.metaGraph.sendPrivateReply(
         event.commentId,
         fill(rule.autoDmTemplate, username, commentText),
@@ -854,7 +935,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       .groupBy('m.platform')
       .getRawMany<{ platform: SocialPlatform; received: string; sent: string; customers: string }>();
     const empty = { received: 0, sent: 0, customers: 0 };
-    const stats = { instagram: { ...empty }, facebook: { ...empty }, telegram: { ...empty } };
+    const stats = { instagram: { ...empty }, facebook: { ...empty }, telegram: { ...empty }, youtube: { ...empty } };
     for (const r of rows) {
       if (r.platform in stats) {
         stats[r.platform] = { received: Number(r.received), sent: Number(r.sent), customers: Number(r.customers) };

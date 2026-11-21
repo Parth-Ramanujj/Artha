@@ -151,7 +151,7 @@ export class LeadService {
     customerName?: string;
     firstMessage?: string;
     /** Where the chat came from; WhatsApp unless said otherwise. */
-    source?: 'whatsapp' | 'instagram' | 'facebook' | 'telegram';
+    source?: 'whatsapp' | 'instagram' | 'facebook' | 'telegram' | 'youtube';
   }): Promise<{ lead: Lead; created: boolean }> {
     const source = input.source ?? 'whatsapp';
     const digits = (input.customerPhone ?? '').replace(/[^0-9]/g, '');
@@ -180,7 +180,15 @@ export class LeadService {
     }
 
     const leadNumber = generateLeadNumber(
-      source === 'instagram' ? 'IG' : source === 'facebook' ? 'FB' : source === 'telegram' ? 'TG' : 'WA',
+      source === 'instagram'
+        ? 'IG'
+        : source === 'facebook'
+          ? 'FB'
+          : source === 'telegram'
+            ? 'TG'
+            : source === 'youtube'
+              ? 'YT'
+              : 'WA',
     );
     const saved = await this.leadRepo.save(
       this.leadRepo.create({

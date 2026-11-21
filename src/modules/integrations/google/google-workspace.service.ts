@@ -26,6 +26,11 @@ export const GOOGLE_SERVICES = {
     name: 'Google Business Profile',
     scope: 'https://www.googleapis.com/auth/business.manage',
   },
+  youtube: {
+    label: 'YouTube (comment replies)',
+    name: 'YouTube',
+    scope: 'https://www.googleapis.com/auth/youtube.force-ssl',
+  },
 } as const;
 
 export type GoogleServiceId = keyof typeof GOOGLE_SERVICES;
@@ -33,6 +38,8 @@ export type GoogleServiceId = keyof typeof GOOGLE_SERVICES;
 /** Extra read-only scopes a service needs for listing things (e.g. finding spreadsheets by name). */
 const EXTRA_SCOPES: Partial<Record<GoogleServiceId, string[]>> = {
   sheets: ['https://www.googleapis.com/auth/drive.metadata.readonly'],
+  // force-ssl covers comments; readonly is asked too so finding the user's own channel (channels.list mine=true) works.
+  youtube: ['https://www.googleapis.com/auth/youtube.readonly'],
 };
 const LIST_SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
 
@@ -43,6 +50,7 @@ export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceId> = {
   [IntegrationType.GOOGLE_SHEETS]: 'sheets',
   [IntegrationType.GOOGLE_DRIVE]: 'drive',
   [IntegrationType.GOOGLE_BUSINESS]: 'business',
+  [IntegrationType.GOOGLE_YOUTUBE]: 'youtube',
 };
 
 const GOOGLE_TYPE_BY_SERVICE: Record<GoogleServiceId, IntegrationType> = {
@@ -51,6 +59,7 @@ const GOOGLE_TYPE_BY_SERVICE: Record<GoogleServiceId, IntegrationType> = {
   sheets: IntegrationType.GOOGLE_SHEETS,
   drive: IntegrationType.GOOGLE_DRIVE,
   business: IntegrationType.GOOGLE_BUSINESS,
+  youtube: IntegrationType.GOOGLE_YOUTUBE,
 };
 
 export function isGoogleType(type: string): boolean {
@@ -596,6 +605,99 @@ export class GoogleWorkspaceService {
       throw new BadRequestException('This Google account is not connected yet. Use "Sign in with Google" first.');
     }
     return c as GoogleConfig;
+  }
+
+  /** The signed-in user's own YouTube channel (1 quota unit). */
+  async youtubeChannel(integration: Integration): Promise<{ id: string; title: string }> {
+    this.requireService(integration, 'youtube');
+    const token = await this.accessToken(integration);
+    const res = await this.api(
+      token,
+      'GET',
+      'https://www.googleapis.com/youtube/v3/channels?part=id,snippet&mine=true',
+    );
+    const item = (Array.isArray(res.items) ? res.items[0] : undefined) as
+      { id?: string; snippet?: { title?: string } } | undefined;
+    if (!item?.id) throw new BadRequestException('This Google account has no YouTube channel');
+    return { id: item.id, title: item.snippet?.title ?? '' };
+  }
+
+  /** One page (up to 50) of the newest top-level comments across the channel's videos (1 quota unit per call). */
+  async youtubeComments(
+    integration: Integration,
+    channelId: string,
+    pageToken = '',
+  ): Promise<{ items: Array<Record<string, unknown>>; nextPageToken: string }> {
+    this.requireService(integration, 'youtube');
+    const token = await this.accessToken(integration);
+    const url = new URL('https://www.googleapis.com/youtube/v3/commentThreads');
+    url.searchParams.set('part', 'snippet');
+    url.searchParams.set('allThreadsRelatedToChannelId', channelId);
+    url.searchParams.set('order', 'time');
+    url.searchParams.set('maxResults', '50');
+    url.searchParams.set('textFormat', 'plainText');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+    const res = await this.api(token, 'GET', url.toString());
+    return {
+      items: (Array.isArray(res.items) ? res.items : []) as Array<Record<string, unknown>>,
+      nextPageToken: typeof res.nextPageToken === 'string' ? res.nextPageToken : '',
+    };
+  }
+
+  /**
+   * Uploads a video with YouTube's resumable protocol in one request (start a session, then PUT all bytes).
+   * shortcut: no chunking or resume, so a dropped connection restarts the upload; fine for files the server
+   * can hold in memory (MEDIA_DOWNLOAD_MAX_BYTES, 50 MB by default).
+   */
+  async youtubeUpload(
+    integration: Integration,
+    video: { title: string; description: string; data: Buffer; mimetype: string },
+  ): Promise<string> {
+    this.requireService(integration, 'youtube');
+    const token = await this.accessToken(integration);
+    const start = await fetch(
+      'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Length': String(video.data.length),
+          'X-Upload-Content-Type': video.mimetype,
+        },
+        body: JSON.stringify({
+          snippet: { title: video.title, description: video.description },
+          status: { privacyStatus: 'public' },
+        }),
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    const session = start.headers.get('location');
+    if (!start.ok || !session) {
+      const data = (await start.json().catch(() => ({}))) as { error?: { message?: string } };
+      throw new BadRequestException(data.error?.message ?? `YouTube refused the upload (${start.status})`);
+    }
+    const done = await fetch(session, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': video.mimetype },
+      body: new Uint8Array(video.data),
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+    const body = (await done.json().catch(() => ({}))) as { id?: string; error?: { message?: string } };
+    if (!done.ok || !body.id) {
+      throw new BadRequestException(body.error?.message ?? `YouTube upload failed (${done.status})`);
+    }
+    return body.id;
+  }
+
+  /** Replies to a top-level comment (50 quota units per call). */
+  async youtubeReply(integration: Integration, parentId: string, text: string): Promise<string> {
+    this.requireService(integration, 'youtube');
+    const token = await this.accessToken(integration);
+    const res = await this.api(token, 'POST', 'https://www.googleapis.com/youtube/v3/comments?part=snippet', {
+      snippet: { parentId, textOriginal: text },
+    });
+    return scalarToString(res.id);
   }
 
   private requireService(integration: Integration, service: GoogleServiceId) {

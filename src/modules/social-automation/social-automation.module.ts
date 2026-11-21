@@ -6,6 +6,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
 import { WebhookModule } from '../webhook/webhook.module';
 import { Session } from '../session/entities/session.entity';
 import { BusinessModule } from '../business/business.module';
+import { IntegrationModule } from '../integrations/integration.module';
 import { SocialAutomationController } from './controllers/social-automation.controller';
 import { SocialWebhookController } from './controllers/social-webhook.controller';
 import {
@@ -16,6 +17,7 @@ import {
   SocialPost,
 } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { SocialYoutubeService } from './services/social-youtube.service';
 import { SocialAutomationService } from './social-automation.service';
 import { SocialInboxService } from './social-inbox.service';
 
@@ -31,13 +33,14 @@ import { SocialInboxService } from './social-inbox.service';
       'data',
     ),
     BusinessModule,
+    IntegrationModule,
     AiModule,
     ConversationModule,
     WorkflowModule,
     WebhookModule,
   ],
   controllers: [SocialAutomationController, SocialWebhookController],
-  providers: [SocialAutomationService, MetaGraphService, SocialInboxService],
+  providers: [SocialAutomationService, MetaGraphService, SocialInboxService, SocialYoutubeService],
   exports: [SocialAutomationService, MetaGraphService],
 })
 export class SocialAutomationModule {}

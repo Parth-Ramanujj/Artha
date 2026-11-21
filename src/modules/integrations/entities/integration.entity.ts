@@ -14,6 +14,7 @@ export enum IntegrationType {
   GOOGLE_SHEETS = 'google_sheets',
   GOOGLE_DRIVE = 'google_drive',
   GOOGLE_BUSINESS = 'google_business',
+  GOOGLE_YOUTUBE = 'google_youtube',
 }
 
 export enum IntegrationStatus {

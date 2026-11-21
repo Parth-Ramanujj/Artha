@@ -1,4 +1,4 @@
-export type SocialPlatform = 'instagram' | 'facebook' | 'telegram';
+export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube';
 export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';
@@ -133,6 +133,8 @@ export interface SocialAccountInput {
   pageId?: string;
   webhookVerifyToken?: string;
   aiAutoReply?: boolean;
+  /** YouTube only: the connected google_youtube integration. */
+  integrationId?: string;
 }
 
 export interface SocialPostInput {

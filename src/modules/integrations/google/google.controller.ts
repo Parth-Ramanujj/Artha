@@ -194,6 +194,10 @@ export class GoogleController {
         const accounts = await this.google.gbpAccounts(integration);
         return { success: true, message: `Found ${accounts.length} Business Profile account(s)` };
       }
+      case 'youtube': {
+        const channel = await this.google.youtubeChannel(integration);
+        return { success: true, message: `Connected to YouTube channel ${channel.title || channel.id}` };
+      }
       default:
         throw new BadRequestException('Unknown Google service');
     }

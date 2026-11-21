@@ -100,7 +100,7 @@ export class WorkflowTriggerService implements OnModuleInit, OnModuleDestroy {
     text: string;
     messageId: string;
     contactName?: string;
-    channel: 'instagram' | 'facebook' | 'telegram';
+    channel: 'instagram' | 'facebook' | 'telegram' | 'youtube';
   }): Promise<boolean> {
     const { businessId, accountId, chatId } = input;
     const ctx: TriggerContext = {

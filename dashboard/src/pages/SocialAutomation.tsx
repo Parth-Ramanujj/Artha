@@ -24,7 +24,8 @@ import {
 import { SetupGuide } from '../components/social-automation/SetupGuide';
 import { ActivityFeed } from '../components/social-automation/ActivityFeed';
 import { HealthPanel, type HealthAction } from '../components/social-automation/HealthPanel';
-import { API_BASE_URL, socialAutomationApi } from '../services/api';
+import { API_BASE_URL, integrationApi, socialAutomationApi } from '../services/api';
+import { Link } from 'react-router-dom';
 import type {
   SocialAccount,
   SocialPost,
@@ -143,7 +144,7 @@ export function SocialAutomation() {
 
   // Post form state
   const [newPost, setNewPost] = useState({
-    platform: 'instagram' as 'instagram' | 'facebook',
+    platform: 'instagram' as 'instagram' | 'facebook' | 'youtube',
     caption: '',
     mediaUrl: '',
     mediaType: 'IMAGE' as SocialMediaType,
@@ -178,7 +179,9 @@ export function SocialAutomation() {
     pageId: '',
     webhookVerifyToken: '',
     aiAutoReply: false,
+    integrationId: '',
   });
+  const [youtubeConnections, setYoutubeConnections] = useState<Array<{ id: string; name: string }>>([]);
 
   // Simulator state
   const [simComment, setSimComment] = useState('Hey! What is the price of this product?');
@@ -342,6 +345,14 @@ export function SocialAutomation() {
     }
   };
 
+  useEffect(() => {
+    if (!showAccountModal || newAccount.platform !== 'youtube') return;
+    integrationApi
+      .list('google_youtube')
+      .then(rows => setYoutubeConnections((rows as Array<{ id: string; name: string }>).map(r => ({ id: r.id, name: r.name }))))
+      .catch(() => setYoutubeConnections([]));
+  }, [showAccountModal, newAccount.platform]);
+
   const handleOpenNewAccountModal = () => {
     setEditingAccount(null);
     setNewAccount({
@@ -352,6 +363,7 @@ export function SocialAutomation() {
       pageId: '',
       webhookVerifyToken: '',
       aiAutoReply: false,
+      integrationId: '',
     });
     setShowAccountModal(true);
   };
@@ -366,6 +378,7 @@ export function SocialAutomation() {
       pageId: acc.pageId || '',
       webhookVerifyToken: acc.webhookVerifyToken || '',
       aiAutoReply: acc.aiAutoReply ?? false,
+      integrationId: acc.platform === 'youtube' ? acc.pageId || '' : '',
     });
     setShowAccountModal(true);
   };
@@ -390,7 +403,9 @@ export function SocialAutomation() {
       } else {
         await socialAutomationApi.createAccount({
           ...newAccount,
-          accountId: newAccount.platform === 'telegram' ? undefined : newAccount.accountId,
+          accountId: newAccount.platform === 'telegram' || newAccount.platform === 'youtube' ? undefined : newAccount.accountId,
+          integrationId: newAccount.platform === 'youtube' ? newAccount.integrationId : undefined,
+          accessToken: newAccount.platform === 'youtube' ? undefined : newAccount.accessToken,
           pageId: newAccount.platform === 'instagram' ? newAccount.pageId : undefined,
           webhookVerifyToken: newAccount.webhookVerifyToken || undefined,
         });
@@ -424,6 +439,7 @@ export function SocialAutomation() {
         pageId: '',
         webhookVerifyToken: '',
         aiAutoReply: false,
+        integrationId: '',
       });
       await loadData();
     } catch (err) {
@@ -1219,10 +1235,15 @@ export function SocialAutomation() {
               <select
                 className="input"
                 value={newPost.platform}
-                onChange={e => setNewPost({ ...newPost, platform: e.target.value as 'instagram' | 'facebook' })}
+                onChange={e => {
+                  const platform = e.target.value as 'instagram' | 'facebook' | 'youtube';
+                  // YouTube only takes videos.
+                  setNewPost({ ...newPost, platform, mediaType: platform === 'youtube' ? 'VIDEO' : newPost.mediaType });
+                }}
               >
                 <option value="instagram">Instagram</option>
                 <option value="facebook">Facebook</option>
+                <option value="youtube">YouTube (video upload)</option>
               </select>
             </div>
             <div className="social-form-group">
@@ -1230,6 +1251,7 @@ export function SocialAutomation() {
               <select
                 className="input"
                 value={newPost.mediaType}
+                disabled={newPost.platform === 'youtube'}
                 onChange={e => setNewPost({ ...newPost, mediaType: e.target.value as 'IMAGE' | 'VIDEO' })}
               >
                 <option value="IMAGE">Photo / Image</option>
@@ -1239,7 +1261,7 @@ export function SocialAutomation() {
           </div>
 
           <div className="social-form-group">
-            <label>Public HTTPS Media URL</label>
+            <label>{newPost.platform === 'youtube' ? 'Public HTTPS Video URL' : 'Public HTTPS Media URL'}</label>
             <input
               className="input"
               required
@@ -1247,7 +1269,13 @@ export function SocialAutomation() {
               value={newPost.mediaUrl}
               onChange={e => setNewPost({ ...newPost, mediaUrl: e.target.value })}
             />
-            {newPost.mediaUrl && (
+            {newPost.platform === 'youtube' && (
+              <span className="sa-help">
+                The server downloads this video (up to 50 MB by default) and uploads it publicly to your channel. The first line of the
+                caption becomes the title, the rest the description. YouTube allows 100 uploads a day per project.
+              </span>
+            )}
+            {newPost.mediaUrl && newPost.platform !== 'youtube' && (
               <div style={{ marginTop: '0.5rem', maxHeight: 150, overflow: 'hidden', borderRadius: 8 }}>
                 <img
                   src={newPost.mediaUrl}
@@ -1507,6 +1535,7 @@ export function SocialAutomation() {
               <option value="instagram">Instagram Business / Creator</option>
               <option value="facebook">Facebook Page</option>
               <option value="telegram">Telegram Bot</option>
+              <option value="youtube">YouTube Channel (comment replies)</option>
             </select>
           </div>
 
@@ -1520,7 +1549,39 @@ export function SocialAutomation() {
             />
           </div>
 
-          {newAccount.platform !== 'telegram' && (
+          {newAccount.platform === 'youtube' && (
+            <div className="social-form-group">
+              <label>YouTube connection</label>
+              <select
+                className="input"
+                required
+                value={newAccount.integrationId}
+                onChange={e => setNewAccount({ ...newAccount, integrationId: e.target.value })}
+              >
+                <option value="">Select a connection…</option>
+                {youtubeConnections.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <span className="sa-help">
+                {youtubeConnections.length === 0 ? (
+                  <>
+                    No YouTube connection yet. Add one under <Link to="/integrations">Integrations → YouTube</Link> and sign
+                    in with Google, then come back.
+                  </>
+                ) : (
+                  <>
+                    Comments posted after you connect are checked every 5 minutes and answered by your comment rules. Each
+                    reply uses 50 of YouTube's 10,000 free daily quota units.
+                  </>
+                )}
+              </span>
+            </div>
+          )}
+
+          {newAccount.platform !== 'telegram' && newAccount.platform !== 'youtube' && (
             <div className="social-form-group">
               <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
               <input
@@ -1565,6 +1626,8 @@ export function SocialAutomation() {
             </div>
           )}
 
+          {newAccount.platform !== 'youtube' && (
+            <>
           <div className="social-form-group">
             <label>{newAccount.platform === 'telegram' ? 'Telegram Bot Token' : 'Meta Long-Lived Access Token'}</label>
             <textarea
@@ -1610,6 +1673,8 @@ export function SocialAutomation() {
               replies in the chat. It needs the chatbot turned on in Chatbot Training.
             </span>
           </div>
+            </>
+          )}
         </form>
       </Modal>
     </div>

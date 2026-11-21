@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ExternalLink, FileSpreadsheet, Play } from 'lucide-react';
 import { googleApi } from '../../services/api';
 
-export type GoogleServiceChoice = 'gmail' | 'calendar' | 'sheets' | 'drive' | 'business';
+export type GoogleServiceChoice = 'gmail' | 'calendar' | 'sheets' | 'drive' | 'business' | 'youtube';
 
 /** Which Google service each integration type connects. */
 export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceChoice> = {
@@ -11,6 +11,7 @@ export const GOOGLE_TYPE_SERVICE: Record<string, GoogleServiceChoice> = {
   google_sheets: 'sheets',
   google_drive: 'drive',
   google_business: 'business',
+  google_youtube: 'youtube',
 };
 
 export function isGoogleType(type: string): boolean {
@@ -23,6 +24,7 @@ const SERVICE_HINT: Record<GoogleServiceChoice, string> = {
   sheets: 'Adds rows to a spreadsheet you choose.',
   drive: 'Works with files this app creates in your Drive.',
   business: 'Reads your Google reviews, replies to them and publishes posts. Set it up under Google Business.',
+  youtube: 'Reads comments on your channel and replies to them. Add the channel under Social Automation → Connect Account.',
 };
 
 interface GoogleServiceFieldsProps {
