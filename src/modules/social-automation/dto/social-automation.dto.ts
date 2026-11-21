@@ -15,6 +15,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ToStrictBoolean, ToStrictNumber } from '../../../common/utils/strict-boolean';
 import type { RuleMatchType, SocialMediaType, SocialPlatform } from '../entities/social-automation.entity';
@@ -25,8 +26,8 @@ const META_ID = /^\d{5,30}$/;
 const httpsUrl = { protocols: ['https'], require_protocol: true };
 
 export class CreateSocialAccountDto {
-  @ApiProperty({ enum: PLATFORMS })
-  @IsIn(PLATFORMS)
+  @ApiProperty({ enum: [...PLATFORMS, 'telegram'] })
+  @IsIn([...PLATFORMS, 'telegram'])
   platform: SocialPlatform;
 
   @ApiPropertyOptional({ example: 'My Brand Instagram' })
@@ -35,11 +36,15 @@ export class CreateSocialAccountDto {
   @MaxLength(150)
   accountName?: string;
 
-  @ApiProperty({ example: '17841400000000000', description: 'Instagram Business account ID or Facebook Page ID' })
+  @ApiPropertyOptional({
+    example: '17841400000000000',
+    description: 'Instagram Business account ID or Facebook Page ID. Not needed for Telegram (read from the bot).',
+  })
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform !== 'telegram')
   @Matches(META_ID, { message: 'accountId must be the numeric Meta ID' })
   accountId: string;
 
-  @ApiProperty({ description: 'Long-lived Page access token from Meta (never returned by the API)' })
+  @ApiProperty({ description: 'Meta Page access token, or the Telegram bot token from @BotFather (never returned)' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(1000)

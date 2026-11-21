@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { telegramSendMessage } from './services/telegram.api';
 import { SocialAutomationService } from './social-automation.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { LeadService } from '../workflow/lead.service';
@@ -22,6 +23,8 @@ export interface IncomingMessage {
   mid: string;
   text: string;
   mediaUrl?: string;
+  /** Sender's name when the platform sends it with the message (Telegram); Meta needs a lookup. */
+  customerName?: string;
   /** true when the business sent it (from the Instagram/Messenger app or through us). */
   isEcho: boolean;
 }
@@ -43,6 +46,7 @@ const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 // Meta allows messages within 24 hours of the customer's last message; a little margin for the send itself.
 const REPLY_WINDOW_MS = 23.5 * 60 * 60 * 1000;
 const BROADCAST_GAP_MS = 400;
+const CHAT_PREFIX: Record<SocialPlatform, string> = { instagram: 'ig', facebook: 'fb', telegram: 'tg' };
 
 @Injectable()
 export class SocialInboxService implements OnModuleInit {
@@ -66,7 +70,7 @@ export class SocialInboxService implements OnModuleInit {
 
   /** Lets workflow "send message" / question steps answer Instagram (ig:) and Facebook (fb:) chats. */
   onModuleInit(): void {
-    for (const prefix of ['ig:', 'fb:']) {
+    for (const prefix of ['ig:', 'fb:', 'tg:']) {
       this.workflowExecutor?.registerChannelSender(prefix, async (businessId, accountId, chatId, text) => {
         const sent = await this.sendMessage(businessId, accountId, chatId.slice(prefix.length), text);
         return { messageId: sent.remoteMessageId ?? sent.id };
@@ -101,7 +105,10 @@ export class SocialInboxService implements OnModuleInit {
       named?.customerName ??
       (event.isEcho
         ? null
-        : ((await this.metaGraph.customerName(event.platform, threadId, account.accessToken)) ?? null));
+        : (event.customerName ??
+          (event.platform === 'telegram'
+            ? null
+            : ((await this.metaGraph.customerName(event.platform, threadId, account.accessToken)) ?? null))));
 
     let saved: SocialMessage;
     try {
@@ -155,7 +162,7 @@ export class SocialInboxService implements OnModuleInit {
         channel: account.platform,
         accountId: account.id,
         accountName: account.accountName,
-        chatId: `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`,
+        chatId: `${CHAT_PREFIX[account.platform]}:${msg.threadId}`,
         threadId: msg.threadId,
         customerName: msg.customerName,
         text: msg.text,
@@ -178,7 +185,7 @@ export class SocialInboxService implements OnModuleInit {
       return await this.workflowTrigger.handleSocialMessage({
         businessId: account.businessId,
         accountId: account.id,
-        chatId: `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`,
+        chatId: `${CHAT_PREFIX[account.platform]}:${msg.threadId}`,
         text: msg.text ?? '',
         messageId: msg.remoteMessageId ?? msg.id,
         contactName: msg.customerName?.replace(/^@/, '') || undefined,
@@ -192,7 +199,7 @@ export class SocialInboxService implements OnModuleInit {
 
   /** A new Instagram/Facebook customer becomes a contact and a lead, like a new WhatsApp chat does. */
   private async captureCustomer(account: SocialAccount, msg: SocialMessage): Promise<void> {
-    const key = `${account.platform === 'instagram' ? 'ig' : 'fb'}:${msg.threadId}`;
+    const key = `${CHAT_PREFIX[account.platform]}:${msg.threadId}`;
     const name = msg.customerName?.replace(/^@/, '') || undefined;
     await this.conversations?.getOrCreateContact(account.businessId, key, name);
     if (!this.leads) return;
@@ -361,11 +368,18 @@ export class SocialInboxService implements OnModuleInit {
       .where('a.id = :accountId AND a.businessId = :businessId', { accountId, businessId })
       .getOne();
     if (!account) throw new NotFoundException('Account not found');
-    const pageId = account.platform === 'facebook' ? account.accountId : account.pageId;
-    if (!pageId) throw new BadRequestException('This Instagram account has no linked Facebook Page');
-
-    const res = await this.metaGraph.sendMessage(pageId, threadId, text, account.accessToken);
-    if (!res.success) throw new BadRequestException(res.error || 'Meta refused the message');
+    let res: { success: boolean; messageId?: string; error?: string };
+    if (account.platform === 'telegram') {
+      res = await telegramSendMessage(account.accessToken, threadId, text).then(
+        messageId => ({ success: true, messageId }),
+        (err: unknown) => ({ success: false, error: err instanceof Error ? err.message : String(err) }),
+      );
+    } else {
+      const pageId = account.platform === 'facebook' ? account.accountId : account.pageId;
+      if (!pageId) throw new BadRequestException('This Instagram account has no linked Facebook Page');
+      res = await this.metaGraph.sendMessage(pageId, threadId, text, account.accessToken);
+    }
+    if (!res.success) throw new BadRequestException(res.error || 'The platform refused the message');
 
     // Meta's echo of this send can land first and already be stored under the same mid.
     const echoed = res.messageId ? await this.messageRepo.findOne({ where: { remoteMessageId: res.messageId } }) : null;

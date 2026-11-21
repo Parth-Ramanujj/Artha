@@ -9,7 +9,7 @@ import type { SocialPlatform } from '../../types/socialAutomation';
  * messages only inside that window, so older customers are left out on purpose.
  */
 export function SocialBroadcast({ platform, onSent }: { platform: SocialPlatform; onSent: () => void }) {
-  const name = platform === 'instagram' ? 'Instagram' : 'Facebook';
+  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram' }[platform];
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [text, setText] = useState('');
@@ -69,7 +69,9 @@ export function SocialBroadcast({ platform, onSent }: { platform: SocialPlatform
           {count === null
             ? 'Counting customers…'
             : `${count} customer${count === 1 ? '' : 's'} wrote to you on ${name} in the last 24 hours and can receive this.`}{' '}
-          Meta only lets businesses message people within 24 hours of their last message, so older chats are skipped.
+          {platform === 'telegram'
+            ? 'Only chats from the last 24 hours are included.'
+            : 'Meta only lets businesses message people within 24 hours of their last message, so older chats are skipped.'}
         </p>
         <label htmlFor="social-broadcast-text" className="social-broadcast-label">
           Message

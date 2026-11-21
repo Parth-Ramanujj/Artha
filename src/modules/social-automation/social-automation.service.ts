@@ -30,6 +30,8 @@ import {
   SocialPost,
 } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
+import { constantTimeEqual } from '../../common/security/constantTimeEqual';
+import { telegramDeleteWebhook, telegramGetMe, telegramSetWebhook } from './services/telegram.api';
 
 const SCHEDULER_INTERVAL_MS = 30_000;
 const DUE_BATCH = 10;
@@ -177,7 +179,46 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Telegram: the bot token identifies the bot; Telegram then pushes every DM to our webhook with a per-account secret. */
+  private async createTelegramAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+    if (!/^https:\/\//i.test(base)) {
+      throw new BadRequestException('Telegram needs a public https BASE_URL so Telegram can reach the webhook');
+    }
+    const token = dto.accessToken.trim();
+    const bot = await telegramGetMe(token).catch((err: unknown) => {
+      throw new BadRequestException(
+        `Telegram rejected the bot token: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+    const accountId = String(bot.id);
+    await this.assertAccountFree('telegram', accountId);
+    const secret = randomBytes(24).toString('hex');
+    const saved = await this.accountRepo.save(
+      this.accountRepo.create({
+        businessId,
+        platform: 'telegram',
+        accountName: dto.accountName?.trim() || (bot.username ? `@${bot.username}` : bot.first_name),
+        accountId,
+        accessToken: token,
+        pageId: null,
+        webhookVerifyToken: secret,
+        aiAutoReply: dto.aiAutoReply ?? false,
+        status: 'connected',
+        metadata: JSON.stringify({ username: bot.username ?? null }),
+      }),
+    );
+    try {
+      await telegramSetWebhook(token, `${base}/api/social-automation/webhook/telegram/${saved.id}`, secret);
+    } catch (err) {
+      await this.accountRepo.delete(saved.id);
+      throw new BadRequestException(`Telegram webhook setup failed: ${err instanceof Error ? err.message : err}`);
+    }
+    return this.getAccount(businessId, saved.id);
+  }
+
   async createAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    if (dto.platform === 'telegram') return this.createTelegramAccount(businessId, dto);
     await this.assertAccountFree(dto.platform, dto.accountId);
     if (dto.platform === 'instagram' && !dto.pageId) {
       throw new BadRequestException('Instagram accounts need the linked Facebook Page ID');
@@ -221,7 +262,10 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
 
     if (dto.status === 'disconnected') {
       account.status = 'disconnected';
-    } else if (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status) {
+    } else if (
+      account.platform !== 'telegram' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
+      (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status)
+    ) {
       const check = await this.metaGraph.connectAccount(
         account.platform,
         account.accountId,
@@ -238,6 +282,11 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
   }
 
   async deleteAccount(businessId: string, id: string): Promise<void> {
+    const account = await this.withToken()
+      .where('a.id = :id AND a.businessId = :businessId', { id, businessId })
+      .getOne();
+    // Best effort: stop Telegram pushing to a webhook that no longer maps to an account.
+    if (account?.platform === 'telegram') await telegramDeleteWebhook(account.accessToken).catch(() => undefined);
     const res = await this.accountRepo.delete({ id, businessId });
     if (!res.affected) throw new NotFoundException('Social account not found');
   }
@@ -247,6 +296,14 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     id: string,
   ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string; messagesError?: string }> {
     const account = await this.getAccount(businessId, id, true);
+    if (account.platform === 'telegram') {
+      const bot = await telegramGetMe(account.accessToken).catch((err: unknown) => err as Error);
+      const valid = !(bot instanceof Error);
+      await this.accountRepo.update(account.id, { status: valid ? 'connected' : 'disconnected' });
+      return valid
+        ? { valid, name: bot.username ? `@${bot.username}` : bot.first_name }
+        : { valid, error: bot.message };
+    }
     const check = await this.metaGraph.connectAccount(
       account.platform,
       account.accountId,
@@ -265,6 +322,17 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       webhookError: check.webhookError,
       messagesError: check.messagesError,
     };
+  }
+
+  /** Telegram delivery check: true only when the secret Telegram echoes matches this connected bot's secret. */
+  async isTelegramWebhookValid(accountId: string, secret: string | undefined): Promise<boolean> {
+    if (!secret || !/^[0-9a-f-]{36}$/i.test(accountId)) return false;
+    const account = await this.accountRepo.findOne({ where: { id: accountId, platform: 'telegram' } });
+    return !!account?.webhookVerifyToken && constantTimeEqual(secret, account.webhookVerifyToken);
+  }
+
+  async telegramBotId(accountId: string): Promise<string | null> {
+    return (await this.accountRepo.findOne({ where: { id: accountId, platform: 'telegram' } }))?.accountId ?? null;
   }
 
   /** Webhook verification: the token must be one a connected account was given. */
@@ -786,7 +854,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       .groupBy('m.platform')
       .getRawMany<{ platform: SocialPlatform; received: string; sent: string; customers: string }>();
     const empty = { received: 0, sent: 0, customers: 0 };
-    const stats = { instagram: { ...empty }, facebook: { ...empty } };
+    const stats = { instagram: { ...empty }, facebook: { ...empty }, telegram: { ...empty } };
     for (const r of rows) {
       if (r.platform in stats) {
         stats[r.platform] = { received: Number(r.received), sent: Number(r.sent), customers: Number(r.customers) };

@@ -18,7 +18,7 @@ interface SocialInboxProps {
 
 /** Instagram DMs or Facebook Messenger chats, read and answered from the Chats page. */
 export function SocialInbox({ platform }: SocialInboxProps) {
-  const name = platform === 'instagram' ? 'Instagram' : 'Facebook';
+  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram' }[platform];
   const [threads, setThreads] = useState<SocialThread[] | null>(null);
   const [hasAccount, setHasAccount] = useState(true);
   const [active, setActive] = useState<SocialThread | null>(null);
@@ -141,9 +141,15 @@ export function SocialInbox({ platform }: SocialInboxProps) {
           </p>
         ) : threads.length === 0 ? (
           <p className="social-inbox-empty">
-            No {name} messages yet. Send a DM to your {name === 'Instagram' ? 'Instagram account' : 'Facebook Page'} from another account to test.
-            If nothing arrives within a minute: in the Meta app, Webhooks → {name === 'Instagram' ? 'Instagram' : 'Page'} → "messages" must be
-            Subscribed, then press Test on the account in Social Automation.
+            {platform === 'telegram' ? (
+              <>No Telegram messages yet. Open your bot in Telegram, press Start and send a message to test.</>
+            ) : (
+              <>
+                No {name} messages yet. Send a DM to your {name === 'Instagram' ? 'Instagram account' : 'Facebook Page'} from another account to test.
+                If nothing arrives within a minute: in the Meta app, Webhooks → {name === 'Instagram' ? 'Instagram' : 'Page'} → "messages" must be
+                Subscribed, then press Test on the account in Social Automation.
+              </>
+            )}
           </p>
         ) : (
           <>

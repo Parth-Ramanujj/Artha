@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Logger,
@@ -96,6 +97,29 @@ export function extractMessages(payload: Obj): IncomingMessage[] {
 }
 
 /**
+ * Pulls a private-chat text DM out of a Telegram update. Groups, bots and non-text messages are skipped
+ * (shortcut: photos/files from customers are not stored yet).
+ */
+export function extractTelegramMessage(update: Obj, botId: string): IncomingMessage | null {
+  const m = obj(update.message);
+  const chat = obj(m.chat);
+  const from = obj(m.from);
+  const text = str(m.text);
+  if (chat.type !== 'private' || from.is_bot === true || !text || !str(chat.id) || !str(m.message_id)) return null;
+  const name = [str(from.first_name), str(from.last_name)].filter(Boolean).join(' ') || str(from.username);
+  return {
+    platform: 'telegram',
+    targetAccountId: botId,
+    senderId: str(chat.id),
+    recipientId: botId,
+    mid: `${str(chat.id)}:${str(m.message_id)}`,
+    text,
+    customerName: name || undefined,
+    isEcho: false,
+  };
+}
+
+/**
  * Meta webhook for Instagram and Facebook Page comments and DMs. Configure in the Meta app with the callback
  * URL `<api>/api/social-automation/webhook`, a verify token from a connected account, and set
  * META_APP_SECRET so every delivery's X-Hub-Signature-256 is checked.
@@ -153,6 +177,30 @@ export class SocialWebhookController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=900');
     res.status(HttpStatus.OK).send(data);
+  }
+
+  /** Telegram delivery for one connected bot; authenticated by the secret set with setWebhook. */
+  @Public()
+  @Post('telegram/:accountId')
+  @HttpCode(HttpStatus.OK)
+  async receiveTelegram(
+    @Param('accountId') accountId: string,
+    @Body() update: Obj,
+    @Headers('x-telegram-bot-api-secret-token') secret?: string,
+  ): Promise<string> {
+    if (!(await this.socialService.isTelegramWebhookValid(accountId, secret))) {
+      this.socialService.noteWebhookRejected('signature');
+      throw new ForbiddenException('Invalid webhook secret');
+    }
+    const botId = await this.socialService.telegramBotId(accountId);
+    const message = botId ? extractTelegramMessage(update, botId) : null;
+    this.socialService.noteWebhookDelivery('telegram', 0, message ? 1 : 0);
+    if (message) {
+      this.inbox.handleIncomingMessage(message).catch((err: unknown) => {
+        this.logger.error(`Message ${message.mid} failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+    return 'OK';
   }
 
   private signatureOk(rawBody: Buffer | undefined, signature: string | undefined): boolean {

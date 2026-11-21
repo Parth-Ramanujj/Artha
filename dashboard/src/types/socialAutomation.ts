@@ -1,4 +1,4 @@
-export type SocialPlatform = 'instagram' | 'facebook';
+export type SocialPlatform = 'instagram' | 'facebook' | 'telegram';
 export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';
@@ -126,7 +126,8 @@ export interface SimulateCommentResult {
 export interface SocialAccountInput {
   platform: SocialPlatform;
   accountName?: string;
-  accountId: string;
+  /** Not needed for Telegram: the server reads the bot id from the token. */
+  accountId?: string;
   /** Write-only: the API never returns it. Leave empty on update to keep the stored token. */
   accessToken?: string;
   pageId?: string;

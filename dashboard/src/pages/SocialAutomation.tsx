@@ -34,6 +34,7 @@ import type {
   SimulateCommentResult,
   SocialMediaType,
   RuleAppliesTo,
+  SocialPlatform,
 } from '../types/socialAutomation';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { PageHeader } from '../components/PageHeader';
@@ -170,7 +171,7 @@ export function SocialAutomation() {
   // Account form state
   const [editingAccount, setEditingAccount] = useState<SocialAccount | null>(null);
   const [newAccount, setNewAccount] = useState({
-    platform: 'instagram' as 'instagram' | 'facebook',
+    platform: 'instagram' as SocialPlatform,
     accountName: '',
     accountId: '',
     accessToken: '',
@@ -389,6 +390,7 @@ export function SocialAutomation() {
       } else {
         await socialAutomationApi.createAccount({
           ...newAccount,
+          accountId: newAccount.platform === 'telegram' ? undefined : newAccount.accountId,
           pageId: newAccount.platform === 'instagram' ? newAccount.pageId : undefined,
           webhookVerifyToken: newAccount.webhookVerifyToken || undefined,
         });
@@ -1500,10 +1502,11 @@ export function SocialAutomation() {
             <select
               className="input"
               value={newAccount.platform}
-              onChange={e => setNewAccount({ ...newAccount, platform: e.target.value as 'instagram' | 'facebook' })}
+              onChange={e => setNewAccount({ ...newAccount, platform: e.target.value as SocialPlatform })}
             >
               <option value="instagram">Instagram Business / Creator</option>
               <option value="facebook">Facebook Page</option>
+              <option value="telegram">Telegram Bot</option>
             </select>
           </div>
 
@@ -1517,16 +1520,18 @@ export function SocialAutomation() {
             />
           </div>
 
-          <div className="social-form-group">
-            <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
-            <input
-              className="input"
-              required
-              placeholder={newAccount.platform === 'instagram' ? '17841400000000000' : '10002938482910'}
-              value={newAccount.accountId}
-              onChange={e => setNewAccount({ ...newAccount, accountId: e.target.value })}
-            />
-          </div>
+          {newAccount.platform !== 'telegram' && (
+            <div className="social-form-group">
+              <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
+              <input
+                className="input"
+                required
+                placeholder={newAccount.platform === 'instagram' ? '17841400000000000' : '10002938482910'}
+                value={newAccount.accountId}
+                onChange={e => setNewAccount({ ...newAccount, accountId: e.target.value })}
+              />
+            </div>
+          )}
 
           {newAccount.platform === 'instagram' && (
             <div className="social-form-group">
@@ -1561,18 +1566,33 @@ export function SocialAutomation() {
           )}
 
           <div className="social-form-group">
-            <label>Meta Long-Lived Access Token</label>
+            <label>{newAccount.platform === 'telegram' ? 'Telegram Bot Token' : 'Meta Long-Lived Access Token'}</label>
             <textarea
               className="input"
               rows={3}
               required={!editingAccount}
-              placeholder={editingAccount ? 'Leave empty to keep the saved token' : 'EAAB...'}
+              placeholder={
+                editingAccount
+                  ? 'Leave empty to keep the saved token'
+                  : newAccount.platform === 'telegram'
+                    ? '123456789:AAH...'
+                    : 'EAAB...'
+              }
               value={newAccount.accessToken}
               onChange={e => setNewAccount({ ...newAccount, accessToken: e.target.value })}
             />
             <span className="sa-help">
-              Stored on the server and never shown again. Outside production, <code>mock_token</code> tests the flow
-              without calling Meta.
+              {newAccount.platform === 'telegram' ? (
+                <>
+                  Create a bot with @BotFather and paste its token. The webhook is set automatically; the server needs
+                  a public https <code>BASE_URL</code>. Customers must press Start in your bot first.
+                </>
+              ) : (
+                <>
+                  Stored on the server and never shown again. Outside production, <code>mock_token</code> tests the
+                  flow without calling Meta.
+                </>
+              )}
             </span>
           </div>
 

@@ -75,6 +75,7 @@ const CHAT_CHANNELS = [
   { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'facebook', label: 'Facebook' },
+  { id: 'telegram', label: 'Telegram' },
 ] as const;
 type ChatChannel = (typeof CHAT_CHANNELS)[number]['id'];
 
