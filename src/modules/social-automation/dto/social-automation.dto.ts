@@ -23,13 +23,15 @@ import type { RuleMatchType, SocialMediaType, SocialPlatform } from '../entities
 const PLATFORMS = ['instagram', 'facebook'] as const;
 /** Platforms comment rules and posts can target (YouTube has comments and video uploads but no DMs). */
 const RULE_PLATFORMS = [...PLATFORMS, 'youtube'] as const;
+/** X publishes text posts only; it has no comments or DMs here. */
+const POST_PLATFORMS = [...RULE_PLATFORMS, 'x'] as const;
 const MEDIA_TYPES = ['IMAGE', 'VIDEO'] as const;
 const META_ID = /^\d{5,30}$/;
 const httpsUrl = { protocols: ['https'], require_protocol: true };
 
 export class CreateSocialAccountDto {
-  @ApiProperty({ enum: [...PLATFORMS, 'telegram', 'youtube'] })
-  @IsIn([...PLATFORMS, 'telegram', 'youtube'])
+  @ApiProperty({ enum: [...PLATFORMS, 'telegram', 'youtube', 'x'] })
+  @IsIn([...PLATFORMS, 'telegram', 'youtube', 'x'])
   platform: SocialPlatform;
 
   @ApiPropertyOptional({ example: 'My Brand Instagram' })
@@ -42,7 +44,9 @@ export class CreateSocialAccountDto {
     example: '17841400000000000',
     description: 'Instagram Business account ID or Facebook Page ID. Not needed for Telegram (read from the bot).',
   })
-  @ValidateIf((o: CreateSocialAccountDto) => o.platform !== 'telegram' && o.platform !== 'youtube')
+  @ValidateIf(
+    (o: CreateSocialAccountDto) => o.platform !== 'telegram' && o.platform !== 'youtube' && o.platform !== 'x',
+  )
   @Matches(META_ID, { message: 'accountId must be the numeric Meta ID' })
   accountId: string;
 
@@ -54,6 +58,27 @@ export class CreateSocialAccountDto {
   @IsNotEmpty()
   @MaxLength(1000)
   accessToken: string;
+
+  @ApiPropertyOptional({ description: 'X only: API key (consumer key). The access token goes in accessToken.' })
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform === 'x')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  apiKey?: string;
+
+  @ApiPropertyOptional({ description: 'X only: API key secret (consumer secret)' })
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform === 'x')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  apiSecret?: string;
+
+  @ApiPropertyOptional({ description: 'X only: access token secret' })
+  @ValidateIf((o: CreateSocialAccountDto) => o.platform === 'x')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  accessTokenSecret?: string;
 
   @ApiPropertyOptional({ description: 'YouTube only: id of the connected google_youtube integration' })
   @IsUUID()
@@ -93,8 +118,8 @@ export class CreateSocialPostDto {
   @IsOptional()
   accountId?: string;
 
-  @ApiProperty({ enum: RULE_PLATFORMS })
-  @IsIn(RULE_PLATFORMS)
+  @ApiProperty({ enum: POST_PLATFORMS })
+  @IsIn(POST_PLATFORMS)
   platform: SocialPlatform;
 
   @ApiProperty({ example: 'Check out our new launch! #innovation' })
@@ -103,10 +128,13 @@ export class CreateSocialPostDto {
   @MaxLength(2200)
   caption: string;
 
-  @ApiProperty({ description: 'Public HTTPS image or video URL that Meta can download' })
+  @ApiPropertyOptional({
+    description: 'Public HTTPS image or video URL that Meta or YouTube can download. Not used for X (text only).',
+  })
+  @ValidateIf((o: CreateSocialPostDto) => o.platform !== 'x')
   @IsUrl(httpsUrl)
   @MaxLength(2000)
-  mediaUrl: string;
+  mediaUrl?: string;
 
   @ApiPropertyOptional({ enum: MEDIA_TYPES, default: 'IMAGE' })
   @IsIn(MEDIA_TYPES)

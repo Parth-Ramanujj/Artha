@@ -144,7 +144,7 @@ export function SocialAutomation() {
 
   // Post form state
   const [newPost, setNewPost] = useState({
-    platform: 'instagram' as 'instagram' | 'facebook' | 'youtube',
+    platform: 'instagram' as 'instagram' | 'facebook' | 'youtube' | 'x',
     caption: '',
     mediaUrl: '',
     mediaType: 'IMAGE' as SocialMediaType,
@@ -180,6 +180,9 @@ export function SocialAutomation() {
     webhookVerifyToken: '',
     aiAutoReply: false,
     integrationId: '',
+    apiKey: '',
+    apiSecret: '',
+    accessTokenSecret: '',
   });
   const [youtubeConnections, setYoutubeConnections] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -364,6 +367,9 @@ export function SocialAutomation() {
       webhookVerifyToken: '',
       aiAutoReply: false,
       integrationId: '',
+    apiKey: '',
+    apiSecret: '',
+    accessTokenSecret: '',
     });
     setShowAccountModal(true);
   };
@@ -379,6 +385,9 @@ export function SocialAutomation() {
       webhookVerifyToken: acc.webhookVerifyToken || '',
       aiAutoReply: acc.aiAutoReply ?? false,
       integrationId: acc.platform === 'youtube' ? acc.pageId || '' : '',
+      apiKey: '',
+      apiSecret: '',
+      accessTokenSecret: '',
     });
     setShowAccountModal(true);
   };
@@ -403,7 +412,17 @@ export function SocialAutomation() {
       } else {
         await socialAutomationApi.createAccount({
           ...newAccount,
-          accountId: newAccount.platform === 'telegram' || newAccount.platform === 'youtube' ? undefined : newAccount.accountId,
+          accountId:
+            newAccount.platform === 'telegram' || newAccount.platform === 'youtube' || newAccount.platform === 'x'
+              ? undefined
+              : newAccount.accountId,
+          ...(newAccount.platform === 'x'
+            ? {
+                apiKey: newAccount.apiKey,
+                apiSecret: newAccount.apiSecret,
+                accessTokenSecret: newAccount.accessTokenSecret,
+              }
+            : {}),
           integrationId: newAccount.platform === 'youtube' ? newAccount.integrationId : undefined,
           accessToken: newAccount.platform === 'youtube' ? undefined : newAccount.accessToken,
           pageId: newAccount.platform === 'instagram' ? newAccount.pageId : undefined,
@@ -440,6 +459,9 @@ export function SocialAutomation() {
         webhookVerifyToken: '',
         aiAutoReply: false,
         integrationId: '',
+    apiKey: '',
+    apiSecret: '',
+    accessTokenSecret: '',
       });
       await loadData();
     } catch (err) {
@@ -1236,7 +1258,7 @@ export function SocialAutomation() {
                 className="input"
                 value={newPost.platform}
                 onChange={e => {
-                  const platform = e.target.value as 'instagram' | 'facebook' | 'youtube';
+                  const platform = e.target.value as 'instagram' | 'facebook' | 'youtube' | 'x';
                   // YouTube only takes videos.
                   setNewPost({ ...newPost, platform, mediaType: platform === 'youtube' ? 'VIDEO' : newPost.mediaType });
                 }}
@@ -1244,6 +1266,7 @@ export function SocialAutomation() {
                 <option value="instagram">Instagram</option>
                 <option value="facebook">Facebook</option>
                 <option value="youtube">YouTube (video upload)</option>
+                <option value="x">X (text post)</option>
               </select>
             </div>
             <div className="social-form-group">
@@ -1251,7 +1274,7 @@ export function SocialAutomation() {
               <select
                 className="input"
                 value={newPost.mediaType}
-                disabled={newPost.platform === 'youtube'}
+                disabled={newPost.platform === 'youtube' || newPost.platform === 'x'}
                 onChange={e => setNewPost({ ...newPost, mediaType: e.target.value as 'IMAGE' | 'VIDEO' })}
               >
                 <option value="IMAGE">Photo / Image</option>
@@ -1260,6 +1283,7 @@ export function SocialAutomation() {
             </div>
           </div>
 
+          {newPost.platform !== 'x' && (
           <div className="social-form-group">
             <label>{newPost.platform === 'youtube' ? 'Public HTTPS Video URL' : 'Public HTTPS Media URL'}</label>
             <input
@@ -1288,6 +1312,7 @@ export function SocialAutomation() {
               </div>
             )}
           </div>
+          )}
 
           <div className="social-form-group">
             <label>Caption & Hashtags</label>
@@ -1299,6 +1324,11 @@ export function SocialAutomation() {
               value={newPost.caption}
               onChange={e => setNewPost({ ...newPost, caption: e.target.value })}
             />
+            {newPost.platform === 'x' && (
+              <span className="sa-help">
+                X allows 280 characters (more with X Premium). Text only for now: no photos or videos.
+              </span>
+            )}
           </div>
 
           <label className="social-checkbox-row">
@@ -1535,6 +1565,7 @@ export function SocialAutomation() {
               <option value="instagram">Instagram Business / Creator</option>
               <option value="facebook">Facebook Page</option>
               <option value="telegram">Telegram Bot</option>
+              <option value="x">X (Twitter, text posts)</option>
               <option value="youtube">YouTube Channel (comment replies)</option>
             </select>
           </div>
@@ -1581,7 +1612,7 @@ export function SocialAutomation() {
             </div>
           )}
 
-          {newAccount.platform !== 'telegram' && newAccount.platform !== 'youtube' && (
+          {newAccount.platform !== 'telegram' && newAccount.platform !== 'youtube' && newAccount.platform !== 'x' && (
             <div className="social-form-group">
               <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
               <input
@@ -1626,10 +1657,57 @@ export function SocialAutomation() {
             </div>
           )}
 
+          {newAccount.platform === 'x' && (
+            <>
+              <div className="social-form-group">
+                <label>API Key</label>
+                <input
+                  className="input"
+                  required
+                  value={newAccount.apiKey}
+                  onChange={e => setNewAccount({ ...newAccount, apiKey: e.target.value })}
+                />
+              </div>
+              <div className="social-form-group">
+                <label>API Key Secret</label>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="off"
+                  required
+                  value={newAccount.apiSecret}
+                  onChange={e => setNewAccount({ ...newAccount, apiSecret: e.target.value })}
+                />
+              </div>
+              <div className="social-form-group">
+                <label>Access Token Secret</label>
+                <input
+                  className="input"
+                  type="password"
+                  autoComplete="off"
+                  required
+                  value={newAccount.accessTokenSecret}
+                  onChange={e => setNewAccount({ ...newAccount, accessTokenSecret: e.target.value })}
+                />
+                <span className="sa-help">
+                  Copy the four keys from your app on console.x.com (Keys and tokens). They are stored on the server and
+                  never shown again. Each post costs $0.015 on X's pay-per-use API ($0.20 if it contains a link), and
+                  connecting reads your profile once ($0.010).
+                </span>
+              </div>
+            </>
+          )}
+
           {newAccount.platform !== 'youtube' && (
             <>
           <div className="social-form-group">
-            <label>{newAccount.platform === 'telegram' ? 'Telegram Bot Token' : 'Meta Long-Lived Access Token'}</label>
+            <label>
+              {newAccount.platform === 'telegram'
+                ? 'Telegram Bot Token'
+                : newAccount.platform === 'x'
+                  ? 'Access Token'
+                  : 'Meta Long-Lived Access Token'}
+            </label>
             <textarea
               className="input"
               rows={3}

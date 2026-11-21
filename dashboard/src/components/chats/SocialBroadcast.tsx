@@ -9,7 +9,7 @@ import type { SocialPlatform } from '../../types/socialAutomation';
  * messages only inside that window, so older customers are left out on purpose.
  */
 export function SocialBroadcast({ platform, onSent }: { platform: SocialPlatform; onSent: () => void }) {
-  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram', youtube: 'YouTube' }[platform];
+  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram', youtube: 'YouTube', x: 'X' }[platform];
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState<number | null>(null);
   const [text, setText] = useState('');

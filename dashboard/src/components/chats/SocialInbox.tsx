@@ -18,7 +18,7 @@ interface SocialInboxProps {
 
 /** Instagram DMs or Facebook Messenger chats, read and answered from the Chats page. */
 export function SocialInbox({ platform }: SocialInboxProps) {
-  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram', youtube: 'YouTube' }[platform];
+  const name = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram', youtube: 'YouTube', x: 'X' }[platform];
   const [threads, setThreads] = useState<SocialThread[] | null>(null);
   const [hasAccount, setHasAccount] = useState(true);
   const [active, setActive] = useState<SocialThread | null>(null);

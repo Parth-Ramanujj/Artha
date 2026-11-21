@@ -1,4 +1,4 @@
-export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube';
+export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube' | 'x';
 export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';
@@ -133,6 +133,10 @@ export interface SocialAccountInput {
   pageId?: string;
   webhookVerifyToken?: string;
   aiAutoReply?: boolean;
+  /** X only: the other three keys of the app (the access token goes in accessToken). */
+  apiKey?: string;
+  apiSecret?: string;
+  accessTokenSecret?: string;
   /** YouTube only: the connected google_youtube integration. */
   integrationId?: string;
 }
@@ -140,7 +144,8 @@ export interface SocialAccountInput {
 export interface SocialPostInput {
   platform: SocialPlatform;
   caption: string;
-  mediaUrl: string;
+  /** Not used for X posts (text only). */
+  mediaUrl?: string;
   mediaType?: SocialMediaType;
   scheduledAt?: string | null;
   publishNow?: boolean;

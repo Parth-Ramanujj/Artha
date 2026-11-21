@@ -46,7 +46,13 @@ const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 // Meta allows messages within 24 hours of the customer's last message; a little margin for the send itself.
 const REPLY_WINDOW_MS = 23.5 * 60 * 60 * 1000;
 const BROADCAST_GAP_MS = 400;
-const CHAT_PREFIX: Record<SocialPlatform, string> = { instagram: 'ig', facebook: 'fb', telegram: 'tg', youtube: 'yt' };
+const CHAT_PREFIX: Record<SocialPlatform, string> = {
+  instagram: 'ig',
+  facebook: 'fb',
+  telegram: 'tg',
+  youtube: 'yt',
+  x: 'x',
+};
 
 @Injectable()
 export class SocialInboxService implements OnModuleInit {

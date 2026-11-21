@@ -33,6 +33,7 @@ import { MetaGraphService } from './services/meta-graph.service';
 import { SocialYoutubeService } from './services/social-youtube.service';
 import { constantTimeEqual } from '../../common/security/constantTimeEqual';
 import { telegramDeleteWebhook, telegramGetMe, telegramSetWebhook } from './services/telegram.api';
+import { xCreatePost, xGetMe, type XCredentials } from './services/x.api';
 
 const SCHEDULER_INTERVAL_MS = 30_000;
 const YOUTUBE_POLL_MS = 5 * 60_000;
@@ -244,7 +245,37 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     return this.getAccount(businessId, saved.id);
   }
 
+  /** X: the four keys of the user's own X app are kept as JSON in accessToken (never returned by the API). */
+  private async createXAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    const creds: XCredentials = {
+      apiKey: dto.apiKey?.trim() ?? '',
+      apiSecret: dto.apiSecret?.trim() ?? '',
+      accessToken: dto.accessToken.trim(),
+      accessTokenSecret: dto.accessTokenSecret?.trim() ?? '',
+    };
+    const me = await xGetMe(creds).catch((err: unknown) => {
+      throw new BadRequestException(`X rejected the keys: ${errMsg(err)}`);
+    });
+    await this.assertAccountFree('x', me.id);
+    const saved = await this.accountRepo.save(
+      this.accountRepo.create({
+        businessId,
+        platform: 'x',
+        accountName: dto.accountName?.trim() || `@${me.username}`,
+        accountId: me.id,
+        accessToken: JSON.stringify(creds),
+        pageId: null,
+        webhookVerifyToken: null,
+        aiAutoReply: false,
+        status: 'connected',
+        metadata: JSON.stringify({ username: me.username }),
+      }),
+    );
+    return this.getAccount(businessId, saved.id);
+  }
+
   async createAccount(businessId: string, dto: CreateSocialAccountDto): Promise<SocialAccount> {
+    if (dto.platform === 'x') return this.createXAccount(businessId, dto);
     if (dto.platform === 'youtube') return this.createYoutubeAccount(businessId, dto);
     if (dto.platform === 'telegram') return this.createTelegramAccount(businessId, dto);
     await this.assertAccountFree(dto.platform, dto.accountId);
@@ -292,7 +323,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       account.status = 'disconnected';
     } else if (
       account.platform !== 'telegram' &&
-      account.platform !== 'youtube' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
+      account.platform !== 'youtube' &&
+      account.platform !== 'x' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
       (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status)
     ) {
       const check = await this.metaGraph.connectAccount(
@@ -325,6 +357,12 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     id: string,
   ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string; messagesError?: string }> {
     const account = await this.getAccount(businessId, id, true);
+    if (account.platform === 'x') {
+      const me = await xGetMe(JSON.parse(account.accessToken) as XCredentials).catch((err: unknown) => err as Error);
+      const valid = !(me instanceof Error);
+      await this.accountRepo.update(account.id, { status: valid ? 'connected' : 'disconnected' });
+      return valid ? { valid, name: `@${me.username}` } : { valid, error: me.message };
+    }
     if (account.platform === 'youtube') {
       const channel = await this.youtube?.channel(businessId, account.pageId).catch((err: unknown) => err as Error);
       const valid = !!channel && !(channel instanceof Error);
@@ -398,6 +436,9 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException(`That account is a ${account.platform} account, not ${dto.platform}`);
       }
     }
+    if (dto.platform === 'x' && dto.mediaUrl) {
+      throw new BadRequestException('X posts are text only for now (no mediaUrl)');
+    }
     if (dto.platform === 'youtube' && dto.mediaType !== 'VIDEO') {
       throw new BadRequestException('YouTube posts must be a video (mediaType VIDEO)');
     }
@@ -408,7 +449,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         accountId: dto.accountId || null,
         platform: dto.platform,
         caption: dto.caption,
-        mediaUrl: dto.mediaUrl,
+        mediaUrl: dto.mediaUrl ?? '',
         mediaType: dto.mediaType || 'IMAGE',
         status: scheduledAt ? 'scheduled' : 'draft',
         scheduledAt,
@@ -473,6 +514,19 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         return await finish({ status: 'failed', error: `${account.accountName} is disconnected; reconnect it first` });
       }
 
+      if (post.platform === 'x') {
+        const postId = await xCreatePost(JSON.parse(account.accessToken) as XCredentials, post.caption);
+        const { username } = JSON.parse(account.metadata || '{}') as { username?: string };
+        return await finish({
+          status: 'published',
+          publishedAt: new Date(),
+          remotePostId: postId,
+          permalink: username ? `https://x.com/${username}/status/${postId}` : null,
+          accountId: account.id,
+          error: null,
+        });
+      }
+
       if (post.platform === 'youtube') {
         if (!this.youtube) return await finish({ status: 'failed', error: 'YouTube is not available on this server' });
         const videoId = await this.youtube.upload(account, post.caption, post.mediaUrl);
@@ -519,6 +573,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Publishes due scheduled posts. Each post is claimed atomically before publishing. */
   /**
    * Comments on YouTube arrive by polling (no webhook): every 5 minutes, 1 quota unit per connected channel.
    * Each reply costs 50 units of the project's default 10,000/day, so about 190 replies/day fit (see the docs).
@@ -540,7 +595,6 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Publishes due scheduled posts. Each post is claimed atomically before publishing. */
   async tick(now = new Date()): Promise<void> {
     void this.pollYoutube(now.getTime());
     if (this.ticking) return;
@@ -935,7 +989,13 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       .groupBy('m.platform')
       .getRawMany<{ platform: SocialPlatform; received: string; sent: string; customers: string }>();
     const empty = { received: 0, sent: 0, customers: 0 };
-    const stats = { instagram: { ...empty }, facebook: { ...empty }, telegram: { ...empty }, youtube: { ...empty } };
+    const stats = {
+      instagram: { ...empty },
+      facebook: { ...empty },
+      telegram: { ...empty },
+      youtube: { ...empty },
+      x: { ...empty },
+    };
     for (const r of rows) {
       if (r.platform in stats) {
         stats[r.platform] = { received: Number(r.received), sent: Number(r.sent), customers: Number(r.customers) };
