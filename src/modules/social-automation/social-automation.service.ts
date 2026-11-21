@@ -310,7 +310,10 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       await this.assertAccountFree(account.platform, account.accountId, account.id);
     }
     if (dto.accountName !== undefined) account.accountName = dto.accountName;
-    if (dto.accessToken) account.accessToken = dto.accessToken;
+    if (account.platform === 'telegram' && dto.accessToken)
+      await this.replaceTelegramToken(account, dto.accessToken.trim());
+    else if (account.platform === 'x') await this.replaceXKeys(account, dto);
+    else if (dto.accessToken) account.accessToken = dto.accessToken;
     if (dto.pageId !== undefined) account.pageId = dto.pageId || null;
     if (account.platform === 'facebook') account.pageId = account.accountId;
     if (dto.webhookVerifyToken) account.webhookVerifyToken = dto.webhookVerifyToken.trim();
@@ -324,7 +327,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     } else if (
       account.platform !== 'telegram' &&
       account.platform !== 'youtube' &&
-      account.platform !== 'x' && // shortcut: a changed Telegram token needs delete + reconnect (the webhook is bound to the old bot)
+      account.platform !== 'x' && // these three check their keys above (or have none)
       (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status)
     ) {
       const check = await this.metaGraph.connectAccount(
@@ -340,6 +343,55 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     }
     await this.accountRepo.save(account);
     return this.getAccount(businessId, id);
+  }
+
+  /** A new token for the same bot (e.g. after /revoke in BotFather): checks it and points the webhook at us again. */
+  private async replaceTelegramToken(account: SocialAccount, token: string): Promise<void> {
+    const bot = await telegramGetMe(token).catch((err: unknown) => {
+      throw new BadRequestException(`Telegram rejected the bot token: ${errMsg(err)}`);
+    });
+    if (String(bot.id) !== account.accountId) {
+      throw new BadRequestException('That token belongs to a different bot; connect it as a new account');
+    }
+    const base = (process.env.BASE_URL || '').trim().replace(/\/+$/, '');
+    if (!/^https:\/\//i.test(base)) {
+      throw new BadRequestException('Telegram needs a public https BASE_URL so Telegram can reach the webhook');
+    }
+    const secret = account.webhookVerifyToken || randomBytes(24).toString('hex');
+    await telegramSetWebhook(token, `${base}/api/social-automation/webhook/telegram/${account.id}`, secret).catch(
+      (err: unknown) => {
+        throw new BadRequestException(`Telegram webhook setup failed: ${errMsg(err)}`);
+      },
+    );
+    account.accessToken = token;
+    account.webhookVerifyToken = secret;
+    account.status = 'connected';
+  }
+
+  /** Any of the four X keys can be replaced; the rest are kept. The keys must still belong to the same X account. */
+  private async replaceXKeys(account: SocialAccount, dto: UpdateSocialAccountDto): Promise<void> {
+    const given = {
+      apiKey: dto.apiKey?.trim(),
+      apiSecret: dto.apiSecret?.trim(),
+      accessToken: dto.accessToken?.trim(),
+      accessTokenSecret: dto.accessTokenSecret?.trim(),
+    };
+    if (!Object.values(given).some(Boolean)) return;
+    const stored = JSON.parse(account.accessToken) as XCredentials;
+    const creds: XCredentials = {
+      apiKey: given.apiKey || stored.apiKey,
+      apiSecret: given.apiSecret || stored.apiSecret,
+      accessToken: given.accessToken || stored.accessToken,
+      accessTokenSecret: given.accessTokenSecret || stored.accessTokenSecret,
+    };
+    const me = await xGetMe(creds).catch((err: unknown) => {
+      throw new BadRequestException(`X rejected the keys: ${errMsg(err)}`);
+    });
+    if (me.id !== account.accountId) {
+      throw new BadRequestException('These keys belong to a different X account; connect it as a new account');
+    }
+    account.accessToken = JSON.stringify(creds);
+    account.status = 'connected';
   }
 
   async deleteAccount(businessId: string, id: string): Promise<void> {

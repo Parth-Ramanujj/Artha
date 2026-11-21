@@ -93,6 +93,37 @@ const FacebookIcon = ({
   </svg>
 );
 
+const TelegramIcon = ({ size = 16, color = '#229ed9' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round">
+    <path d="M21.5 3.5 2.5 11l7 2.5m12-10L9.5 13.5m12-10-4 17-8-7m0 0V20l3-3.5" />
+  </svg>
+);
+
+const YoutubeIcon = ({ size = 16, color = '#ff0000' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="4" />
+    <path d="m10 9 5 3-5 3z" fill={color} />
+  </svg>
+);
+
+const XIcon = ({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+    <path d="M4 4l16 16M20 4 4 20" />
+  </svg>
+);
+
+/** The small logo shown next to an account, post or rule. */
+function PlatformIcon({ platform, size = 12 }: { platform: string; size?: number }) {
+  if (platform === 'instagram') return <InstagramIcon size={size} />;
+  if (platform === 'facebook') return <FacebookIcon size={size} />;
+  if (platform === 'telegram') return <TelegramIcon size={size} />;
+  if (platform === 'youtube') return <YoutubeIcon size={size} />;
+  if (platform === 'x') return <XIcon size={size} />;
+  return null;
+}
+
+const PLATFORM_NAME: Record<string, string> = { instagram: 'Instagram', facebook: 'Facebook', telegram: 'Telegram' };
+
 function parseList(json: string | null | undefined): string[] {
   try {
     const v: unknown = JSON.parse(json || '[]');
@@ -407,8 +438,15 @@ export function SocialAutomation() {
           pageId: newAccount.pageId || undefined,
           webhookVerifyToken: newAccount.webhookVerifyToken || undefined,
           aiAutoReply: newAccount.aiAutoReply,
+          ...(newAccount.platform === 'x'
+            ? {
+                apiKey: newAccount.apiKey.trim() || undefined,
+                apiSecret: newAccount.apiSecret.trim() || undefined,
+                accessTokenSecret: newAccount.accessTokenSecret.trim() || undefined,
+              }
+            : {}),
         });
-        setNotice('Meta account updated and re-verified successfully!');
+        setNotice('Account updated and re-verified successfully!');
       } else {
         await socialAutomationApi.createAccount({
           ...newAccount,
@@ -599,16 +637,16 @@ export function SocialAutomation() {
           <span className="sa-stat-label">Auto-Replies Sent</span>
         </div>
 
-        {(['instagram', 'facebook'] as const).map(p => {
+        {(['instagram', 'facebook', 'telegram'] as const).map(p => {
           const m = overview?.messages?.[p];
           if (!m) return null;
           return (
             <div className="sa-stat" key={p} title="Direct messages in the last 30 days">
               <span className="sa-stat-value" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                {p === 'instagram' ? <InstagramIcon size={16} /> : <FacebookIcon size={16} />} {m.customers}
+                <PlatformIcon platform={p} size={16} /> {m.customers}
               </span>
               <span className="sa-stat-label">
-                {p === 'instagram' ? 'Instagram' : 'Facebook'} chats, 30 days ({m.received} in, {m.sent} out)
+                {PLATFORM_NAME[p]} chats, 30 days ({m.received} in, {m.sent} out)
               </span>
             </div>
           );
@@ -776,7 +814,7 @@ export function SocialAutomation() {
                   <div className="social-post-body">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className={`social-platform-badge ${post.platform}`}>
-                        {post.platform === 'instagram' ? <InstagramIcon size={12} /> : <FacebookIcon size={12} />}
+                        <PlatformIcon platform={post.platform} />
                         {post.platform}
                       </span>
                       <span className="sa-muted" style={{ fontSize: '0.75rem' }}>
@@ -856,11 +894,7 @@ export function SocialAutomation() {
                   <div className="social-rule-head">
                     <h4 className="social-rule-title">
                       <span className={`social-platform-badge ${rule.platform}`}>
-                        {rule.platform === 'instagram' ? (
-                          <InstagramIcon size={12} />
-                        ) : rule.platform === 'facebook' ? (
-                          <FacebookIcon size={12} />
-                        ) : null}
+                        <PlatformIcon platform={rule.platform} />
                         {rule.platform}
                       </span>
                       {rule.name}
@@ -969,7 +1003,7 @@ export function SocialAutomation() {
                       <tr key={acc.id}>
                         <td>
                           <span className={`social-platform-badge ${acc.platform}`}>
-                            {acc.platform === 'instagram' ? <InstagramIcon size={12} /> : <FacebookIcon size={12} />}
+                            <PlatformIcon platform={acc.platform} />
                             {acc.platform}
                           </span>
                         </td>
@@ -1663,7 +1697,8 @@ export function SocialAutomation() {
                 <label>API Key</label>
                 <input
                   className="input"
-                  required
+                  required={!editingAccount}
+                  placeholder={editingAccount ? 'Leave empty to keep the saved key' : undefined}
                   value={newAccount.apiKey}
                   onChange={e => setNewAccount({ ...newAccount, apiKey: e.target.value })}
                 />
@@ -1674,7 +1709,8 @@ export function SocialAutomation() {
                   className="input"
                   type="password"
                   autoComplete="off"
-                  required
+                  required={!editingAccount}
+                  placeholder={editingAccount ? 'Leave empty to keep the saved key' : undefined}
                   value={newAccount.apiSecret}
                   onChange={e => setNewAccount({ ...newAccount, apiSecret: e.target.value })}
                 />
@@ -1685,7 +1721,8 @@ export function SocialAutomation() {
                   className="input"
                   type="password"
                   autoComplete="off"
-                  required
+                  required={!editingAccount}
+                  placeholder={editingAccount ? 'Leave empty to keep the saved key' : undefined}
                   value={newAccount.accessTokenSecret}
                   onChange={e => setNewAccount({ ...newAccount, accessTokenSecret: e.target.value })}
                 />

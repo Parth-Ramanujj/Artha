@@ -96,15 +96,23 @@ export function extractMessages(payload: Obj): IncomingMessage[] {
   return out.filter(m => m.targetAccountId && m.mid && m.senderId && m.recipientId && (m.text || m.mediaUrl));
 }
 
-/**
- * Pulls a private-chat text DM out of a Telegram update. Groups, bots and non-text messages are skipped
- * (shortcut: photos/files from customers are not stored yet).
- */
+const TELEGRAM_MEDIA: Array<[string, string]> = [
+  ['photo', '[📷 Photo]'],
+  ['video', '[🎬 Video]'],
+  ['voice', '[🎤 Voice message]'],
+  ['audio', '[🎵 Audio]'],
+  ['document', '[📎 File]'],
+  ['sticker', '[Sticker]'],
+];
+
+/** Pulls a private-chat DM out of a Telegram update. Groups and bots are skipped. */
 export function extractTelegramMessage(update: Obj, botId: string): IncomingMessage | null {
   const m = obj(update.message);
   const chat = obj(m.chat);
   const from = obj(m.from);
-  const text = str(m.text);
+  // shortcut: customer files are not downloaded (Telegram file links carry the bot token); the inbox shows what came.
+  const kind = TELEGRAM_MEDIA.find(([field]) => m[field] !== undefined)?.[1];
+  const text = str(m.text) || [kind, str(m.caption)].filter(Boolean).join(' ');
   if (chat.type !== 'private' || from.is_bot === true || !text || !str(chat.id) || !str(m.message_id)) return null;
   const name = [str(from.first_name), str(from.last_name)].filter(Boolean).join(' ') || str(from.username);
   return {

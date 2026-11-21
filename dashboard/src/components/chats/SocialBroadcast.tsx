@@ -68,9 +68,11 @@ export function SocialBroadcast({ platform, onSent }: { platform: SocialPlatform
         <p className="social-broadcast-note">
           {count === null
             ? 'Counting customers…'
-            : `${count} customer${count === 1 ? '' : 's'} wrote to you on ${name} in the last 24 hours and can receive this.`}{' '}
+            : platform === 'telegram'
+              ? `${count} customer${count === 1 ? '' : 's'} have messaged your bot and can receive this.`
+              : `${count} customer${count === 1 ? '' : 's'} wrote to you on ${name} in the last 24 hours and can receive this.`}{' '}
           {platform === 'telegram'
-            ? 'Only chats from the last 24 hours are included.'
+            ? 'Telegram has no 24-hour limit. Customers who blocked the bot are skipped by Telegram.'
             : 'Meta only lets businesses message people within 24 hours of their last message, so older chats are skipped.'}
         </p>
         <label htmlFor="social-broadcast-text" className="social-broadcast-label">

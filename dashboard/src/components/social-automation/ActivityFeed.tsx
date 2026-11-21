@@ -27,7 +27,14 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number]['id'];
 
 const clip = (s: string, n = 120) => (s.length > n ? `${s.slice(0, n)}…` : s);
-const where = (p: string) => (p === 'instagram' ? 'Instagram' : 'Facebook');
+const NAMES: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  telegram: 'Telegram',
+  youtube: 'YouTube',
+  x: 'X',
+};
+const where = (p: string) => NAMES[p] ?? p;
 
 function postEvent(p: SocialPost): Event {
   const base = { id: `p-${p.id}`, kind: 'post' as const, lines: p.caption ? [`"${clip(p.caption)}"`] : [] };

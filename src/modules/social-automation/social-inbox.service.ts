@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { SocialAccount, SocialMessage, SocialPlatform } from './entities/social-automation.entity';
 import { MetaGraphService } from './services/meta-graph.service';
-import { telegramSendMessage } from './services/telegram.api';
+import { telegramSendFile, telegramSendMessage } from './services/telegram.api';
 import { SocialAutomationService } from './social-automation.service';
 import { ConversationService } from '../conversation/conversation.service';
 import { LeadService } from '../workflow/lead.service';
@@ -281,7 +281,8 @@ export class SocialInboxService implements OnModuleInit {
         businessId,
         platform,
         direction: 'in',
-        createdAt: MoreThanOrEqual(new Date(Date.now() - REPLY_WINDOW_MS)),
+        // Meta allows replies only within 24 hours; Telegram has no such window.
+        ...(platform === 'telegram' ? {} : { createdAt: MoreThanOrEqual(new Date(Date.now() - REPLY_WINDOW_MS)) }),
       },
       select: { accountId: true, threadId: true },
     });
@@ -328,6 +329,7 @@ export class SocialInboxService implements OnModuleInit {
       .where('a.id = :accountId AND a.businessId = :businessId', { accountId, businessId })
       .getOne();
     if (!account) throw new NotFoundException('Account not found');
+    if (account.platform === 'telegram') return this.sendTelegramFile(account, threadId, file);
     const pageId = account.platform === 'facebook' ? account.accountId : account.pageId;
     if (!pageId) throw new BadRequestException('This Instagram account has no linked Facebook Page');
 
@@ -364,6 +366,47 @@ export class SocialInboxService implements OnModuleInit {
         // shortcut: the hosted copy expires after 15 minutes, so older sent files show the name only.
         mediaUrl: url,
         remoteMessageId: res.messageId ?? null,
+        createdAt: new Date(),
+      }),
+    );
+  }
+
+  /** Telegram takes the file itself (no public URL needed); photos are capped at 10 MB by Telegram. */
+  private async sendTelegramFile(
+    account: SocialAccount,
+    threadId: string,
+    file: { base64: string; mimetype: string; filename?: string },
+  ): Promise<SocialMessage> {
+    const data = Buffer.from(file.base64, 'base64');
+    if (data.length === 0) throw new BadRequestException('The file is empty');
+    if (data.length > MAX_MEDIA_BYTES) throw new BadRequestException('The file is larger than 16 MB');
+    const top = file.mimetype.split('/')[0];
+    // Big photos go as a document instead of being refused.
+    const kind =
+      top === 'image' && data.length <= 10 * 1024 * 1024 ? 'image' : top === 'video' || top === 'audio' ? top : 'file';
+    const filename = file.filename || `file.${file.mimetype.split('/')[1] || 'bin'}`;
+    const messageId = await telegramSendFile(account.accessToken, threadId, kind, {
+      data,
+      mimetype: file.mimetype,
+      filename,
+    }).catch((err: unknown) => {
+      throw new BadRequestException(err instanceof Error ? err.message : String(err));
+    });
+    const last = await this.messageRepo.findOne({
+      where: { accountId: account.id, threadId },
+      order: { createdAt: 'DESC' },
+    });
+    return this.messageRepo.save(
+      this.messageRepo.create({
+        businessId: account.businessId,
+        accountId: account.id,
+        platform: account.platform,
+        threadId,
+        customerName: last?.customerName ?? null,
+        direction: 'out',
+        text: `📎 ${filename}`,
+        mediaUrl: null,
+        remoteMessageId: messageId,
         createdAt: new Date(),
       }),
     );

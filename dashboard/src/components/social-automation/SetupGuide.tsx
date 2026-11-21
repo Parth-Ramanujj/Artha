@@ -802,6 +802,59 @@ export function SetupGuide(props: SetupGuideProps) {
         </section>
       ))}
 
+      <section className="sg-stage" aria-label="Telegram, YouTube અને X">
+        <div className="sg-stage-head">
+          <h3>Telegram, YouTube અને X જોડવાની રીત</h3>
+          <p className="sa-help">આ ત્રણેય માટે Meta App ની જરૂર નથી. દરેક થોડી મિનિટમાં થઈ જાય છે.</p>
+        </div>
+        <details className="sg-details">
+          <summary>Telegram bot (DM inbox, auto-reply, broadcast)</summary>
+          <ol>
+            <li>
+              Telegram માં <b>@BotFather</b> ખોલો → <code>/newbot</code> → નામ અને username આપો. એ તમને એક token આપશે.
+            </li>
+            <li>
+              Server ના <code>BASE_URL</code> માં public <code>https://</code> address હોવું જોઈએ, નહિ તો Telegram
+              messages મોકલી શકશે નહીં.
+            </li>
+            <li>
+              અહીં <b>Connect Account</b> → <b>Telegram Bot</b> → token paste કરો. Webhook આપોઆપ set થઈ જશે.
+            </li>
+            <li>Customer એ પહેલા તમારા bot માં <b>Start</b> દબાવવું પડે. પછી એના messages Chats → Telegram માં આવશે.</li>
+          </ol>
+        </details>
+        <details className="sg-details">
+          <summary>YouTube channel (comment auto-reply, video upload)</summary>
+          <ol>
+            <li>
+              <b>Integrations</b> → <b>YouTube</b> → Google થી sign in કરો (જે Google account માં channel છે તે).
+            </li>
+            <li>
+              અહીં <b>Connect Account</b> → <b>YouTube Channel</b> → એ connection પસંદ કરો.
+            </li>
+            <li>
+              Connect કર્યા પછી આવેલી comments દર 5 મિનિટે check થાય છે અને તમારા comment rules થી જવાબ જાય છે. એક reply
+              YouTube ના 10,000 daily units માંથી 50 વાપરે છે.
+            </li>
+            <li>Video upload: Posts → YouTube → public video URL. દિવસના 100 uploads ની મર્યાદા છે.</li>
+          </ol>
+        </details>
+        <details className="sg-details">
+          <summary>X (Twitter) text posts</summary>
+          <ol>
+            <li>
+              <Ext href="https://console.x.com">console.x.com</Ext> પર app બનાવો, credits ખરીદો (X નું API pay-per-use છે).
+            </li>
+            <li>
+              App ના <b>Keys and tokens</b> માંથી ચાર keys લો: API Key, API Key Secret, Access Token, Access Token Secret.
+            </li>
+            <li>
+              અહીં <b>Connect Account</b> → <b>X</b> → ચારેય paste કરો. Post દીઠ $0.015 લાગે, link હોય તો $0.20.
+            </li>
+          </ol>
+        </details>
+      </section>
+
       <section className="sg-stage" aria-label="કંઈ ન ચાલે તો">
         <div className="sg-stage-head">
           <h3>કંઈ ન ચાલે તો</h3>
