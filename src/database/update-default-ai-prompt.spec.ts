@@ -1,5 +1,8 @@
 import { DataSource } from 'typeorm';
 import { UpdateDefaultAiSystemPrompt1789700000000 } from './migrations/1789700000000-UpdateDefaultAiSystemPrompt';
+import { RefreshDefaultAiSystemPrompt1789800000000 } from './migrations/1789800000000-RefreshDefaultAiSystemPrompt';
+import { AddAgentRequestsToDefaultAiPrompt1789900000000 } from './migrations/1789900000000-AddAgentRequestsToDefaultAiPrompt';
+import { DEFAULT_SYSTEM_PROMPT } from '../modules/ai/ai.service';
 
 const OLD = 'You are a helpful and polite WhatsApp customer support assistant. Answer concisely and accurately.';
 
@@ -26,6 +29,18 @@ describe('UpdateDefaultAiSystemPrompt migration', () => {
 
     const rows = await ds.query(`SELECT "id", "systemPrompt" FROM "ai_configs" ORDER BY "id"`);
     expect(rows[0].systemPrompt).toContain('WhatsApp assistant for an insurance and investment business');
+    expect(rows[1].systemPrompt).toBe('Custom prompt for our dental clinic.');
+  });
+
+  it('chains to the current default: old rows end on DEFAULT_SYSTEM_PROMPT, custom rows stay', async () => {
+    const qr = ds.createQueryRunner();
+    await new UpdateDefaultAiSystemPrompt1789700000000().up(qr);
+    await new RefreshDefaultAiSystemPrompt1789800000000().up(qr);
+    await new AddAgentRequestsToDefaultAiPrompt1789900000000().up(qr);
+    await qr.release();
+
+    const rows = await ds.query(`SELECT "id", "systemPrompt" FROM "ai_configs" ORDER BY "id"`);
+    expect(rows[0].systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT);
     expect(rows[1].systemPrompt).toBe('Custom prompt for our dental clinic.');
   });
 
