@@ -165,6 +165,8 @@ export function SocialAutomation() {
   const [logs, setLogs] = useState<SocialCommentLog[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Shown inside the connect-account window: the page-level message sits behind it and went unseen.
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Modals
@@ -388,6 +390,7 @@ export function SocialAutomation() {
   }, [showAccountModal, newAccount.platform]);
 
   const handleOpenNewAccountModal = () => {
+    setAccountError(null);
     setEditingAccount(null);
     setNewAccount({
       platform: 'instagram',
@@ -406,6 +409,7 @@ export function SocialAutomation() {
   };
 
   const handleEditAccount = (acc: SocialAccount) => {
+    setAccountError(null);
     setEditingAccount(acc);
     setNewAccount({
       platform: acc.platform,
@@ -427,6 +431,7 @@ export function SocialAutomation() {
 
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAccountError(null);
     try {
       if (editingAccount) {
         await socialAutomationApi.updateAccount(editingAccount.id, {
@@ -503,7 +508,7 @@ export function SocialAutomation() {
       });
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save account');
+      setAccountError(err instanceof Error ? err.message : 'Failed to save account');
     }
   };
 
@@ -1575,6 +1580,11 @@ export function SocialAutomation() {
         }
       >
         <form onSubmit={handleSaveAccount} className="social-modal-form">
+          {accountError && (
+            <p className="sa-error" role="alert" style={{ margin: 0 }}>
+              {accountError}
+            </p>
+          )}
           <p className="sa-help" style={{ margin: 0 }}>
             Not sure where to find the IDs or the token?{' '}
             <button
