@@ -96,14 +96,20 @@ export class ResilientTtsStream extends EventEmitter implements TtsStream {
  * Speech engines for one call, chosen from the saved settings. A provider with no key falls back to
  * Sarvam (the proven engine) and says so in the log, so a missing key never silently drops a call.
  */
-export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): SpeechFactory {
+export function speechFactoryFor(
+  config: ProviderConfig,
+  keys: SpeechKeys,
+  onWarning?: (message: string) => void,
+): SpeechFactory {
   const sarvamKey = keys.sarvam ?? '';
   return {
     stt(options: SttOptions) {
       if (config.stt === 'deepgram' && keys.deepgram) return new DeepgramStt({ ...options, apiKey: keys.deepgram });
       if (config.stt === 'deepgram') {
-        log.warn('Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam');
-        aiCallingLog.warn('stt', 'Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam');
+        const warn = 'Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam';
+        log.warn(warn);
+        aiCallingLog.warn('stt', warn);
+        onWarning?.(warn);
       }
       return sarvamSpeech.stt({ ...options, apiKey: sarvamKey });
     },
@@ -122,20 +128,24 @@ export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): Spee
           primary,
           () => sarvamSpeech.tts({ ...options, apiKey: sarvamKey }),
           err => {
-            log.warn(`ElevenLabs text-to-speech failed (${err.message}); falling back to Sarvam TTS`);
+            const warnMsg = `ElevenLabs text-to-speech failed (${err.message}); falling back to Sarvam TTS`;
+            log.warn(warnMsg);
             aiCallingLog.warn(
               'tts',
               `ElevenLabs text-to-speech failed: ${err.message}. Automatically fell back to Sarvam TTS to preserve call.`,
               { details: { error: err.message, voiceId: config.elevenVoiceId, language: options.languageCode } },
             );
+            onWarning?.(`ElevenLabs TTS failed (${err.message}). Using Sarvam TTS.`);
           },
         );
       }
       if (engine === 'elevenlabs') {
-        log.warn(`ElevenLabs chosen for ${options.languageCode} but the key or voice id is missing; using Sarvam`);
-        aiCallingLog.warn('tts', `ElevenLabs chosen for ${options.languageCode} but key or voice id is missing; using Sarvam`, {
+        const warn = `ElevenLabs chosen for ${options.languageCode} but the key or voice id is missing; using Sarvam`;
+        log.warn(warn);
+        aiCallingLog.warn('tts', warn, {
           details: { language: options.languageCode, voiceId: config.elevenVoiceId },
         });
+        onWarning?.(warn);
       }
       return sarvamSpeech.tts({ ...options, apiKey: sarvamKey });
     },

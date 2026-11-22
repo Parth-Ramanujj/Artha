@@ -11,11 +11,17 @@ export interface ProviderConfig {
   ttsGujarati: TtsProvider;
   ttsHindi: TtsProvider;
   ttsEnglish: TtsProvider;
+  /** Chosen Sarvam voice for Gujarati when Sarvam is used (defaults to pooja_gu_customer). */
+  sarvamGujaratiVoice: string;
+  /** Chosen Sarvam voice for Hindi when Sarvam is used (defaults to ritu_hi_customer_warm). */
+  sarvamHindiVoice: string;
   elevenVoiceId: string;
   elevenModel: string;
   /** Telephony audio. ulaw_8000 is what Twilio plays; change only if the engine needs something else. */
   elevenOutputFormat: string;
   llm: LlmProvider;
+  /** Groq model name when Groq is used (e.g. llama-3.3-70b-versatile or openai/gpt-oss-120b). */
+  groqModel: string;
   /** OpenAI-compatible chat endpoint base, e.g. https://api.openai.com/v1 */
   llmBaseUrl: string;
   llmModel: string;
@@ -27,10 +33,13 @@ export const DEFAULT_PROVIDERS: ProviderConfig = {
   ttsGujarati: 'sarvam',
   ttsHindi: 'sarvam',
   ttsEnglish: 'sarvam',
+  sarvamGujaratiVoice: 'pooja_gu_customer',
+  sarvamHindiVoice: 'ritu_hi_customer_warm',
   elevenVoiceId: '',
   elevenModel: 'eleven_multilingual_v2',
   elevenOutputFormat: 'ulaw_8000',
   llm: 'groq',
+  groqModel: 'llama-3.3-70b-versatile',
   llmBaseUrl: '',
   llmModel: '',
 };
@@ -89,6 +98,9 @@ export function sanitizeProviders(input: Partial<Record<keyof ProviderConfig, un
   }
   if (!out.elevenOutputFormat) out.elevenOutputFormat = DEFAULT_PROVIDERS.elevenOutputFormat;
   if (!out.elevenModel) out.elevenModel = DEFAULT_PROVIDERS.elevenModel;
+  if (!out.sarvamGujaratiVoice) out.sarvamGujaratiVoice = DEFAULT_PROVIDERS.sarvamGujaratiVoice;
+  if (!out.sarvamHindiVoice) out.sarvamHindiVoice = DEFAULT_PROVIDERS.sarvamHindiVoice;
+  if (!out.groqModel) out.groqModel = DEFAULT_PROVIDERS.groqModel;
   return out;
 }
 

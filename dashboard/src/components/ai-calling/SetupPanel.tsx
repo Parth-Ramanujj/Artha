@@ -160,6 +160,29 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
     }
   };
 
+  const toggleOverride = async (checked: boolean) => {
+    if (!draft) return;
+    const nextDraft = { ...draft, overrideAgentSettings: checked };
+    setDraft(nextDraft);
+    setBusy('override');
+    try {
+      const saved = await aiCallingApi.saveProviders(nextDraft);
+      setProviders(saved);
+      setDraft(saved.config);
+      toast.success(
+        checked
+          ? 'Global Engine Override ENABLED: outer choices (STT, Voices, LLM) now apply to all calls'
+          : 'Global Engine Override DISABLED: calls will use individual Agent Tab settings'
+      );
+      onChanged();
+    } catch (err) {
+      toast.error(errorText(err, 'Failed to update global override setting'));
+      setDraft(draft);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const saveKey = async (name: AiSecretName, value: string | null) => {
     setBusy(name);
     try {
@@ -455,75 +478,150 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
               background: draft.overrideAgentSettings ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-primary)',
               border: `1.5px solid ${draft.overrideAgentSettings ? '#22c55e' : 'var(--border)'}`,
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 12,
+              flexDirection: 'column',
+              gap: 8,
             }}
           >
-            <div style={{ flex: '1 1 300px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontWeight: 700, fontSize: 13.5 }}>Global Engine Override</span>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <div style={{ flex: '1 1 300px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13.5 }}>Global Engine Override</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      background: draft.overrideAgentSettings ? '#22c55e22' : 'var(--bg-secondary)',
+                      color: draft.overrideAgentSettings ? '#22c55e' : 'var(--text-secondary)',
+                      border: `1px solid ${draft.overrideAgentSettings ? '#22c55e55' : 'var(--border)'}`,
+                    }}
+                  >
+                    {busy === 'override' ? 'Saving...' : draft.overrideAgentSettings ? 'ON — Using Outer Engines' : 'OFF — Using Agent Tab Settings'}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  {draft.overrideAgentSettings
+                    ? 'ON: Calls will strictly use the global speech & language engines chosen below (STT, Voices, ElevenLabs, Custom LLM) for all agents.'
+                    : 'OFF: Calls will use each agent\'s individual settings from the Agent tab (voices like Pooja/Ritu, pace, model). Global engines below are bypassed.'}
+                </p>
+              </div>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  cursor: busy === 'override' ? 'wait' : 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  disabled={busy === 'override'}
+                  checked={draft.overrideAgentSettings ?? true}
+                  onChange={e => void toggleOverride(e.target.checked)}
+                  style={{ display: 'none' }}
+                />
+                <div
+                  style={{
+                    width: 48,
+                    height: 26,
+                    borderRadius: 999,
+                    background: draft.overrideAgentSettings ? '#22c55e' : '#9ca3af',
+                    position: 'relative',
+                    transition: 'background 0.2s',
+                    opacity: busy === 'override' ? 0.6 : 1,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: 3,
+                      left: draft.overrideAgentSettings ? 25 : 3,
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    }}
+                  />
+                </div>
+              </label>
+            </div>
+
+            {/* Active Override Badges Preview */}
+            {draft.overrideAgentSettings && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexWrap: 'wrap',
+                  paddingTop: 6,
+                  borderTop: '1px solid rgba(34, 197, 94, 0.2)',
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ fontWeight: 700, color: '#16a34a', fontSize: 11.5 }}>Active on next calls:</span>
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: 999,
-                    background: draft.overrideAgentSettings ? '#22c55e22' : 'var(--bg-secondary)',
-                    color: draft.overrideAgentSettings ? '#22c55e' : 'var(--text-secondary)',
-                    border: `1px solid ${draft.overrideAgentSettings ? '#22c55e55' : 'var(--border)'}`,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid #22c55e66',
+                    color: 'var(--text-primary)',
                   }}
                 >
-                  {draft.overrideAgentSettings ? 'ON — Using Outer Engines' : 'OFF — Using Agent Tab Settings'}
+                  STT: {draft.stt === 'deepgram' ? 'Deepgram nova-3' : 'Sarvam'}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid #22c55e66',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  Gujarati: {draft.ttsGujarati === 'elevenlabs' ? `ElevenLabs (${draft.elevenVoiceId ? draft.elevenVoiceId.slice(0, 8) + '...' : 'No ID'})` : (draft.sarvamGujaratiVoice || 'pooja_gu_customer')}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid #22c55e66',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  Hindi: {draft.ttsHindi === 'elevenlabs' ? `ElevenLabs (${draft.elevenVoiceId ? draft.elevenVoiceId.slice(0, 8) + '...' : 'No ID'})` : (draft.sarvamHindiVoice || 'ritu_hi_customer_warm')}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: 'var(--bg-primary)',
+                    border: '1px solid #22c55e66',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  LLM: {draft.llm === 'openai-compatible' ? (draft.llmModel || 'OpenAI Compatible') : (draft.groqModel || 'llama-3.3-70b-versatile')}
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                {draft.overrideAgentSettings
-                  ? 'ON: Calls will strictly use the global speech & language engines chosen below (STT, Voices, ElevenLabs, Custom LLM) for all agents.'
-                  : 'OFF: Calls will use each agent\'s individual settings from the Agent tab (voices like Pooja/Ritu, pace, model). Global engines below are bypassed.'}
-              </p>
-            </div>
-
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                userSelect: 'none',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={draft.overrideAgentSettings ?? true}
-                onChange={e => setDraft({ ...draft, overrideAgentSettings: e.target.checked })}
-                style={{ display: 'none' }}
-              />
-              <div
-                style={{
-                  width: 48,
-                  height: 26,
-                  borderRadius: 999,
-                  background: draft.overrideAgentSettings ? '#22c55e' : '#9ca3af',
-                  position: 'relative',
-                  transition: 'background 0.2s',
-                }}
-              >
-                <div
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    position: 'absolute',
-                    top: 3,
-                    left: draft.overrideAgentSettings ? 25 : 3,
-                    transition: 'left 0.2s',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                  }}
-                />
-              </div>
-            </label>
+            )}
           </div>
 
           <div
@@ -568,6 +666,22 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                 <option value="sarvam">Sarvam Bulbul (Proven natural Gujarati)</option>
                 <option value="elevenlabs">ElevenLabs (Custom cloned voice)</option>
               </select>
+              {draft.ttsGujarati === 'sarvam' && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, display: 'block', marginBottom: 3, color: 'var(--text-secondary)' }}>
+                    Sarvam Voice:
+                  </label>
+                  <select
+                    style={{ ...inputStyle, fontSize: 12.5, padding: '5px 8px' }}
+                    value={draft.sarvamGujaratiVoice || 'pooja_gu_customer'}
+                    onChange={e => setDraft({ ...draft, sarvamGujaratiVoice: e.target.value })}
+                  >
+                    <option value="pooja_gu_customer">Pooja — Customer Care (Female, Proven)</option>
+                    <option value="pooja_gu_conversational">Pooja — Conversational (Female)</option>
+                    <option value="bhavik_gu_conversation">Bhavik — Conversational (Male)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Hindi Voice */}
@@ -584,6 +698,25 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                 <option value="sarvam">Sarvam Bulbul (Default)</option>
                 <option value="elevenlabs">ElevenLabs (Custom cloned voice)</option>
               </select>
+              {draft.ttsHindi === 'sarvam' && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, display: 'block', marginBottom: 3, color: 'var(--text-secondary)' }}>
+                    Sarvam Voice:
+                  </label>
+                  <select
+                    style={{ ...inputStyle, fontSize: 12.5, padding: '5px 8px' }}
+                    value={draft.sarvamHindiVoice || 'ritu_hi_customer_warm'}
+                    onChange={e => setDraft({ ...draft, sarvamHindiVoice: e.target.value })}
+                  >
+                    <option value="ritu_hi_customer_warm">Ritu — Customer Warm (Female, Default)</option>
+                    <option value="ritu_hi_customer">Ritu — Customer Care (Female)</option>
+                    <option value="aparna_hi_customer">Aparna — Customer Care (Female)</option>
+                    <option value="aarti_hi_customer">Aarti — Customer Care (Female)</option>
+                    <option value="shubh_hi_customer">Shubh — Customer Care (Male)</option>
+                    <option value="amit_hi_conversational">Amit — Conversational (Male)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* English Voice */}
@@ -616,6 +749,23 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                 <option value="groq">Groq (Ultra-low latency streaming, Default)</option>
                 <option value="openai-compatible">Custom OpenAI-compatible Endpoint</option>
               </select>
+              {draft.llm === 'groq' && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, display: 'block', marginBottom: 3, color: 'var(--text-secondary)' }}>
+                    Groq Model:
+                  </label>
+                  <select
+                    style={{ ...inputStyle, fontSize: 12.5, padding: '5px 8px' }}
+                    value={draft.groqModel || 'llama-3.3-70b-versatile'}
+                    onChange={e => setDraft({ ...draft, groqModel: e.target.value })}
+                  >
+                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended, Fast & Smart)</option>
+                    <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (Agent Default)</option>
+                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Fastest Latency)</option>
+                    <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (High Context)</option>
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 

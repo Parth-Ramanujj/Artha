@@ -61,6 +61,7 @@ export interface BrowserCallHandlers {
   onTurn: (turn: AiCallTurn) => void;
   onAgentSpeaking: (speaking: boolean) => void;
   onLevel?: (level: number) => void;
+  onWarning?: (message: string) => void;
 }
 
 /**
@@ -140,7 +141,7 @@ export class BrowserCall {
   }
 
   private onMessage(raw: string): void {
-    let msg: { type?: string; audio?: string; name?: string; turn?: AiCallTurn; reason?: string };
+    let msg: { type?: string; audio?: string; name?: string; turn?: AiCallTurn; reason?: string; message?: string };
     try {
       msg = JSON.parse(raw) as typeof msg;
     } catch {
@@ -151,6 +152,7 @@ export class BrowserCall {
     else if (msg.type === 'mark' && msg.name) this.echoMarkWhenPlayed(msg.name);
     else if (msg.type === 'turn' && msg.turn) this.handlers.onTurn(msg.turn);
     else if (msg.type === 'ended') this.handlers.onState('ended', msg.reason);
+    else if (msg.type === 'warning' && msg.message) this.handlers.onWarning?.(msg.message);
   }
 
   private play(mulaw: Uint8Array): void {

@@ -61,6 +61,7 @@ export function TestCallTab({ agentId, setup }: { agentId?: string; setup?: AiCa
         onTurn: turn => setTurns(prev => [...prev, turn]),
         onAgentSpeaking: setAgentSpeaking,
         onLevel: setLevel,
+        onWarning: warnMsg => toast.warning(warnMsg),
       });
       call.current = browserCall;
       await browserCall.start();

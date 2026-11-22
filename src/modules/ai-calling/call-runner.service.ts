@@ -132,14 +132,48 @@ export class CallRunnerService {
     const ai = this.ai;
     const answeredAt = new Date();
     const isOverrideActive = Boolean(resolved?.config.overrideAgentSettings ?? true);
+
+    const effectiveModel =
+      isOverrideActive && resolved
+        ? resolved.config.llm === 'openai-compatible'
+          ? resolved.config.llmModel || agent.model
+          : resolved.config.groqModel || agent.model
+        : agent.model;
+
+    const effectiveGujaratiVoice =
+      isOverrideActive && resolved?.config.ttsGujarati === 'sarvam' && resolved.config.sarvamGujaratiVoice
+        ? resolved.config.sarvamGujaratiVoice
+        : agent.gujaratiVoice;
+
+    const effectiveHindiVoice =
+      isOverrideActive && resolved?.config.ttsHindi === 'sarvam' && resolved.config.sarvamHindiVoice
+        ? resolved.config.sarvamHindiVoice
+        : agent.hindiVoice;
+
+    const activeAgent: VoiceAgent =
+      isOverrideActive && resolved
+        ? {
+            ...agent,
+            model: effectiveModel,
+            gujaratiVoice: effectiveGujaratiVoice,
+            hindiVoice: effectiveHindiVoice,
+          }
+        : agent;
+
     const speech =
       this.speechOverride ??
       (resolved && isOverrideActive
-        ? speechFactoryFor(resolved.config, {
-            sarvam: sarvamApiKey,
-            deepgram: resolved.secrets.DEEPGRAM_API_KEY,
-            elevenlabs: resolved.secrets.ELEVENLABS_API_KEY,
-          })
+        ? speechFactoryFor(
+            resolved.config,
+            {
+              sarvam: sarvamApiKey,
+              deepgram: resolved.secrets.DEEPGRAM_API_KEY,
+              elevenlabs: resolved.secrets.ELEVENLABS_API_KEY,
+            },
+            warnMsg => {
+              transport.notify?.({ type: 'warning', message: warnMsg });
+            },
+          )
         : this.speech);
     const llmEndpoint =
       isOverrideActive &&
@@ -155,7 +189,7 @@ export class CallRunnerService {
     }
     await this.callRepo.update(call.id, { status: AiCallStatus.IN_PROGRESS, answeredAt });
     const session = new CallSession(transport, {
-      agent,
+      agent: activeAgent,
       contactName: call.contactName,
       greeting: call.greeting,
       briefing: call.briefing,
@@ -165,7 +199,7 @@ export class CallRunnerService {
         llmEndpoint
           ? openAiCompatibleStream(llmEndpoint, messages, { maxTokens: 300, temperature: 0.6, signal })
           : ai.streamComplete(messages, {
-              model: agent.model,
+              model: activeAgent.model,
               maxTokens: 300,
               temperature: 0.6,
               reasoningEffort: 'low',
@@ -179,9 +213,11 @@ export class CallRunnerService {
       channel: expectedChannel,
       details: {
         agentId: agent.id,
-        model: isOverrideActive && llmEndpoint ? llmEndpoint.model : agent.model,
+        model: activeAgent.model,
         defaultLanguage: agent.defaultLanguage,
         globalOverride: isOverrideActive,
+        gujaratiVoice: activeAgent.gujaratiVoice,
+        hindiVoice: activeAgent.hindiVoice,
       },
     });
 

@@ -38,10 +38,21 @@ const last = (): Fake => sockets()[sockets().length - 1];
 
 describe('provider settings', () => {
   it('keeps only known values and falls back to the default for anything else', () => {
-    const out = sanitizeProviders({ stt: 'deepgram', ttsHindi: 'nonsense', llm: 'groq', elevenVoiceId: '  abc  ' });
+    const out = sanitizeProviders({
+      stt: 'deepgram',
+      ttsHindi: 'nonsense',
+      llm: 'groq',
+      elevenVoiceId: '  abc  ',
+      sarvamGujaratiVoice: 'pooja_gu_conversational',
+      sarvamHindiVoice: 'aparna_hi_customer',
+      groqModel: 'llama-3.1-8b-instant',
+    });
     expect(out.stt).toBe('deepgram');
     expect(out.ttsHindi).toBe(DEFAULT_PROVIDERS.ttsHindi);
     expect(out.elevenVoiceId).toBe('abc');
+    expect(out.sarvamGujaratiVoice).toBe('pooja_gu_conversational');
+    expect(out.sarvamHindiVoice).toBe('aparna_hi_customer');
+    expect(out.groqModel).toBe('llama-3.1-8b-instant');
     expect(out.overrideAgentSettings).toBe(DEFAULT_PROVIDERS.overrideAgentSettings);
 
     const outOff = sanitizeProviders({ overrideAgentSettings: false });
@@ -219,6 +230,7 @@ describe('speechFactoryFor router', () => {
   });
 
   it('falls back to Sarvam TTS when ElevenLabs emits an error', () => {
+    const warnings: string[] = [];
     const factory = speechFactoryFor(
       {
         ...DEFAULT_PROVIDERS,
@@ -230,6 +242,7 @@ describe('speechFactoryFor router', () => {
         deepgram: null,
         elevenlabs: 'xi-api-key-real',
       },
+      msg => warnings.push(msg),
     );
     const stream = factory.tts({
       languageCode: 'gu-IN',
@@ -249,6 +262,8 @@ describe('speechFactoryFor router', () => {
     const sarvamSocket = last();
     expect(sarvamSocket).not.toBe(xiSocket);
     expect(sarvamSocket.url).toContain('sarvam.ai');
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(warnings[0]).toContain('ElevenLabs TTS failed');
   });
 });
 

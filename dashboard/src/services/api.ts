@@ -1735,10 +1735,13 @@ export interface AiProviderConfig {
   ttsGujarati: 'sarvam' | 'elevenlabs';
   ttsHindi: 'sarvam' | 'elevenlabs';
   ttsEnglish: 'sarvam' | 'elevenlabs';
+  sarvamGujaratiVoice?: string;
+  sarvamHindiVoice?: string;
   elevenVoiceId: string;
   elevenModel: string;
   elevenOutputFormat: string;
   llm: 'groq' | 'openai-compatible';
+  groqModel?: string;
   llmBaseUrl: string;
   llmModel: string;
 }
