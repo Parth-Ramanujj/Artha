@@ -5,7 +5,6 @@ import { aiCallingApi, type AiCallingSetup, type VoiceAgent } from '../services/
 import { PageHeader } from '../components/PageHeader';
 import { errorText } from '../components/ai-calling/callMeta';
 import { SetupPanel } from '../components/ai-calling/SetupPanel';
-import { ProvidersPanel } from '../components/ai-calling/ProvidersPanel';
 import { CallsTab } from '../components/ai-calling/CallsTab';
 import { BatchesTab } from '../components/ai-calling/BatchesTab';
 import { AgentTab } from '../components/ai-calling/AgentTab';
@@ -126,10 +125,7 @@ export function AiCalling() {
       {setupError ? (
         <ErrorBox message={setupError} onRetry={loadMeta} />
       ) : setup ? (
-        <>
-          <SetupPanel setup={setup} onChanged={loadMeta} />
-          <ProvidersPanel onChanged={loadMeta} />
-        </>
+        <SetupPanel setup={setup} onChanged={loadMeta} />
       ) : (
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
           <Loader2 size={14} className="animate-spin" style={{ verticalAlign: '-2px' }} />{' '}
