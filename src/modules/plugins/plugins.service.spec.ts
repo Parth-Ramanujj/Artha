@@ -25,6 +25,20 @@ import { PluginStorageService } from '../../core/plugins/plugin-storage.service'
 import { PluginStatus } from '../../core/plugins/plugin.interfaces';
 import { HookManager } from '../../core/hooks';
 
+/** Creating symlinks on Windows needs Developer Mode or an elevated shell; these tests run only where it works. */
+function canCreateSymlinks(): boolean {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-probe-'));
+  try {
+    fs.symlinkSync(path.join(probeDir, 'target'), path.join(probeDir, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+const SYMLINKS_OK = canCreateSymlinks();
+
 const manifest = { id: 'svc-plg', name: 'Svc Plugin', version: '1.0.0', type: 'extension', main: 'index.js' };
 
 function pkg(over: Record<string, unknown> = {}): Buffer {
@@ -423,7 +437,7 @@ describe('PluginsService — getConfigUiHtml (sandboxed config editor)', () => {
     expect(() => service.getConfigUiHtml('cfgui-plg')).toThrow(/config ui/i);
   });
 
-  it('rejects a configUi entry that is a symlink escaping the plugin directory', () => {
+  (SYMLINKS_OK ? it : it.skip)('rejects a configUi entry that is a symlink escaping the plugin directory', () => {
     installUi({ configUi: { entry: 'config/escape.html' } }, { 'config/index.html': HTML });
     const outside = path.join(tmpDir, 'outside-secret.txt');
     fs.writeFileSync(outside, 'TOP SECRET');

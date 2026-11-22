@@ -97,11 +97,12 @@ describe('IntegrationModule queue wiring (QUEUE_ENABLED conditional)', () => {
       global: true,
       providers: [
         { provide: getDataSourceToken('data'), useValue: dataSourceStub },
+        { provide: getDataSourceToken('main'), useValue: dataSourceStub },
         { provide: AuditService, useValue: { record: jest.fn() } },
         { provide: EventsGateway, useValue: {} },
         { provide: BusinessService, useValue: {} },
       ],
-      exports: [getDataSourceToken('data'), AuditService, EventsGateway, BusinessService],
+      exports: [getDataSourceToken('data'), getDataSourceToken('main'), AuditService, EventsGateway, BusinessService],
     };
 
     const moduleRef = await Test.createTestingModule({

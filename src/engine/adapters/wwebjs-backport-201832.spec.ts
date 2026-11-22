@@ -3,6 +3,20 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+/** Creating symlinks on Windows needs Developer Mode or an elevated shell; these tests run only where it works. */
+function canCreateSymlinks(): boolean {
+  const probeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-probe-'));
+  try {
+    fs.symlinkSync(path.join(probeDir, 'target'), path.join(probeDir, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probeDir, { recursive: true, force: true });
+  }
+}
+const SYMLINKS_OK = canCreateSymlinks();
+
 // The patcher is a CommonJS build script (scripts/*.js); import it with a typed
 // shape so the spec stays under the strict lint rules.
 const {
@@ -265,7 +279,7 @@ describe('patch-wwebjs-201832 (build-time backport of upstream #201832)', () => 
       expect(res.stderr).toMatch(/PARTIALLY patched/);
     });
 
-    it('falls back to `git apply` when only `patch` is missing', () => {
+    (SYMLINKS_OK ? it : it.skip)('falls back to `git apply` when only `patch` is missing', () => {
       // The Windows-outside-Git-Bash case, and the one that let #889 happen: git.exe is on PATH but
       // patch.exe ships only inside Git Bash, so the backport was skipped and `npm install` still
       // reported success. Anyone installing from source has git by definition, so the dep gets
@@ -334,7 +348,7 @@ describe('patch-wwebjs-201832 (build-time backport of upstream #201832)', () => 
     // ' '/'+'/'-'/'@' markers a unified diff allows, and line 7 of this patch is an empty context line,
     // so both fail exactly there. On Windows core.autocrlf=true checks the file out that way, so the
     // git fallback added FOR Windows could never run there and `npm install` died on the attempt.
-    it('applies even when the patch file was checked out with CRLF line endings', () => {
+    (SYMLINKS_OK ? it : it.skip)('applies even when the patch file was checked out with CRLF line endings', () => {
       const dir = copyWwjs();
       const script = stageScriptWith(fs.readFileSync(PATCH_FILE, 'utf8').replace(/\r?\n/g, '\r\n'));
 
@@ -354,7 +368,7 @@ describe('patch-wwebjs-201832 (build-time backport of upstream #201832)', () => 
     // A patch the applier refuses to parse fails BEFORE writing anything, so the tree is pristine and
     // `--best-effort` must still degrade. Treating that as a half-patched tree is what turned a skippable
     // install warning into a hard `npm install` failure on every native Windows source install.
-    it('degrades on an unparseable patch instead of failing the install', () => {
+    (SYMLINKS_OK ? it : it.skip)('degrades on an unparseable patch instead of failing the install', () => {
       const dir = copyWwjs();
       const script = stageScriptWith('this is not a diff\n');
 
