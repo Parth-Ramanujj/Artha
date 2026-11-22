@@ -39,14 +39,19 @@ const POPULAR_ELEVEN_VOICES = [
   { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte (Gentle)' },
 ];
 
-const KEYS_META: { name: AiSecretName; label: string; group: 'voice' | 'llm' | 'twilio' }[] = [
-  { name: 'SARVAM_API_KEY', label: 'Sarvam API Key (Speech & Voice)', group: 'voice' },
-  { name: 'DEEPGRAM_API_KEY', label: 'Deepgram API Key (Speech-to-Text)', group: 'voice' },
-  { name: 'ELEVENLABS_API_KEY', label: 'ElevenLabs API Key (TTS Voice)', group: 'voice' },
-  { name: 'LLM_API_KEY', label: 'Custom LLM API Key (OpenAI-compatible)', group: 'llm' },
-  { name: 'TWILIO_ACCOUNT_SID', label: 'Twilio Account SID (starts with AC)', group: 'twilio' },
-  { name: 'TWILIO_AUTH_TOKEN', label: 'Twilio Auth Token', group: 'twilio' },
-  { name: 'TWILIO_PHONE_NUMBER', label: 'Twilio Phone Number (+CountryCode)', group: 'twilio' },
+const KEYS_META: { name: AiSecretName; label: string; group: 'voice' | 'llm' | 'twilio'; hint?: string }[] = [
+  { name: 'SARVAM_API_KEY', label: 'Sarvam API Key (Speech & Voice)', group: 'voice', hint: 'From sarvam.ai dashboard' },
+  { name: 'DEEPGRAM_API_KEY', label: 'Deepgram API Key (Speech-to-Text)', group: 'voice', hint: 'From console.deepgram.com' },
+  {
+    name: 'ELEVENLABS_API_KEY',
+    label: 'ElevenLabs API Key (TTS Voice)',
+    group: 'voice',
+    hint: 'From elevenlabs.io > Profile (bottom-left) > "Profile + API key". Starts with sk_ or 32-char hex. (NOT a Voice ID)',
+  },
+  { name: 'LLM_API_KEY', label: 'Custom LLM API Key (OpenAI-compatible)', group: 'llm', hint: 'From your LLM provider' },
+  { name: 'TWILIO_ACCOUNT_SID', label: 'Twilio Account SID (starts with AC)', group: 'twilio', hint: '34 chars starting with AC from twilio.com/console' },
+  { name: 'TWILIO_AUTH_TOKEN', label: 'Twilio Auth Token', group: 'twilio', hint: 'From twilio.com/console' },
+  { name: 'TWILIO_PHONE_NUMBER', label: 'Twilio Phone Number (+CountryCode)', group: 'twilio', hint: 'e.g. +15551234567' },
 ];
 
 const STATE_BADGE: Record<'saved' | 'environment' | 'missing', { label: string; color: string; bg: string }> = {
@@ -581,9 +586,33 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                   />
 
                   {elevenVoiceError && (
-                    <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#ef4444' }}>
-                      {elevenVoiceError}
-                    </p>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        background: '#ef444415',
+                        border: '1px solid #ef444455',
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: '#ef4444', marginBottom: 3 }}>
+                        ❌ {elevenVoiceError}
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                        Your ElevenLabs API key was rejected (401 Unauthorized). Please ensure you pasted your secret API key from <em>elevenlabs.io &gt; Profile + API key</em>, and not a Voice ID.
+                        <div style={{ marginTop: 6 }}>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => setActiveTab('keys')}
+                            style={{ fontSize: 11.5 }}
+                          >
+                            Open API Keys &amp; Credentials Tab →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Popular Preset Chips */}
@@ -775,6 +804,18 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                       {badge.label}
                     </span>
                   </div>
+
+                  {k.hint && (
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                      {k.hint}
+                    </div>
+                  )}
+
+                  {k.name === 'ELEVENLABS_API_KEY' && keyDrafts[k.name] && keyDrafts[k.name]!.length === 20 && (
+                    <div style={{ fontSize: 11.5, color: '#f59e0b', fontWeight: 600 }}>
+                      ⚠️ Warning: This input is 20 characters long, which looks like a Voice ID (like <code>wS22teQFfZZKTTTGs9e5</code>), NOT an API Key! An ElevenLabs API key starts with <code>sk_</code> and can be copied from elevenlabs.io &gt; Profile + API key.
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input

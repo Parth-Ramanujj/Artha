@@ -59,6 +59,11 @@ export class ProviderSettingsService {
       return;
     }
     const clean = value.trim();
+    if (name === 'ELEVENLABS_API_KEY' && clean.length === 20) {
+      throw new BadRequestException(
+        'That looks like a Voice ID (20 characters), not an API key. ElevenLabs API keys start with sk_ or are 32-character hex keys. Find your key at elevenlabs.io > Profile + API key.',
+      );
+    }
     if (name === 'TWILIO_ACCOUNT_SID' && !/^AC[0-9a-fA-F]{32}$/.test(clean)) {
       throw new BadRequestException('Twilio Account SID starts with AC and has 34 characters');
     }

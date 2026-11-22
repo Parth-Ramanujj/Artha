@@ -56,6 +56,7 @@ describe('Twilio credentials in the database', () => {
     const svc = new ProviderSettingsService(fakeRepo() as never);
     await expect(svc.saveSecret('TWILIO_ACCOUNT_SID', 'XX123')).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.saveSecret('TWILIO_PHONE_NUMBER', '5551234567')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.saveSecret('ELEVENLABS_API_KEY', 'wS22teQFfZZKTTTGs9e5')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('falls back to the environment when nothing is saved', async () => {
