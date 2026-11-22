@@ -311,6 +311,8 @@ async function bootstrap() {
     const config = createSwaggerConfig();
     const document = SwaggerModule.createDocument(app, config);
     exemptPublicOperations(document);
+    // The live page calls whichever host serves it; the static openapi.json keeps the templated localhost server.
+    document.servers = [{ url: '/', description: 'This server' }];
     SwaggerModule.setup('api/docs', app, document);
   }
 
