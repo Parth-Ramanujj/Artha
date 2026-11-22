@@ -20,7 +20,12 @@ flowchart LR
 
 ---
 
-## 2. Authentication
+## 2. Base URL & Authentication
+
+**Base URL:** `https://artha-qniz.onrender.com` — every path below starts with `/api`.
+
+> [!WARNING]
+> Call the API **only from your backend server**, never from browser JavaScript or a shipped app binary, because anyone can read a key shipped inside an app. One key per integration; ask us to revoke it if it leaks.
 
 Every API call (except public webhooks and OAuth callbacks) requires an API key in the request header:
 
@@ -60,8 +65,8 @@ Content-Type: application/json
   "apiKey": {
     "id": "e4c1964f-4d37-4d92-bf36-1e0e84b245a9",
     "key": "owa_k1_9f3b892a012d93e...",
-    "name": "Sunrise Retailers Admin",
-    "role": "admin",
+    "name": "Sunrise Retailers Owner",
+    "role": "operator",
     "keyPrefix": "owa_k1_9f3b"
   }
 }
@@ -164,11 +169,10 @@ Content-Type: application/json
 **Response (200 OK):**
 ```json
 {
-  "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...",
-  "state": "550e8400-e29b-41d4-a716-446655440000"
+  "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=..."
 }
 ```
-Redirect your user to `authUrl`. Once they approve permissions, Google redirects to the callback and the connection status becomes `connected`.
+Redirect your user to `url`. Once they approve permissions, Google redirects to the callback and the connection status becomes `connected`.
 
 ---
 
@@ -220,9 +224,11 @@ x-api-key: <TENANT_API_KEY>
 
 ## 5. Sending Messages & Publishing Content
 
+`<SESSION_ID>` below is the WhatsApp connection's `id` (UUID) returned by `connect/whatsapp` or `GET /api/platforms/connected` — not its name.
+
 ### Send WhatsApp Text Message
 ```http
-POST /api/sessions/sunrise-wa-01/messages/text
+POST /api/sessions/<SESSION_ID>/messages/send-text
 x-api-key: <TENANT_API_KEY>
 Content-Type: application/json
 
@@ -232,19 +238,18 @@ Content-Type: application/json
 }
 ```
 
-### Send WhatsApp Media (Image/PDF/Invoice)
+### Send WhatsApp Document (PDF/Invoice)
+Use `send-image`, `send-video` or `send-audio` with the same body for other media.
 ```http
-POST /api/sessions/sunrise-wa-01/messages/image
+POST /api/sessions/<SESSION_ID>/messages/send-document
 x-api-key: <TENANT_API_KEY>
 Content-Type: application/json
 
 {
   "chatId": "919876543210@c.us",
-  "file": {
-    "mimetype": "application/pdf",
-    "filename": "invoice_1234.pdf",
-    "url": "https://your-cdn.com/invoices/1234.pdf"
-  },
+  "url": "https://your-cdn.com/invoices/1234.pdf",
+  "mimetype": "application/pdf",
+  "filename": "invoice_1234.pdf",
   "caption": "Please find attached your invoice."
 }
 ```
@@ -256,9 +261,10 @@ x-api-key: <TENANT_API_KEY>
 Content-Type: application/json
 
 {
+  "platform": "instagram",
   "accountId": "<SOCIAL_ACCOUNT_UUID>",
   "caption": "Check out our weekend sale! 🎉 #sale #offers",
-  "mediaUrls": ["https://your-cdn.com/posts/banner.jpg"],
+  "mediaUrl": "https://your-cdn.com/posts/banner.jpg",
   "mediaType": "IMAGE",
   "scheduledAt": "2026-11-25T10:00:00.000Z"
 }
@@ -266,12 +272,12 @@ Content-Type: application/json
 
 ### Reply to Google Business Profile Review
 ```http
-POST /api/google-business/reviews/<REVIEW_ID>/reply
+POST /api/google-business/reviews/<REVIEW_ID>/publish
 x-api-key: <TENANT_API_KEY>
 Content-Type: application/json
 
 {
-  "comment": "Thank you for the 5-star rating! We hope to see you again soon."
+  "text": "Thank you for the 5-star rating! We hope to see you again soon."
 }
 ```
 
@@ -283,7 +289,7 @@ Register your application's webhook URL to receive instant push notifications wh
 
 ### Register Webhook for a Tenant's WhatsApp Session
 ```http
-POST /api/sessions/sunrise-wa-01/webhooks
+POST /api/sessions/<SESSION_ID>/webhooks
 x-api-key: <TENANT_API_KEY>
 Content-Type: application/json
 
@@ -359,6 +365,6 @@ Content-Type: application/json
 ## 7. Interactive API Documentation
 
 Interactive Swagger UI documentation is available at:
-`https://api.yourdomain.com/docs` (or `/api/docs`)
+`https://artha-qniz.onrender.com/api/docs` (enabled on request — production sets `ENABLE_SWAGGER=true`)
 
 You can test every endpoint live using the **Authorize** button with your `x-api-key`.

@@ -45,6 +45,7 @@ const emptyKey = {
   expiryAmount: '30',
   expiryUnit: 'days' as ExpiryUnit,
   features: [] as string[],
+  restrict: false,
 };
 
 function useWindowSize() {
@@ -102,12 +103,14 @@ export function ApiKeys() {
     const expiresAt = expiresAtFrom(newKey.expiryAmount, newKey.expiryUnit);
     if (!newKey.name || expiresAt === null) return;
     try {
-      // A customer (business) key carries its approved features; a platform (super admin) key has none.
-      const forBusiness = newKey.businessId !== '';
+      // A customer (business) key always carries its approved features; any other non-admin key
+      // does only when "limit to selected features" is ticked, otherwise it reaches everything.
+      const restricted = newKey.role !== 'admin' && (newKey.businessId !== '' || newKey.restrict);
       const created = await createMutation.mutateAsync({
         name: newKey.name,
         role: newKey.role,
-        ...(forBusiness && { businessId: newKey.businessId, allowedFeatures: newKey.features }),
+        ...(newKey.businessId && { businessId: newKey.businessId }),
+        ...(restricted && { allowedFeatures: newKey.features }),
         ...(expiresAt && { expiresAt }),
       });
       setCreatedKey(created.apiKey || null);
@@ -414,7 +417,17 @@ export function ApiKeys() {
                 </select>
               </div>
               {!expiryValid && <span className="expiry-error">{t('apiKeys.access.validityInvalid')}</span>}
-              {newKey.businessId && (
+              {!newKey.businessId && newKey.role !== 'admin' && (
+                <label className="feature-option">
+                  <input
+                    type="checkbox"
+                    checked={newKey.restrict}
+                    onChange={e => setNewKey({ ...newKey, restrict: e.target.checked })}
+                  />
+                  {t('apiKeys.access.restrict')}
+                </label>
+              )}
+              {newKey.role !== 'admin' && (newKey.businessId || newKey.restrict) && (
                 <fieldset className="feature-grid">
                   <legend>{t('apiKeys.access.features')}</legend>
                   <p className="feature-hint">{t('apiKeys.access.featuresHint')}</p>

@@ -638,6 +638,7 @@
       "expired": "{{date}} એ પૂરી થઈ",
       "features": "મંજૂર ફીચર્સ",
       "featuresHint": "સેશન અને મેસેજિંગ હંમેશા સામેલ છે. ગ્રાહકે જે લીધું હોય તે જ ટિક કરો.",
+      "restrict": "આ કી ફક્ત પસંદ કરેલા ફીચર્સ સુધી મર્યાદિત રાખો",
       "allFeatures": "બધા ફીચર્સ",
       "featureCount_one": "{{count}} ફીચર",
       "featureCount_other": "{{count}} ફીચર્સ",

@@ -53,6 +53,7 @@ export const WEBHOOK_EVENTS = [
   'group.update',
   'call.received',
   'social.message.received',
+  'social.comment.received',
   ...WEBHOOK_RESERVED_EVENTS,
 ] as const;
 

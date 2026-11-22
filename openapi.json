@@ -16646,6 +16646,7 @@
                 "group.update",
                 "call.received",
                 "social.message.received",
+                "social.comment.received",
                 "*"
               ]
             }
@@ -16793,6 +16794,7 @@
                 "group.update",
                 "call.received",
                 "social.message.received",
+                "social.comment.received",
                 "*"
               ]
             }

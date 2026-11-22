@@ -638,6 +638,7 @@
       "expired": "{{date}} को समाप्त हो गई",
       "features": "मंज़ूर फीचर्स",
       "featuresHint": "सेशन और मैसेजिंग हमेशा शामिल हैं। ग्राहक ने जो लिया है वही चुनें।",
+      "restrict": "इस की को केवल चुने हुए फीचर्स तक सीमित रखें",
       "allFeatures": "सभी फीचर्स",
       "featureCount_one": "{{count}} फीचर",
       "featureCount_other": "{{count}} फीचर्स",

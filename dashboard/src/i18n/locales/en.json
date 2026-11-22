@@ -614,6 +614,7 @@
       "expired": "Expired {{date}}",
       "features": "Approved features",
       "featuresHint": "Sessions and messaging are always included. Tick only what this customer paid for.",
+      "restrict": "Limit this key to the selected features only",
       "allFeatures": "All features",
       "featureCount_one": "{{count}} feature",
       "featureCount_other": "{{count}} features",
