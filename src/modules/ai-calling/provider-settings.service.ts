@@ -96,4 +96,46 @@ export class ProviderSettingsService {
     }
     return { config: await this.config(), secrets };
   }
+
+  /** Fetches the list of voices available in the configured ElevenLabs account. */
+  async listElevenLabsVoices(): Promise<{
+    configured: boolean;
+    voices: Array<{ id: string; name: string; category?: string; description?: string }>;
+    error?: string;
+  }> {
+    const { secrets } = await this.resolve();
+    const apiKey = secrets.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY?.trim();
+    if (!apiKey) {
+      return { configured: false, voices: [] };
+    }
+    try {
+      const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+        headers: { 'xi-api-key': apiKey },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) {
+        return {
+          configured: true,
+          voices: [],
+          error: res.status === 401 ? 'Invalid ElevenLabs API key' : `ElevenLabs returned HTTP ${res.status}`,
+        };
+      }
+      const data = (await res.json()) as {
+        voices?: Array<{ voice_id: string; name: string; category?: string; description?: string }>;
+      };
+      const voices = (data.voices || []).map(v => ({
+        id: v.voice_id,
+        name: v.name,
+        category: v.category,
+        description: v.description,
+      }));
+      return { configured: true, voices };
+    } catch (err) {
+      return {
+        configured: true,
+        voices: [],
+        error: `Could not reach ElevenLabs: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
 }

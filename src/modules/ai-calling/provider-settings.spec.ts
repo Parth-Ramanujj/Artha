@@ -211,6 +211,39 @@ describe('speechFactoryFor router', () => {
     expect(last().url).toContain('eleven_v4_turbo');
     expect(last().url).toContain('ulaw_8000');
   });
+
+  it('falls back to Sarvam TTS when ElevenLabs emits an error', () => {
+    const factory = speechFactoryFor(
+      {
+        ...DEFAULT_PROVIDERS,
+        ttsGujarati: 'elevenlabs',
+        elevenVoiceId: 'bad_voice_id',
+      },
+      {
+        sarvam: 'sarvam-key-secret',
+        deepgram: null,
+        elevenlabs: 'xi-api-key-real',
+      },
+    );
+    const stream = factory.tts({
+      languageCode: 'gu-IN',
+      speaker: 'pari',
+      apiKey: 'sarvam-key-secret',
+    });
+    const xiSocket = last();
+    xiSocket.readyState = 1;
+    xiSocket.emit('open');
+
+    stream.say('Kem cho?');
+    // ElevenLabs sends voice_id_does_not_exist
+    xiSocket.emit('message', JSON.stringify({ error: 'voice_id_does_not_exist' }));
+
+    // Fallback socket (Sarvam) should be created
+    expect(xiSocket.closed).toBe(true);
+    const sarvamSocket = last();
+    expect(sarvamSocket).not.toBe(xiSocket);
+    expect(sarvamSocket.url).toContain('sarvam.ai');
+  });
 });
 
 describe('OpenAI-compatible language model stream', () => {

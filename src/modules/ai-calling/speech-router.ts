@@ -1,8 +1,9 @@
+import { EventEmitter } from 'events';
 import { createLogger } from '../../common/services/logger.service';
 import { DeepgramStt } from './deepgram-stt';
 import { elevenTts } from './elevenlabs-tts';
 import { ProviderConfig, ttsProviderFor } from './provider-settings';
-import { sarvamSpeech, type SpeechFactory, type SttOptions, type TtsOptions } from './sarvam';
+import { sarvamSpeech, type SpeechFactory, type SttOptions, type TtsOptions, type TtsStream, type VoiceStyle } from './sarvam';
 import { aiCallingLog } from './ai-calling-log.service';
 
 const log = createLogger('AiCallSpeech');
@@ -11,6 +12,84 @@ export interface SpeechKeys {
   sarvam: string | null;
   deepgram: string | null;
   elevenlabs: string | null;
+}
+
+/**
+ * Resilient TTS stream wrapper: if the primary TTS provider (e.g. ElevenLabs) encounters an error
+ * (invalid voice ID, quota limit, socket error), it automatically logs a warning, falls back to
+ * Sarvam TTS, and replays any pending spoken text so the live call or test call is never dropped.
+ */
+export class ResilientTtsStream extends EventEmitter implements TtsStream {
+  private active: TtsStream;
+  private hasFallenBack = false;
+  private currentStyle?: VoiceStyle;
+  private pending: string[] = [];
+
+  constructor(
+    private readonly primary: TtsStream,
+    private readonly fallbackFactory: () => TtsStream,
+    private readonly onFallback: (err: Error) => void,
+  ) {
+    super();
+    this.active = primary;
+    this.bind(primary, true);
+  }
+
+  private bind(stream: TtsStream, isPrimary: boolean): void {
+    stream.on('audio', (chunk: Buffer) => this.emit('audio', chunk));
+    stream.on('spoken', () => {
+      this.pending = [];
+      this.emit('spoken');
+    });
+    stream.on('error', (err: Error) => {
+      if (isPrimary && !this.hasFallenBack) {
+        this.hasFallenBack = true;
+        try {
+          stream.close();
+        } catch {
+          // ignore
+        }
+        this.onFallback(err);
+        try {
+          const fallback = this.fallbackFactory();
+          this.active = fallback;
+          if (this.currentStyle) fallback.setStyle(this.currentStyle);
+          this.bind(fallback, false);
+          for (const text of this.pending) {
+            fallback.say(text);
+          }
+          return;
+        } catch (fErr) {
+          const combined = fErr instanceof Error ? fErr : new Error(String(fErr));
+          this.emit('error', combined);
+          return;
+        }
+      }
+      this.emit('error', err);
+    });
+  }
+
+  say(text: string): void {
+    const clean = text.trim();
+    if (!clean) return;
+    this.pending.push(clean);
+    this.active.say(clean);
+  }
+
+  setStyle(style: VoiceStyle): void {
+    this.currentStyle = style;
+    this.active.setStyle(style);
+  }
+
+  reset(): void {
+    this.pending = [];
+    this.active.reset();
+  }
+
+  close(): void {
+    this.pending = [];
+    this.active.close();
+  }
 }
 
 /**
@@ -31,12 +110,24 @@ export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): Spee
     tts(options: TtsOptions) {
       const engine = ttsProviderFor(config, options.languageCode);
       if (engine === 'elevenlabs' && keys.elevenlabs && config.elevenVoiceId) {
-        return elevenTts(
+        const primary = elevenTts(
           { ...options, apiKey: keys.elevenlabs },
           {
             voiceId: config.elevenVoiceId,
             model: config.elevenModel || 'eleven_multilingual_v2',
             outputFormat: config.elevenOutputFormat || 'ulaw_8000',
+          },
+        );
+        return new ResilientTtsStream(
+          primary,
+          () => sarvamSpeech.tts({ ...options, apiKey: sarvamKey }),
+          err => {
+            log.warn(`ElevenLabs text-to-speech failed (${err.message}); falling back to Sarvam TTS`);
+            aiCallingLog.warn(
+              'tts',
+              `ElevenLabs text-to-speech failed: ${err.message}. Automatically fell back to Sarvam TTS to preserve call.`,
+              { details: { error: err.message, voiceId: config.elevenVoiceId, language: options.languageCode } },
+            );
           },
         );
       }

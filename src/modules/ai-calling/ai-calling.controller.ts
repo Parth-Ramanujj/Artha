@@ -91,6 +91,13 @@ export class AiCallingController {
     };
   }
 
+  @Get('elevenlabs/voices')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'List voices available in the configured ElevenLabs account' })
+  async elevenLabsVoices() {
+    return this.providerSettings.listElevenLabsVoices();
+  }
+
   @Put('providers')
   @RequireRole(ApiKeyRole.ADMIN)
   @ApiOperation({ summary: 'Choose the speech and language engines; applies to the next call' })

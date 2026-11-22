@@ -1761,6 +1761,12 @@ export const aiCallingApi = {
   providers: () => request<AiProvidersState>('/ai-calling/providers'),
   saveProviders: (config: Partial<AiProviderConfig>) =>
     request<AiProvidersState>('/ai-calling/providers', { method: 'PUT', body: JSON.stringify(config) }),
+  elevenLabsVoices: () =>
+    request<{
+      configured: boolean;
+      voices: Array<{ id: string; name: string; category?: string; description?: string }>;
+      error?: string;
+    }>('/ai-calling/elevenlabs/voices'),
   saveSecret: (name: AiSecretName, value: string | null) =>
     request<AiProvidersState>(`/ai-calling/providers/secrets/${name}`, {
       method: 'PUT',

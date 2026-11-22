@@ -28,6 +28,17 @@ import { useRole } from '../../hooks/useRole';
 import { useToast } from '../Toast';
 import { errorText, panel } from './callMeta';
 
+const POPULAR_ELEVEN_VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel (Calm)' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi (Confident)' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella (Soft)' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni (Balanced)' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh (Deep)' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam (Conversational)' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel (British)' },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte (Gentle)' },
+];
+
 const KEYS_META: { name: AiSecretName; label: string; group: 'voice' | 'llm' | 'twilio' }[] = [
   { name: 'SARVAM_API_KEY', label: 'Sarvam API Key (Speech & Voice)', group: 'voice' },
   { name: 'DEEPGRAM_API_KEY', label: 'Deepgram API Key (Speech-to-Text)', group: 'voice' },
@@ -81,6 +92,9 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
   const [draft, setDraft] = useState<AiProviderConfig | null>(null);
   const [keyDrafts, setKeyDrafts] = useState<Partial<Record<AiSecretName, string>>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [elevenVoices, setElevenVoices] = useState<Array<{ id: string; name: string; category?: string }>>([]);
+  const [loadingElevenVoices, setLoadingElevenVoices] = useState(false);
+  const [elevenVoiceError, setElevenVoiceError] = useState<string | null>(null);
 
   // Public tunnel URL state
   const [url, setUrl] = useState(setup.publicUrl ?? setup.suggestedPublicUrl ?? '');
@@ -101,6 +115,23 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
       setDraft(res.config);
     } catch {
       // Ignored for non-admin or fallback
+    }
+  };
+
+  const loadElevenVoices = async () => {
+    setLoadingElevenVoices(true);
+    setElevenVoiceError(null);
+    try {
+      const res = await aiCallingApi.elevenLabsVoices();
+      if (res.error) {
+        setElevenVoiceError(res.error);
+      } else {
+        setElevenVoices(res.voices);
+      }
+    } catch (err) {
+      setElevenVoiceError(errorText(err, 'Failed to fetch ElevenLabs voices'));
+    } finally {
+      setLoadingElevenVoices(false);
     }
   };
 
@@ -491,34 +522,170 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                 borderRadius: 10,
                 background: 'var(--bg-primary)',
                 border: '1px dashed var(--primary)',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                display: 'flex',
+                flexDirection: 'column',
                 gap: 12,
               }}
             >
-              <div>
-                <label style={labelStyle}>ElevenLabs Voice ID</label>
-                <input
-                  style={inputStyle}
-                  placeholder="e.g. wS22teQFfZZKTTTGs9e5"
-                  value={draft.elevenVoiceId ?? ''}
-                  onChange={e => setDraft({ ...draft, elevenVoiceId: e.target.value })}
-                />
-                <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                  From your ElevenLabs Voice Lab.
-                </p>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label style={labelStyle}>ElevenLabs Voice ID</label>
+                    {providers?.secrets.ELEVENLABS_API_KEY !== 'missing' && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => void loadElevenVoices()}
+                        disabled={loadingElevenVoices}
+                        style={{ fontSize: 11, padding: '2px 8px' }}
+                      >
+                        {loadingElevenVoices ? (
+                          <>
+                            <Loader2 size={11} className="animate-spin" /> Fetching...
+                          </>
+                        ) : (
+                          'Load My Account Voices'
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {elevenVoices.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <select
+                        style={inputStyle}
+                        value={draft.elevenVoiceId ?? ''}
+                        onChange={e => setDraft({ ...draft, elevenVoiceId: e.target.value })}
+                      >
+                        <option value="">-- Choose from your ElevenLabs Account ({elevenVoices.length} voices) --</option>
+                        {elevenVoices.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} ({v.category ?? 'voice'}) - {v.id.slice(0, 8)}...
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <input
+                    style={inputStyle}
+                    placeholder="e.g. 21m00Tcm4TlvDq8ikWAM or custom voice ID"
+                    value={draft.elevenVoiceId ?? ''}
+                    onChange={e => setDraft({ ...draft, elevenVoiceId: e.target.value.trim() })}
+                  />
+
+                  {elevenVoiceError && (
+                    <p style={{ margin: '4px 0 0', fontSize: 11.5, color: '#ef4444' }}>
+                      {elevenVoiceError}
+                    </p>
+                  )}
+
+                  {/* Popular Preset Chips */}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                      Popular Pre-made Voices (work immediately on all accounts):
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {POPULAR_ELEVEN_VOICES.map(pv => {
+                        const isSelected = draft.elevenVoiceId === pv.id;
+                        return (
+                          <button
+                            key={pv.id}
+                            type="button"
+                            onClick={() => setDraft({ ...draft, elevenVoiceId: pv.id })}
+                            style={{
+                              fontSize: 11,
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                              background: isSelected ? 'var(--primary)' : 'var(--bg-secondary)',
+                              color: isSelected ? '#fff' : 'var(--text-primary)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {pv.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>ElevenLabs Model</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="eleven_v4_turbo or eleven_multilingual_v2"
+                    value={draft.elevenModel ?? ''}
+                    onChange={e => setDraft({ ...draft, elevenModel: e.target.value.trim() })}
+                  />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                    {['eleven_v4_turbo', 'eleven_multilingual_v2', 'eleven_turbo_v2_5'].map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, elevenModel: m })}
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          border: `1px solid ${draft.elevenModel === m ? 'var(--primary)' : 'var(--border)'}`,
+                          background: draft.elevenModel === m ? 'var(--primary)' : 'var(--bg-secondary)',
+                          color: draft.elevenModel === m ? '#fff' : 'var(--text-primary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    Note: Gujarati voice requires <code>eleven_v3</code> or <code>eleven_v4_turbo</code>.
+                  </p>
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>ElevenLabs Model</label>
-                <input
-                  style={inputStyle}
-                  placeholder="eleven_v4_turbo or eleven_multilingual_v2"
-                  value={draft.elevenModel ?? ''}
-                  onChange={e => setDraft({ ...draft, elevenModel: e.target.value })}
-                />
-                <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                  Note: Gujarati voice requires eleven_v3 or eleven_v4_turbo.
-                </p>
+
+              {/* Crucial Explanatory Callout on Community Voices & Automatic Sarvam Fallback */}
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: '#f59e0b12',
+                  border: '1px solid #f59e0b44',
+                  fontSize: 12,
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 600, color: '#f59e0b', marginBottom: 2 }}>
+                    How ElevenLabs Voice IDs work &amp; why &quot;voice_id_does_not_exist&quot; occurs:
+                  </div>
+                  <div style={{ lineHeight: 1.45, color: 'var(--text-secondary)' }}>
+                    If you copy a Voice ID from the <strong>ElevenLabs Community Library</strong> (e.g.{' '}
+                    <code>wS22teQFfZZKTTTGs9e5</code>), you <strong>MUST</strong> open{' '}
+                    <a
+                      href="https://elevenlabs.io"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--primary)', textDecoration: 'underline' }}
+                    >
+                      elevenlabs.io
+                    </a>
+                    , search the voice and click <strong>&quot;Add to Voice Lab&quot;</strong> in your account first.
+                    Without adding it to your account, ElevenLabs returns <code>voice_id_does_not_exist</code>.<br />
+                    <em>Pre-made voices above (Rachel, Adam, etc.) work immediately without adding to Voice Lab. If ElevenLabs ever fails, Artha now automatically falls back to Sarvam TTS so test and phone calls never crash.</em>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -67,7 +67,12 @@ export class ElevenTts extends EventEmitter implements TtsStream {
     ws.on('unexpected-response', (_req, res) => {
       if (ws !== this.ws) return;
       this.closed = true;
-      const errMsg = `ElevenLabs text-to-speech refused the connection (HTTP ${res.statusCode}). Check the voice id, model and output format.`;
+      let errMsg = `ElevenLabs text-to-speech refused the connection (HTTP ${res.statusCode}). Check the voice id, model and output format.`;
+      if (res.statusCode === 404) {
+        errMsg = `ElevenLabs text-to-speech: Voice ID "${this.options.voiceId}" was not found (HTTP 404). If this is a Community Library voice, add it to your Voice Lab on elevenlabs.io.`;
+      } else if (res.statusCode === 401) {
+        errMsg = `ElevenLabs text-to-speech: Unauthorized (HTTP 401). Please check your ELEVENLABS_API_KEY.`;
+      }
       aiCallingLog.error('tts', errMsg, {
         details: { statusCode: res.statusCode, voiceId: this.options.voiceId, model: this.options.model },
       });
@@ -102,9 +107,13 @@ export class ElevenTts extends EventEmitter implements TtsStream {
       return;
     }
     if (msg.error || (msg.message && !msg.audio)) {
-      const errText = `ElevenLabs text-to-speech: ${msg.error ?? msg.message}`;
+      const rawError = msg.error ?? msg.message ?? 'unknown';
+      let errText = `ElevenLabs text-to-speech: ${rawError}`;
+      if (rawError === 'voice_id_does_not_exist') {
+        errText = `ElevenLabs text-to-speech: Voice ID "${this.options.voiceId}" does not exist in your account. (Community library voices must first be added to your account's Voice Lab at elevenlabs.io).`;
+      }
       aiCallingLog.error('tts', errText, {
-        details: { error: msg.error ?? msg.message, voiceId: this.options.voiceId },
+        details: { error: rawError, voiceId: this.options.voiceId },
       });
       this.emit('error', new Error(errText));
       return;

@@ -326,8 +326,9 @@ export class AiCallingLogService {
               name: 'Text-to-Speech (ElevenLabs)',
               subsystem: 'tts',
               status: 'error',
-              message: `ElevenLabs voice ID "${voiceId}" not found (HTTP 404).`,
+              message: `ElevenLabs voice ID "${voiceId}" not found (HTTP 404). If this is a Community Library voice, you must click "Add to Voice Lab" on elevenlabs.io first.`,
               latencyMs: latency,
+              details: { voiceId, tip: 'Visit elevenlabs.io, open Voice Lab, and add this voice to your account.' },
             });
           } else {
             items.push({

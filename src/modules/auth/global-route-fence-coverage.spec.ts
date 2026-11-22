@@ -195,6 +195,7 @@ const ALLOWLIST = new Map<string, string>([
   ['ai-calling.controller.ts :: setup', 'server-wide readiness flags only (no secrets, no tenant data)'],
   ['ai-calling.controller.ts :: setPublicUrl', 'server-wide tunnel URL; ADMIN role only'],
   ['ai-calling.controller.ts :: providers', 'server-wide speech/language providers config; ADMIN role only'],
+  ['ai-calling.controller.ts :: elevenLabsVoices', 'lists voices from configured ElevenLabs account; ADMIN role only'],
   ['ai-calling.controller.ts :: saveProviders', 'server-wide speech/language providers config; ADMIN role only'],
   ['ai-calling.controller.ts :: saveSecret', 'server-wide speech/language provider secret; ADMIN role only'],
   ['ai-calling.controller.ts :: stats', 'business-scoped via businessId(apiKey) — AiCallingController'],
