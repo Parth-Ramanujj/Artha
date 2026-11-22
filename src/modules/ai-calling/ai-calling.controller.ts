@@ -28,6 +28,7 @@ import { AiCallingService } from './ai-calling.service';
 import { CallOutcomeService } from './call-outcome.service';
 import { CallRunnerService } from './call-runner.service';
 import { DialerService } from './dialer.service';
+import { serverOriginFor } from '../integrations/google/google.controller';
 import { ProviderSettingsService } from './provider-settings.service';
 import { SECRET_NAMES, type SecretName } from './provider-settings';
 import { parseContactsFile } from './contacts';
@@ -62,9 +63,12 @@ export class AiCallingController {
   }
 
   @Get('setup')
-  @ApiOperation({ summary: 'Which keys, Twilio and tunnel settings are ready for AI calls' })
-  setup() {
-    return this.calling.setupStatus();
+  @ApiOperation({ summary: 'Which keys, Twilio and public address settings are ready for AI calls' })
+  async setup(@Req() req: express.Request) {
+    const status = await this.calling.setupStatus();
+    // This server is usually already public (e.g. on Render): offer its own https address as the default.
+    const origin = serverOriginFor(req);
+    return { ...status, suggestedPublicUrl: /^https:\/\//.test(origin) ? origin : null };
   }
 
   @Put('public-url')
@@ -98,7 +102,10 @@ export class AiCallingController {
   async saveSecret(@Param('name') name: string, @Body() body: { value?: string | null }) {
     if (!(SECRET_NAMES as readonly string[]).includes(name)) throw new BadRequestException('Unknown key name');
     await this.providerSettings.saveSecret(name as SecretName, body?.value ?? null);
-    return { secrets: await this.providerSettings.secretStatus() };
+    return {
+      config: await this.providerSettings.config(),
+      secrets: await this.providerSettings.secretStatus(),
+    };
   }
 
   @Get('stats')

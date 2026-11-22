@@ -126,7 +126,7 @@ export function AiCalling() {
       ) : setup ? (
         <>
           <SetupPanel setup={setup} onChanged={loadMeta} />
-          <ProvidersPanel />
+          <ProvidersPanel onChanged={loadMeta} />
         </>
       ) : (
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>

@@ -63,13 +63,24 @@ export class ElevenTts extends EventEmitter implements TtsStream {
       if (ws !== this.ws) return; // a socket replaced by reset() or close()
       this.onMessage(wsText(raw));
     });
+    ws.on('unexpected-response', (_req, res) => {
+      if (ws !== this.ws) return;
+      this.closed = true;
+      this.emit(
+        'error',
+        new Error(
+          `ElevenLabs text-to-speech refused the connection (HTTP ${res.statusCode}). Check the voice id, model and output format.`,
+        ),
+      );
+    });
     ws.on('error', err => {
       if (ws === this.ws && !this.closed) this.emit('error', err instanceof Error ? err : new Error(String(err)));
     });
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
       if (ws !== this.ws || this.closed) return;
       this.open = false;
-      this.emit('error', new Error('ElevenLabs text-to-speech connection closed'));
+      const detail = reason && reason.length > 0 ? reason.toString('utf8') : `code ${code}`;
+      this.emit('error', new Error(`ElevenLabs text-to-speech connection closed (${detail})`));
     });
   }
 
@@ -80,13 +91,18 @@ export class ElevenTts extends EventEmitter implements TtsStream {
     } catch {
       return;
     }
-    if (msg.error || msg.message) {
+    if (msg.error || (msg.message && !msg.audio)) {
       this.emit('error', new Error(`ElevenLabs text-to-speech: ${msg.error ?? msg.message}`));
       return;
     }
     if (msg.audio) {
       this.emit('audio', Buffer.from(msg.audio, 'base64'));
       this.armSpoken();
+    }
+    if (msg.isFinal) {
+      if (this.quiet) clearTimeout(this.quiet);
+      this.awaiting = 0;
+      this.emit('spoken');
     }
   }
 
@@ -110,7 +126,6 @@ export class ElevenTts extends EventEmitter implements TtsStream {
     this.awaiting++;
     if (this.open) this.sendText(clean);
     else this.queued.push(clean);
-    this.armSpoken();
   }
 
   setStyle(style: VoiceStyle): void {

@@ -33,7 +33,7 @@ const STATE_TEXT: Record<'saved' | 'environment' | 'missing', string> = {
  * Which engine does each part of an AI call, and the API keys. Changes apply to the next call, no redeploy.
  * Keys are write-only: the page shows only whether each one is set.
  */
-export function ProvidersPanel() {
+export function ProvidersPanel({ onChanged }: { onChanged?: () => void } = {}) {
   const toast = useToast();
   const [state, setState] = useState<AiProvidersState | null>(null);
   const [draft, setDraft] = useState<AiProviderConfig | null>(null);
@@ -72,6 +72,7 @@ export function ProvidersPanel() {
       setState(next);
       setDraft(next.config);
       toast.addToast({ type: 'success', title: 'Engine choices saved. The next call uses them.' });
+      onChanged?.();
     } catch (err) {
       toast.addToast({ type: 'error', title: errorText(err, 'Save failed') });
     } finally {
@@ -83,9 +84,10 @@ export function ProvidersPanel() {
     setBusy(name);
     try {
       const next = await aiCallingApi.saveSecret(name, value);
-      setState(next);
+      setState(prev => (prev ? { ...prev, ...next } : next));
       setKeyDrafts(d => ({ ...d, [name]: '' }));
       toast.addToast({ type: 'success', title: value ? 'Key saved' : 'Saved key removed' });
+      onChanged?.();
     } catch (err) {
       toast.addToast({ type: 'error', title: errorText(err, 'Could not save the key') });
     } finally {

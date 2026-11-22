@@ -77,6 +77,8 @@ export function sanitizeProviders(input: Partial<Record<keyof ProviderConfig, un
     }
     if (typeof value === 'string') (out as unknown as Record<string, unknown>)[key] = value.trim().slice(0, 500);
   }
+  if (!out.elevenOutputFormat) out.elevenOutputFormat = DEFAULT_PROVIDERS.elevenOutputFormat;
+  if (!out.elevenModel) out.elevenModel = DEFAULT_PROVIDERS.elevenModel;
   return out;
 }
 

@@ -27,11 +27,14 @@ export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): Spee
     tts(options: TtsOptions) {
       const engine = ttsProviderFor(config, options.languageCode);
       if (engine === 'elevenlabs' && keys.elevenlabs && config.elevenVoiceId) {
-        return elevenTts(options, {
-          voiceId: config.elevenVoiceId,
-          model: config.elevenModel,
-          outputFormat: config.elevenOutputFormat,
-        });
+        return elevenTts(
+          { ...options, apiKey: keys.elevenlabs },
+          {
+            voiceId: config.elevenVoiceId,
+            model: config.elevenModel || 'eleven_multilingual_v2',
+            outputFormat: config.elevenOutputFormat || 'ulaw_8000',
+          },
+        );
       }
       if (engine === 'elevenlabs') {
         log.warn(`ElevenLabs chosen for ${options.languageCode} but the key or voice id is missing; using Sarvam`);
@@ -55,11 +58,16 @@ export async function* openAiCompatibleStream(
   messages: ChatTurn[],
   options: { maxTokens?: number; temperature?: number; signal?: AbortSignal } = {},
 ): AsyncGenerator<string> {
-  const response = await fetch(`${endpoint.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+  let url = endpoint.baseUrl.trim().replace(/\/+$/, '');
+  if (!url.endsWith('/chat/completions')) {
+    url = `${url}/chat/completions`;
+  }
+  const model = endpoint.model || (url.includes('openai.com') ? 'gpt-4o-mini' : 'llama-3.3-70b-versatile');
+  const response = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${endpoint.apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: endpoint.model,
+      model,
       messages,
       stream: true,
       max_tokens: options.maxTokens ?? 400,

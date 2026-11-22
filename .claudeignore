@@ -60,3 +60,7 @@ credentials.json
 logs/
 coverage/
 .nyc_output/
+
+# Subprojects
+padosi_agent_aws-main/
+

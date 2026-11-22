@@ -30,7 +30,7 @@ import WebSocket from 'ws';
 import { DeepgramStt } from './deepgram-stt';
 import { ElevenTts } from './elevenlabs-tts';
 import { DEFAULT_PROVIDERS, sanitizeProviders, ttsProviderFor } from './provider-settings';
-import { openAiCompatibleStream } from './speech-router';
+import { openAiCompatibleStream, speechFactoryFor } from './speech-router';
 
 type Fake = EventEmitter & { url: string; options?: unknown; sent: unknown[]; readyState: number; closed: boolean };
 const sockets = () => (WebSocket as unknown as { created: Fake[] }).created;
@@ -166,6 +166,50 @@ describe('ElevenLabs text-to-speech', () => {
     expect(old.closed).toBe(true);
     old.emit('message', JSON.stringify({ audio: 'AAE=' }));
     expect(audio).toHaveLength(0);
+  });
+
+  it('reports spoken immediately when isFinal message arrives', () => {
+    const tts = open(
+      new ElevenTts({ apiKey: 'xi', voiceId: 'v1', model: 'm', outputFormat: 'ulaw_8000', languageCode: 'hi-IN' }),
+    );
+    let spoken = 0;
+    tts.on('spoken', () => spoken++);
+    tts.say('ek');
+    last().emit('message', JSON.stringify({ isFinal: true }));
+    expect(spoken).toBe(1);
+  });
+});
+
+describe('speechFactoryFor router', () => {
+  beforeEach(() => {
+    sockets().length = 0;
+  });
+
+  it('passes elevenlabs API key to ElevenTts, not sarvam key', () => {
+    const factory = speechFactoryFor(
+      {
+        ...DEFAULT_PROVIDERS,
+        ttsGujarati: 'elevenlabs',
+        elevenVoiceId: 'voice_123',
+        elevenModel: 'eleven_v4_turbo',
+      },
+      {
+        sarvam: 'sarvam-key-secret',
+        deepgram: null,
+        elevenlabs: 'xi-api-key-real',
+      },
+    );
+    factory.tts({
+      languageCode: 'gu-IN',
+      speaker: 'pari',
+      pace: 1,
+      style: 'friendly',
+      apiKey: 'sarvam-key-secret',
+    });
+    expect(last().options).toMatchObject({ headers: { 'xi-api-key': 'xi-api-key-real' } });
+    expect(last().url).toContain('voice_123');
+    expect(last().url).toContain('eleven_v4_turbo');
+    expect(last().url).toContain('ulaw_8000');
   });
 });
 

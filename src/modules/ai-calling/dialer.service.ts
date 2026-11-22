@@ -155,7 +155,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     const missing = !telephony
       ? 'Waiting: phone calls are not configured (Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)'
       : !publicUrl
-        ? 'Waiting: set the public https address (tunnel) in AI Calling setup'
+        ? 'Waiting: save the public https address of this server in AI Calling setup, then queued calls start'
         : null;
 
     const active = new Map<string, number>();

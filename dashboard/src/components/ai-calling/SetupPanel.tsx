@@ -111,11 +111,11 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
   const { t } = useTranslation();
   const toast = useToast();
   const { isAdmin } = useRole();
-  const [url, setUrl] = useState(setup.publicUrl ?? '');
+  const [url, setUrl] = useState(setup.publicUrl ?? setup.suggestedPublicUrl ?? '');
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(!setup.readyForPhoneCalls);
 
-  useEffect(() => setUrl(setup.publicUrl ?? ''), [setup.publicUrl]);
+  useEffect(() => setUrl(setup.publicUrl ?? setup.suggestedPublicUrl ?? ''), [setup.publicUrl, setup.suggestedPublicUrl]);
   useEffect(() => {
     if (!setup.readyForPhoneCalls) setOpen(true);
   }, [setup.readyForPhoneCalls]);
@@ -276,6 +276,11 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
           aria-label={t('aiCalling.setup.urlLabel')}
           readOnly={!isAdmin}
         />
+        {!setup.publicUrl && setup.suggestedPublicUrl && (
+          <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            This server&apos;s address is filled in. Press Save to use it for calls.
+          </span>
+        )}
         {isAdmin ? (
           <button className="btn-secondary" onClick={() => void save()} disabled={saving}>
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {t('aiCalling.save')}

@@ -66,3 +66,7 @@ temp/
 
 # Debug
 .pnpm-debug.log*
+
+# Subprojects
+padosi_agent_aws-main/
+

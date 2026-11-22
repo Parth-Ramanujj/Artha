@@ -38,7 +38,8 @@ export class DeepgramStt extends EventEmitter implements SttStream {
       encoding: 'mulaw',
       sample_rate: '8000',
       channels: '1',
-      interim_results: 'false',
+      // utterance_end_ms is only accepted together with interim_results (Deepgram answers 400 otherwise).
+      interim_results: 'true',
       vad_events: 'true',
       endpointing: String(this.options.silenceMs ?? 500),
       utterance_end_ms: '1000',
@@ -98,6 +99,7 @@ export class DeepgramStt extends EventEmitter implements SttStream {
       case 'Results': {
         const alt = msg.channel?.alternatives?.[0];
         const text = (alt?.transcript ?? '').trim();
+        // Interim (not final) results are ignored: only final text goes to the conversation.
         if (text && msg.is_final) this.parts.push(text);
         if (msg.speech_final) {
           this.flush(alt?.confidence);

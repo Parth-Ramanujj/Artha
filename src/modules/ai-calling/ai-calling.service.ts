@@ -76,7 +76,9 @@ export class AiCallingService {
   async setPublicUrl(url: string): Promise<string | null> {
     const clean = url.trim().replace(/\/+$/, '');
     if (clean && !/^https:\/\/[^\s/]+$/i.test(clean)) {
-      throw new BadRequestException('Use the https address of your tunnel, e.g. https://abc.trycloudflare.com');
+      throw new BadRequestException(
+        'Use the public https address of this server, e.g. https://your-app.onrender.com (or a tunnel address when running locally)',
+      );
     }
     await this.settingRepo.save({ key: PUBLIC_URL_SETTING, value: clean });
     return clean || null;
@@ -85,9 +87,28 @@ export class AiCallingService {
   async setupStatus(): Promise<SetupStatus> {
     const twilio = await this.twilioConfig();
     const publicUrl = await this.getPublicUrl();
+    const resolved = await this.providers.resolve();
+    const sarvamKey = Boolean(resolved.secrets.SARVAM_API_KEY || process.env.SARVAM_API_KEY?.trim());
+    const deepgramKey = Boolean(resolved.secrets.DEEPGRAM_API_KEY || process.env.DEEPGRAM_API_KEY?.trim());
+    const elevenKey = Boolean(
+      (resolved.secrets.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY?.trim()) && resolved.config.elevenVoiceId,
+    );
+    const hasGroqEnv = Object.keys(process.env).some(k => /^GROQ_API_KEY(_\d+)?$/.test(k) && process.env[k]?.trim());
+    const groqKey =
+      hasGroqEnv ||
+      Boolean(
+        resolved.config.llm === 'openai-compatible' && resolved.secrets.LLM_API_KEY && resolved.config.llmBaseUrl,
+      );
+
+    const sttReady = resolved.config.stt === 'deepgram' ? deepgramKey : sarvamKey;
+    const ttsReady =
+      (resolved.config.ttsGujarati === 'elevenlabs' ? elevenKey : sarvamKey) &&
+      (resolved.config.ttsHindi === 'elevenlabs' ? elevenKey : sarvamKey);
+    const speechReady = sttReady && ttsReady;
+
     const status: SetupStatus = {
-      sarvamKey: Boolean(process.env.SARVAM_API_KEY?.trim()),
-      groqKey: Object.keys(process.env).some(k => /^GROQ_API_KEY(_\d+)?$/.test(k) && process.env[k]?.trim()),
+      sarvamKey: Boolean(sarvamKey || speechReady),
+      groqKey: Boolean(groqKey),
       twilioConfigured: Boolean(twilio),
       twilioAccountType: null,
       twilioNumberOwned: null,

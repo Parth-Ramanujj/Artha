@@ -1708,6 +1708,8 @@ export interface AiCallBatch {
 }
 
 export interface AiCallingSetup {
+  /** This server's own https address, offered when no public address is saved yet. */
+  suggestedPublicUrl?: string | null;
   sarvamKey: boolean;
   groqKey: boolean;
   twilioConfigured: boolean;

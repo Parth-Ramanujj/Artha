@@ -83,18 +83,37 @@ export class CallRunnerService {
     const call = await this.callRepo.findOne({ where: { id: callId } });
     const startable = [AiCallStatus.DIALING, AiCallStatus.RINGING, AiCallStatus.IN_PROGRESS];
     if (!call || call.channel !== expectedChannel || !startable.includes(call.status)) {
+      logger.warn(
+        `Call ${callId} not started: ${!call ? 'not found' : `channel ${call.channel} / status ${call.status}`}`,
+      );
       transport.hangup();
       return false;
     }
     const agent = await this.agentRepo.findOne({ where: { id: call.agentId } });
     const resolved = this.providers ? await this.providers.resolve() : null;
     const sarvamApiKey = resolved ? resolved.secrets.SARVAM_API_KEY : (process.env.SARVAM_API_KEY?.trim() ?? null);
-    if (!agent || !sarvamApiKey || !this.ai) {
+
+    const needsSarvamStt = !resolved || resolved.config.stt === 'sarvam' || !resolved.secrets.DEEPGRAM_API_KEY;
+    const needsSarvamTts =
+      !resolved ||
+      !resolved.secrets.ELEVENLABS_API_KEY ||
+      !resolved.config.elevenVoiceId ||
+      resolved.config.ttsGujarati === 'sarvam' ||
+      resolved.config.ttsHindi === 'sarvam';
+    const missingSpeechKey =
+      (needsSarvamStt || needsSarvamTts) && !sarvamApiKey
+        ? 'SARVAM_API_KEY is not set (Sarvam is needed for Gujarati/Hindi voice or speech-to-text)'
+        : resolved?.config.stt === 'deepgram' && !resolved.secrets.DEEPGRAM_API_KEY && !sarvamApiKey
+          ? 'DEEPGRAM_API_KEY is not set'
+          : null;
+
+    if (!agent || missingSpeechKey || !this.ai) {
+      logger.warn(
+        `Call ${callId} failed to start: ${missingSpeechKey ?? (agent ? 'AI service missing' : 'calling agent missing')}`,
+      );
       await this.callRepo.update(call.id, {
         status: AiCallStatus.FAILED,
-        error: !sarvamApiKey
-          ? 'SARVAM_API_KEY is not set (Sarvam is the default speech engine)'
-          : 'Calling agent missing',
+        error: missingSpeechKey ?? (!agent ? 'Calling agent missing' : 'AI service unavailable'),
         endedAt: new Date(),
       });
       transport.hangup();
@@ -129,7 +148,7 @@ export class CallRunnerService {
       contactName: call.contactName,
       greeting: call.greeting,
       briefing: call.briefing,
-      sarvamApiKey,
+      sarvamApiKey: sarvamApiKey ?? '',
       speech,
       reply: (messages: ChatMessage[], signal: AbortSignal) =>
         llmEndpoint
@@ -143,6 +162,7 @@ export class CallRunnerService {
             }),
     });
     this.live.set(call.id, session);
+    logger.log(`AI call ${call.id} started (${expectedChannel})`);
 
     let saveTimer: NodeJS.Timeout | undefined;
     session.on('turn', () => {
@@ -153,6 +173,7 @@ export class CallRunnerService {
       }, TRANSCRIPT_SAVE_MS);
     });
     session.on('ended', (result: CallSessionResult) => {
+      logger.log(`AI call ${call.id} ended: ${result.reason}${result.error ? ` (${result.error})` : ''}`);
       if (saveTimer) clearTimeout(saveTimer);
       // Stays "live" until saved, so a late Twilio callback cannot overwrite the real result.
       const saved = this.complete(call.id, answeredAt, result).finally(() => {
