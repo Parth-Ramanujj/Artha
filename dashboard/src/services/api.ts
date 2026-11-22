@@ -1740,7 +1740,14 @@ export interface AiProviderConfig {
   llmModel: string;
 }
 
-export type AiSecretName = 'SARVAM_API_KEY' | 'DEEPGRAM_API_KEY' | 'ELEVENLABS_API_KEY' | 'LLM_API_KEY';
+export type AiSecretName =
+  | 'SARVAM_API_KEY'
+  | 'DEEPGRAM_API_KEY'
+  | 'ELEVENLABS_API_KEY'
+  | 'LLM_API_KEY'
+  | 'TWILIO_ACCOUNT_SID'
+  | 'TWILIO_AUTH_TOKEN'
+  | 'TWILIO_PHONE_NUMBER';
 
 export interface AiProvidersState {
   config: AiProviderConfig;

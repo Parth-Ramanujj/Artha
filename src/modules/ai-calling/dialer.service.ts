@@ -9,7 +9,7 @@ import { CallRunnerService } from './call-runner.service';
 import { CallOutcomeService } from './call-outcome.service';
 import { streamTwiml } from './twilio.client';
 import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
-import { telephonyFromEnv } from './telephony';
+import { telephonyFrom } from './telephony';
 import { createLogger } from '../../common/services/logger.service';
 
 const TICK_MS = 5000;
@@ -150,7 +150,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       await this.completeFinishedBatches();
       return 0;
     }
-    const telephony = telephonyFromEnv();
+    const telephony = telephonyFrom(await this.calling.twilioConfig());
     const publicUrl = await this.calling.getPublicUrl();
     const missing = !telephony
       ? 'Waiting: phone calls are not configured (Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)'
@@ -283,7 +283,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
    * "dialing" and block the agent's line; ask Twilio for the real status of calls that went quiet.
    */
   private async reconcileWithTwilio(now: Date): Promise<void> {
-    const telephony = telephonyFromEnv();
+    const telephony = telephonyFrom(await this.calling.twilioConfig());
     if (!telephony) return;
     const open = await this.callRepo.find({
       where: { status: In(ACTIVE_CALL_STATUSES), channel: 'phone', twilioCallSid: Not(IsNull()) },

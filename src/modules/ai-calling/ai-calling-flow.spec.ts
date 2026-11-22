@@ -1,3 +1,4 @@
+import { ProviderSettingsService } from './provider-settings.service';
 import { createServer, Server } from 'http';
 import { AddressInfo } from 'net';
 import { EventEmitter } from 'events';
@@ -76,6 +77,7 @@ describe('AI calling flow (SQLite)', () => {
       repo(AiCallingSetting),
       repo(Conversation),
       repo(ContactConsent),
+      new ProviderSettingsService(repo(AiCallingSetting)),
     );
     ai = {
       complete: jest.fn().mockResolvedValue({
@@ -419,7 +421,7 @@ describe('AI calling flow (SQLite)', () => {
 
   it('runs a whole browser test call over a real websocket and never creates a lead', async () => {
     const server: Server = createServer();
-    const gateway = new MediaGatewayService({ httpAdapter: { getHttpServer: () => server } } as never, runner);
+    const gateway = new MediaGatewayService({ httpAdapter: { getHttpServer: () => server } } as never, runner, calling);
     gateway.onApplicationBootstrap();
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as AddressInfo).port;

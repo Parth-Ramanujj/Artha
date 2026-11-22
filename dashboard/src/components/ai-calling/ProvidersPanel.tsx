@@ -14,6 +14,9 @@ const KEYS: { name: AiSecretName; label: string }[] = [
   { name: 'DEEPGRAM_API_KEY', label: 'Deepgram (speech-to-text)' },
   { name: 'ELEVENLABS_API_KEY', label: 'ElevenLabs (text-to-speech)' },
   { name: 'LLM_API_KEY', label: 'Your LLM provider (OpenAI-compatible)' },
+  { name: 'TWILIO_ACCOUNT_SID', label: 'Twilio Account SID (starts with AC)' },
+  { name: 'TWILIO_AUTH_TOKEN', label: 'Twilio Auth Token' },
+  { name: 'TWILIO_PHONE_NUMBER', label: 'Twilio phone number (with +country code, e.g. +15551234567)' },
 ];
 
 const field: CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' };
@@ -175,7 +178,7 @@ export function ProvidersPanel() {
       </div>
 
       <div style={{ display: 'grid', gap: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>API keys</h4>
+        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>API keys and phone account</h4>
         {KEYS.map(k => (
           <div key={k.name} style={{ display: 'grid', gap: 4 }}>
             <label style={label}>
@@ -207,7 +210,7 @@ export function ProvidersPanel() {
         ))}
         <p style={help}>
           Keys are encrypted with the server&apos;s GOOGLE_TOKEN_ENCRYPTION_KEY. If that key is missing, saving a key
-          fails with a clear message.
+          fails with a clear message. Twilio values are used for calls right after you save them: no redeploy needed.
         </p>
       </div>
     </div>

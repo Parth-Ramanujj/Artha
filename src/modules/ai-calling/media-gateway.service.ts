@@ -5,12 +5,12 @@ import type { Duplex } from 'stream';
 import { WebSocketServer } from 'ws';
 import { CallRunnerService } from './call-runner.service';
 import { BrowserTransport, TwilioTransport } from './transports';
-import { TwilioClient, twilioConfigFromEnv } from './twilio.client';
+import { TwilioClient, type TwilioConfig } from './twilio.client';
+import { AiCallingService } from './ai-calling.service';
 import { createLogger } from '../../common/services/logger.service';
 
 /** Ends a Twilio call through the API, so the TwiML after <Connect> (the failure message) does not play. */
-async function endTwilioCall(callSid: string): Promise<void> {
-  const config = twilioConfigFromEnv();
+async function endTwilioCall(config: TwilioConfig | null, callSid: string): Promise<void> {
   if (config) await new TwilioClient(config).hangup(callSid);
 }
 
@@ -32,6 +32,7 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
   constructor(
     private readonly adapterHost: HttpAdapterHost,
     private readonly runner: CallRunnerService,
+    private readonly calling: AiCallingService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -47,6 +48,10 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
     this.wss.close();
   }
 
+  private async hangupTwilio(callSid: string): Promise<void> {
+    await endTwilioCall(await this.calling.twilioConfig(), callSid);
+  }
+
   private handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const path = (req.url ?? '').split('?')[0].replace(/\/+$/, '');
     if (!path.startsWith('/socket.io')) {
@@ -57,7 +62,7 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
     if (path !== TWILIO_STREAM_PATH && path !== BROWSER_STREAM_PATH) return; // socket.io and others handle theirs
     this.wss.handleUpgrade(req, socket, head, ws => {
       const browser = path === BROWSER_STREAM_PATH;
-      const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws, endTwilioCall);
+      const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws, sid => this.hangupTwilio(sid));
       this.logger.log(`${browser ? 'Browser' : 'Twilio'} audio websocket opened`);
       let started = false;
       ws.once('close', code => {

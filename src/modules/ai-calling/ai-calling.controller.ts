@@ -31,7 +31,7 @@ import { DialerService } from './dialer.service';
 import { ProviderSettingsService } from './provider-settings.service';
 import { SECRET_NAMES, type SecretName } from './provider-settings';
 import { parseContactsFile } from './contacts';
-import { isValidTwilioSignature, twilioConfigFromEnv } from './twilio.client';
+import { isValidTwilioSignature } from './twilio.client';
 import { BROWSER_STREAM_PATH } from './media-gateway.service';
 import {
   BatchActionDto,
@@ -254,7 +254,7 @@ export class AiCallingTwilioController {
 
   /** Every Twilio request carries an HMAC of the exact URL it called; reject anything else. */
   private async assertFromTwilio(body: Record<string, string>, req: express.Request, what: string): Promise<void> {
-    const twilio = twilioConfigFromEnv();
+    const twilio = await this.calling.twilioConfig();
     const publicUrl = await this.calling.getPublicUrl();
     const signature = req.headers['x-twilio-signature'];
     if (!publicUrl) {

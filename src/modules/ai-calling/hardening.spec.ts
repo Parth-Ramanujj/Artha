@@ -1,8 +1,8 @@
 import { CallTokens } from './transports';
 import { CallRunnerService } from './call-runner.service';
-import { telephonyFromEnv } from './telephony';
+import { telephonyFrom } from './telephony';
 import { TelephonyApiError } from './telephony-types';
-import { TwilioApiError, TwilioClient } from './twilio.client';
+import { TwilioApiError, TwilioClient, twilioConfigFromEnv } from './twilio.client';
 import type { SpeechFactory } from './sarvam';
 
 describe('stream keys survive restarts when a shared secret is set', () => {
@@ -41,13 +41,13 @@ describe('telephony seam', () => {
       TWILIO_AUTH_TOKEN: 'tok',
       TWILIO_PHONE_NUMBER: '+15551234567',
     } as NodeJS.ProcessEnv;
-    const provider = telephonyFromEnv(env);
+    const provider = telephonyFrom(twilioConfigFromEnv(env));
     expect(provider).toBeInstanceOf(TwilioClient);
     expect(provider?.name).toBe('twilio');
   });
 
   it('no provider without Twilio env', () => {
-    expect(telephonyFromEnv({})).toBeNull();
+    expect(telephonyFrom(twilioConfigFromEnv({}))).toBeNull();
   });
 });
 

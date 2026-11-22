@@ -33,7 +33,15 @@ export const DEFAULT_PROVIDERS: ProviderConfig = {
 };
 
 /** Secrets are encrypted at rest and never returned by the API. */
-export const SECRET_NAMES = ['SARVAM_API_KEY', 'DEEPGRAM_API_KEY', 'ELEVENLABS_API_KEY', 'LLM_API_KEY'] as const;
+export const SECRET_NAMES = [
+  'SARVAM_API_KEY',
+  'DEEPGRAM_API_KEY',
+  'ELEVENLABS_API_KEY',
+  'LLM_API_KEY',
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_PHONE_NUMBER',
+] as const;
 export type SecretName = (typeof SECRET_NAMES)[number];
 
 /** Environment fallback for each secret, so existing Render env vars keep working. */
@@ -42,6 +50,9 @@ export const SECRET_ENV: Record<SecretName, string> = {
   DEEPGRAM_API_KEY: 'DEEPGRAM_API_KEY',
   ELEVENLABS_API_KEY: 'ELEVENLABS_API_KEY',
   LLM_API_KEY: 'LLM_API_KEY',
+  TWILIO_ACCOUNT_SID: 'TWILIO_ACCOUNT_SID',
+  TWILIO_AUTH_TOKEN: 'TWILIO_AUTH_TOKEN',
+  TWILIO_PHONE_NUMBER: 'TWILIO_PHONE_NUMBER',
 };
 
 const ENUMS: Record<'stt' | 'ttsGujarati' | 'ttsHindi' | 'ttsEnglish' | 'llm', readonly string[]> = {

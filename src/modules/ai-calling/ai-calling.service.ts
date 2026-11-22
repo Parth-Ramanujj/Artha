@@ -10,7 +10,8 @@ import { ContactConsent, ConsentStatus } from '../campaign/entities/contact-cons
 import { hasDndTag } from '../conversation/dnd';
 import { DEFAULT_AGENT } from './call-brain';
 import { CallContact, chatIdFor, toE164 } from './contacts';
-import { TwilioClient, twilioConfigFromEnv } from './twilio.client';
+import { TwilioClient, type TwilioConfig } from './twilio.client';
+import { ProviderSettingsService } from './provider-settings.service';
 import { createLogger } from '../../common/services/logger.service';
 
 export const PUBLIC_URL_SETTING = 'publicUrl';
@@ -56,7 +57,13 @@ export class AiCallingService {
     @InjectRepository(AiCallingSetting, 'data') private readonly settingRepo: Repository<AiCallingSetting>,
     @InjectRepository(Conversation, 'data') private readonly conversationRepo: Repository<Conversation>,
     @InjectRepository(ContactConsent, 'data') private readonly consentRepo: Repository<ContactConsent>,
+    private readonly providers: ProviderSettingsService,
   ) {}
+
+  /** Twilio credentials from the saved settings (environment as fallback). */
+  async twilioConfig(): Promise<TwilioConfig | null> {
+    return this.providers.twilio();
+  }
 
   // ── settings ──
 
@@ -76,7 +83,7 @@ export class AiCallingService {
   }
 
   async setupStatus(): Promise<SetupStatus> {
-    const twilio = twilioConfigFromEnv();
+    const twilio = await this.twilioConfig();
     const publicUrl = await this.getPublicUrl();
     const status: SetupStatus = {
       sarvamKey: Boolean(process.env.SARVAM_API_KEY?.trim()),
