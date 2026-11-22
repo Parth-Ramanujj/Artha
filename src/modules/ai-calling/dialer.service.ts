@@ -333,7 +333,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     const call = callId ? await this.callRepo.findOne({ where: { id: callId } }) : null;
     const publicUrl = await this.calling.getPublicUrl();
     if (!call || !publicUrl || call.channel !== 'phone' || !ACTIVE_CALL_STATUSES.includes(call.status)) return hangup;
-    const host = publicUrl.replace(/^https:\/\//i, '');
+    const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     this.connecting.add(call.id);
     this.logger.log(`Connecting answered call ${call.id} to the AI agent`);
     // Twilio reports stream start, stop and errors (e.g. it could not reach the websocket) here.
