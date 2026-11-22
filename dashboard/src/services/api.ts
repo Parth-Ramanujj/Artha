@@ -2403,9 +2403,17 @@ export interface WalletOverview {
   blockWhenEmpty: boolean;
   lowBalanceAlertPaise: number;
   ratesPaise: WalletRates;
+  /** From the fromMessages-th paid message of the month (UTC), messages cost discountPercent less. */
+  volumeTiers: VolumeTier[];
+  monthPaidMessages: number;
   razorpay: { configured: boolean; keyId: string | null };
   limits: { minRechargeInr: number; maxRechargeInr: number };
   isPlatformAdmin: boolean;
+}
+
+export interface VolumeTier {
+  fromMessages: number;
+  discountPercent: number;
 }
 
 export interface WalletTx {
@@ -2468,6 +2476,77 @@ export const walletApi = {
     }),
   adminSetRates: (rates: WalletRates) =>
     request<WalletRates>('/wallet/admin/rates', { method: 'PUT', body: JSON.stringify(rates) }),
+  adminSetVolumeTiers: (tiers: VolumeTier[]) =>
+    request<VolumeTier[]>('/wallet/admin/volume-tiers', { method: 'PUT', body: JSON.stringify({ tiers }) }),
+};
+
+export interface ShopifyStoreInfo {
+  shopDomain: string;
+  clientId: string;
+  shopName: string;
+  currency: string;
+  status: 'connected' | 'error';
+  lastError: string | null;
+  productsSynced: number;
+  lastSyncAt: string | null;
+  webhooks: Record<string, string> | null;
+  recoveryEnabled: boolean;
+  recoveryDelayMinutes: number;
+  discountCode: string;
+  messageTemplate: string;
+  sessionId: string | null;
+  defaultCountryCode: string;
+}
+
+export interface ShopifyCheckoutRow {
+  id: string;
+  token: string;
+  phone: string | null;
+  firstName: string | null;
+  totalPrice: number;
+  currency: string;
+  status: 'waiting' | 'sent' | 'recovered' | 'purchased' | 'skipped' | 'failed';
+  sendAt: string | null;
+  sentAt: string | null;
+  orderTotal: number;
+  error: string | null;
+  updatedAt: string;
+}
+
+export type ShopifyOverview =
+  | { connected: false; webhookUrl: string | null; defaultTemplate: string }
+  | {
+      connected: true;
+      webhookUrl: string | null;
+      defaultTemplate: string;
+      store: ShopifyStoreInfo;
+      stats: { abandoned: number; waiting: number; sent: number; recovered: number; recoveredRevenue: number; failed: number };
+      recent: ShopifyCheckoutRow[];
+    };
+
+export interface ShopifyRecoveryInput {
+  enabled?: boolean;
+  delayMinutes?: number;
+  discountCode?: string;
+  messageTemplate?: string;
+  sessionId?: string;
+  defaultCountryCode?: string;
+}
+
+export const shopifyApi = {
+  overview: () => request<ShopifyOverview>('/commerce/shopify'),
+  connect: (input: { shopDomain: string; clientId: string; clientSecret?: string; accessToken?: string }) =>
+    request<ShopifyOverview>('/commerce/shopify/connect', { method: 'POST', body: JSON.stringify(input) }),
+  disconnect: () => request<{ success: boolean }>('/commerce/shopify', { method: 'DELETE' }),
+  sync: () =>
+    request<{ synced: number; archived: number; complete: boolean }>('/commerce/shopify/sync', { method: 'POST' }),
+  saveRecovery: (input: ShopifyRecoveryInput) =>
+    request<ShopifyOverview>('/commerce/shopify/recovery', { method: 'PUT', body: JSON.stringify(input) }),
+  sendTest: (phone: string) =>
+    request<{ sent: boolean; text: string }>('/commerce/shopify/recovery/test', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
 };
 
 export const messageCostsApi = {

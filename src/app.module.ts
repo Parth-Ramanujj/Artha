@@ -58,6 +58,7 @@ import { LibraryModule } from './modules/library/library.module';
 import { CustomerCareModule } from './modules/customer-care/customer-care.module';
 import { GrowthModule } from './modules/growth/growth.module';
 import { SocialAutomationModule } from './modules/social-automation/social-automation.module';
+import { CommerceModule } from './modules/commerce/commerce.module';
 import { MessageCostsModule } from './modules/message-costs/message-costs.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { WhatsAppLogsModule } from './modules/whatsapp-logs/whatsapp-logs.module';
@@ -224,6 +225,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
             __dirname + '/modules/customer-care/**/*.entity{.ts,.js}',
             __dirname + '/modules/growth/**/*.entity{.ts,.js}',
             __dirname + '/modules/social-automation/**/*.entity{.ts,.js}',
+            __dirname + '/modules/commerce/**/*.entity{.ts,.js}',
             __dirname + '/modules/message-costs/**/*.entity{.ts,.js}',
             __dirname + '/modules/wallet/**/*.entity{.ts,.js}',
             __dirname + '/modules/whatsapp-logs/**/*.entity{.ts,.js}',
@@ -384,7 +386,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     WaBusinessModule, // Click-to-WhatsApp ad leads, WhatsApp calling, quality alerts, invoices
     WalletModule, // customer prepaid wallets: Razorpay recharge, per-message charges
     MessageCostsModule, // WhatsApp message costs from Meta pricing on status webhooks
-    SocialAutomationModule, // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook
+    SocialAutomationModule,
+    CommerceModule, // Shopify: store connection, catalog sync, abandoned-cart WhatsApp reminders // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook
     ProvisioningModule, // Multi-tenant provisioning API for partner integrations
     PlatformsModule, // Unified platform connection API (WhatsApp Cloud, Meta, Google)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)

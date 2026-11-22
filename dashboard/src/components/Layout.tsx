@@ -154,7 +154,7 @@ const NAV_HINTS: Record<string, string> = {
   '/library': 'Posts for WhatsApp Status and chats',
   '/followup': 'Re-engage chats that went quiet',
   '/sync': 'Sync contacts with Google Sheets and CRMs',
-  '/commerce': 'Preview — not connected to a real Shopify store yet',
+  '/commerce': 'Shopify store, abandoned-cart reminders and volume pricing',
   '/roles': 'Preview — saved only in this browser and not enforced',
   '/workspaces': 'Your businesses, plans and members',
   '/logs': 'Who did what, and when',

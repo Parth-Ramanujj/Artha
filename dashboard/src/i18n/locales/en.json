@@ -102,7 +102,7 @@
     "growth": "Growth Tools",
     "socialAutomation": "Social Automation",
     "aiAgents": "AI Agents & Voice",
-    "commerce": "Shopify (preview)",
+    "commerce": "Shopify Commerce",
     "roles": "Team Roles (preview)",
     "logs": "Audit Logs",
     "sections": {
@@ -645,6 +645,7 @@
       "library": "Library",
       "growth": "Growth",
       "socialAutomation": "Social Automation",
+      "commerce": "Shopify Commerce",
       "integrations": "Integrations"
     }
   },

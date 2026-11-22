@@ -16,6 +16,8 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -60,6 +62,15 @@ class RatesDto {
   @IsInt() @Min(0) @Max(100_000) utility: number;
   @IsInt() @Min(0) @Max(100_000) authentication: number;
   @IsInt() @Min(0) @Max(100_000) service: number;
+}
+
+class VolumeTierDto {
+  @IsInt() @Min(1) @Max(100_000_000) fromMessages: number;
+  @IsInt() @Min(1) @Max(90) discountPercent: number;
+}
+
+class VolumeTiersDto {
+  @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => VolumeTierDto) tiers: VolumeTierDto[];
 }
 
 class AdminWalletDto {
@@ -170,6 +181,14 @@ export class WalletController {
   ) {
     WalletController.assertPlatformAdmin(apiKey);
     return this.wallet.adjust(businessId, dto.amountInr, dto.note);
+  }
+
+  @Put('admin/volume-tiers')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @RequireUnscopedKey()
+  async setVolumeTiers(@CurrentApiKey() apiKey: ApiKey, @Body() dto: VolumeTiersDto) {
+    WalletController.assertPlatformAdmin(apiKey);
+    return this.wallet.setVolumeTiers(dto.tiers);
   }
 
   @Put('admin/rates')

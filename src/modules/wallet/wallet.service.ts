@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { createLogger } from '../../common/services/logger.service';
 import { isUniqueConstraintError } from '../../common/utils/unique-constraint.util';
 import { Session } from '../session/entities/session.entity';
@@ -9,7 +9,7 @@ import { Business } from '../business/entities/business.entity';
 import { Notification } from '../conversation/entities/notification.entity';
 import { Wallet, WalletRates } from './entities/wallet.entity';
 import { WalletTransaction, WalletTxType } from './entities/wallet-transaction.entity';
-import { WalletSettings } from './entities/wallet-settings.entity';
+import { VolumeTier, WalletSettings } from './entities/wallet-settings.entity';
 import { createRazorpayOrder, razorpayConfig, verifyPaymentSignature, verifyWebhookSignature } from './razorpay';
 
 /** Default price per message the platform charges customers, in paise (super admin can change it). */
@@ -25,6 +25,19 @@ export function rateFor(rates: WalletRates, category: string | null | undefined)
   if (c === 'utility') return rates.utility;
   return c === 'service' ? rates.service : 0;
 }
+
+/** Discount for the nth paid message of the month: the highest tier whose fromMessages it has reached. */
+export function volumeDiscountPercent(tiers: VolumeTier[] | null | undefined, nth: number): number {
+  let pct = 0;
+  for (const t of tiers ?? []) if (nth >= t.fromMessages && t.discountPercent > pct) pct = t.discountPercent;
+  return pct;
+}
+
+/** Price after the volume discount, in whole paise (rounded down in the customer's favour). */
+export const discounted = (pricePaise: number, pct: number): number => Math.floor((pricePaise * (100 - pct)) / 100);
+
+/** Start of the current calendar month in UTC: volume counts restart then. */
+export const monthStartUtc = (now = new Date()): Date => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
 const SETTINGS_ID = 'global';
 const inr = (paise: number) => `₹${(paise / 100).toFixed(2)}`;
@@ -66,6 +79,30 @@ export class WalletService {
     return { ...DEFAULT_RATES_PAISE, ...(row?.ratesPaise ?? {}) };
   }
 
+  async volumeTiers(): Promise<VolumeTier[]> {
+    const row = await this.settings.findOne({ where: { id: SETTINGS_ID } });
+    return [...(row?.volumeTiers ?? [])].sort((a, b) => a.fromMessages - b.fromMessages);
+  }
+
+  /** Paid WhatsApp messages charged to the business this month (UTC). */
+  async monthPaidMessages(businessId: string, now = new Date()): Promise<number> {
+    return this.txs.count({ where: { businessId, type: 'charge', createdAt: MoreThanOrEqual(monthStartUtc(now)) } });
+  }
+
+  /** Super admin: platform-wide tiers. Kept sorted; one tier per starting volume. */
+  async setVolumeTiers(tiers: VolumeTier[]): Promise<VolumeTier[]> {
+    const seen = new Set<number>();
+    for (const t of tiers) {
+      if (seen.has(t.fromMessages)) throw new BadRequestException(`Two tiers start at ${t.fromMessages} messages`);
+      seen.add(t.fromMessages);
+    }
+    const row =
+      (await this.settings.findOne({ where: { id: SETTINGS_ID } })) ?? this.settings.create({ id: SETTINGS_ID });
+    row.volumeTiers = [...tiers].sort((a, b) => a.fromMessages - b.fromMessages);
+    await this.settings.save(row);
+    return this.volumeTiers();
+  }
+
   async ratesFor(wallet: Wallet): Promise<WalletRates> {
     return { ...(await this.defaultRates()), ...(wallet.ratesPaise ?? {}) };
   }
@@ -79,6 +116,8 @@ export class WalletService {
       blockWhenEmpty: wallet.blockWhenEmpty,
       lowBalanceAlertPaise: wallet.lowBalanceAlertPaise,
       ratesPaise: await this.ratesFor(wallet),
+      volumeTiers: await this.volumeTiers(),
+      monthPaidMessages: await this.monthPaidMessages(businessId),
       razorpay: { configured: Boolean(cfg), keyId: cfg?.keyId ?? null },
       limits: { minRechargeInr: MIN_RECHARGE_INR, maxRechargeInr: MAX_RECHARGE_INR },
       isPlatformAdmin,
@@ -196,7 +235,13 @@ export class WalletService {
       if (!session?.businessId) return;
       const wallet = await this.wallets.findOne({ where: { businessId: session.businessId } });
       if (!wallet?.enabled) return;
-      const price = rateFor(await this.ratesFor(wallet), category);
+      const base = rateFor(await this.ratesFor(wallet), category);
+      if (base <= 0) return;
+      const pct = volumeDiscountPercent(
+        await this.volumeTiers(),
+        (await this.monthPaidMessages(session.businessId)) + 1,
+      );
+      const price = discounted(base, pct);
       if (price <= 0) return;
       const balance = await this.dataSource.transaction(async m => {
         await m.insert(WalletTransaction, {
@@ -205,7 +250,7 @@ export class WalletService {
           status: 'success',
           amountPaise: -price,
           balanceAfterPaise: null,
-          description: `WhatsApp ${(category ?? 'message').toLowerCase()} message`,
+          description: `WhatsApp ${(category ?? 'message').toLowerCase()} message${pct ? ` (${pct}% volume discount)` : ''}`,
           reference: `msg:${sessionId}:${waMessageId}`,
           razorpayPaymentId: null,
         });

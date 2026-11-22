@@ -1,10 +1,11 @@
 import { createHmac } from 'crypto';
 import { DataSource } from 'typeorm';
 import { AddWallet1789000000000 } from '../../database/migrations/1789000000000-AddWallet';
+import { AddShopifyCommerce1790000000000 } from '../../database/migrations/1790000000000-AddShopifyCommerce';
 import { Wallet } from './entities/wallet.entity';
 import { WalletTransaction } from './entities/wallet-transaction.entity';
 import { WalletSettings } from './entities/wallet-settings.entity';
-import { WalletService, rateFor, DEFAULT_RATES_PAISE } from './wallet.service';
+import { WalletService, rateFor, DEFAULT_RATES_PAISE, volumeDiscountPercent, discounted } from './wallet.service';
 import { razorpayConfig, verifyPaymentSignature, verifyWebhookSignature } from './razorpay';
 
 const KEY_SECRET = 'test_secret';
@@ -27,6 +28,19 @@ describe('razorpay signatures', () => {
       keySecret: 'b',
       webhookSecret: undefined,
     });
+  });
+
+  it('picks the highest tier reached and rounds the price down', () => {
+    const tiers = [
+      { fromMessages: 10_001, discountPercent: 20 },
+      { fromMessages: 50_001, discountPercent: 36 },
+    ];
+    expect(volumeDiscountPercent(tiers, 10_000)).toBe(0);
+    expect(volumeDiscountPercent(tiers, 10_001)).toBe(20);
+    expect(volumeDiscountPercent(tiers, 60_000)).toBe(36);
+    expect(volumeDiscountPercent(null, 60_000)).toBe(0);
+    expect(discounted(80, 36)).toBe(51);
+    expect(discounted(15, 0)).toBe(15);
   });
 
   it('prices a message by Meta category', () => {
@@ -57,6 +71,7 @@ describe('wallet ledger', () => {
     const qr = ds.createQueryRunner();
     await new AddWallet1789000000000().up(qr);
     await new AddWallet1789000000000().up(qr); // idempotent
+    await new AddShopifyCommerce1790000000000().up(qr);
     service = new WalletService(
       ds.getRepository(Wallet),
       ds.getRepository(WalletTransaction),
@@ -130,6 +145,32 @@ describe('wallet ledger', () => {
     await service.chargeMessage('s1', 'wamid.9', 'marketing'); // below the ₹100 default alert
     await service.chargeMessage('s1', 'wamid.10', 'marketing');
     expect(notifications.insert).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies the volume tier reached by each paid message this month', async () => {
+    await expect(
+      service.setVolumeTiers([
+        { fromMessages: 3, discountPercent: 50 },
+        { fromMessages: 2, discountPercent: 25 },
+      ]),
+    ).resolves.toEqual([
+      { fromMessages: 2, discountPercent: 25 },
+      { fromMessages: 3, discountPercent: 50 },
+    ]);
+    await expect(
+      service.setVolumeTiers([
+        { fromMessages: 2, discountPercent: 10 },
+        { fromMessages: 2, discountPercent: 20 },
+      ]),
+    ).rejects.toThrow('Two tiers');
+    await service.updateWallet('b1', { enabled: true });
+    await service.adjust('b1', 10, '');
+    for (const id of ['m1', 'm2', 'm3', 'm4']) await service.chargeMessage('s1', id, 'marketing');
+    const charges = await ds.getRepository(WalletTransaction).findBy({ type: 'charge' });
+    expect(charges.map(c => c.amountPaise).sort((a, b) => a - b)).toEqual([-80, -60, -40, -40]);
+    expect(await balance()).toBe(1_000 - 80 - 60 - 40 - 40);
+    expect(await service.monthPaidMessages('b1')).toBe(4);
+    expect((await service.overview('b1', false)).volumeTiers).toHaveLength(2);
   });
 
   it('uses customer rates over platform defaults', async () => {

@@ -18,6 +18,7 @@ export const FEATURE_IDS = [
   'library',
   'growth',
   'socialAutomation',
+  'commerce',
   'integrations',
 ] as const;
 
@@ -58,7 +59,7 @@ export const ROUTE_FEATURE: Record<string, FeatureId> = {
   '/social-automation': 'socialAutomation',
   '/integrations': 'integrations',
   '/sync': 'integrations',
-  '/commerce': 'integrations',
+  '/commerce': 'commerce',
 };
 
 /** null = every feature (super admin and legacy keys). */
