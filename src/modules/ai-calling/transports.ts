@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import WebSocket from 'ws';
 import { CallTransport } from './call-session';
 import { wsText } from './sarvam';
@@ -10,7 +10,20 @@ const TWILIO_FRAME_BYTES = 1600;
 
 /** Signs short-lived call ids, so only calls we placed (or test sessions we issued) can open a stream. */
 export class CallTokens {
-  private readonly secret = randomBytes(32);
+  private readonly secret: Buffer;
+
+  /**
+   * With AI_CALLING_STREAM_SECRET set, keys stay valid across restarts and between API instances.
+   * Without it a random key is made per process: calls in progress are lost on restart.
+   */
+  constructor(configured = process.env.AI_CALLING_STREAM_SECRET?.trim() ?? '') {
+    if (configured.length >= 16) {
+      this.secret = createHash('sha256').update(configured).digest();
+      return;
+    }
+    this.secret = randomBytes(32);
+    createLogger('AiCallTokens').warn('AI_CALLING_STREAM_SECRET is not set; call stream keys reset on restart');
+  }
 
   /** A key that only this server can make for a call id; put in URLs handed to Twilio for that call. */
   callKey(callId: string): string {

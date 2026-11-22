@@ -1,3 +1,4 @@
+import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export interface TwilioConfig {
@@ -11,15 +12,7 @@ export interface TwilioCallResult {
   status: string;
 }
 
-export class TwilioApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code?: number,
-  ) {
-    super(message);
-  }
-}
+export class TwilioApiError extends TelephonyApiError {}
 
 const API = 'https://api.twilio.com/2010-04-01';
 
@@ -69,7 +62,9 @@ export function isValidTwilioSignature(
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
-export class TwilioClient {
+export class TwilioClient implements TelephonyProvider {
+  readonly name = 'twilio';
+
   constructor(private readonly config: TwilioConfig) {}
 
   private get auth(): string {

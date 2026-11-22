@@ -28,6 +28,8 @@ import { AiCallingService } from './ai-calling.service';
 import { CallOutcomeService } from './call-outcome.service';
 import { CallRunnerService } from './call-runner.service';
 import { DialerService } from './dialer.service';
+import { ProviderSettingsService } from './provider-settings.service';
+import { SECRET_NAMES, type SecretName } from './provider-settings';
 import { parseContactsFile } from './contacts';
 import { isValidTwilioSignature, twilioConfigFromEnv } from './twilio.client';
 import { BROWSER_STREAM_PATH } from './media-gateway.service';
@@ -52,6 +54,7 @@ export class AiCallingController {
     private readonly outcome: CallOutcomeService,
     private readonly runner: CallRunnerService,
     private readonly businessService: BusinessService,
+    private readonly providerSettings: ProviderSettingsService,
   ) {}
 
   private async businessId(apiKey?: ApiKey): Promise<string> {
@@ -69,6 +72,33 @@ export class AiCallingController {
   @ApiOperation({ summary: 'Save the public https address (tunnel) Twilio uses to reach this server' })
   async setPublicUrl(@Body() dto: PublicUrlDto) {
     return { publicUrl: await this.calling.setPublicUrl(dto.url) };
+  }
+
+  @Get('providers')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Speech and language engines in use, and which keys are set (values never returned)' })
+  async providers() {
+    return {
+      config: await this.providerSettings.config(),
+      secrets: await this.providerSettings.secretStatus(),
+    };
+  }
+
+  @Put('providers')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Choose the speech and language engines; applies to the next call' })
+  async saveProviders(@Body() body: Record<string, unknown>) {
+    const config = await this.providerSettings.saveConfig(body ?? {});
+    return { config, secrets: await this.providerSettings.secretStatus() };
+  }
+
+  @Put('providers/secrets/:name')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Save an API key (encrypted). Send value null to remove the saved key.' })
+  async saveSecret(@Param('name') name: string, @Body() body: { value?: string | null }) {
+    if (!(SECRET_NAMES as readonly string[]).includes(name)) throw new BadRequestException('Unknown key name');
+    await this.providerSettings.saveSecret(name as SecretName, body?.value ?? null);
+    return { secrets: await this.providerSettings.secretStatus() };
   }
 
   @Get('stats')
@@ -227,6 +257,10 @@ export class AiCallingTwilioController {
     const twilio = twilioConfigFromEnv();
     const publicUrl = await this.calling.getPublicUrl();
     const signature = req.headers['x-twilio-signature'];
+    if (!publicUrl) {
+      this.logger.warn(`Rejected a Twilio ${what} request: no public address is set`);
+      throw new ForbiddenException('Set the public https address in AI Calling setup first');
+    }
     if (
       !twilio ||
       !publicUrl ||
@@ -243,7 +277,9 @@ export class AiCallingTwilioController {
           .sort()
           .join(','),
       });
-      throw new ForbiddenException('Invalid Twilio signature');
+      throw new ForbiddenException(
+        'Invalid Twilio signature. The public address in AI Calling setup must be the exact address Twilio calls (same host, no trailing slash).',
+      );
     }
   }
 

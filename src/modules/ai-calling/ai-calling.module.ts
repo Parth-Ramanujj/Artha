@@ -16,6 +16,9 @@ import { AiCallingService } from './ai-calling.service';
 import { CallOutcomeService } from './call-outcome.service';
 import { CallRunnerService } from './call-runner.service';
 import { DialerService } from './dialer.service';
+import { SPEECH_FACTORY } from './call-runner.service';
+import { ProviderSettingsService } from './provider-settings.service';
+import { sarvamSpeech } from './sarvam';
 import { MediaGatewayService } from './media-gateway.service';
 import { AiCallingController, AiCallingTwilioController } from './ai-calling.controller';
 
@@ -32,7 +35,16 @@ import { AiCallingController, AiCallingTwilioController } from './ai-calling.con
     BusinessModule,
   ],
   controllers: [AiCallingController, AiCallingTwilioController],
-  providers: [AiCallingService, CallOutcomeService, CallRunnerService, DialerService, MediaGatewayService],
+  providers: [
+    AiCallingService,
+    CallOutcomeService,
+    CallRunnerService,
+    DialerService,
+    MediaGatewayService,
+    ProviderSettingsService,
+    // The speech provider. Swap Sarvam for another engine by binding a different SpeechFactory here.
+    { provide: SPEECH_FACTORY, useValue: sarvamSpeech },
+  ],
   exports: [AiCallingService, CallRunnerService],
 })
 export class AiCallingModule {}

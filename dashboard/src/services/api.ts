@@ -1727,8 +1727,36 @@ export interface CallContact {
   name: string | null;
 }
 
+export interface AiProviderConfig {
+  stt: 'sarvam' | 'deepgram';
+  ttsGujarati: 'sarvam' | 'elevenlabs';
+  ttsHindi: 'sarvam' | 'elevenlabs';
+  ttsEnglish: 'sarvam' | 'elevenlabs';
+  elevenVoiceId: string;
+  elevenModel: string;
+  elevenOutputFormat: string;
+  llm: 'groq' | 'openai-compatible';
+  llmBaseUrl: string;
+  llmModel: string;
+}
+
+export type AiSecretName = 'SARVAM_API_KEY' | 'DEEPGRAM_API_KEY' | 'ELEVENLABS_API_KEY' | 'LLM_API_KEY';
+
+export interface AiProvidersState {
+  config: AiProviderConfig;
+  secrets: Record<AiSecretName, 'saved' | 'environment' | 'missing'>;
+}
+
 export const aiCallingApi = {
   setup: () => request<AiCallingSetup>('/ai-calling/setup'),
+  providers: () => request<AiProvidersState>('/ai-calling/providers'),
+  saveProviders: (config: Partial<AiProviderConfig>) =>
+    request<AiProvidersState>('/ai-calling/providers', { method: 'PUT', body: JSON.stringify(config) }),
+  saveSecret: (name: AiSecretName, value: string | null) =>
+    request<AiProvidersState>(`/ai-calling/providers/secrets/${name}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    }),
   setPublicUrl: (url: string) =>
     request<{ publicUrl: string | null }>('/ai-calling/public-url', { method: 'PUT', body: JSON.stringify({ url }) }),
   stats: () => request<Partial<Record<AiCallStatus | 'verified', number>>>('/ai-calling/stats'),

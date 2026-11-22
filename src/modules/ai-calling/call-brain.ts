@@ -34,6 +34,12 @@ export type AgentPersona = Pick<
   'personaName' | 'companyName' | 'greeting' | 'script' | 'verifiedLeadCriteria' | 'defaultLanguage'
 >;
 
+/** Sarvam voice ids for new agents. Override with AI_CALLING_VOICE_GUJARATI / AI_CALLING_VOICE_HINDI. */
+export const DEFAULT_VOICES = {
+  gujaratiVoice: process.env.AI_CALLING_VOICE_GUJARATI?.trim() || 'pooja_gu_customer',
+  hindiVoice: process.env.AI_CALLING_VOICE_HINDI?.trim() || 'ritu_hi_customer_warm',
+};
+
 export const DEFAULT_AGENT: Omit<
   VoiceAgent,
   'id' | 'businessId' | 'createdAt' | 'updatedAt' | 'whatsappSessionId' | 'isDefault'
@@ -56,8 +62,8 @@ export const DEFAULT_AGENT: Omit<
   verifiedLeadCriteria:
     'The customer is interested in insurance or a mutual fund, said what they need, and agreed to a call back from an advisor (a callback time or city is a bonus).',
   defaultLanguage: 'gu-IN',
-  gujaratiVoice: 'pooja_gu_customer',
-  hindiVoice: 'ritu_hi_customer_warm',
+  gujaratiVoice: DEFAULT_VOICES.gujaratiVoice,
+  hindiVoice: DEFAULT_VOICES.hindiVoice,
   pace: 1,
   model: 'openai/gpt-oss-120b',
   maxCallSeconds: 300,

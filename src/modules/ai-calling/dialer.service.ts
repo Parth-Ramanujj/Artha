@@ -7,7 +7,9 @@ import { VoiceAgent } from './entities/voice-agent.entity';
 import { AiCallingService } from './ai-calling.service';
 import { CallRunnerService } from './call-runner.service';
 import { CallOutcomeService } from './call-outcome.service';
-import { streamTwiml, TwilioApiError, TwilioClient, twilioConfigFromEnv } from './twilio.client';
+import { streamTwiml } from './twilio.client';
+import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
+import { telephonyFromEnv } from './telephony';
 import { createLogger } from '../../common/services/logger.service';
 
 const TICK_MS = 5000;
@@ -148,10 +150,10 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       await this.completeFinishedBatches();
       return 0;
     }
-    const twilio = twilioConfigFromEnv();
+    const telephony = telephonyFromEnv();
     const publicUrl = await this.calling.getPublicUrl();
-    const missing = !twilio
-      ? 'Waiting: Twilio is not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)'
+    const missing = !telephony
+      ? 'Waiting: phone calls are not configured (Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)'
       : !publicUrl
         ? 'Waiting: set the public https address (tunnel) in AI Calling setup'
         : null;
@@ -165,7 +167,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       active.set(row.agentId, (active.get(row.agentId) ?? 0) + 1);
     }
 
-    const client = twilio ? new TwilioClient(twilio) : null;
+    const client = telephony;
     let dialled = 0;
     for (const agentId of agentIds) {
       // Soonest first: retries scheduled for later sort last, so due calls are always in the window.
@@ -197,7 +199,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async dialForAgent(
-    client: TwilioClient,
+    client: TelephonyProvider,
     publicUrl: string,
     agent: VoiceAgent,
     due: AiCall[],
@@ -236,7 +238,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
         const message = err instanceof Error ? err.message : String(err);
         active.set(agent.id, (active.get(agent.id) ?? 1) - 1);
         // Rate limits, Twilio outages and network timeouts pass; a rejected number does not.
-        const transient = !(err instanceof TwilioApiError) || err.status === 429 || err.status >= 500;
+        const transient = !(err instanceof TelephonyApiError) || err.status === 429 || err.status >= 500;
         if (transient) {
           await this.callRepo.update(call.id, {
             status: AiCallStatus.QUEUED,
@@ -281,12 +283,12 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
    * "dialing" and block the agent's line; ask Twilio for the real status of calls that went quiet.
    */
   private async reconcileWithTwilio(now: Date): Promise<void> {
-    const twilio = twilioConfigFromEnv();
-    if (!twilio) return;
+    const telephony = telephonyFromEnv();
+    if (!telephony) return;
     const open = await this.callRepo.find({
       where: { status: In(ACTIVE_CALL_STATUSES), channel: 'phone', twilioCallSid: Not(IsNull()) },
     });
-    const client = new TwilioClient(twilio);
+    const client = telephony;
     for (const call of open) {
       const quietFor = now.getTime() - call.updatedAt.getTime();
       if (this.runner.isLive(call.id) || quietFor < RECONCILE_AFTER_MS) continue;

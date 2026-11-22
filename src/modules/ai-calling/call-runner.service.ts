@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiCall, AiCallStatus } from './entities/ai-call.entity';
@@ -7,7 +7,9 @@ import { AiService } from '../ai/ai.service';
 import { CallSession, CallSessionResult, CallTransport, ChatMessage } from './call-session';
 import { CallOutcomeService } from './call-outcome.service';
 import { CallTokens } from './transports';
-import { sarvamSpeech, SpeechFactory } from './sarvam';
+import { sarvamSpeech, type SpeechFactory } from './sarvam';
+import { ProviderSettingsService } from './provider-settings.service';
+import { openAiCompatibleStream, speechFactoryFor } from './speech-router';
 import { createLogger } from '../../common/services/logger.service';
 
 export const SPEECH_FACTORY = Symbol('AI_CALLING_SPEECH_FACTORY');
@@ -15,29 +17,35 @@ export const SPEECH_FACTORY = Symbol('AI_CALLING_SPEECH_FACTORY');
 // Saving on every turn keeps the dashboard's live view current without a write per audio frame.
 const TRANSCRIPT_SAVE_MS = 1500;
 
+const logger = createLogger('AiCallRunner');
+
 /** Connects an answered call (or a browser test) to a live AI conversation and stores the result. */
 @Injectable()
 export class CallRunnerService {
-  private readonly logger = createLogger('AiCallRunner');
+  private readonly logger = logger;
   readonly tokens = new CallTokens();
   private readonly live = new Map<string, CallSession>();
   /** Calls between token check and session start, so a second socket with the same token is refused. */
   private readonly attaching = new Set<string>();
   /** Results still being saved; shutdown waits for them. */
   private readonly saving = new Set<Promise<void>>();
-  private speech: SpeechFactory = sarvamSpeech;
-
   constructor(
     @InjectRepository(AiCall, 'data') private readonly callRepo: Repository<AiCall>,
     @InjectRepository(VoiceAgent, 'data') private readonly agentRepo: Repository<VoiceAgent>,
     private readonly outcome: CallOutcomeService,
     @Optional() private readonly ai?: AiService,
+    // Speech-to-text and text-to-speech provider: Sarvam unless the module binds another one to SPEECH_FACTORY.
+    @Optional() @Inject(SPEECH_FACTORY) private speech: SpeechFactory = sarvamSpeech,
+    // Saved provider choices and keys, read at the start of every call so changes apply without a redeploy.
+    @Optional() private readonly providers?: ProviderSettingsService,
   ) {}
 
   /** Tests swap in fake speech streams. */
   useSpeech(factory: SpeechFactory): void {
-    this.speech = factory;
+    this.speechOverride = factory;
   }
+
+  private speechOverride?: SpeechFactory;
 
   /** Being set up, talking, or saving its result: no one else may touch the call's status. */
   isLive(callId: string): boolean {
@@ -79,11 +87,14 @@ export class CallRunnerService {
       return false;
     }
     const agent = await this.agentRepo.findOne({ where: { id: call.agentId } });
-    const sarvamApiKey = process.env.SARVAM_API_KEY?.trim();
+    const resolved = this.providers ? await this.providers.resolve() : null;
+    const sarvamApiKey = resolved ? resolved.secrets.SARVAM_API_KEY : (process.env.SARVAM_API_KEY?.trim() ?? null);
     if (!agent || !sarvamApiKey || !this.ai) {
       await this.callRepo.update(call.id, {
         status: AiCallStatus.FAILED,
-        error: !sarvamApiKey ? 'SARVAM_API_KEY is not set' : 'Calling agent missing',
+        error: !sarvamApiKey
+          ? 'SARVAM_API_KEY is not set (Sarvam is the default speech engine)'
+          : 'Calling agent missing',
         endedAt: new Date(),
       });
       transport.hangup();
@@ -92,6 +103,26 @@ export class CallRunnerService {
 
     const ai = this.ai;
     const answeredAt = new Date();
+    const speech =
+      this.speechOverride ??
+      (resolved
+        ? speechFactoryFor(resolved.config, {
+            sarvam: sarvamApiKey,
+            deepgram: resolved.secrets.DEEPGRAM_API_KEY,
+            elevenlabs: resolved.secrets.ELEVENLABS_API_KEY,
+          })
+        : this.speech);
+    const llmEndpoint =
+      resolved?.config.llm === 'openai-compatible' && resolved.config.llmBaseUrl && resolved.secrets.LLM_API_KEY
+        ? {
+            baseUrl: resolved.config.llmBaseUrl,
+            apiKey: resolved.secrets.LLM_API_KEY,
+            model: resolved.config.llmModel || agent.model,
+          }
+        : null;
+    if (resolved?.config.llm === 'openai-compatible' && !llmEndpoint) {
+      logger.warn('LLM set to an OpenAI-compatible endpoint but its address or key is missing; using Groq');
+    }
     await this.callRepo.update(call.id, { status: AiCallStatus.IN_PROGRESS, answeredAt });
     const session = new CallSession(transport, {
       agent,
@@ -99,15 +130,17 @@ export class CallRunnerService {
       greeting: call.greeting,
       briefing: call.briefing,
       sarvamApiKey,
-      speech: this.speech,
+      speech,
       reply: (messages: ChatMessage[], signal: AbortSignal) =>
-        ai.streamComplete(messages, {
-          model: agent.model,
-          maxTokens: 300,
-          temperature: 0.6,
-          reasoningEffort: 'low',
-          signal,
-        }),
+        llmEndpoint
+          ? openAiCompatibleStream(llmEndpoint, messages, { maxTokens: 300, temperature: 0.6, signal })
+          : ai.streamComplete(messages, {
+              model: agent.model,
+              maxTokens: 300,
+              temperature: 0.6,
+              reasoningEffort: 'low',
+              signal,
+            }),
     });
     this.live.set(call.id, session);
 
