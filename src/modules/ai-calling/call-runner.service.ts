@@ -10,6 +10,7 @@ import { CallTokens } from './transports';
 import { sarvamSpeech, type SpeechFactory } from './sarvam';
 import { ProviderSettingsService } from './provider-settings.service';
 import { openAiCompatibleStream, speechFactoryFor } from './speech-router';
+import { aiCallingLog } from './ai-calling-log.service';
 import { createLogger } from '../../common/services/logger.service';
 
 export const SPEECH_FACTORY = Symbol('AI_CALLING_SPEECH_FACTORY');
@@ -86,6 +87,10 @@ export class CallRunnerService {
       logger.warn(
         `Call ${callId} not started: ${!call ? 'not found' : `channel ${call.channel} / status ${call.status}`}`,
       );
+      aiCallingLog.warn('call', `Call ${callId} not started: ${!call ? 'not found' : `channel ${call.channel} / status ${call.status}`}`, {
+        callId,
+        channel: expectedChannel,
+      });
       transport.hangup();
       return false;
     }
@@ -108,12 +113,16 @@ export class CallRunnerService {
           : null;
 
     if (!agent || missingSpeechKey || !this.ai) {
-      logger.warn(
-        `Call ${callId} failed to start: ${missingSpeechKey ?? (agent ? 'AI service missing' : 'calling agent missing')}`,
-      );
+      const errReason = missingSpeechKey ?? (!agent ? 'Calling agent missing' : 'AI service unavailable');
+      logger.warn(`Call ${callId} failed to start: ${errReason}`);
+      aiCallingLog.error('config', `Call ${callId} failed to start: ${errReason}`, {
+        callId,
+        channel: expectedChannel,
+        details: { error: errReason },
+      });
       await this.callRepo.update(call.id, {
         status: AiCallStatus.FAILED,
-        error: missingSpeechKey ?? (!agent ? 'Calling agent missing' : 'AI service unavailable'),
+        error: errReason,
         endedAt: new Date(),
       });
       transport.hangup();
@@ -163,6 +172,11 @@ export class CallRunnerService {
     });
     this.live.set(call.id, session);
     logger.log(`AI call ${call.id} started (${expectedChannel})`);
+    aiCallingLog.info('call', `AI call started (${expectedChannel})`, {
+      callId: call.id,
+      channel: expectedChannel,
+      details: { agentId: agent.id, model: agent.model, defaultLanguage: agent.defaultLanguage },
+    });
 
     let saveTimer: NodeJS.Timeout | undefined;
     session.on('turn', () => {
@@ -174,6 +188,16 @@ export class CallRunnerService {
     });
     session.on('ended', (result: CallSessionResult) => {
       logger.log(`AI call ${call.id} ended: ${result.reason}${result.error ? ` (${result.error})` : ''}`);
+      aiCallingLog.record(
+        result.reason === 'error' ? 'error' : 'info',
+        'call',
+        `AI call ended: ${result.reason}${result.error ? ` - ${result.error}` : ''}`,
+        {
+          callId: call.id,
+          channel: expectedChannel,
+          details: { reason: result.reason, error: result.error, turns: result.transcript.length },
+        },
+      );
       if (saveTimer) clearTimeout(saveTimer);
       // Stays "live" until saved, so a late Twilio callback cannot overwrite the real result.
       const saved = this.complete(call.id, answeredAt, result).finally(() => {

@@ -7,6 +7,7 @@ import { CallRunnerService } from './call-runner.service';
 import { BrowserTransport, TwilioTransport } from './transports';
 import { TwilioClient, type TwilioConfig } from './twilio.client';
 import { AiCallingService } from './ai-calling.service';
+import { aiCallingLog } from './ai-calling-log.service';
 import { createLogger } from '../../common/services/logger.service';
 
 /** Ends a Twilio call through the API, so the TwiML after <Connect> (the failure message) does not play. */
@@ -64,10 +65,18 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
       const browser = path === BROWSER_STREAM_PATH;
       const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws, sid => this.hangupTwilio(sid));
       this.logger.log(`${browser ? 'Browser' : 'Twilio'} audio websocket opened`);
+      aiCallingLog.info('media', `${browser ? 'Browser' : 'Twilio'} audio websocket opened`, {
+        channel: browser ? 'browser' : 'phone',
+      });
       let started = false;
       ws.once('close', code => {
-        if (!started)
+        if (!started) {
           this.logger.warn(`${browser ? 'Browser' : 'Twilio'} audio websocket closed before it started (code ${code})`);
+          aiCallingLog.warn('media', `${browser ? 'Browser' : 'Twilio'} audio websocket closed before it started (code ${code})`, {
+            channel: browser ? 'browser' : 'phone',
+            details: { code },
+          });
+        }
       });
       const timeout = setTimeout(() => ws.close(), START_TIMEOUT_MS);
       transport.once('start', ({ token }: { token?: string }) => {
@@ -76,11 +85,19 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
         void this.runner
           .attach(token, transport, browser ? 'browser' : 'phone')
           .then(ok => {
-            if (!ok)
+            if (!ok) {
               this.logger.warn(`Rejected ${browser ? 'browser' : 'Twilio'} stream with an invalid or stale token`);
+              aiCallingLog.warn('media', `Rejected ${browser ? 'browser' : 'Twilio'} stream with an invalid or stale token`, {
+                channel: browser ? 'browser' : 'phone',
+              });
+            }
           })
           .catch(err => {
             this.logger.error('Could not start AI call', err instanceof Error ? err.message : String(err));
+            aiCallingLog.error('media', `Could not start AI call: ${err instanceof Error ? err.message : String(err)}`, {
+              channel: browser ? 'browser' : 'phone',
+              details: { error: err instanceof Error ? err.message : String(err) },
+            });
             ws.close();
           });
       });

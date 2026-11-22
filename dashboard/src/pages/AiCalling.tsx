@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BadgeCheck, Bot, CircleAlert, ListChecks, Loader2, Mic, PhoneCall, RefreshCw, Settings2 } from 'lucide-react';
+import { Activity, BadgeCheck, Bot, CircleAlert, ListChecks, Loader2, Mic, PhoneCall, RefreshCw, Settings2 } from 'lucide-react';
 import { aiCallingApi, type AiCallingSetup, type VoiceAgent } from '../services/api';
 import { PageHeader } from '../components/PageHeader';
 import { errorText } from '../components/ai-calling/callMeta';
@@ -10,8 +10,9 @@ import { CallsTab } from '../components/ai-calling/CallsTab';
 import { BatchesTab } from '../components/ai-calling/BatchesTab';
 import { AgentTab } from '../components/ai-calling/AgentTab';
 import { TestCallTab } from '../components/ai-calling/TestCallTab';
+import { LogsTab } from '../components/ai-calling/LogsTab';
 
-type Tab = 'calls' | 'verified' | 'lists' | 'agent' | 'test';
+type Tab = 'calls' | 'verified' | 'lists' | 'agent' | 'test' | 'logs';
 
 const TABS: { id: Tab; icon: ReactNode }[] = [
   { id: 'calls', icon: <PhoneCall size={15} /> },
@@ -19,6 +20,7 @@ const TABS: { id: Tab; icon: ReactNode }[] = [
   { id: 'lists', icon: <ListChecks size={15} /> },
   { id: 'agent', icon: <Settings2 size={15} /> },
   { id: 'test', icon: <Mic size={15} /> },
+  { id: 'logs', icon: <Activity size={15} /> },
 ];
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
@@ -198,6 +200,7 @@ export function AiCalling() {
           </div>
         ))}
       {tab === 'test' && <TestCallTab agentId={agent?.id} setup={setup} />}
+      {tab === 'logs' && <LogsTab setup={setup} refreshKey={refreshKey} onActivity={loadStats} />}
     </div>
   );
 }

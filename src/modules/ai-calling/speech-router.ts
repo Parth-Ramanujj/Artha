@@ -3,6 +3,7 @@ import { DeepgramStt } from './deepgram-stt';
 import { elevenTts } from './elevenlabs-tts';
 import { ProviderConfig, ttsProviderFor } from './provider-settings';
 import { sarvamSpeech, type SpeechFactory, type SttOptions, type TtsOptions } from './sarvam';
+import { aiCallingLog } from './ai-calling-log.service';
 
 const log = createLogger('AiCallSpeech');
 
@@ -21,7 +22,10 @@ export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): Spee
   return {
     stt(options: SttOptions) {
       if (config.stt === 'deepgram' && keys.deepgram) return new DeepgramStt({ ...options, apiKey: keys.deepgram });
-      if (config.stt === 'deepgram') log.warn('Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam');
+      if (config.stt === 'deepgram') {
+        log.warn('Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam');
+        aiCallingLog.warn('stt', 'Deepgram chosen but DEEPGRAM_API_KEY is missing; using Sarvam');
+      }
       return sarvamSpeech.stt({ ...options, apiKey: sarvamKey });
     },
     tts(options: TtsOptions) {
@@ -38,6 +42,9 @@ export function speechFactoryFor(config: ProviderConfig, keys: SpeechKeys): Spee
       }
       if (engine === 'elevenlabs') {
         log.warn(`ElevenLabs chosen for ${options.languageCode} but the key or voice id is missing; using Sarvam`);
+        aiCallingLog.warn('tts', `ElevenLabs chosen for ${options.languageCode} but key or voice id is missing; using Sarvam`, {
+          details: { language: options.languageCode, voiceId: config.elevenVoiceId },
+        });
       }
       return sarvamSpeech.tts({ ...options, apiKey: sarvamKey });
     },
@@ -77,7 +84,9 @@ export async function* openAiCompatibleStream(
   });
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => '');
-    throw new Error(`The language model refused the request (HTTP ${response.status}) ${detail.slice(0, 200)}`);
+    const errText = `The language model refused the request (HTTP ${response.status}) ${detail.slice(0, 200)}`;
+    aiCallingLog.error('llm', errText, { details: { status: response.status, url, detail: detail.slice(0, 500) } });
+    throw new Error(errText);
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();

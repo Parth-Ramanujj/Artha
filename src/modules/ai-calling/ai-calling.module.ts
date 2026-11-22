@@ -20,6 +20,7 @@ import { SPEECH_FACTORY } from './call-runner.service';
 import { ProviderSettingsService } from './provider-settings.service';
 import { sarvamSpeech } from './sarvam';
 import { MediaGatewayService } from './media-gateway.service';
+import { AiCallingLogService } from './ai-calling-log.service';
 import { AiCallingController, AiCallingTwilioController } from './ai-calling.controller';
 
 @Module({
@@ -42,9 +43,10 @@ import { AiCallingController, AiCallingTwilioController } from './ai-calling.con
     DialerService,
     MediaGatewayService,
     ProviderSettingsService,
+    AiCallingLogService,
     // The speech provider. Swap Sarvam for another engine by binding a different SpeechFactory here.
     { provide: SPEECH_FACTORY, useValue: sarvamSpeech },
   ],
-  exports: [AiCallingService, CallRunnerService],
+  exports: [AiCallingService, CallRunnerService, AiCallingLogService],
 })
 export class AiCallingModule {}

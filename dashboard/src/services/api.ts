@@ -1827,7 +1827,73 @@ export const aiCallingApi = {
       body: JSON.stringify(agentId ? { agentId } : {}),
     }),
   testCalls: () => request<AiCall[]>('/ai-calling/test-calls'),
+  logs: (
+    filters: {
+      level?: string;
+      subsystem?: string;
+      search?: string;
+      callId?: string;
+      limit?: number;
+    } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) if (v !== undefined && v !== '') qs.set(k, String(v));
+    const query = qs.toString();
+    return request<AiCallingLogsResponse>(`/ai-calling/logs${query ? `?${query}` : ''}`);
+  },
+  clearLogs: () => request<{ cleared: boolean }>('/ai-calling/logs/clear', { method: 'POST' }),
+  diagnostics: () => request<AiCallingDiagnosticsResult>('/ai-calling/diagnostics'),
 };
+
+export type AiLogSubsystem = 'stt' | 'tts' | 'llm' | 'media' | 'dialer' | 'call' | 'config';
+export type AiLogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+export interface AiCallLogEvent {
+  id: string;
+  timestamp: string;
+  level: AiLogLevel;
+  subsystem: AiLogSubsystem;
+  message: string;
+  callId?: string | null;
+  channel?: 'phone' | 'browser' | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface FailedCallSummary {
+  id: string;
+  phone: string;
+  contactName: string | null;
+  channel: string;
+  status: string;
+  error: string | null;
+  durationSeconds: number;
+  turnsCount: number;
+  createdAt: string;
+  endedAt: string | null;
+}
+
+export interface AiCallingLogsResponse {
+  events: AiCallLogEvent[];
+  total: number;
+  subsystemCounts: Record<string, number>;
+  recentFailedCalls: FailedCallSummary[];
+}
+
+export interface AiCallingDiagnosticItem {
+  key: string;
+  name: string;
+  subsystem: AiLogSubsystem;
+  status: 'ok' | 'warning' | 'error' | 'skipped';
+  message: string;
+  latencyMs?: number;
+  details?: Record<string, unknown>;
+}
+
+export interface AiCallingDiagnosticsResult {
+  timestamp: string;
+  allOk: boolean;
+  items: AiCallingDiagnosticItem[];
+}
 
 /** ws:// or wss:// URL for an API websocket path, honouring VITE_API_URL like API_BASE_URL does. */
 export function apiWebSocketUrl(path: string): string {

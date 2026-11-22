@@ -1114,7 +1114,8 @@
       "verified": "Verified leads",
       "lists": "Call lists",
       "agent": "Agent settings",
-      "test": "Test call"
+      "test": "Test call",
+      "logs": "Diagnostics & Logs"
     },
     "status": {
       "queued": "Queued",

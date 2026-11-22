@@ -30,6 +30,7 @@ import { CallRunnerService } from './call-runner.service';
 import { DialerService } from './dialer.service';
 import { serverOriginFor } from '../integrations/google/google.controller';
 import { ProviderSettingsService } from './provider-settings.service';
+import { AiCallingLogService, aiCallingLog } from './ai-calling-log.service';
 import { SECRET_NAMES, type SecretName } from './provider-settings';
 import { parseContactsFile } from './contacts';
 import { isValidTwilioSignature } from './twilio.client';
@@ -56,6 +57,7 @@ export class AiCallingController {
     private readonly runner: CallRunnerService,
     private readonly businessService: BusinessService,
     private readonly providerSettings: ProviderSettingsService,
+    @Optional() private readonly logService: AiCallingLogService = aiCallingLog as unknown as AiCallingLogService,
   ) {}
 
   private async businessId(apiKey?: ApiKey): Promise<string> {
@@ -244,6 +246,45 @@ export class AiCallingController {
   @Get('test-calls')
   async listTestCalls(@CurrentApiKey() apiKey: ApiKey) {
     return this.calling.listTestCalls(await this.businessId(apiKey));
+  }
+
+  // ── logs & diagnostics ──
+
+  @Get('logs')
+  @ApiOperation({ summary: 'Realtime diagnostic events, error logs, and recent failed calls' })
+  async getLogs(
+    @CurrentApiKey() apiKey: ApiKey,
+    @Query('level') level?: string,
+    @Query('subsystem') subsystem?: string,
+    @Query('search') search?: string,
+    @Query('callId') callId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const businessId = await this.businessId(apiKey);
+    const result = this.logService.query({
+      level,
+      subsystem,
+      search,
+      callId,
+      limit: limit ? Number(limit) : undefined,
+    });
+    const recentFailedCalls = await this.logService.getRecentFailedCalls(businessId, 20);
+    return { ...result, recentFailedCalls };
+  }
+
+  @Post('logs/clear')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Clear in-memory live diagnostic logs' })
+  async clearLogs() {
+    this.logService.clear();
+    return { cleared: true };
+  }
+
+  @Get('diagnostics')
+  @RequireRole(ApiKeyRole.OPERATOR)
+  @ApiOperation({ summary: 'Run full system reachability & engine health check' })
+  async diagnostics() {
+    return this.logService.runDiagnostics();
   }
 }
 

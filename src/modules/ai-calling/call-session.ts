@@ -16,6 +16,7 @@ import {
 } from './call-brain';
 import { TranscriptTurn } from './entities/ai-call.entity';
 import { FinalTranscript, SpeechFactory, SttStream, TtsStream } from './sarvam';
+import { aiCallingLog } from './ai-calling-log.service';
 
 /**
  * The audio link to the person: a Twilio media stream or a browser test call. Emits 'audio' (8 kHz
@@ -117,7 +118,10 @@ export class CallSession extends EventEmitter {
     this.stt.on('speech_start', () => this.onSpeechStart());
     this.stt.on('speech_end', () => this.onSpeechEnd());
     this.stt.on('final', (t: FinalTranscript) => this.onFinal(t));
-    this.stt.on('error', (err: Error) => this.fail(err));
+    this.stt.on('error', (err: Error) => {
+      aiCallingLog.error('stt', `Speech recognition error: ${err.message}`, { details: { error: err.message } });
+      this.fail(err);
+    });
 
     this.transport.on('audio', (audio: Buffer) => this.stt?.send(audio));
     this.transport.on('mark', (name: string) => this.onMark(name));
@@ -151,7 +155,12 @@ export class CallSession extends EventEmitter {
         this.transport.playAudio(audio);
       });
       created.on('spoken', () => this.onSpoken(created));
-      created.on('error', (err: Error) => this.fail(err));
+      created.on('error', (err: Error) => {
+        aiCallingLog.error('tts', `Speech synthesis error (${language}): ${err.message}`, {
+          details: { language, error: err.message },
+        });
+        this.fail(err);
+      });
       this.tts.set(language, created);
       stream = created;
     }
@@ -377,6 +386,7 @@ export class CallSession extends EventEmitter {
       if (cancelled()) return;
       const reason = timedOut ? 'no reply in time' : err instanceof Error ? err.message : String(err);
       this.logger.warn(`Reply failed: ${reason}`);
+      aiCallingLog.warn('llm', `LLM reply failed: ${reason}`, { details: { reason } });
       full = '';
       failed = true;
     } finally {
@@ -395,6 +405,9 @@ export class CallSession extends EventEmitter {
     } else if (this.replyFailures >= MAX_REPLY_FAILURES) {
       this.endReason = 'error';
       this.endError = 'The language model did not answer';
+      aiCallingLog.error('llm', `The language model did not answer after ${this.replyFailures} consecutive attempts`, {
+        details: { failures: this.replyFailures },
+      });
       this.sayTurn(STOCK_PHRASES[this.language].troubleGoodbye, true);
     } else if (!this.endAfterSpeech) {
       this.sayTurn(STOCK_PHRASES[this.language].repeat);
@@ -446,6 +459,7 @@ export class CallSession extends EventEmitter {
   private fail(err: Error): void {
     if (this.ended) return;
     this.logger.error(`Call failed: ${err.message}`);
+    aiCallingLog.error('call', `Call failed: ${err.message}`, { details: { error: err.message } });
     this.finish('error', err.message);
   }
 

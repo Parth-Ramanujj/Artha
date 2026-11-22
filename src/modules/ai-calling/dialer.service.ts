@@ -10,6 +10,7 @@ import { CallOutcomeService } from './call-outcome.service';
 import { streamTwiml } from './twilio.client';
 import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
 import { telephonyFrom } from './telephony';
+import { aiCallingLog } from './ai-calling-log.service';
 import { createLogger } from '../../common/services/logger.service';
 
 const TICK_MS = 5000;
@@ -250,6 +251,10 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
           await this.callRepo.update(call.id, { status: AiCallStatus.FAILED, error: message, endedAt: new Date() });
         }
         this.logger.warn(`Could not dial ${call.phone}: ${message}`);
+        aiCallingLog.warn('dialer', `Could not dial ${call.phone}: ${message}`, {
+          callId: call.id,
+          details: { error: message, phone: call.phone },
+        });
       }
     }
     return dialled;

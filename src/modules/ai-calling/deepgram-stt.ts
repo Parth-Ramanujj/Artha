@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import WebSocket from 'ws';
 import type { FinalTranscript, SttOptions, SttStream } from './sarvam';
 import { wsText } from './sarvam';
+import { aiCallingLog } from './ai-calling-log.service';
 
 const DEEPGRAM_WS = 'wss://api.deepgram.com/v1/listen';
 // Deepgram drops a silent socket after about 10 s; a KeepAlive every 8 s keeps a quiet caller connected.
@@ -60,7 +61,9 @@ export class DeepgramStt extends EventEmitter implements SttStream {
     ws.on('error', err => (this.lastError = err instanceof Error ? err : new Error(String(err))));
     ws.on('unexpected-response', (_req, res) => {
       this.closed = true;
-      this.emit('error', new Error(`Deepgram speech-to-text refused the connection (HTTP ${res.statusCode})`));
+      const errMsg = `Deepgram speech-to-text refused the connection (HTTP ${res.statusCode})`;
+      aiCallingLog.error('stt', errMsg, { details: { statusCode: res.statusCode } });
+      this.emit('error', new Error(errMsg));
     });
     ws.on('close', () => {
       if (this.keepalive) clearInterval(this.keepalive);
@@ -70,7 +73,9 @@ export class DeepgramStt extends EventEmitter implements SttStream {
         return;
       }
       const reason = this.lastError ? `: ${this.lastError.message}` : '';
-      this.emit('error', new Error(`Deepgram speech-to-text connection closed${reason}`));
+      const errMsg = `Deepgram speech-to-text connection closed${reason}`;
+      aiCallingLog.error('stt', errMsg, { details: { reason } });
+      this.emit('error', new Error(errMsg));
     });
   }
 
