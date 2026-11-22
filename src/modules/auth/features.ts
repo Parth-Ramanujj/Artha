@@ -57,6 +57,7 @@ export const CORE_CONTROLLER_PATHS = [
   'stats',
   'search',
   'health',
+  'docs-spec',
   'metrics',
   'infra',
   'plugins',

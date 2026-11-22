@@ -7,6 +7,8 @@ import { INestApplication, ShutdownSignal } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { DocsSpecStore } from './modules/docs/docs-spec.store';
+import { DOCS_KEY_SCRIPT } from './modules/docs/docs-key-script';
 import { AppModule, DASHBOARD_DIST, dashboardServingEnabled, dashboardBuildPresent } from './app.module';
 import { ShutdownService } from './common/services/shutdown.service';
 import { LoggerService, LogLevel, createLogger } from './common/services/logger.service';
@@ -313,7 +315,12 @@ async function bootstrap() {
     exemptPublicOperations(document);
     // The live page calls whichever host serves it; the static openapi.json keeps the templated localhost server.
     document.servers = [{ url: '/', description: 'This server' }];
-    SwaggerModule.setup('api/docs', app, document);
+    // The public page ships no endpoints: each key loads its own APIs from /api/docs-spec (see DocsController).
+    app.get(DocsSpecStore).document = document;
+    app.getHttpAdapter().get('/api/docs-key.js', (_req: Request, res: Response) => {
+      res.type('application/javascript').send(DOCS_KEY_SCRIPT);
+    });
+    SwaggerModule.setup('api/docs', app, { ...document, paths: {} }, { customJs: '/api/docs-key.js' });
   }
 
   // Protect the Bull Board queue UI (/api/admin/queues). It is mounted by

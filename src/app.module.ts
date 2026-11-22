@@ -32,6 +32,7 @@ import { CacheModule } from './common/cache';
 import { StorageModule } from './common/storage/storage.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { DocsModule } from './modules/docs/docs.module';
 import { StatusModule } from './modules/status/status.module';
 import { StatusStoreModule } from './modules/status-store/status-store.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -346,6 +347,7 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     TemplateModule,
     WebhookModule,
     HealthModule,
+    DocsModule, // Per-key API reference behind /api/docs
     SettingsModule,
     InfraModule,
     ContactModule,
