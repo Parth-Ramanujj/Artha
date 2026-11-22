@@ -131,9 +131,10 @@ export class CallRunnerService {
 
     const ai = this.ai;
     const answeredAt = new Date();
+    const isOverrideActive = Boolean(resolved?.config.overrideAgentSettings ?? true);
     const speech =
       this.speechOverride ??
-      (resolved
+      (resolved && isOverrideActive
         ? speechFactoryFor(resolved.config, {
             sarvam: sarvamApiKey,
             deepgram: resolved.secrets.DEEPGRAM_API_KEY,
@@ -141,6 +142,7 @@ export class CallRunnerService {
           })
         : this.speech);
     const llmEndpoint =
+      isOverrideActive &&
       resolved?.config.llm === 'openai-compatible' && resolved.config.llmBaseUrl && resolved.secrets.LLM_API_KEY
         ? {
             baseUrl: resolved.config.llmBaseUrl,
@@ -148,7 +150,7 @@ export class CallRunnerService {
             model: resolved.config.llmModel || agent.model,
           }
         : null;
-    if (resolved?.config.llm === 'openai-compatible' && !llmEndpoint) {
+    if (isOverrideActive && resolved?.config.llm === 'openai-compatible' && !llmEndpoint) {
       logger.warn('LLM set to an OpenAI-compatible endpoint but its address or key is missing; using Groq');
     }
     await this.callRepo.update(call.id, { status: AiCallStatus.IN_PROGRESS, answeredAt });
@@ -175,7 +177,12 @@ export class CallRunnerService {
     aiCallingLog.info('call', `AI call started (${expectedChannel})`, {
       callId: call.id,
       channel: expectedChannel,
-      details: { agentId: agent.id, model: agent.model, defaultLanguage: agent.defaultLanguage },
+      details: {
+        agentId: agent.id,
+        model: isOverrideActive && llmEndpoint ? llmEndpoint.model : agent.model,
+        defaultLanguage: agent.defaultLanguage,
+        globalOverride: isOverrideActive,
+      },
     });
 
     let saveTimer: NodeJS.Timeout | undefined;

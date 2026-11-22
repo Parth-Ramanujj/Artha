@@ -100,10 +100,12 @@ export class AiCallingService {
         resolved.config.llm === 'openai-compatible' && resolved.secrets.LLM_API_KEY && resolved.config.llmBaseUrl,
       );
 
-    const sttReady = resolved.config.stt === 'deepgram' ? deepgramKey : sarvamKey;
-    const ttsReady =
-      (resolved.config.ttsGujarati === 'elevenlabs' ? elevenKey : sarvamKey) &&
-      (resolved.config.ttsHindi === 'elevenlabs' ? elevenKey : sarvamKey);
+    const isOverrideActive = Boolean(resolved.config.overrideAgentSettings ?? true);
+    const sttReady = isOverrideActive && resolved.config.stt === 'deepgram' ? deepgramKey : sarvamKey;
+    const ttsReady = isOverrideActive
+      ? (resolved.config.ttsGujarati === 'elevenlabs' ? elevenKey : sarvamKey) &&
+        (resolved.config.ttsHindi === 'elevenlabs' ? elevenKey : sarvamKey)
+      : sarvamKey;
     const speechReady = sttReady && ttsReady;
 
     const status: SetupStatus = {

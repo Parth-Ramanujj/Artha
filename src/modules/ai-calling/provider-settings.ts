@@ -4,6 +4,8 @@ export type TtsProvider = 'sarvam' | 'elevenlabs';
 export type LlmProvider = 'groq' | 'openai-compatible';
 
 export interface ProviderConfig {
+  /** If true, outer engine choices (STT, Voices, LLM) override individual agent settings for all calls. */
+  overrideAgentSettings: boolean;
   stt: SttProvider;
   /** Text-to-speech engine per language. Sarvam is the proven default for Gujarati and Hindi. */
   ttsGujarati: TtsProvider;
@@ -20,6 +22,7 @@ export interface ProviderConfig {
 }
 
 export const DEFAULT_PROVIDERS: ProviderConfig = {
+  overrideAgentSettings: true,
   stt: 'sarvam',
   ttsGujarati: 'sarvam',
   ttsHindi: 'sarvam',
@@ -66,7 +69,14 @@ const ENUMS: Record<'stt' | 'ttsGujarati' | 'ttsHindi' | 'ttsEnglish' | 'llm', r
 /** Keeps only known fields with valid values; anything else falls back to the default. */
 export function sanitizeProviders(input: Partial<Record<keyof ProviderConfig, unknown>>): ProviderConfig {
   const out: ProviderConfig = { ...DEFAULT_PROVIDERS };
+  if (input.overrideAgentSettings !== undefined) {
+    out.overrideAgentSettings =
+      typeof input.overrideAgentSettings === 'boolean'
+        ? input.overrideAgentSettings
+        : input.overrideAgentSettings === 'true';
+  }
   for (const key of Object.keys(DEFAULT_PROVIDERS) as (keyof ProviderConfig)[]) {
+    if (key === 'overrideAgentSettings') continue;
     const value = input[key];
     if (value === undefined || value === null) continue;
     if (key in ENUMS) {

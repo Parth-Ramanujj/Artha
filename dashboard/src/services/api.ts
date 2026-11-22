@@ -1730,6 +1730,7 @@ export interface CallContact {
 }
 
 export interface AiProviderConfig {
+  overrideAgentSettings: boolean;
   stt: 'sarvam' | 'deepgram';
   ttsGujarati: 'sarvam' | 'elevenlabs';
   ttsHindi: 'sarvam' | 'elevenlabs';

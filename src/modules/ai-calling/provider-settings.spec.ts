@@ -42,6 +42,12 @@ describe('provider settings', () => {
     expect(out.stt).toBe('deepgram');
     expect(out.ttsHindi).toBe(DEFAULT_PROVIDERS.ttsHindi);
     expect(out.elevenVoiceId).toBe('abc');
+    expect(out.overrideAgentSettings).toBe(DEFAULT_PROVIDERS.overrideAgentSettings);
+
+    const outOff = sanitizeProviders({ overrideAgentSettings: false });
+    expect(outOff.overrideAgentSettings).toBe(false);
+    const outOn = sanitizeProviders({ overrideAgentSettings: true });
+    expect(outOn.overrideAgentSettings).toBe(true);
   });
 
   it('picks the engine per language and sends unknown languages to Sarvam', () => {

@@ -270,6 +270,19 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
             >
               LLM: {llmSummary}
             </span>
+            <span
+              style={{
+                fontSize: 12,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: providers?.config.overrideAgentSettings ? '#22c55e1a' : 'var(--bg-primary)',
+                border: `1px solid ${providers?.config.overrideAgentSettings ? '#22c55e44' : 'var(--border)'}`,
+                color: providers?.config.overrideAgentSettings ? '#22c55e' : 'var(--text-secondary)',
+                fontWeight: 600,
+              }}
+            >
+              {providers?.config.overrideAgentSettings ? 'Global Override: ON' : 'Agent Defaults: Active'}
+            </span>
             {setup.twilioAccountType && (
               <span
                 style={{
@@ -434,7 +447,94 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
       {/* ── TAB 1: Voice & Speech Engines ── */}
       {activeTab === 'engines' && draft && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+          {/* Master Toggle: Global Engine Override vs Agent Defaults */}
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 12,
+              background: draft.overrideAgentSettings ? 'rgba(34, 197, 94, 0.08)' : 'var(--bg-primary)',
+              border: `1.5px solid ${draft.overrideAgentSettings ? '#22c55e' : 'var(--border)'}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            <div style={{ flex: '1 1 300px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontWeight: 700, fontSize: 13.5 }}>Global Engine Override</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: draft.overrideAgentSettings ? '#22c55e22' : 'var(--bg-secondary)',
+                    color: draft.overrideAgentSettings ? '#22c55e' : 'var(--text-secondary)',
+                    border: `1px solid ${draft.overrideAgentSettings ? '#22c55e55' : 'var(--border)'}`,
+                  }}
+                >
+                  {draft.overrideAgentSettings ? 'ON — Using Outer Engines' : 'OFF — Using Agent Tab Settings'}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                {draft.overrideAgentSettings
+                  ? 'ON: Calls will strictly use the global speech & language engines chosen below (STT, Voices, ElevenLabs, Custom LLM) for all agents.'
+                  : 'OFF: Calls will use each agent\'s individual settings from the Agent tab (voices like Pooja/Ritu, pace, model). Global engines below are bypassed.'}
+              </p>
+            </div>
+
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={draft.overrideAgentSettings ?? true}
+                onChange={e => setDraft({ ...draft, overrideAgentSettings: e.target.checked })}
+                style={{ display: 'none' }}
+              />
+              <div
+                style={{
+                  width: 48,
+                  height: 26,
+                  borderRadius: 999,
+                  background: draft.overrideAgentSettings ? '#22c55e' : '#9ca3af',
+                  position: 'relative',
+                  transition: 'background 0.2s',
+                }}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    position: 'absolute',
+                    top: 3,
+                    left: draft.overrideAgentSettings ? 25 : 3,
+                    transition: 'left 0.2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  }}
+                />
+              </div>
+            </label>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 12,
+              opacity: draft.overrideAgentSettings ? 1 : 0.7,
+              transition: 'opacity 0.2s',
+            }}
+          >
             {/* STT Engine */}
             <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 10, border: '1px solid var(--border)' }}>
               <label style={labelStyle}>
