@@ -20,6 +20,7 @@ export const FEATURE_CONTROLLER_PATHS = {
     'assignment-rules',
     'notifications',
     'deals',
+    'reminders',
   ],
   support: ['sla', 'advisor-alerts', 'feedback'],
   followup: ['followup'],
@@ -69,6 +70,8 @@ export const CORE_CONTROLLER_PATHS = [
   'whatsapp-logs',
   // Ad leads, WhatsApp calling, quality alerts and invoices for the customer's own numbers.
   'wa-business',
+  'provisioning',
+  'platforms',
 ] as const;
 
 const FEATURE_BY_PATH = new Map<string, FeatureId | 'core'>([

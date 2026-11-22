@@ -524,7 +524,8 @@ export class StorageService implements OnModuleDestroy {
   private async *iterateLocalFiles(prefix = ''): AsyncGenerator<string> {
     // Iterative BFS: a queue of [relativeDir, depth] avoids unbounded call-stack growth. A prefix
     // ending in '/' names a subtree, so start the walk there instead of filtering afterwards.
-    const root = prefix.endsWith('/') ? prefix.slice(0, -1) : '';
+    const normalizedPrefix = prefix.replace(/\\/g, '/');
+    const root = normalizedPrefix.endsWith('/') ? normalizedPrefix.slice(0, -1) : '';
     if (root && !isPathWithin(this.localPath, root)) return;
     const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
 
@@ -545,7 +546,7 @@ export class StorageService implements OnModuleDestroy {
         if (entry.isDirectory()) {
           queue.push({ dir: relativePath, depth: depth + 1 });
         } else if (entry.isFile()) {
-          yield relativePath;
+          yield relativePath.split(path.sep).join('/');
         }
       }
     }

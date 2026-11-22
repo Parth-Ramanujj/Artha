@@ -1,0 +1,343 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Integration Fabric</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #09090B;
+      color: #FAFAFA;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface min-h-[884px] flex flex-col" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+  <!-- Sticky Top Header -->
+  <header class="sticky top-0 z-20 bg-surface/95 backdrop-blur-md border-b border-outline-variant px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <button type="button" aria-label="Back to Hub" class="w-9 h-9 rounded-xl bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
+        <span class="material-symbols-outlined" style="font-size: 20px;">arrow_back</span>
+      </button>
+      <div class="min-w-0">
+        <span class="block text-micro font-micro text-on-surface-variant uppercase tracking-wider">Enterprise Sync</span>
+        <h1 class="text-section font-section text-on-surface truncate" data-design-text-token="section">Integration Fabric</h1>
+      </div>
+    </div>
+
+    <button type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-on-primary text-micro font-micro shrink-0 hover:opacity-95 transition-opacity" data-component-id="button-add-integration">
+      <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+      <span>Connect App</span>
+    </button>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 px-4 py-4 space-y-4 pb-8">
+
+    <!-- Section Header: Connected Integrations -->
+    <div class="flex items-center justify-between">
+      <h2 class="text-body font-body text-on-surface" data-design-text-token="body">Connected Integrations</h2>
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-container/50 border border-primary/40 text-micro font-micro text-on-primary-container">
+        <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+        <span>3 Active</span>
+      </span>
+    </div>
+
+    <!-- Connected Integrations Grid -->
+    <section class="grid grid-cols-1 gap-3" aria-label="Connected Integrations">
+
+      <!-- Card 1: Shopify Store -->
+      <article class="rounded-2xl bg-surface-container border border-outline-variant p-4 space-y-3" data-component-id="card-integration-shopify">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-primary-container border border-primary/40 flex items-center justify-center text-primary shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 22px;">shopping_bag</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-body font-body text-on-surface truncate" data-design-text-token="body">Shopify Store</h3>
+              <p class="font-mono-code text-micro font-micro text-on-surface-variant truncate">sunrisestore.myshopify.com</p>
+            </div>
+          </div>
+
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-container/50 border border-primary/40 text-micro font-micro text-on-primary-container shrink-0">
+            <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            <span>Active</span>
+          </span>
+        </div>
+
+        <!-- Last Sync Meta -->
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/80 text-micro font-micro">
+          <span class="text-on-surface-variant flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-primary" style="font-size: 15px;">schedule</span>
+            <span>Last sync:</span>
+          </span>
+          <span id="shopify-last-sync" class="text-on-surface font-mono-code tabular-nums">2 mins ago</span>
+        </div>
+
+        <!-- Automations Toggles -->
+        <div class="space-y-2 pt-1">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-micro font-micro text-on-surface truncate" data-design-text-token="micro">Abandoned Cart Recovery</p>
+              <p class="text-micro font-micro text-on-surface-variant truncate">Triggers WhatsApp reminder at 2h</p>
+            </div>
+            <button type="button" role="switch" aria-checked="true" aria-label="Toggle Abandoned Cart Recovery" class="sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-primary/50 bg-primary transition-colors p-0.5">
+              <span class="pointer-events-none inline-block h-4.5 w-4.5 translate-x-5 rounded-full bg-on-primary transition-transform" style="width: 18px; height: 18px;"></span>
+            </button>
+          </div>
+
+          <div class="h-px bg-outline-variant/60"></div>
+
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-micro font-micro text-on-surface truncate" data-design-text-token="micro">Order Shipping Updates</p>
+              <p class="text-micro font-micro text-on-surface-variant truncate">Real-time tracking via Cloud API</p>
+            </div>
+            <button type="button" role="switch" aria-checked="true" aria-label="Toggle Order Shipping Updates" class="sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-primary/50 bg-primary transition-colors p-0.5">
+              <span class="pointer-events-none inline-block h-4.5 w-4.5 translate-x-5 rounded-full bg-on-primary transition-transform" style="width: 18px; height: 18px;"></span>
+            </button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 2: Zoho CRM -->
+      <article class="rounded-2xl bg-surface-container border border-outline-variant p-4 space-y-3" data-component-id="card-integration-zoho">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-facebook/15 border border-facebook/40 flex items-center justify-center text-facebook shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 22px;">hub</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-body font-body text-on-surface truncate" data-design-text-token="body">Zoho CRM</h3>
+              <p class="text-micro font-micro text-on-surface-variant truncate">Two-way Contact &amp; Deal Sync</p>
+            </div>
+          </div>
+
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-container/50 border border-primary/40 text-micro font-micro text-on-primary-container shrink-0">
+            <span class="w-2 h-2 rounded-full bg-primary"></span>
+            <span>Connected</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/80 text-micro font-micro">
+          <span class="text-on-surface-variant flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-facebook" style="font-size: 15px;">sync_alt</span>
+            <span>Bi-directional Pipeline</span>
+          </span>
+          <button type="button" role="switch" aria-checked="true" aria-label="Toggle Zoho CRM Sync" class="sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-primary/50 bg-primary transition-colors p-0.5">
+            <span class="pointer-events-none inline-block translate-x-5 rounded-full bg-on-primary transition-transform" style="width: 18px; height: 18px;"></span>
+          </button>
+        </div>
+      </article>
+
+      <!-- Card 3: Google Sheets -->
+      <article class="rounded-2xl bg-surface-container border border-outline-variant p-4 space-y-3" data-component-id="card-integration-sheets">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-primary-container/60 border border-primary/40 flex items-center justify-center text-primary shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 22px;">table_view</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-body font-body text-on-surface truncate" data-design-text-token="body">Google Sheets</h3>
+              <p class="font-mono-code text-micro font-micro text-on-surface-variant truncate">Leads_2026_Master_Sheet</p>
+            </div>
+          </div>
+
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-container/50 border border-primary/40 text-micro font-micro text-on-primary-container shrink-0">
+            <span class="w-2 h-2 rounded-full bg-primary"></span>
+            <span>Connected</span>
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/80 text-micro font-micro">
+          <span class="text-on-surface-variant flex items-center gap-1.5 truncate">
+            <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 15px;">playlist_add</span>
+            <span class="truncate">Appends row on new lead</span>
+          </span>
+          <button type="button" role="switch" aria-checked="true" aria-label="Toggle Google Sheets Auto-Append" class="sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-primary/50 bg-primary transition-colors p-0.5">
+            <span class="pointer-events-none inline-block translate-x-5 rounded-full bg-on-primary transition-transform" style="width: 18px; height: 18px;"></span>
+          </button>
+        </div>
+      </article>
+    </section>
+
+    <!-- Sync Activity & Error Ledger -->
+    <section class="rounded-2xl bg-surface-container border border-outline-variant p-4 space-y-3" aria-label="Sync Activity and Error Ledger">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-body font-body text-on-surface" data-design-text-token="body">Sync Activity &amp; Error Ledger</h2>
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-container/40 border border-primary/30 text-micro font-micro text-on-primary-container">
+          <span class="material-symbols-outlined text-primary" style="font-size: 14px;">verified</span>
+          <span>Healthy</span>
+        </span>
+      </div>
+
+      <!-- Ledger Summary Banner -->
+      <div class="rounded-xl bg-surface-container-low border border-outline-variant px-3.5 py-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 20px;">task_alt</span>
+          <span class="text-body font-body text-on-surface tabular-nums truncate" data-design-text-token="body">450 orders synced today · 0 failures</span>
+        </div>
+      </div>
+
+      <!-- Recent Sync Log Items -->
+      <div class="space-y-2 text-micro font-micro">
+        <div class="flex items-center justify-between gap-2 text-on-surface-variant">
+          <span class="truncate">Shopify Order #SH-4921 → WhatsApp Alert</span>
+          <span class="font-mono-code text-primary shrink-0">200 OK</span>
+        </div>
+        <div class="flex items-center justify-between gap-2 text-on-surface-variant">
+          <span class="truncate">Zoho Deal #ZD-812 → Stage Updated</span>
+          <span class="font-mono-code text-primary shrink-0">Synced</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-2 gap-2.5 pt-1">
+        <button id="sync-now-btn" type="button" class="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-primary text-on-primary text-body font-body hover:opacity-95 transition-opacity" data-component-id="button-sync-now">
+          <span id="sync-now-icon" class="material-symbols-outlined" style="font-size: 18px;">sync</span>
+          <span id="sync-now-label">Sync Now</span>
+        </button>
+
+        <button type="button" class="inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-high border border-outline-variant text-on-surface text-body font-body hover:border-outline transition-colors" data-component-id="button-integration-settings">
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 18px;">tune</span>
+          <span>Settings</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Interactive Toggle Switches
+    document.querySelectorAll('.sync-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const isChecked = btn.getAttribute('aria-checked') === 'true';
+        const next = !isChecked;
+        btn.setAttribute('aria-checked', String(next));
+        const knob = btn.querySelector('span');
+        if (next) {
+          btn.className = 'sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-primary/50 bg-primary transition-colors p-0.5';
+          knob.className = 'pointer-events-none inline-block translate-x-5 rounded-full bg-on-primary transition-transform';
+        } else {
+          btn.className = 'sync-toggle relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-outline-variant bg-surface-container-high transition-colors p-0.5';
+          knob.className = 'pointer-events-none inline-block translate-x-0 rounded-full bg-on-surface-variant transition-transform';
+        }
+      });
+    });
+
+    // Sync Now Button Interaction
+    document.getElementById('sync-now-btn').addEventListener('click', () => {
+      const icon = document.getElementById('sync-now-icon');
+      const label = document.getElementById('sync-now-label');
+      const lastSync = document.getElementById('shopify-last-sync');
+      icon.classList.add('animate-spin');
+      label.textContent = 'Syncing...';
+      setTimeout(() => {
+        icon.classList.remove('animate-spin');
+        label.textContent = 'Sync Now';
+        lastSync.textContent = 'Just now';
+      }, 900);
+    });
+  </script>
+
+
+</body></html>

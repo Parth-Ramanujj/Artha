@@ -1,0 +1,527 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Webhook Inspector</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #09090B;
+      color: #FAFAFA;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface min-h-[884px] flex flex-col" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+  <!-- Top Header & Live Stream Status -->
+  <header class="sticky top-0 z-20 bg-surface/95 backdrop-blur-md border-b border-outline-variant px-4 pt-3 pb-3 space-y-3">
+    <!-- Title Row -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <button type="button" aria-label="Back to Developer Console" class="w-9 h-9 rounded-xl bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors shrink-0">
+          <span class="material-symbols-outlined" style="font-size: 20px;">arrow_back</span>
+        </button>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-micro font-micro text-on-surface-variant uppercase tracking-wider">Cloud API Debug</span>
+          </div>
+          <h1 class="text-section font-section text-on-surface truncate" data-design-text-token="section">Webhook Inspector</h1>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="toggle-stream-btn" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-container/60 border border-primary/40 text-on-primary-container text-micro font-micro transition-colors" data-component-id="button-stream-toggle">
+          <span class="w-2 h-2 rounded-full bg-primary animate-pulse" id="stream-dot"></span>
+          <span id="stream-label">Live</span>
+        </button>
+        <button id="clear-logs-btn" type="button" aria-label="Clear log stream" class="w-8 h-8 rounded-lg bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+          <span class="material-symbols-outlined" style="font-size: 18px;">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Traffic Monitor Banner -->
+    <div class="rounded-xl bg-surface-container border border-outline-variant px-3 py-2.5 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="relative flex h-2.5 w-2.5 shrink-0">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+        </span>
+        <span class="text-micro font-micro text-on-surface truncate" data-design-text-token="micro">Live Traffic Monitor · Pulse Active</span>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0 font-mono-code text-micro font-micro">
+        <span class="text-primary">14.2 req/s</span>
+        <span class="text-outline-variant">|</span>
+        <span class="text-voice-cyan">42ms avg</span>
+      </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5" role="tablist" aria-label="Webhook log filters">
+      <button type="button" data-filter="all" class="filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-primary-container text-on-primary-container border border-primary/40 transition-colors">
+        All (142)
+      </button>
+      <button type="button" data-filter="incoming" class="filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-surface-container text-on-surface-variant border border-outline-variant hover:text-on-surface transition-colors">
+        Incoming Webhooks
+      </button>
+      <button type="button" data-filter="outbound" class="filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-surface-container text-on-surface-variant border border-outline-variant hover:text-on-surface transition-colors">
+        Outbound Sends
+      </button>
+      <button type="button" data-filter="errors" class="filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-surface-container text-on-surface-variant border border-outline-variant hover:text-on-surface transition-colors">
+        Errors (0)
+      </button>
+    </div>
+  </header>
+
+  <!-- Log Entry Stream -->
+  <main class="flex-1 px-4 pt-3 pb-96 space-y-2.5" id="log-stream">
+    <!-- Log Row 1: WhatsApp Cloud API Webhook (Selected) -->
+    <article data-log-id="log-1" data-category="incoming" tabindex="0" role="button" class="log-row cursor-pointer rounded-xl bg-surface-container-high/60 border border-primary/60 p-3 space-y-2 transition-all" style="box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15);">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container font-mono-code text-micro font-micro shrink-0">POST</span>
+          <span class="font-mono-code text-body font-body text-on-surface truncate" data-design-text-token="body">/cloud-api/webhook</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 font-mono-code text-micro font-micro">
+          <span class="text-primary">200 OK</span>
+          <span class="text-on-surface-variant">18ms ago</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container border border-outline-variant font-mono-code text-micro font-micro text-on-surface">
+          <span class="w-1.5 h-1.5 rounded-full bg-whatsapp"></span>
+          messages (wamid.HBgL...)
+        </span>
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container border border-outline-variant font-mono-code text-micro font-micro text-on-surface-variant">
+          From: +91 98765 43210
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 text-micro font-micro text-on-surface-variant pt-0.5" data-design-text-token="micro">
+        <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 15px;">check_circle</span>
+        <span class="truncate">Parsed &amp; Dispatched to Session &#39;sunrise-wa-01&#39;</span>
+      </div>
+    </article>
+
+    <!-- Log Row 2: Social Automation Webhook -->
+    <article data-log-id="log-2" data-category="incoming" tabindex="0" role="button" class="log-row cursor-pointer rounded-xl bg-surface-container border border-outline-variant p-3 space-y-2 hover:border-outline transition-all">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="px-1.5 py-0.5 rounded bg-primary-container text-on-primary-container font-mono-code text-micro font-micro shrink-0">POST</span>
+          <span class="font-mono-code text-body font-body text-on-surface truncate" data-design-text-token="body">/social-automation/webhook</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 font-mono-code text-micro font-micro">
+          <span class="text-primary">200 OK</span>
+          <span class="text-on-surface-variant">1.2s ago</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-instagram-purple/15 border border-instagram-purple/40 font-mono-code text-micro font-micro text-on-surface">
+          <span class="w-1.5 h-1.5 rounded-full bg-instagram-pink"></span>
+          instagram_comments
+        </span>
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-low border border-outline-variant font-mono-code text-micro font-micro text-on-surface-variant">
+          Account: @sunrisestore
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 text-micro font-micro text-on-surface-variant pt-0.5" data-design-text-token="micro">
+        <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 15px;">check_circle</span>
+        <span class="truncate">Matched trigger &#39;price&#39; · Queued Astra DM reply</span>
+      </div>
+    </article>
+
+    <!-- Log Row 3: Outbound Cloud API Send -->
+    <article data-log-id="log-3" data-category="outbound" tabindex="0" role="button" class="log-row cursor-pointer rounded-xl bg-surface-container border border-outline-variant p-3 space-y-2 hover:border-outline transition-all">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="px-1.5 py-0.5 rounded bg-voice-cyan/15 text-voice-cyan border border-voice-cyan/30 font-mono-code text-micro font-micro shrink-0">POST</span>
+          <span class="font-mono-code text-body font-body text-on-surface truncate" data-design-text-token="body">/v21.0/10492817/messages</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 font-mono-code text-micro font-micro">
+          <span class="text-primary">200 OK</span>
+          <span class="text-on-surface-variant">3.4s ago</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-low border border-outline-variant font-mono-code text-micro font-micro text-on-surface">
+          template: order_confirm_v2
+        </span>
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-container-low border border-outline-variant font-mono-code text-micro font-micro text-on-surface-variant">
+          To: +91 98201 44120
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 text-micro font-micro text-on-surface-variant pt-0.5" data-design-text-token="micro">
+        <span class="material-symbols-outlined text-voice-cyan shrink-0" style="font-size: 15px;">outbound</span>
+        <span class="truncate">Delivered via Meta Cloud API · 38ms</span>
+      </div>
+    </article>
+
+    <!-- Empty State for Errors (0) -->
+    <div id="empty-errors-state" class="hidden rounded-xl bg-surface-container border border-outline-variant p-6 text-center space-y-2">
+      <div class="w-10 h-10 rounded-full bg-primary-container/50 border border-primary/40 flex items-center justify-center mx-auto text-primary">
+        <span class="material-symbols-outlined" style="font-size: 20px;">verified</span>
+      </div>
+      <p class="text-body font-body text-on-surface">0 Webhook Errors</p>
+      <p class="text-micro font-micro text-on-surface-variant">All 142 recent Cloud API and social events returned HTTP 200 OK.</p>
+    </div>
+  </main>
+
+  <!-- Payload Inspector Sheet (Bottom Slide-up) -->
+  <section aria-label="Payload Inspector Sheet" class="fixed bottom-0 inset-x-0 z-30 bg-surface-container-low border-t border-outline-variant rounded-t-2xl px-4 pt-2.5 pb-4 space-y-2.5" style="box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.7);">
+    <!-- Drag Handle -->
+    <div class="w-10 h-1 rounded-full bg-outline-variant mx-auto"></div>
+
+    <!-- Sheet Header -->
+    <div class="flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <h2 class="text-body font-body text-on-surface shrink-0 whitespace-nowrap" data-design-text-token="body">Payload Inspector</h2>
+          <span id="inspector-endpoint" class="font-mono-code text-micro font-micro text-primary truncate">/cloud-api/webhook</span>
+        </div>
+      </div>
+
+      <button id="copy-payload-btn" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container border border-outline-variant text-micro font-micro text-on-surface hover:border-primary/50 transition-colors shrink-0" data-component-id="button-copy-json">
+        <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 14px;" id="copy-icon">content_copy</span>
+        <span id="copy-label">Copy JSON</span>
+      </button>
+    </div>
+
+    <!-- Signature Verification & Sheet Tabs -->
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary-container/40 border border-primary/30 font-mono-code text-micro font-micro text-on-primary-container min-w-0 max-w-full">
+        <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 14px;">verified_user</span>
+        <span class="truncate">X-Hub-Signature-256: sha256=9f8c... · Verified</span>
+      </div>
+
+      <div class="flex items-center gap-1 bg-surface-container rounded-lg p-0.5 border border-outline-variant shrink-0">
+        <button type="button" id="tab-json-btn" class="px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface text-micro font-micro transition-colors">JSON</button>
+        <button type="button" id="tab-headers-btn" class="px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface text-micro font-micro transition-colors">Headers (4)</button>
+      </div>
+    </div>
+
+    <!-- JSON Code View -->
+    <div id="json-panel" class="rounded-xl bg-surface border border-outline-variant p-3 overflow-x-auto max-h-44 overflow-y-auto">
+      <pre id="json-code-content" class="font-mono-code text-micro font-micro leading-relaxed text-on-surface-variant"><code>{
+  <span class="text-neural-violet">&#34;object&#34;</span>: <span class="text-primary">&#34;whatsapp_business_account&#34;</span>,
+  <span class="text-neural-violet">&#34;entry&#34;</span>: [{
+    <span class="text-neural-violet">&#34;id&#34;</span>: <span class="text-primary">&#34;1049281740291&#34;</span>,
+    <span class="text-neural-violet">&#34;changes&#34;</span>: [{
+      <span class="text-neural-violet">&#34;field&#34;</span>: <span class="text-primary">&#34;messages&#34;</span>,
+      <span class="text-neural-violet">&#34;value&#34;</span>: {
+        <span class="text-neural-violet">&#34;from&#34;</span>: <span class="text-primary">&#34;+919876543210&#34;</span>,
+        <span class="text-neural-violet">&#34;id&#34;</span>: <span class="text-primary">&#34;wamid.HBgLMzkxOTg3NjU0MzIxMA==&#34;</span>,
+        <span class="text-neural-violet">&#34;type&#34;</span>: <span class="text-primary">&#34;text&#34;</span>,
+        <span class="text-neural-violet">&#34;text&#34;</span>: { <span class="text-neural-violet">&#34;body&#34;</span>: <span class="text-primary">&#34;Hi, share wholesale catalog&#34;</span> }
+      }
+    }]
+  }]
+}</code></pre>
+    </div>
+
+    <!-- Headers View (Hidden by default) -->
+    <div id="headers-panel" class="hidden rounded-xl bg-surface border border-outline-variant p-3 overflow-x-auto max-h-44 overflow-y-auto space-y-1.5 font-mono-code text-micro font-micro">
+      <div class="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-1">
+        <span class="text-neural-violet shrink-0">X-Hub-Signature-256</span>
+        <span class="text-primary text-right break-all">sha256=9f8c4e1a7b02... (Verified)</span>
+      </div>
+      <div class="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-1">
+        <span class="text-neural-violet shrink-0">Content-Type</span>
+        <span class="text-on-surface text-right">application/json; charset=utf-8</span>
+      </div>
+      <div class="flex items-start justify-between gap-2 border-b border-outline-variant/60 pb-1">
+        <span class="text-neural-violet shrink-0">User-Agent</span>
+        <span class="text-on-surface-variant text-right">facebookexternalua</span>
+      </div>
+      <div class="flex items-start justify-between gap-2">
+        <span class="text-neural-violet shrink-0">X-Artha-Session</span>
+        <span class="text-voice-cyan text-right">sunrise-wa-01</span>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const payloads = {
+      'log-1': {
+        endpoint: '/cloud-api/webhook',
+        raw: JSON.stringify({
+          object: 'whatsapp_business_account',
+          entry: [{
+            id: '1049281740291',
+            changes: [{
+              field: 'messages',
+              value: {
+                from: '+919876543210',
+                id: 'wamid.HBgLMzkxOTg3NjU0MzIxMA==',
+                type: 'text',
+                text: { body: 'Hi, share wholesale catalog' }
+              }
+            }]
+          }]
+        }, null, 2),
+        html: `{
+  <span class="text-neural-violet">"object"</span>: <span class="text-primary">"whatsapp_business_account"</span>,
+  <span class="text-neural-violet">"entry"</span>: [{
+    <span class="text-neural-violet">"id"</span>: <span class="text-primary">"1049281740291"</span>,
+    <span class="text-neural-violet">"changes"</span>: [{
+      <span class="text-neural-violet">"field"</span>: <span class="text-primary">"messages"</span>,
+      <span class="text-neural-violet">"value"</span>: {
+        <span class="text-neural-violet">"from"</span>: <span class="text-primary">"+919876543210"</span>,
+        <span class="text-neural-violet">"id"</span>: <span class="text-primary">"wamid.HBgLMzkxOTg3NjU0MzIxMA=="</span>,
+        <span class="text-neural-violet">"type"</span>: <span class="text-primary">"text"</span>,
+        <span class="text-neural-violet">"text"</span>: { <span class="text-neural-violet">"body"</span>: <span class="text-primary">"Hi, share wholesale catalog"</span> }
+      }
+    }]
+  }]
+}`
+      },
+      'log-2': {
+        endpoint: '/social-automation/webhook',
+        raw: JSON.stringify({
+          object: 'instagram',
+          entry: [{
+            id: '17841405928112',
+            changes: [{
+              field: 'instagram_comments',
+              value: {
+                account: '@sunrisestore',
+                comment_id: '1802918472910',
+                text: 'Price for the cotton kurta set?'
+              }
+            }]
+          }]
+        }, null, 2),
+        html: `{
+  <span class="text-neural-violet">"object"</span>: <span class="text-primary">"instagram"</span>,
+  <span class="text-neural-violet">"entry"</span>: [{
+    <span class="text-neural-violet">"id"</span>: <span class="text-primary">"17841405928112"</span>,
+    <span class="text-neural-violet">"changes"</span>: [{
+      <span class="text-neural-violet">"field"</span>: <span class="text-primary">"instagram_comments"</span>,
+      <span class="text-neural-violet">"value"</span>: {
+        <span class="text-neural-violet">"account"</span>: <span class="text-primary">"@sunrisestore"</span>,
+        <span class="text-neural-violet">"comment_id"</span>: <span class="text-primary">"1802918472910"</span>,
+        <span class="text-neural-violet">"text"</span>: <span class="text-primary">"Price for the cotton kurta set?"</span>
+      }
+    }]
+  }]
+}`
+      },
+      'log-3': {
+        endpoint: '/v21.0/10492817/messages',
+        raw: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: '+919820144120',
+          type: 'template',
+          template: {
+            name: 'order_confirm_v2',
+            language: { code: 'en' }
+          },
+          status: 'accepted'
+        }, null, 2),
+        html: `{
+  <span class="text-neural-violet">"messaging_product"</span>: <span class="text-primary">"whatsapp"</span>,
+  <span class="text-neural-violet">"to"</span>: <span class="text-primary">"+919820144120"</span>,
+  <span class="text-neural-violet">"type"</span>: <span class="text-primary">"template"</span>,
+  <span class="text-neural-violet">"template"</span>: {
+    <span class="text-neural-violet">"name"</span>: <span class="text-primary">"order_confirm_v2"</span>,
+    <span class="text-neural-violet">"language"</span>: { <span class="text-neural-violet">"code"</span>: <span class="text-primary">"en"</span> }
+  },
+  <span class="text-neural-violet">"status"</span>: <span class="text-primary">"accepted"</span>
+}`
+      }
+    };
+
+    let activeLogId = 'log-1';
+
+    document.querySelectorAll('.log-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const id = row.getAttribute('data-log-id');
+        activeLogId = id;
+        document.querySelectorAll('.log-row').forEach(r => {
+          r.className = 'log-row cursor-pointer rounded-xl bg-surface-container border border-outline-variant p-3 space-y-2 hover:border-outline transition-all';
+          r.style.boxShadow = 'none';
+        });
+        row.className = 'log-row cursor-pointer rounded-xl bg-surface-container-high/60 border border-primary/60 p-3 space-y-2 transition-all';
+        row.style.boxShadow = '0 0 0 1px rgba(16, 185, 129, 0.15)';
+        document.getElementById('inspector-endpoint').textContent = payloads[id].endpoint;
+        document.getElementById('json-code-content').innerHTML = `<code>${payloads[id].html}</code>`;
+      });
+    });
+
+    // Filter tabs
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const filter = tab.getAttribute('data-filter');
+        document.querySelectorAll('.filter-tab').forEach(t => {
+          t.className = 'filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-surface-container text-on-surface-variant border border-outline-variant hover:text-on-surface transition-colors';
+        });
+        tab.className = 'filter-tab shrink-0 px-3 py-1.5 rounded-full text-micro font-micro bg-primary-container text-on-primary-container border border-primary/40 transition-colors';
+
+        let visibleCount = 0;
+        document.querySelectorAll('.log-row').forEach(row => {
+          const cat = row.getAttribute('data-category');
+          const show = filter === 'all' || filter === cat;
+          row.classList.toggle('hidden', !show);
+          if (show) visibleCount++;
+        });
+        document.getElementById('empty-errors-state').classList.toggle('hidden', visibleCount > 0);
+      });
+    });
+
+    // JSON / Headers tab switcher
+    const tabJsonBtn = document.getElementById('tab-json-btn');
+    const tabHeadersBtn = document.getElementById('tab-headers-btn');
+    const jsonPanel = document.getElementById('json-panel');
+    const headersPanel = document.getElementById('headers-panel');
+
+    tabJsonBtn.addEventListener('click', () => {
+      tabJsonBtn.className = 'px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface text-micro font-micro transition-colors';
+      tabHeadersBtn.className = 'px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface text-micro font-micro transition-colors';
+      jsonPanel.classList.remove('hidden');
+      headersPanel.classList.add('hidden');
+    });
+
+    tabHeadersBtn.addEventListener('click', () => {
+      tabHeadersBtn.className = 'px-2.5 py-1 rounded-md bg-surface-container-high text-on-surface text-micro font-micro transition-colors';
+      tabJsonBtn.className = 'px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface text-micro font-micro transition-colors';
+      headersPanel.classList.remove('hidden');
+      jsonPanel.classList.add('hidden');
+    });
+
+    // Copy JSON button
+    document.getElementById('copy-payload-btn').addEventListener('click', () => {
+      const label = document.getElementById('copy-label');
+      const icon = document.getElementById('copy-icon');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(payloads[activeLogId].raw).catch(() => {});
+      }
+      label.textContent = 'Copied!';
+      icon.textContent = 'check';
+      icon.classList.replace('text-on-surface-variant', 'text-primary');
+      setTimeout(() => {
+        label.textContent = 'Copy JSON';
+        icon.textContent = 'content_copy';
+        icon.classList.replace('text-primary', 'text-on-surface-variant');
+      }, 1500);
+    });
+
+    // Live Stream toggle
+    let isLive = true;
+    document.getElementById('toggle-stream-btn').addEventListener('click', () => {
+      isLive = !isLive;
+      const btn = document.getElementById('toggle-stream-btn');
+      const dot = document.getElementById('stream-dot');
+      const label = document.getElementById('stream-label');
+      if (isLive) {
+        btn.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-container/60 border border-primary/40 text-on-primary-container text-micro font-micro transition-colors';
+        dot.className = 'w-2 h-2 rounded-full bg-primary animate-pulse';
+        label.textContent = 'Live';
+      } else {
+        btn.className = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-container border border-outline-variant text-on-surface-variant text-micro font-micro transition-colors';
+        dot.className = 'w-2 h-2 rounded-full bg-outline';
+        label.textContent = 'Paused';
+      }
+    });
+  </script>
+
+
+</body></html>

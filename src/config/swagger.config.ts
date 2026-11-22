@@ -89,6 +89,8 @@ export function createSwaggerConfig(): Omit<OpenAPIObject, 'paths'> {
       // (mirrors the global ApiKeyGuard). Without this, "Authorize" is cosmetic.
       .addSecurityRequirements(API_KEY_SECURITY_SCHEME)
       .setContact('Artha', '', '')
+      .addTag('provisioning', 'Tenant & API key provisioning for partner integrations')
+      .addTag('platforms', 'Unified platform connections (WhatsApp Cloud, Meta, Google, Telegram)')
       .addTag('sessions', 'WhatsApp session management')
       .addTag('messages', 'Send and manage messages')
       .addTag('webhooks', 'Webhook configuration')

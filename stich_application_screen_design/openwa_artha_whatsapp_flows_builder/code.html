@@ -1,0 +1,396 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — WhatsApp Flows Builder</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .code-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary/30 selection:text-on-surface">
+  <div class="min-h-[1024px] w-full max-w-6xl mx-auto bg-surface flex flex-col" data-stitch-vh="min-h-[1024px]===min-h-screen">
+
+    <!-- 1. Header Bar -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-gutter-lg md:px-gutter-xl py-gutter-md flex flex-wrap items-center justify-between gap-gutter-md">
+      <div class="flex flex-col gap-1 min-w-0">
+        <div class="flex items-center gap-gutter-sm">
+          <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 20px;" aria-hidden="true">dynamic_form</span>
+          <h1 class="font-section text-section text-on-surface truncate" data-design-text-token="section">Service Appointment Booking Flow</h1>
+        </div>
+        <div class="flex items-center gap-gutter-sm flex-wrap">
+          <span class="code-mono inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">
+            Meta Flow ID: 8941029482 · Status: DRAFT / PUBLISHED
+          </span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-gutter-sm">
+        <button id="test-wa-btn" type="button" class="min-h-10 px-gutter-md py-gutter-sm rounded-full bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high font-micro text-micro transition-colors duration-state-change ease-state-change inline-flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-primary" style="font-size: 16px;" aria-hidden="true">smartphone</span>
+          <span data-design-text-token="micro">Test on My WhatsApp</span>
+        </button>
+
+        <button id="publish-meta-btn" data-component-id="button-solid-primary" data-component-type="button" data-component-variant="primary" type="button" class="min-h-10 px-gutter-lg py-gutter-sm rounded-full bg-primary text-on-primary font-body text-body hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change inline-flex items-center gap-1.5 whitespace-nowrap" style="box-shadow: 0 0 20px rgba(16, 185, 129, 0.45);">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">rocket_launch</span>
+          <span data-design-text-token="body">Publish to Meta</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. Form Screen Flow Pipeline (Horizontal Steps) -->
+    <div class="border-b border-outline-variant bg-surface-container-low px-gutter-lg md:px-gutter-xl py-gutter-md">
+      <div role="tablist" aria-label="Flow screens" class="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar">
+        <button type="button" role="tab" aria-selected="true" data-step="1" class="flow-step-btn shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded-full bg-primary/15 border border-primary/40 text-primary font-micro text-micro">
+          <span data-design-text-token="micro">Step 1: Select Service</span>
+        </button>
+
+        <span class="material-symbols-outlined text-outline shrink-0" style="font-size: 16px;" aria-hidden="true">arrow_forward</span>
+
+        <button type="button" role="tab" aria-selected="false" data-step="2" class="flow-step-btn shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro">
+          <span data-design-text-token="micro">Step 2: Choose Date &amp; Slot</span>
+        </button>
+
+        <span class="material-symbols-outlined text-outline shrink-0" style="font-size: 16px;" aria-hidden="true">arrow_forward</span>
+
+        <button type="button" role="tab" aria-selected="false" data-step="3" class="flow-step-btn shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro">
+          <span data-design-text-token="micro">Step 3: User Contact &amp; Submit</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main 2-Column Split Workspace -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12">
+
+      <!-- 3. LEFT COLUMN: Active Screen Builder Editor (7 cols) -->
+      <section aria-labelledby="builder-heading" class="lg:col-span-7 p-gutter-lg md:p-gutter-xl border-b lg:border-b-0 lg:border-r border-outline-variant flex flex-col gap-gutter-lg">
+        <div class="flex items-center justify-between gap-gutter-sm">
+          <h2 id="builder-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Form Component Tree</h2>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Drag to reorder</span>
+        </div>
+
+        <!-- Field Cards Stack -->
+        <div id="field-tree" class="flex flex-col gap-gutter-md">
+          <!-- Field 1: Dropdown -->
+          <div class="p-gutter-md rounded-lg bg-surface-container/80 border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex items-center justify-between gap-gutter-md">
+            <div class="flex items-center gap-gutter-md min-w-0">
+              <span class="material-symbols-outlined text-outline cursor-grab shrink-0" style="font-size: 18px;" aria-hidden="true">drag_indicator</span>
+              <div class="w-9 h-9 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">arrow_drop_down_circle</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Choose Doctor/Service</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Dropdown · Required</span>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant shrink-0" data-design-text-token="micro">Dropdown</span>
+          </div>
+
+          <!-- Field 2: Date Picker -->
+          <div class="p-gutter-md rounded-lg bg-surface-container/80 border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex items-center justify-between gap-gutter-md">
+            <div class="flex items-center gap-gutter-md min-w-0">
+              <span class="material-symbols-outlined text-outline cursor-grab shrink-0" style="font-size: 18px;" aria-hidden="true">drag_indicator</span>
+              <div class="w-9 h-9 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">calendar_today</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Preferred Date</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Date Picker · Required</span>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant shrink-0" data-design-text-token="micro">Date Picker</span>
+          </div>
+
+          <!-- Field 3: Radio Buttons -->
+          <div class="p-gutter-md rounded-lg bg-surface-container/80 border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex items-center justify-between gap-gutter-md">
+            <div class="flex items-center gap-gutter-md min-w-0">
+              <span class="material-symbols-outlined text-outline cursor-grab shrink-0" style="font-size: 18px;" aria-hidden="true">drag_indicator</span>
+              <div class="w-9 h-9 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">radio_button_checked</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Payment Mode</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Radio Buttons · UPI / Pay at Clinic</span>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant shrink-0" data-design-text-token="micro">Radio</span>
+          </div>
+
+          <!-- Field 4: Text Input -->
+          <div class="p-gutter-md rounded-lg bg-surface-container/80 border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex items-center justify-between gap-gutter-md">
+            <div class="flex items-center gap-gutter-md min-w-0">
+              <span class="material-symbols-outlined text-outline cursor-grab shrink-0" style="font-size: 18px;" aria-hidden="true">drag_indicator</span>
+              <div class="w-9 h-9 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">short_text</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Special Notes</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Text Input · Optional</span>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant shrink-0" data-design-text-token="micro">Text Input</span>
+          </div>
+        </div>
+
+        <!-- Add Element (+) Menu -->
+        <div class="p-gutter-lg rounded-lg bg-surface-container-low border border-dashed border-outline-variant flex flex-col gap-gutter-md">
+          <div class="flex items-center gap-gutter-sm">
+            <span class="material-symbols-outlined text-primary" style="font-size: 18px;" aria-hidden="true">add_circle</span>
+            <span class="font-micro text-micro text-on-surface" data-design-text-token="micro">Add Element (+)</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-gutter-sm">
+            <button type="button" data-add-type="Text Field" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Text Field</span>
+            </button>
+            <button type="button" data-add-type="Dropdown" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Dropdown</span>
+            </button>
+            <button type="button" data-add-type="Date/Time" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Date/Time</span>
+            </button>
+            <button type="button" data-add-type="Radio Choice" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Radio Choice</span>
+            </button>
+            <button type="button" data-add-type="Checkbox" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Checkbox</span>
+            </button>
+            <button type="button" data-add-type="Location Picker" class="add-element-chip px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant hover:border-primary/50 text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">Location Picker</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. RIGHT COLUMN: Interactive Live WhatsApp Phone Simulator (5 cols) -->
+      <aside aria-labelledby="sim-heading" class="lg:col-span-5 p-gutter-lg md:p-gutter-xl bg-surface-container-lowest flex flex-col items-center justify-start gap-gutter-md">
+        <div class="w-full max-w-sm flex items-center justify-between">
+          <h2 id="sim-heading" class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">LIVE WHATSAPP SIMULATOR</h2>
+          <span class="font-micro text-micro text-primary" data-design-text-token="micro">Interactive</span>
+        </div>
+
+        <!-- Phone Frame -->
+        <div class="w-full max-w-sm rounded-3xl bg-surface-container border-4 border-surface-container-high overflow-hidden relative flex flex-col min-h-96" style="box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);">
+          <!-- WhatsApp Header -->
+          <div class="px-gutter-md py-gutter-md bg-surface-container-high border-b border-outline-variant flex items-center justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-sm">
+              <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center font-micro text-micro text-on-primary" data-design-text-token="micro">SR</div>
+              <div class="flex flex-col">
+                <div class="flex items-center gap-1">
+                  <span class="font-body text-body text-on-surface" data-design-text-token="body">Sunrise Retailers</span>
+                  <span class="material-symbols-outlined text-primary" style="font-size: 14px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">verified</span>
+                </div>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Official Business Account</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Thread Area -->
+          <div class="flex-1 p-gutter-md bg-surface flex flex-col justify-between gap-gutter-xl">
+            <div class="flex flex-col gap-gutter-sm">
+              <!-- Incoming Business Flow Message Card -->
+              <div class="max-w-xs rounded-lg bg-surface-container border border-outline-variant overflow-hidden">
+                <div class="p-gutter-md flex flex-col gap-1">
+                  <span class="font-body text-body text-on-surface" data-design-text-token="body">Service Appointment</span>
+                  <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">Tap below to book your appointment</p>
+                  <span class="self-end font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">09:58 AM</span>
+                </div>
+                <button id="sim-book-now-btn" type="button" class="w-full py-gutter-md border-t border-outline-variant bg-surface-container/80 hover:bg-surface-container-high text-primary font-body text-body flex items-center justify-center gap-1.5 transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">calendar_month</span>
+                  <span data-design-text-token="body">Book Now</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Phone Chat Footer -->
+            <div class="pt-gutter-md flex items-center gap-gutter-sm">
+              <div class="flex-1 h-9 px-gutter-md rounded-full bg-surface-container border border-outline-variant flex items-center font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+                Message
+              </div>
+              <div class="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">mic</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- In-Chat Native Flow Modal Preview (Inside Phone Frame, toggled by "Book Now") -->
+          <div id="sim-flow-modal" class="hidden absolute inset-0 z-20 bg-surface/80 backdrop-blur-sm flex flex-col justify-end">
+            <div class="p-gutter-md rounded-t-xl bg-surface-container border-t border-outline-variant flex flex-col gap-gutter-md">
+              <div class="flex items-center justify-between">
+                <span class="font-body text-body text-on-surface" data-design-text-token="body">Select Service</span>
+                <button id="sim-close-modal" type="button" aria-label="Close preview" class="text-on-surface-variant hover:text-on-surface">
+                  <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">close</span>
+                </button>
+              </div>
+
+              <div class="flex flex-col gap-gutter-sm">
+                <select class="w-full h-10 px-gutter-sm rounded bg-surface border border-outline-variant text-on-surface font-micro text-micro">
+                  <option>Choose Doctor/Service</option>
+                  <option>Dr. Mehta — Skin Consultation</option>
+                  <option>Express Suit Fitting</option>
+                </select>
+                <input type="date" class="w-full h-10 px-gutter-sm rounded bg-surface border border-outline-variant text-on-surface font-micro text-micro">
+                <input type="text" placeholder="Special Notes" class="w-full h-10 px-gutter-sm rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-micro text-micro">
+              </div>
+
+              <button id="sim-submit-flow" type="button" class="w-full h-10 rounded-full bg-primary text-on-primary font-body text-body">
+                <span data-design-text-token="body">Continue</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+    </main>
+
+  </div>
+
+  <script>
+    (function () {
+      const bookBtn = document.getElementById('sim-book-now-btn');
+      const modal = document.getElementById('sim-flow-modal');
+      const closeBtn = document.getElementById('sim-close-modal');
+      const submitBtn = document.getElementById('sim-submit-flow');
+      const tree = document.getElementById('field-tree');
+
+      if (bookBtn && modal) {
+        bookBtn.addEventListener('click', function () { modal.classList.remove('hidden'); });
+      }
+      if (closeBtn && modal) {
+        closeBtn.addEventListener('click', function () { modal.classList.add('hidden'); });
+      }
+      if (submitBtn && modal) {
+        submitBtn.addEventListener('click', function () { modal.classList.add('hidden'); });
+      }
+
+      document.querySelectorAll('.flow-step-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('.flow-step-btn').forEach(function (b) {
+            const active = b === btn;
+            b.setAttribute('aria-selected', String(active));
+            b.classList.toggle('bg-primary/15', active);
+            b.classList.toggle('border-primary/40', active);
+            b.classList.toggle('text-primary', active);
+            b.classList.toggle('bg-surface-container', !active);
+            b.classList.toggle('border-outline-variant', !active);
+            b.classList.toggle('text-on-surface-variant', !active);
+          });
+        });
+      });
+
+      document.querySelectorAll('.add-element-chip').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          if (!tree) return;
+          const type = chip.getAttribute('data-add-type') || 'Field';
+          const card = document.createElement('div');
+          card.className = 'p-gutter-md rounded-lg bg-surface-container/80 border border-primary/40 flex items-center justify-between gap-gutter-md';
+          card.innerHTML =
+            '<div class="flex items-center gap-gutter-md min-w-0">' +
+              '<span class="material-symbols-outlined text-outline shrink-0" style="font-size: 18px;" aria-hidden="true">drag_indicator</span>' +
+              '<div class="flex flex-col min-w-0">' +
+                '<span class="font-body text-body text-on-surface truncate" data-design-text-token="body">New ' + type + '</span>' +
+                '<span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">' + type + ' · Optional</span>' +
+              '</div>' +
+            '</div>' +
+            '<span class="px-2 py-0.5 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant shrink-0" data-design-text-token="micro">' + type + '</span>';
+          tree.appendChild(card);
+        });
+      });
+    })();
+  </script>
+
+
+</body></html>

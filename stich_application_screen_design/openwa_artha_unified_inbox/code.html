@@ -1,0 +1,502 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Unified Inbox</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary/30 selection:text-on-surface">
+  <div class="min-h-[1024px] w-full max-w-4xl mx-auto bg-surface flex flex-col" data-stitch-vh="min-h-[1024px]===min-h-screen">
+
+    <!-- Top App Header -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-page-margin py-gutter-md flex items-center justify-between gap-gutter-md">
+      <div class="flex items-center gap-gutter-md">
+        <div class="flex items-center gap-gutter-sm">
+          <div class="w-8 h-8 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">inbox</span>
+          </div>
+          <h1 class="font-section text-section text-on-surface" data-design-text-token="section">Unified Inbox</h1>
+        </div>
+        <span class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+          Sunrise Retailers
+        </span>
+      </div>
+
+      <div class="flex items-center gap-gutter-sm">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/25" role="status" aria-label="Live sync active">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-primary" style="box-shadow: 0 0 8px #10B981;"></span>
+          </span>
+          <span class="font-micro text-micro text-primary" data-design-text-token="micro">Live</span>
+        </div>
+        <button type="button" aria-label="Search conversations" class="w-9 h-9 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">search</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Split-Pane Workspace (Single-pane toggle on mobile, 12-col split on tablet+) -->
+    <div class="flex-1 grid grid-cols-1 md:grid-cols-12">
+
+      <!-- LEFT PANE: Platform Filtering & Conversation List -->
+      <aside id="list-pane" class="md:col-span-5 border-r border-outline-variant flex flex-col bg-surface pb-20 md:pb-0">
+
+        <!-- Platform Filtering Chips -->
+        <div class="px-page-margin py-gutter-md border-b border-outline-variant">
+          <div role="tablist" aria-label="Filter by platform" class="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar">
+            <button type="button" role="tab" aria-selected="true" data-filter="all" class="filter-chip shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-primary text-on-primary font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="micro">All (12)</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" data-filter="whatsapp" class="filter-chip shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span class="w-2 h-2 rounded-full bg-primary"></span>
+              <span data-design-text-token="micro">WhatsApp (8)</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" data-filter="instagram" class="filter-chip shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span class="w-2 h-2 rounded-full bg-instagram-pink"></span>
+              <span data-design-text-token="micro">Instagram (3)</span>
+            </button>
+
+            <button type="button" role="tab" aria-selected="false" data-filter="google" class="filter-chip shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span class="w-2 h-2 rounded-full bg-google-amber"></span>
+              <span data-design-text-token="micro">Google Reviews (1)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Conversation List -->
+        <div id="conversation-list" class="flex-1 divide-y divide-outline-variant overflow-y-auto pb-24 md:pb-0">
+
+          <!-- Conversation 1: Priya Patel (WhatsApp - Selected) -->
+          <button type="button" data-channel="whatsapp" data-name="Priya Patel" class="conv-item w-full p-gutter-lg bg-surface-container/80 hover:bg-surface-container flex items-start gap-gutter-md text-left transition-colors duration-state-change ease-state-change border-l-2 border-primary">
+            <div class="relative shrink-0">
+              <div class="w-11 h-11 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-body text-body text-on-surface" data-design-text-token="body">PP</div>
+              <span class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary text-on-primary border-2 border-surface flex items-center justify-center">
+                <span class="material-symbols-outlined" style="font-size: 12px;" aria-hidden="true">call</span>
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Priya Patel</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">2m ago</span>
+              </div>
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <p class="font-body text-body text-on-surface-variant truncate flex items-center gap-1" data-design-text-token="body">
+                  <span class="material-symbols-outlined text-facebook shrink-0" style="font-size: 15px;" aria-hidden="true">done_all</span>
+                  <span class="truncate">Is order #4821 ready for dispatch?</span>
+                </p>
+                <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-on-primary font-micro text-micro tabular-nums shrink-0" data-design-text-token="micro">2</span>
+              </div>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">WhatsApp Order</span>
+              </div>
+            </div>
+          </button>
+
+          <!-- Conversation 2: @aarav.styles (Instagram) -->
+          <button type="button" data-channel="instagram" data-name="@aarav.styles" class="conv-item w-full p-gutter-lg hover:bg-surface-container/60 flex items-start gap-gutter-md text-left transition-colors duration-state-change ease-state-change border-l-2 border-transparent">
+            <div class="relative shrink-0">
+              <div class="w-11 h-11 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-body text-body text-on-surface" data-design-text-token="body">AS</div>
+              <span class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-gradient-to-tr from-instagram-purple to-instagram-pink text-on-surface border-2 border-surface flex items-center justify-center">
+                <span class="material-symbols-outlined" style="font-size: 12px;" aria-hidden="true">photo_camera</span>
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">@aarav.styles</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">14m ago</span>
+              </div>
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <p class="font-body text-body text-on-surface-variant truncate flex items-center gap-1" data-design-text-token="body">
+                  <span class="material-symbols-outlined text-on-surface-variant shrink-0" style="font-size: 15px;" aria-hidden="true">done_all</span>
+                  <span class="truncate">Price for the linen kurta set?</span>
+                </p>
+                <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-on-primary font-micro text-micro tabular-nums shrink-0" data-design-text-token="micro">1</span>
+              </div>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high border border-instagram-pink/40 text-on-surface font-micro text-micro" data-design-text-token="micro">
+                  <span class="w-1.5 h-1.5 rounded-full bg-instagram-pink"></span>
+                  <span>IG Story Reply</span>
+                </span>
+              </div>
+            </div>
+          </button>
+
+          <!-- Conversation 3: Rohan Mehta (Google Review) -->
+          <button type="button" data-channel="google" data-name="Rohan Mehta" class="conv-item w-full p-gutter-lg hover:bg-surface-container/60 flex items-start gap-gutter-md text-left transition-colors duration-state-change ease-state-change border-l-2 border-transparent">
+            <div class="relative shrink-0">
+              <div class="w-11 h-11 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-body text-body text-on-surface" data-design-text-token="body">RM</div>
+              <span class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-google-amber text-on-google-amber border-2 border-surface flex items-center justify-center">
+                <span class="material-symbols-outlined" style="font-size: 12px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Rohan Mehta</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">38m ago</span>
+              </div>
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <p class="font-body text-body text-on-surface-variant truncate flex items-center gap-1" data-design-text-token="body">
+                  <span class="material-symbols-outlined text-on-surface-variant shrink-0" style="font-size: 15px;" aria-hidden="true">done</span>
+                  <span class="truncate">Fast pickup at Ahmedabad Main Branch!</span>
+                </p>
+              </div>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-google-amber/15 text-google-amber font-micro text-micro" data-design-text-token="micro">Google 5★ Review</span>
+              </div>
+            </div>
+          </button>
+
+          <!-- Conversation 4: Sneha Desai (WhatsApp) -->
+          <button type="button" data-channel="whatsapp" data-name="Sneha Desai" class="conv-item w-full p-gutter-lg hover:bg-surface-container/60 flex items-start gap-gutter-md text-left transition-colors duration-state-change ease-state-change border-l-2 border-transparent">
+            <div class="relative shrink-0">
+              <div class="w-11 h-11 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-body text-body text-on-surface" data-design-text-token="body">SD</div>
+              <span class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary text-on-primary border-2 border-surface flex items-center justify-center">
+                <span class="material-symbols-outlined" style="font-size: 12px;" aria-hidden="true">call</span>
+              </span>
+            </div>
+
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Sneha Desai</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">1h ago</span>
+              </div>
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <p class="font-body text-body text-on-surface-variant truncate flex items-center gap-1" data-design-text-token="body">
+                  <span class="material-symbols-outlined text-facebook shrink-0" style="font-size: 15px;" aria-hidden="true">done_all</span>
+                  <span class="truncate">Thanks, received the GST invoice PDF.</span>
+                </p>
+              </div>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">WhatsApp Support</span>
+              </div>
+            </div>
+          </button>
+
+        </div>
+      </aside>
+
+      <!-- RIGHT PANE: Active Chat Thread View -->
+      <main id="thread-pane" class="hidden md:flex md:col-span-7 flex-col bg-surface-container-lowest">
+
+        <!-- Thread Header -->
+        <div class="px-page-margin py-gutter-md bg-surface-container/80 backdrop-blur-md border-b border-outline-variant flex items-center justify-between gap-gutter-sm">
+          <div class="flex items-center gap-gutter-md min-w-0">
+            <button id="back-to-list" type="button" aria-label="Back to conversations" class="md:hidden w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface">
+              <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">arrow_back</span>
+            </button>
+            <div class="w-9 h-9 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center font-body text-body text-primary shrink-0" data-design-text-token="body">PP</div>
+            <div class="flex flex-col min-w-0">
+              <h2 id="thread-contact-name" class="font-body text-body text-on-surface truncate" data-design-text-token="body">Priya Patel</h2>
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums truncate" data-design-text-token="micro">+91 98201 44120 · WhatsApp Cloud</span>
+            </div>
+          </div>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro shrink-0" data-design-text-token="micro">Open</span>
+        </div>
+
+        <!-- Channel Indicator Banner -->
+        <div class="px-page-margin py-gutter-sm bg-primary/10 border-b border-primary/25 flex items-center justify-center gap-gutter-sm text-center">
+          <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 15px;" aria-hidden="true">schedule</span>
+          <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">
+            Official WhatsApp Session · 24-Hour Customer Care Window Active (21h remaining)
+          </span>
+        </div>
+
+        <!-- Message Thread -->
+        <div id="message-stream" class="flex-1 p-page-margin flex flex-col gap-gutter-md overflow-y-auto">
+          <div class="self-center px-3 py-1 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+            Today
+          </div>
+
+          <!-- Sender Bubble (Dark zinc-800) -->
+          <div class="self-start max-w-xs sm:max-w-sm flex flex-col gap-1">
+            <div class="px-gutter-lg py-gutter-md rounded-lg rounded-tl-sm bg-surface-container-high border border-outline-variant text-on-surface">
+              <p class="font-body text-body text-pretty" data-design-text-token="body">Hi! I placed order #4821 this morning for pickup at Ahmedabad Main Branch. Is it packed?</p>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">09:41 AM</span>
+          </div>
+
+          <!-- Business Reply Bubble (Emerald-tinted zinc-800) -->
+          <div class="self-end max-w-xs sm:max-w-sm flex flex-col items-end gap-1">
+            <div class="px-gutter-lg py-gutter-md rounded-lg rounded-tr-sm bg-primary-container/60 border border-primary/30 text-on-surface">
+              <p class="font-body text-body text-pretty" data-design-text-token="body">Hello Priya! Yes, order #4821 is packed and ready at Counter 2. Share code 4821 at pickup.</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">09:42 AM</span>
+              <span class="material-symbols-outlined text-facebook" style="font-size: 14px;" aria-hidden="true">done_all</span>
+            </div>
+          </div>
+
+          <!-- Sender Follow-up Bubble -->
+          <div class="self-start max-w-xs sm:max-w-sm flex flex-col gap-1">
+            <div class="px-gutter-lg py-gutter-md rounded-lg rounded-tl-sm bg-surface-container-high border border-outline-variant text-on-surface">
+              <p class="font-body text-body text-pretty" data-design-text-token="body">Is order #4821 ready for dispatch if I switch to same-day delivery instead?</p>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">09:44 AM</span>
+          </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <footer class="sticky bottom-0 z-20 bg-surface-container/95 backdrop-blur-md border-t border-outline-variant px-page-margin py-gutter-md flex flex-col gap-gutter-sm">
+          <!-- Quick Utility Row: Attachment (+), HSM Template Picker, AI Copilot Toggle -->
+          <div class="flex items-center justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-sm">
+              <button type="button" aria-label="Add attachment" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+                <span class="material-symbols-outlined" style="font-size: 15px;" aria-hidden="true">add</span>
+                <span data-design-text-token="micro">Attach</span>
+              </button>
+              <button id="template-btn" type="button" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface border border-outline-variant text-on-surface-variant hover:text-primary font-micro text-micro transition-colors duration-state-change ease-state-change">
+                <span class="material-symbols-outlined" style="font-size: 15px;" aria-hidden="true">bolt</span>
+                <span data-design-text-token="micro">Template (HSM)</span>
+              </button>
+            </div>
+
+            <button id="ai-copilot-btn" type="button" aria-pressed="false" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro transition-colors duration-state-change ease-state-change">
+              <span class="material-symbols-outlined" style="font-size: 15px;" aria-hidden="true">auto_awesome</span>
+              <span data-design-text-token="micro">AI Copilot</span>
+            </button>
+          </div>
+
+          <!-- Message Input & Send Row -->
+          <form id="reply-form" class="flex items-center gap-gutter-sm">
+            <input id="reply-input" type="text" placeholder="Reply via WhatsApp Cloud API..." class="flex-1 h-11 px-gutter-md rounded-full bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary">
+            <button type="submit" aria-label="Send message" class="w-11 h-11 rounded-full bg-primary text-on-primary flex items-center justify-center hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);">
+              <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">send</span>
+            </button>
+          </form>
+        </footer>
+      </main>
+
+    </div>
+
+    <!-- Mobile Bottom Sticky Navigation Bar (Visible on list view on mobile, hidden on tablet+ split view) -->
+    <nav id="mobile-nav" aria-label="Primary navigation" class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface/90 backdrop-blur-md border-t border-outline-variant px-gutter-md py-gutter-sm">
+      <ul class="grid grid-cols-4 items-center gap-gutter-xs">
+        <li>
+          <a href="#hub" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">grid_view</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Hub</span>
+          </a>
+        </li>
+        <li>
+          <a href="#inbox" aria-current="page" class="flex flex-col items-center justify-center gap-1 py-1 text-primary">
+            <span class="material-symbols-outlined" style="font-size: 22px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">inbox</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Inbox</span>
+          </a>
+        </li>
+        <li>
+          <a href="#campaigns" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">campaign</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Campaigns</span>
+          </a>
+        </li>
+        <li>
+          <a href="#settings" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">settings</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Settings</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+  </div>
+
+  <script>
+    (function () {
+      const chips = document.querySelectorAll('.filter-chip');
+      const items = document.querySelectorAll('.conv-item');
+      const listPane = document.getElementById('list-pane');
+      const threadPane = document.getElementById('thread-pane');
+      const mobileNav = document.getElementById('mobile-nav');
+      const backBtn = document.getElementById('back-to-list');
+      const threadName = document.getElementById('thread-contact-name');
+      const copilotBtn = document.getElementById('ai-copilot-btn');
+      const replyInput = document.getElementById('reply-input');
+      const replyForm = document.getElementById('reply-form');
+      const stream = document.getElementById('message-stream');
+
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          const filter = chip.getAttribute('data-filter');
+          chips.forEach(function (c) {
+            const active = c === chip;
+            c.setAttribute('aria-selected', String(active));
+            c.classList.toggle('bg-primary', active);
+            c.classList.toggle('text-on-primary', active);
+            c.classList.toggle('bg-surface-container', !active);
+            c.classList.toggle('border', !active);
+            c.classList.toggle('border-outline-variant', !active);
+            c.classList.toggle('text-on-surface-variant', !active);
+          });
+          items.forEach(function (item) {
+            const ch = item.getAttribute('data-channel');
+            item.classList.toggle('hidden', filter !== 'all' && ch !== filter);
+          });
+        });
+      });
+
+      items.forEach(function (item) {
+        item.addEventListener('click', function () {
+          const name = item.getAttribute('data-name');
+          if (name && threadName) threadName.textContent = name;
+          items.forEach(function (i) {
+            i.classList.remove('bg-surface-container/80', 'border-primary');
+            i.classList.add('border-transparent');
+          });
+          item.classList.add('bg-surface-container/80', 'border-primary');
+          item.classList.remove('border-transparent');
+
+          if (window.innerWidth < 768 && listPane && threadPane && mobileNav) {
+            listPane.classList.add('hidden');
+            threadPane.classList.remove('hidden');
+            threadPane.classList.add('flex');
+            mobileNav.classList.add('hidden');
+          }
+        });
+      });
+
+      if (backBtn && listPane && threadPane && mobileNav) {
+        backBtn.addEventListener('click', function () {
+          threadPane.classList.add('hidden');
+          threadPane.classList.remove('flex');
+          listPane.classList.remove('hidden');
+          mobileNav.classList.remove('hidden');
+        });
+      }
+
+      if (copilotBtn && replyInput) {
+        copilotBtn.addEventListener('click', function () {
+          const pressed = copilotBtn.getAttribute('aria-pressed') === 'true';
+          copilotBtn.setAttribute('aria-pressed', String(!pressed));
+          if (!pressed && !replyInput.value) {
+            replyInput.value = 'Yes! We can dispatch order #4821 via same-day courier—arriving by 6 PM today.';
+          }
+        });
+      }
+
+      if (replyForm && replyInput && stream) {
+        replyForm.addEventListener('submit', function (e) {
+          e.preventDefault();
+          const text = replyInput.value.trim();
+          if (!text) return;
+          const wrap = document.createElement('div');
+          wrap.className = 'self-end max-w-xs sm:max-w-sm flex flex-col items-end gap-1';
+          const bubble = document.createElement('div');
+          bubble.className = 'px-gutter-lg py-gutter-md rounded-lg rounded-tr-sm bg-primary-container/60 border border-primary/30 text-on-surface';
+          const p = document.createElement('p');
+          p.className = 'font-body text-body text-pretty';
+          p.setAttribute('data-design-text-token', 'body');
+          p.textContent = text;
+          bubble.appendChild(p);
+          wrap.appendChild(bubble);
+          stream.appendChild(wrap);
+          replyInput.value = '';
+          stream.scrollTop = stream.scrollHeight;
+        });
+      }
+    })();
+  </script>
+
+
+</body></html>

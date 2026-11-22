@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Deal, DealStage } from './entities/deal.entity';
 import { Contact } from './entities/contact.entity';
 import { Conversation } from './entities/conversation.entity';
@@ -76,10 +76,11 @@ export class DealService {
       contactName,
       contactPhone,
       contactId: dto.contactId ?? null,
-      conversationId: dto.conversationId ?? null,
+      conversationId: dto.conversationId ?? (await this.findChatFor(businessId, contact, contactPhone)),
       businessId,
       amount: dto.amount ?? 0,
       stage: dto.stage ?? DealStage.LEAD,
+      stageChangedAt: new Date(),
       assignedTo: dto.assignedTo ?? 'Unassigned',
     });
     const saved = await this.dealRepo.save(deal);
@@ -89,8 +90,20 @@ export class DealService {
 
   async update(id: string, businessId: string, dto: UpdateDealDto): Promise<Deal> {
     const deal = await this.findOne(id, businessId);
-    await this.resolveLinks(businessId, dto);
+    const contact = await this.resolveLinks(businessId, dto);
+    const previousStage = deal.stage;
     Object.assign(deal, dto);
+    // Deals made before auto-linking (or before the customer first wrote) get their chat on the next edit.
+    if (!deal.conversationId) {
+      const linkedContact =
+        contact ??
+        (deal.contactId
+          ? await this.contactRepo.findOne({ where: { id: deal.contactId, ...(businessId ? { businessId } : {}) } })
+          : null);
+      deal.conversationId = await this.findChatFor(businessId, linkedContact, deal.contactPhone);
+    }
+    // Stage-based follow-ups count idle time from the stage change, so a deal moved to a new stage is not nudged at once.
+    if (deal.stage !== previousStage) deal.stageChangedAt = new Date();
     const updated = await this.dealRepo.save(deal);
     this.logger.log(`Updated deal "${updated.title}" for business=${businessId}`, {
       dealId: updated.id,
@@ -117,6 +130,24 @@ export class DealService {
       if (!conversation) throw new BadRequestException(`Linked conversation "${link.conversationId}" not found`);
     }
     return contact;
+  }
+
+  /**
+   * The WhatsApp chat a deal belongs to, so deal-stage follow-ups can reach it: the linked contact's chat,
+   * else the 1:1 chat for the deal phone. The most recently active match wins; null when none exists yet.
+   */
+  private async findChatFor(businessId: string, contact: Contact | null, phone: string | null): Promise<string | null> {
+    const chatIds = new Set<string>();
+    if (contact?.waContactId) chatIds.add(contact.waContactId);
+    const digits = (phone ?? '').replace(/\D/g, '');
+    // shortcut: phone-to-chat matching only covers @c.us chats; an @lid-only chat links via its contact instead.
+    if (digits.length >= 8) chatIds.add(`${digits}@c.us`);
+    if (chatIds.size === 0) return null;
+    const chat = await this.conversationRepo.findOne({
+      where: { chatId: In([...chatIds]), ...(businessId ? { businessId } : {}) },
+      order: { lastMessageAt: 'DESC' },
+    });
+    return chat?.id ?? null;
   }
 
   async getMetrics(businessId: string): Promise<{

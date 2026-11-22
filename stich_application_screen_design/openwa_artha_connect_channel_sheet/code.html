@@ -1,0 +1,346 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Connect Channel Sheet</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary/30 selection:text-on-surface">
+  <!-- Full-screen modal backdrop over dimmed Hub context -->
+  <div class="min-h-[884px] w-full max-w-md mx-auto bg-surface relative flex flex-col justify-end pt-12" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+    <!-- Subtle dimmed background shapes of underlying Hub -->
+    <div aria-hidden="true" class="absolute inset-x-0 top-0 px-page-margin pt-gutter-lg opacity-30 pointer-events-none select-none flex flex-col gap-gutter-md">
+      <div class="flex items-center justify-between">
+        <div class="w-40 h-9 rounded-full bg-surface-container border border-outline-variant"></div>
+        <div class="w-10 h-10 rounded-full bg-surface-container border border-outline-variant"></div>
+      </div>
+      <div class="h-24 rounded-lg bg-surface-container border border-outline-variant"></div>
+    </div>
+
+    <!-- Scrim overlay -->
+    <div aria-hidden="true" class="fixed inset-0 max-w-md mx-auto bg-surface/75 backdrop-blur-sm z-10"></div>
+
+    <!-- Bottom Sheet Drawer -->
+    <section role="dialog" aria-modal="true" aria-labelledby="sheet-heading" class="relative z-20 w-full rounded-t-3xl bg-surface-container border-t border-surface-container-high flex flex-col" style="box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.7);">
+      <!-- Drag Handle & Close Button Row -->
+      <div class="w-full px-page-margin pt-gutter-md pb-gutter-xs flex items-center justify-between">
+        <div class="w-8"></div>
+        <div class="w-10 h-1 rounded-full bg-outline/50"></div>
+        <button type="button" aria-label="Close modal" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">close</span>
+        </button>
+      </div>
+
+      <!-- 1. Sheet Header -->
+      <header class="px-page-margin pt-gutter-xs pb-gutter-lg flex flex-col gap-1">
+        <h1 id="sheet-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Connect Communication Channel</h1>
+        <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">Add official credentials to start automating messages and replies</p>
+      </header>
+
+      <!-- 2. Segmented Platform Selector Tabs -->
+      <div class="px-page-margin pb-gutter-lg">
+        <div role="tablist" aria-label="Communication platforms" class="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar p-1 rounded-lg bg-surface border border-outline-variant">
+          <!-- Tab 1: WhatsApp Cloud API (Active - Emerald glow) -->
+          <button type="button" role="tab" aria-selected="true" data-tab="whatsapp" class="platform-tab shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded bg-primary/15 border border-primary/40 text-primary font-micro text-micro transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);">
+            <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">call</span>
+            <span data-design-text-token="micro">WhatsApp Cloud API</span>
+          </button>
+
+          <!-- Tab 2: Instagram & Facebook -->
+          <button type="button" role="tab" aria-selected="false" data-tab="meta-social" class="platform-tab shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded border border-transparent text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">forum</span>
+            <span data-design-text-token="micro">Instagram &amp; Facebook</span>
+          </button>
+
+          <!-- Tab 3: Google Business -->
+          <button type="button" role="tab" aria-selected="false" data-tab="google" class="platform-tab shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded border border-transparent text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">storefront</span>
+            <span data-design-text-token="micro">Google Business</span>
+          </button>
+
+          <!-- Tab 4: Telegram -->
+          <button type="button" role="tab" aria-selected="false" data-tab="telegram" class="platform-tab shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded border border-transparent text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">send</span>
+            <span data-design-text-token="micro">Telegram</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Form Body (WhatsApp Official Cloud API) -->
+      <form id="channel-form" class="px-page-margin flex flex-col gap-gutter-lg pb-gutter-xl">
+
+        <!-- Panel: WhatsApp Cloud API -->
+        <div id="panel-whatsapp" class="tab-panel flex flex-col gap-gutter-lg">
+
+          <!-- Field 1: Channel Nickname -->
+          <div class="flex flex-col gap-1.5">
+            <label for="channel-nickname" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Channel Nickname</label>
+            <div class="relative flex items-center">
+              <input id="channel-nickname" type="text" placeholder="e.g., Support Line Mumbai" class="w-full h-12 pl-gutter-md pr-11 rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-state-change ease-state-change">
+              <button type="button" aria-label="Paste channel nickname" data-paste-target="channel-nickname" class="paste-btn absolute right-2 w-8 h-8 rounded-sm flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors duration-state-change ease-state-change">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">content_paste</span>
+              </button>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Visible internally to your team in the unified inbox.</span>
+          </div>
+
+          <!-- Field 2: Meta System-User Access Token -->
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between gap-gutter-sm">
+              <label for="meta-token" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Meta System-User Access Token</label>
+              <a href="#meta-guide" class="font-micro text-micro text-primary hover:underline shrink-0" data-design-text-token="micro">Where do I find this in Meta Business Manager?</a>
+            </div>
+            <div class="relative flex items-center">
+              <input id="meta-token" type="password" value="EAAQ8ZBm2x9KIBAGZ..." placeholder="EAAGm0PX4ZCps..." class="w-full h-12 pl-gutter-md pr-20 rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-state-change ease-state-change">
+              <div class="absolute right-2 flex items-center gap-1">
+                <button id="toggle-token-visibility" type="button" aria-label="Show access token" class="w-8 h-8 rounded-sm flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors duration-state-change ease-state-change">
+                  <span id="eye-icon" class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">visibility</span>
+                </button>
+                <button type="button" aria-label="Copy or paste access token" data-paste-target="meta-token" class="paste-btn w-8 h-8 rounded-sm flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">content_copy</span>
+                </button>
+              </div>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Requires whatsapp_business_messaging permission scope.</span>
+          </div>
+
+          <!-- Field 3: Phone Number ID -->
+          <div class="flex flex-col gap-1.5">
+            <label for="phone-number-id" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Phone Number ID (Meta Graph)</label>
+            <div class="relative flex items-center">
+              <input id="phone-number-id" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="e.g., 284910472819304" class="w-full h-12 pl-gutter-md pr-11 rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body tabular-nums focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-state-change ease-state-change">
+              <button type="button" aria-label="Paste Phone Number ID" data-paste-target="phone-number-id" class="paste-btn absolute right-2 w-8 h-8 rounded-sm flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors duration-state-change ease-state-change">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">content_paste</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Field 4: WABA ID -->
+          <div class="flex flex-col gap-1.5">
+            <label for="waba-id" class="font-micro text-micro text-on-surface" data-design-text-token="micro">WABA ID</label>
+            <div class="relative flex items-center">
+              <input id="waba-id" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="e.g., 109482736104829" class="w-full h-12 pl-gutter-md pr-11 rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body tabular-nums focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors duration-state-change ease-state-change">
+              <button type="button" aria-label="Paste WABA ID" data-paste-target="waba-id" class="paste-btn absolute right-2 w-8 h-8 rounded-sm flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors duration-state-change ease-state-change">
+                <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">content_paste</span>
+              </button>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">WhatsApp Business Account ID from Meta App Dashboard.</span>
+          </div>
+
+          <!-- Security Notice Box -->
+          <div class="p-gutter-md rounded bg-primary/10 border border-primary/25 flex items-start gap-gutter-md">
+            <span class="material-symbols-outlined text-primary shrink-0 mt-0.5" style="font-size: 18px;" aria-hidden="true">verified_user</span>
+            <p class="font-micro text-micro text-on-surface-variant text-pretty" data-design-text-token="micro">
+              No QR code required. Encrypted with AES-256 via Meta Official Cloud API
+            </p>
+          </div>
+        </div>
+
+        <!-- Panel: Instagram & Facebook (Hidden unless tab selected) -->
+        <div id="panel-meta-social" class="tab-panel hidden flex-col gap-gutter-lg">
+          <div class="p-gutter-lg rounded-lg bg-surface border border-outline-variant flex flex-col gap-gutter-sm">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">Meta OAuth Gateway</span>
+            <p class="font-micro text-micro text-on-surface-variant text-pretty" data-design-text-token="micro">Authorize your Instagram Business account and linked Facebook Page to sync DMs and story mentions.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Google Business (Hidden unless tab selected) -->
+        <div id="panel-google" class="tab-panel hidden flex-col gap-gutter-lg">
+          <div class="p-gutter-lg rounded-lg bg-surface border border-outline-variant flex flex-col gap-gutter-sm">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">Google Business Profile API</span>
+            <p class="font-micro text-micro text-on-surface-variant text-pretty" data-design-text-token="micro">Connect your verified store locations to automate review replies and customer Q&amp;A.</p>
+          </div>
+        </div>
+
+        <!-- Panel: Telegram (Hidden unless tab selected) -->
+        <div id="panel-telegram" class="tab-panel hidden flex-col gap-gutter-lg">
+          <div class="flex flex-col gap-1.5">
+            <label for="telegram-bot-token" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Telegram Bot Token (@BotFather)</label>
+            <input id="telegram-bot-token" type="password" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" class="w-full h-12 px-gutter-md rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary">
+          </div>
+        </div>
+
+      </form>
+
+      <!-- 4. Sticky Bottom Primary Action -->
+      <footer class="sticky bottom-0 z-30 bg-surface-container/95 backdrop-blur-md border-t border-outline-variant px-page-margin py-gutter-lg">
+        <button id="verify-connect-btn" data-component-id="button-primary" data-component-type="button" data-component-variant="primary" type="submit" form="channel-form" class="w-full min-h-12 px-gutter-lg py-gutter-md rounded-full bg-gradient-to-r from-primary to-on-primary-container text-on-primary font-body text-body hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change flex items-center justify-center gap-gutter-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 24px rgba(16, 185, 129, 0.45);">
+          <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">bolt</span>
+          <span data-design-text-token="body">Verify &amp; Connect Number</span>
+        </button>
+      </footer>
+    </section>
+
+  </div>
+
+  <script>
+    (function () {
+      const tabs = document.querySelectorAll('.platform-tab');
+      const panels = document.querySelectorAll('.tab-panel');
+      const toggleBtn = document.getElementById('toggle-token-visibility');
+      const tokenInput = document.getElementById('meta-token');
+      const eyeIcon = document.getElementById('eye-icon');
+      const form = document.getElementById('channel-form');
+      const submitBtn = document.getElementById('verify-connect-btn');
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          const target = tab.getAttribute('data-tab');
+          tabs.forEach(function (t) {
+            const isTarget = t === tab;
+            t.setAttribute('aria-selected', String(isTarget));
+            if (isTarget) {
+              t.classList.add('bg-primary/15', 'border-primary/40', 'text-primary');
+              t.classList.remove('border-transparent', 'text-on-surface-variant');
+              t.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.25)';
+            } else {
+              t.classList.remove('bg-primary/15', 'border-primary/40', 'text-primary');
+              t.classList.add('border-transparent', 'text-on-surface-variant');
+              t.style.boxShadow = 'none';
+            }
+          });
+          panels.forEach(function (panel) {
+            const match = panel.id === 'panel-' + target;
+            panel.classList.toggle('hidden', !match);
+            panel.classList.toggle('flex', match);
+          });
+        });
+      });
+
+      if (toggleBtn && tokenInput && eyeIcon) {
+        toggleBtn.addEventListener('click', function () {
+          const isPassword = tokenInput.type === 'password';
+          tokenInput.type = isPassword ? 'text' : 'password';
+          eyeIcon.textContent = isPassword ? 'visibility_off' : 'visibility';
+          toggleBtn.setAttribute('aria-label', isPassword ? 'Hide access token' : 'Show access token');
+        });
+      }
+
+      document.querySelectorAll('.paste-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const icon = btn.querySelector('.material-symbols-outlined');
+          if (!icon) return;
+          const prev = icon.textContent;
+          icon.textContent = 'check';
+          btn.classList.add('text-primary');
+          setTimeout(function () {
+            icon.textContent = prev;
+            btn.classList.remove('text-primary');
+          }, 1200);
+        });
+      });
+
+      if (form && submitBtn) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          const label = submitBtn.querySelector('[data-design-text-token="body"]');
+          if (label) {
+            label.textContent = 'Verifying Webhook...';
+            setTimeout(function () {
+              label.textContent = 'Channel Connected';
+            }, 900);
+          }
+        });
+      }
+    })();
+  </script>
+
+
+</body></html>

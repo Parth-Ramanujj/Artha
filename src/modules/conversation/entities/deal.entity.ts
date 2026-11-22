@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
-import { jsonColumnType } from '../../../common/utils/column-types';
+import { dateColumnType, jsonColumnType } from '../../../common/utils/column-types';
+import { DateTransformer } from '../../../common/transformers/date.transformer';
 
 export enum DealStage {
   LEAD = 'lead',
@@ -41,6 +42,10 @@ export class Deal {
   @Index()
   @Column({ type: 'varchar', length: 50, default: DealStage.LEAD })
   stage: DealStage;
+
+  /** When the deal entered its current stage; null on deals created before this column (treated as long ago). */
+  @Column({ type: dateColumnType(), nullable: true, transformer: DateTransformer })
+  stageChangedAt: Date | null;
 
   @Column({ type: 'varchar', length: 20, default: DealPriority.MEDIUM })
   priority: DealPriority;

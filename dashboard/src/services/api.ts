@@ -2785,6 +2785,39 @@ export const dealsApi = {
   delete: (id: string) => request<void>(`/deals/${id}`, { method: 'DELETE' }),
 };
 
+/** A staff follow-up task: typed by hand, or raised when a deal-stage follow-up runs out or the customer replies. */
+export interface ReminderRecord {
+  id: string;
+  dealId: string | null;
+  conversationId: string | null;
+  reason: 'manual' | 'sequence_exhausted' | 'customer_replied';
+  title: string;
+  notes: string | null;
+  assignedTo: string;
+  dueAt: string;
+  status: 'open' | 'done';
+  notifiedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export const remindersApi = {
+  list: (params?: { status?: 'open' | 'done'; dealId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.dealId) q.set('dealId', params.dealId);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<ReminderRecord[]>(`/reminders${qs}`);
+  },
+  create: (data: { title: string; dueAt: string; dealId?: string; assignedTo?: string; notes?: string }) =>
+    request<ReminderRecord>('/reminders', { method: 'POST', body: JSON.stringify(data) }),
+  update: (
+    id: string,
+    data: Partial<{ title: string; dueAt: string; assignedTo: string; notes: string; status: 'open' | 'done' }>,
+  ) => request<ReminderRecord>(`/reminders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/reminders/${id}`, { method: 'DELETE' }),
+};
+
 // =============================================================================
 // AI Assistant & Copilot API
 // =============================================================================

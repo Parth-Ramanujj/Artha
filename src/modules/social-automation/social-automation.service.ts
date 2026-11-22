@@ -34,6 +34,8 @@ import { SocialYoutubeService } from './services/social-youtube.service';
 import { constantTimeEqual } from '../../common/security/constantTimeEqual';
 import { telegramDeleteWebhook, telegramGetMe, telegramSetWebhook } from './services/telegram.api';
 import { xCreatePost, xGetMe, type XCredentials } from './services/x.api';
+import { Session } from '../session/entities/session.entity';
+import { WebhookService } from '../webhook/webhook.service';
 
 const SCHEDULER_INTERVAL_MS = 30_000;
 const YOUTUBE_POLL_MS = 5 * 60_000;
@@ -147,6 +149,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     private readonly metaGraph: MetaGraphService,
     @Optional() private readonly aiService?: AiService,
     @Optional() private readonly youtube?: SocialYoutubeService,
+    @Optional() @InjectRepository(Session, 'data') private readonly sessionRepo?: Repository<Session>,
+    @Optional() private readonly webhooks?: WebhookService,
   ) {}
 
   onModuleInit(): void {
@@ -933,7 +937,39 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     await this.ruleRepo.increment({ id: rule.id }, 'triggerCount', 1);
     log.error = errors.length ? errors.join('; ').slice(0, 2000) : null;
     log.status = errors.length && !log.liked && !log.replied ? 'failed' : 'success';
-    return this.logRepo.save(log);
+    const saved = await this.logRepo.save(log);
+    void this.notifyCommentWebhooks(account, saved);
+    return saved;
+  }
+
+  private async notifyCommentWebhooks(account: SocialAccount, log: SocialCommentLog): Promise<void> {
+    const webhooks = this.webhooks;
+    if (!webhooks || !this.sessionRepo) return;
+    try {
+      const sessions = await this.sessionRepo.find({ where: { businessId: account.businessId }, select: { id: true } });
+      const payload = {
+        channel: account.platform,
+        accountId: account.id,
+        accountName: account.accountName,
+        postId: log.postId,
+        commentId: log.commentId,
+        fromUserId: log.fromUserId,
+        fromUserName: log.fromUserName,
+        commentText: log.commentText,
+        liked: log.liked,
+        replied: log.replied,
+        replyText: log.replyText,
+        status: log.status,
+        timestamp: log.createdAt.toISOString(),
+      };
+      await Promise.all(
+        sessions.map(s => webhooks.dispatch(s.id, 'social.comment.received', payload, { explicitOnly: true })),
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Webhook for comment ${log.commentId} failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /** Dry run from the dashboard: which rule matches and what it would send. Nothing is sent to Meta. */

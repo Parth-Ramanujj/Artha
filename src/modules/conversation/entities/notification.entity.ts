@@ -10,6 +10,7 @@ export enum NotificationType {
   WORKFLOW_ERROR = 'workflow_error',
   SLA_BREACH = 'sla_breach',
   NEW_CONTACT = 'new_contact',
+  REMINDER_DUE = 'reminder_due',
   SYSTEM = 'system',
 }
 

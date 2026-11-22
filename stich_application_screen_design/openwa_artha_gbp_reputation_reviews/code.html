@@ -1,0 +1,342 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — GBP Reputation &amp; Reviews</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-google-amber/30 selection:text-on-surface">
+  <div class="min-h-[884px] w-full max-w-md mx-auto bg-surface relative flex flex-col" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+    <!-- 1. Top Header & Location Selector -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-page-margin py-gutter-md flex items-center justify-between gap-gutter-sm">
+      <div class="flex items-center gap-gutter-sm min-w-0">
+        <!-- 4-Color Google G Icon -->
+        <div class="w-9 h-9 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"></path>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"></path>
+            <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"></path>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"></path>
+          </svg>
+        </div>
+
+        <!-- Location Dropdown Pill -->
+        <button id="location-dropdown" type="button" class="inline-flex items-center gap-1.5 px-gutter-md py-gutter-sm rounded-full bg-surface-container/80 border border-outline-variant text-on-surface hover:bg-surface-container-high transition-colors duration-state-change ease-state-change min-w-0">
+          <span class="font-body text-body truncate" data-design-text-token="body">Ahmedabad Central Store</span>
+          <span class="material-symbols-outlined text-facebook shrink-0" style="font-size: 16px; font-variation-settings: &#39;FILL&#39; 1;" title="Verified Google Business Profile" aria-label="Verified">verified</span>
+          <span class="material-symbols-outlined text-on-surface-variant shrink-0" style="font-size: 18px;" aria-hidden="true">expand_more</span>
+        </button>
+      </div>
+
+      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro shrink-0" data-design-text-token="micro">
+        Auto-Reply ON
+      </span>
+    </header>
+
+    <!-- Main Scrollable Content -->
+    <main class="flex-1 flex flex-col gap-section px-page-margin pt-gutter-lg pb-36">
+
+      <!-- Overall Rating Hero Card & Stats Chips -->
+      <section aria-labelledby="rating-heading" class="flex flex-col gap-gutter-md">
+        <h1 id="rating-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Reputation Overview</h1>
+
+        <article data-component-id="card-rating" data-component-type="card" data-component-variant="elevated" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col gap-gutter-lg">
+          <div class="flex items-center justify-between gap-gutter-lg">
+            <!-- Left: Big 4.8 + Stars + Delta -->
+            <div class="flex flex-col gap-gutter-xs shrink-0">
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-display text-display text-on-surface tabular-nums" data-design-text-token="display">4.8</span>
+                <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">+0.2 this month</span>
+              </div>
+              <div class="flex items-center gap-0.5 text-google-amber" aria-label="4.8 out of 5 stars">
+                <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+                <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+                <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+                <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+                <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+              </div>
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Based on 1,280 reviews</span>
+            </div>
+
+            <!-- Right: 5★ to 1★ Progress Bars -->
+            <div class="flex-1 flex flex-col gap-1.5">
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-micro text-micro text-on-surface-variant w-5 tabular-nums" data-design-text-token="micro">5★</span>
+                <div class="flex-1 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                  <div class="h-full rounded-full bg-google-amber" style="width: 84%;"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-micro text-micro text-on-surface-variant w-5 tabular-nums" data-design-text-token="micro">4★</span>
+                <div class="flex-1 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                  <div class="h-full rounded-full bg-google-amber" style="width: 11%;"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-micro text-micro text-on-surface-variant w-5 tabular-nums" data-design-text-token="micro">3★</span>
+                <div class="flex-1 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                  <div class="h-full rounded-full bg-google-amber" style="width: 3%;"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-micro text-micro text-on-surface-variant w-5 tabular-nums" data-design-text-token="micro">2★</span>
+                <div class="flex-1 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                  <div class="h-full rounded-full bg-google-amber" style="width: 1%;"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-gutter-sm">
+                <span class="font-micro text-micro text-on-surface-variant w-5 tabular-nums" data-design-text-token="micro">1★</span>
+                <div class="flex-1 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                  <div class="h-full rounded-full bg-google-amber" style="width: 1%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Review Stats Chips -->
+        <div class="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar">
+          <span class="shrink-0 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface tabular-nums" data-design-text-token="micro">
+            Total: 1,280
+          </span>
+          <span class="shrink-0 px-gutter-md py-1.5 rounded-full bg-google-amber/15 border border-google-amber/30 font-micro text-micro text-google-amber tabular-nums" data-design-text-token="micro">
+            Awaiting Reply: 4
+          </span>
+          <span class="shrink-0 px-gutter-md py-1.5 rounded-full bg-primary/15 border border-primary/30 font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">
+            AI Auto-Replied: 1,150
+          </span>
+        </div>
+      </section>
+
+      <!-- 2. Review Cards Feed -->
+      <section aria-labelledby="reviews-feed-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between">
+          <h2 id="reviews-feed-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Customer Reviews</h2>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Newest first</span>
+        </div>
+
+        <!-- Review Card 1 (Awaiting Reply with AI Suggested Reply Box) -->
+        <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col gap-gutter-md">
+          <header class="flex items-start justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-md">
+              <div class="w-10 h-10 rounded-full bg-google-amber/15 border border-google-amber/30 flex items-center justify-center font-body text-body text-google-amber shrink-0" data-design-text-token="body">
+                KS
+              </div>
+              <div class="flex flex-col gap-0.5">
+                <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Karan Shah</h3>
+                <div class="flex items-center gap-gutter-sm">
+                  <span class="inline-flex items-center gap-0.5 text-google-amber font-micro text-micro tabular-nums" data-design-text-token="micro">5★</span>
+                  <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">3 hours ago</span>
+                </div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-google-amber/15 text-google-amber font-micro text-micro shrink-0" data-design-text-token="micro">Needs Reply</span>
+          </header>
+
+          <p class="font-body text-body text-on-surface text-pretty" data-design-text-token="body">
+            &#34;Great customer service and fast WhatsApp response!&#34;
+          </p>
+
+          <!-- AI Suggested Reply Box (Dashed border with subtle purple glow) -->
+          <div class="p-gutter-md rounded bg-surface border border-dashed border-instagram-purple/50 flex flex-col gap-gutter-md" style="box-shadow: 0 0 20px rgba(168, 85, 247, 0.16);">
+            <div class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-instagram-purple" style="font-size: 16px;" aria-hidden="true">auto_awesome</span>
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">AI Suggested Reply</span>
+            </div>
+
+            <p id="ai-reply-text" class="font-body text-body text-on-surface text-pretty" data-design-text-token="body">
+              Thank you for shopping with us! We look forward to serving you again.
+            </p>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center gap-gutter-sm">
+              <button id="approve-reply-btn" type="button" class="px-gutter-md py-2 rounded-full bg-primary text-on-primary font-micro text-micro hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change inline-flex items-center gap-1">
+                <span class="material-symbols-outlined" style="font-size: 15px;" aria-hidden="true">check</span>
+                <span data-design-text-token="micro">Approve &amp; Publish</span>
+              </button>
+
+              <button id="regenerate-btn" type="button" class="px-gutter-md py-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:border-instagram-purple/50 font-micro text-micro transition-colors duration-state-change ease-state-change inline-flex items-center gap-1">
+                <span class="material-symbols-outlined text-instagram-purple" style="font-size: 15px;" aria-hidden="true">auto_fix_high</span>
+                <span data-design-text-token="micro">Regenerate with AI</span>
+              </button>
+
+              <button type="button" class="px-gutter-md py-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+                <span data-design-text-token="micro">Custom Edit</span>
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <!-- Review Card 2 (AI Auto-Replied) -->
+        <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col gap-gutter-md">
+          <header class="flex items-start justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-md">
+              <div class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-body text-body text-on-surface shrink-0" data-design-text-token="body">
+                MN
+              </div>
+              <div class="flex flex-col gap-0.5">
+                <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Meera Nair</h3>
+                <div class="flex items-center gap-gutter-sm">
+                  <span class="inline-flex items-center gap-0.5 text-google-amber font-micro text-micro tabular-nums" data-design-text-token="micro">5★</span>
+                  <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Yesterday</span>
+                </div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro shrink-0" data-design-text-token="micro">AI Auto-Replied</span>
+          </header>
+
+          <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">
+            &#34;Quick pickup and helpful staff at Ahmedabad Central Store.&#34;
+          </p>
+        </article>
+
+      </section>
+
+    </main>
+
+    <!-- 3. Sticky Bottom Quick Action Floating Bar -->
+    <footer class="fixed bottom-0 inset-x-0 z-30 max-w-md mx-auto bg-surface/90 backdrop-blur-md border-t border-outline-variant px-page-margin py-gutter-md flex flex-col gap-gutter-sm">
+      <div class="grid grid-cols-1 gap-gutter-sm">
+        <button id="request-wa-btn" data-component-id="button-solid-primary" data-component-type="button" data-component-variant="primary" type="button" class="w-full min-h-11 px-gutter-lg py-gutter-sm rounded-full bg-primary text-on-primary font-body text-body hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change flex items-center justify-center gap-gutter-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">chat</span>
+          <span data-design-text-token="body">Request Reviews via WhatsApp</span>
+        </button>
+
+        <button type="button" class="w-full min-h-11 px-gutter-lg py-gutter-sm rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:bg-surface-container font-body text-body transition-colors duration-state-change ease-state-change flex items-center justify-center gap-gutter-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span class="material-symbols-outlined text-google-amber" style="font-size: 18px;" aria-hidden="true">campaign</span>
+          <span data-design-text-token="body">Publish Google Update/Offer Post</span>
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    (function () {
+      const regenBtn = document.getElementById('regenerate-btn');
+      const replyText = document.getElementById('ai-reply-text');
+      const approveBtn = document.getElementById('approve-reply-btn');
+      const alternatives = [
+        'Thank you for shopping with us! We look forward to serving you again.',
+        'Thanks so much, Karan! Glad our WhatsApp team could help you quickly—see you soon at Ahmedabad Central Store.',
+        'We appreciate your 5-star review, Karan! Always happy to assist you on WhatsApp or in store.'
+      ];
+      let idx = 0;
+
+      if (regenBtn && replyText) {
+        regenBtn.addEventListener('click', function () {
+          idx = (idx + 1) % alternatives.length;
+          replyText.textContent = alternatives[idx];
+        });
+      }
+
+      if (approveBtn) {
+        approveBtn.addEventListener('click', function () {
+          const span = approveBtn.querySelector('[data-design-text-token="micro"]');
+          if (span) span.textContent = 'Published to Google';
+          approveBtn.disabled = true;
+          approveBtn.classList.add('opacity-75');
+        });
+      }
+    })();
+  </script>
+
+
+</body></html>

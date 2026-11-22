@@ -1,0 +1,530 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Omnichannel Hub</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary/30 selection:text-on-surface">
+  <div class="min-h-[884px] w-full max-w-md mx-auto bg-surface relative flex flex-col" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+    <!-- 1. Top Sticky Header -->
+    <header class="sticky top-0 z-30 bg-surface/85 backdrop-blur-md border-b border-outline-variant px-page-margin py-gutter-md flex items-center justify-between gap-gutter-sm">
+      <div class="flex items-center gap-gutter-sm min-w-0">
+        <!-- Workspace Selector Pill -->
+        <div class="relative">
+          <button id="workspace-toggle" data-component-id="button-with-icon" data-component-type="button" data-component-variant="with-icon" type="button" aria-haspopup="listbox" aria-expanded="false" class="inline-flex items-center gap-gutter-xs px-gutter-md py-gutter-sm rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant text-on-surface font-body text-body hover:bg-surface-container-high transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span class="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-micro text-micro shrink-0" data-design-text-token="micro">SR</span>
+            <span id="workspace-label" class="truncate" data-design-text-token="body">Sunrise Retailers</span>
+            <span class="material-symbols-outlined text-on-surface-variant shrink-0" style="font-size: 18px;" aria-hidden="true">expand_more</span>
+          </button>
+
+          <!-- Workspace Dropdown Menu -->
+          <div id="workspace-menu" role="listbox" class="hidden absolute left-0 mt-2 w-56 p-gutter-xs rounded-lg bg-surface-container/95 backdrop-blur-md border border-outline-variant z-50 flex-col gap-gutter-xs" style="box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);">
+            <button type="button" data-workspace="Sunrise Retailers" data-initials="SR" class="workspace-option w-full flex items-center justify-between px-gutter-md py-gutter-sm rounded-sm bg-surface-container-high text-on-surface font-body text-body text-left">
+              <span data-design-text-token="body">Sunrise Retailers</span>
+              <span class="material-symbols-outlined text-primary" style="font-size: 16px;" aria-hidden="true">check</span>
+            </button>
+            <button type="button" data-workspace="Sunrise Surat Hub" data-initials="SS" class="workspace-option w-full flex items-center justify-between px-gutter-md py-gutter-sm rounded-sm hover:bg-surface-container-high text-on-surface-variant font-body text-body text-left transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="body">Sunrise Surat Hub</span>
+            </button>
+            <button type="button" data-workspace="Artha D2C Store" data-initials="AD" class="workspace-option w-full flex items-center justify-between px-gutter-md py-gutter-sm rounded-sm hover:bg-surface-container-high text-on-surface-variant font-body text-body text-left transition-colors duration-state-change ease-state-change">
+              <span data-design-text-token="body">Artha D2C Store</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Ping Status Indicator -->
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/25 shrink-0" role="status" aria-label="System live">
+          <span data-component-id="badge-dot" data-component-type="badge" data-component-variant="dot" class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-primary" style="box-shadow: 0 0 8px #10B981;"></span>
+          </span>
+          <span class="font-micro text-micro text-primary" data-design-text-token="micro">Live</span>
+        </div>
+      </div>
+
+      <!-- Notification Bell with Unread Badge -->
+      <button id="notif-button" data-component-id="button-icon" data-component-type="button" data-component-variant="icon" type="button" aria-label="Notifications, 3 unread" class="relative inline-flex items-center justify-center w-10 h-10 rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant text-on-surface hover:bg-surface-container-high transition-colors duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary shrink-0">
+        <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">notifications</span>
+        <span data-component-id="badge-numeric" data-component-type="badge" data-component-variant="numeric" aria-hidden="true" class="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-on-primary font-micro text-micro tabular-nums">
+          <span data-design-text-token="micro">3</span>
+        </span>
+      </button>
+    </header>
+
+    <!-- Main Scrollable Content -->
+    <main class="flex-1 flex flex-col gap-section px-page-margin pt-gutter-lg pb-28">
+
+      <!-- 2. Quick Stats Carousel (Horizontal Scroll) -->
+      <section aria-labelledby="stats-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between">
+          <h1 id="stats-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Omnichannel Pulse</h1>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Last 30 days</span>
+        </div>
+
+        <div class="-mx-page-margin px-page-margin flex items-stretch gap-gutter-md overflow-x-auto no-scrollbar snap-x snap-mandatory">
+          <!-- Stat 1: Total Messages Delivered -->
+          <article data-component-id="card-elevated" data-component-type="card" data-component-variant="elevated" class="snap-start shrink-0 w-48 p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Total Messages Delivered</span>
+            <div class="flex items-center justify-between gap-gutter-sm">
+              <span class="font-display text-display text-on-surface tabular-nums" data-design-text-token="display">142.8k</span>
+              <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">+12.4%</span>
+            </div>
+          </article>
+
+          <!-- Stat 2: Active Conversations -->
+          <article data-component-id="card-elevated" data-component-type="card" data-component-variant="elevated" class="snap-start shrink-0 w-48 p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Active Conversations</span>
+            <div class="flex items-center justify-between gap-gutter-sm">
+              <span class="font-display text-display text-on-surface tabular-nums" data-design-text-token="display">348</span>
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Open</span>
+            </div>
+          </article>
+
+          <!-- Stat 3: Google Rating -->
+          <article data-component-id="card-elevated" data-component-type="card" data-component-variant="elevated" class="snap-start shrink-0 w-48 p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Google Rating</span>
+            <div class="flex items-center justify-between gap-gutter-sm">
+              <span class="font-display text-display text-google-amber tabular-nums" data-design-text-token="display">4.8 ★</span>
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">1,240 reviews</span>
+            </div>
+          </article>
+
+          <!-- Stat 4: Delivery Health -->
+          <article data-component-id="card-elevated" data-component-type="card" data-component-variant="elevated" class="snap-start shrink-0 w-48 p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Delivery Health</span>
+            <div class="flex items-center justify-between gap-gutter-sm">
+              <span class="font-display text-display text-on-surface tabular-nums" data-design-text-token="display">99.8%</span>
+              <span class="font-micro text-micro text-primary" data-design-text-token="micro">High Quality</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 3. Connected Channels Section (Card Grid) -->
+      <section aria-labelledby="channels-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between">
+          <h2 id="channels-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Connected Channels</h2>
+          <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">4 Active</span>
+        </div>
+
+        <div class="grid grid-cols-1 gap-gutter-md">
+
+          <!-- Card 1: WhatsApp Official (Cloud API) -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md">
+            <header class="flex items-start justify-between gap-gutter-sm">
+              <div class="flex items-center gap-gutter-md">
+                <div class="w-10 h-10 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                  <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">call</span>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <div class="flex items-center gap-gutter-xs flex-wrap">
+                    <h3 class="font-body text-body text-on-surface" data-design-text-token="body">WhatsApp Official</h3>
+                    <span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">Meta Official Cloud API</span>
+                  </div>
+                  <p class="font-body text-body text-on-surface-variant tabular-nums" data-design-text-token="body">+91 98765 43210</p>
+                </div>
+              </div>
+              <span data-component-id="badge-status-working" data-component-type="badge" data-component-variant="status" role="status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary" style="box-shadow: 0 0 8px #10B981;"></span>
+                <span data-design-text-token="micro">WORKING</span>
+              </span>
+            </header>
+
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">WABA ID: 109482736104</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface-variant font-micro text-micro" data-design-text-token="micro">
+                <span class="material-symbols-outlined text-primary" style="font-size: 13px;" aria-hidden="true">schedule</span>
+                <span>24h service window</span>
+              </span>
+            </footer>
+          </article>
+
+          <!-- Card 2: Instagram Business -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant hover:border-instagram-pink/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md">
+            <header class="flex items-start justify-between gap-gutter-sm">
+              <div class="flex items-center gap-gutter-md">
+                <div class="w-10 h-10 rounded bg-gradient-to-tr from-instagram-purple to-instagram-pink flex items-center justify-center text-on-surface shrink-0">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                  </svg>
+                </div>
+                <div class="flex flex-col gap-0.5">
+                  <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Instagram Business</h3>
+                  <p class="font-body text-body text-on-surface-variant" data-design-text-token="body">@sunrisestore</p>
+                </div>
+              </div>
+              <span data-component-id="badge-status-connected" data-component-type="badge" data-component-variant="status" role="status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface font-micro text-micro shrink-0">
+                <span data-design-text-token="micro">Connected</span>
+              </span>
+            </header>
+
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="inline-flex items-center gap-1.5 font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+                <span class="w-1.5 h-1.5 rounded-full bg-instagram-pink"></span>
+                <span>DM auto-reply: <span class="text-on-surface">Active</span></span>
+              </span>
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">24.5k followers</span>
+            </footer>
+          </article>
+
+          <!-- Card 3: Facebook Page & Card 4: Google Business Profile -->
+          <div class="grid grid-cols-1 gap-gutter-md">
+            <!-- Facebook Page -->
+            <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant hover:border-facebook/40 transition-colors duration-state-change ease-state-change flex items-center justify-between gap-gutter-md">
+              <div class="flex items-center gap-gutter-md min-w-0">
+                <div class="w-10 h-10 rounded bg-facebook/15 border border-facebook/30 flex items-center justify-center text-facebook shrink-0">
+                  <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M13.5 22v-8h2.7l.4-3h-3.1V9.1c0-.9.3-1.5 1.6-1.5h1.6V5c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V11H7.5v3h2.8v8h3.2z"></path>
+                  </svg>
+                </div>
+                <div class="flex flex-col gap-0.5 min-w-0">
+                  <h3 class="font-body text-body text-on-surface truncate" data-design-text-token="body">Facebook Page</h3>
+                  <p class="font-micro text-micro text-on-surface-variant truncate" data-design-text-token="micro">Sunrise Retail Store</p>
+                </div>
+              </div>
+              <span data-component-id="badge-status-connected" data-component-type="badge" data-component-variant="status" role="status" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface font-micro text-micro shrink-0">
+                <span data-design-text-token="micro">Connected</span>
+              </span>
+            </article>
+
+            <!-- Google Business Profile -->
+            <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant hover:border-google-amber/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md">
+              <header class="flex items-start justify-between gap-gutter-sm">
+                <div class="flex items-center gap-gutter-md min-w-0">
+                  <div class="w-10 h-10 rounded bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0">
+                    <!-- 4-color Google G SVG -->
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"></path>
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"></path>
+                      <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"></path>
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"></path>
+                    </svg>
+                  </div>
+                  <div class="flex flex-col gap-0.5 min-w-0">
+                    <h3 class="font-body text-body text-on-surface truncate" data-design-text-token="body">Google Business Profile</h3>
+                    <p class="font-micro text-micro text-on-surface-variant truncate" data-design-text-token="micro">Ahmedabad Main Branch</p>
+                  </div>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-google-amber/15 border border-google-amber/30 text-google-amber font-micro text-micro tabular-nums shrink-0" data-design-text-token="micro">4.8 ★</span>
+              </header>
+
+              <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Auto-reply reviews</span>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">ON</span>
+              </footer>
+            </article>
+          </div>
+
+          <!-- Card 5: Empty/Dashed Add Card -->
+          <div id="connect-dashed-card" role="button" tabindex="0" data-component-id="card-interactive-2" data-component-type="card" data-component-variant="interactive" class="p-gutter-lg rounded-lg border border-dashed border-outline-variant bg-surface-container-low/50 hover:border-primary/60 hover:bg-surface-container/60 transition-colors duration-state-change ease-state-change flex items-center justify-center gap-gutter-sm cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+            <span class="material-symbols-outlined text-primary" style="font-size: 20px;" aria-hidden="true">add_circle</span>
+            <span class="font-body text-body text-on-surface-variant" data-design-text-token="body">Connect New Channel (+)</span>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 4. Recent Multi-Channel Activity Feed -->
+      <section aria-labelledby="activity-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between">
+          <h2 id="activity-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Recent Activity</h2>
+          <button type="button" class="font-micro text-micro text-primary hover:underline" data-design-text-token="micro">View all</button>
+        </div>
+
+        <div class="rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant divide-y divide-outline-variant">
+          <!-- Activity 1: WhatsApp Message Received -->
+          <div class="p-gutter-lg flex items-start gap-gutter-md">
+            <div class="w-9 h-9 rounded bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">chat</span>
+            </div>
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Priya Patel</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">2m ago</span>
+              </div>
+              <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">WhatsApp message received: &#34;Is order #4821 ready for dispatch?&#34;</p>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">
+                  <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                  <span>WhatsApp Cloud</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity 2: Instagram Comment Auto-Replied -->
+          <div class="p-gutter-lg flex items-start gap-gutter-md">
+            <div class="w-9 h-9 rounded bg-gradient-to-tr from-instagram-purple to-instagram-pink flex items-center justify-center text-on-surface shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">forum</span>
+            </div>
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">@aarav.styles</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">14m ago</span>
+              </div>
+              <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">Instagram comment auto-replied with catalog link in DM.</p>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-container-high border border-instagram-pink/40 text-on-surface font-micro text-micro" data-design-text-token="micro">
+                  <span class="w-1.5 h-1.5 rounded-full bg-instagram-pink"></span>
+                  <span>Instagram DM</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity 3: New 5-star Google Review -->
+          <div class="p-gutter-lg flex items-start gap-gutter-md">
+            <div class="w-9 h-9 rounded bg-google-amber/15 border border-google-amber/30 flex items-center justify-center text-google-amber shrink-0">
+              <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">star</span>
+            </div>
+            <div class="flex-1 min-w-0 flex flex-col gap-1">
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="font-body text-body text-on-surface truncate" data-design-text-token="body">Rohan Mehta</span>
+                <span class="font-micro text-micro text-on-surface-variant tabular-nums shrink-0" data-design-text-token="micro">38m ago</span>
+              </div>
+              <p class="font-body text-body text-on-surface-variant text-pretty" data-design-text-token="body">New 5-star Google review at Ahmedabad Main Branch.</p>
+              <div class="pt-0.5">
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-google-amber/15 text-google-amber font-micro text-micro" data-design-text-token="micro">
+                  <span class="w-1.5 h-1.5 rounded-full bg-google-amber"></span>
+                  <span>Google Business</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Floating Action Button (+) with Glowing Emerald Shadow -->
+    <div class="fixed bottom-24 right-4 z-40 max-w-md">
+      <button id="connect-fab" data-component-id="button-fab" data-component-type="button" data-component-variant="icon" type="button" aria-label="Connect Channel" title="Connect Channel" class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary text-on-primary hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 24px rgba(16, 185, 129, 0.5);">
+        <span class="material-symbols-outlined" style="font-size: 26px;" aria-hidden="true">add</span>
+      </button>
+    </div>
+
+    <!-- Bottom Sticky Navigation Bar (4 items: Hub, Inbox, Campaigns, Settings) -->
+    <nav aria-label="Primary navigation" class="fixed bottom-0 inset-x-0 z-30 max-w-md mx-auto bg-surface/90 backdrop-blur-md border-t border-outline-variant px-gutter-md py-gutter-sm">
+      <ul class="grid grid-cols-4 items-center gap-gutter-xs">
+        <li>
+          <a href="#hub" aria-current="page" class="flex flex-col items-center justify-center gap-1 py-1 text-primary">
+            <span class="material-symbols-outlined" style="font-size: 22px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">grid_view</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Hub</span>
+          </a>
+        </li>
+        <li>
+          <a href="#inbox" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">inbox</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Inbox</span>
+          </a>
+        </li>
+        <li>
+          <a href="#campaigns" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">campaign</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Campaigns</span>
+          </a>
+        </li>
+        <li>
+          <a href="#settings" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">settings</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Settings</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Connect Channel Quick Sheet (Hidden by default) -->
+    <div id="connect-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" class="hidden fixed inset-0 z-50 max-w-md mx-auto flex flex-col justify-end bg-surface/70 backdrop-blur-sm">
+      <div class="p-gutter-lg rounded-t-xl bg-surface-container border-t border-outline-variant flex flex-col gap-gutter-lg">
+        <div class="flex items-center justify-between">
+          <h2 id="sheet-title" class="font-section text-section text-on-surface" data-design-text-token="section">Connect Channel</h2>
+          <button id="close-sheet" type="button" aria-label="Close" class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 gap-gutter-sm">
+          <button type="button" class="sheet-option p-gutter-md rounded bg-surface-container-high/60 border border-outline-variant hover:border-primary/50 flex items-center justify-between text-left">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">WhatsApp Cloud API</span>
+            <span class="font-micro text-micro text-primary" data-design-text-token="micro">Add number</span>
+          </button>
+          <button type="button" class="sheet-option p-gutter-md rounded bg-surface-container-high/60 border border-outline-variant hover:border-instagram-pink/50 flex items-center justify-between text-left">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">Instagram Business</span>
+            <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Link IG</span>
+          </button>
+          <button type="button" class="sheet-option p-gutter-md rounded bg-surface-container-high/60 border border-outline-variant hover:border-google-amber/50 flex items-center justify-between text-left">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">Google Business Profile</span>
+            <span class="font-micro text-micro text-google-amber" data-design-text-token="micro">Add branch</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    (function () {
+      const toggle = document.getElementById('workspace-toggle');
+      const menu = document.getElementById('workspace-menu');
+      const label = document.getElementById('workspace-label');
+      const fab = document.getElementById('connect-fab');
+      const dashedCard = document.getElementById('connect-dashed-card');
+      const sheet = document.getElementById('connect-sheet');
+      const closeSheet = document.getElementById('close-sheet');
+
+      if (toggle && menu) {
+        toggle.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const isOpen = !menu.classList.contains('hidden');
+          menu.classList.toggle('hidden', isOpen);
+          menu.classList.toggle('flex', !isOpen);
+          toggle.setAttribute('aria-expanded', String(!isOpen));
+        });
+
+        document.querySelectorAll('.workspace-option').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            const name = btn.getAttribute('data-workspace');
+            if (name && label) label.textContent = name;
+            menu.classList.add('hidden');
+            menu.classList.remove('flex');
+            toggle.setAttribute('aria-expanded', 'false');
+          });
+        });
+
+        document.addEventListener('click', function () {
+          if (!menu.classList.contains('hidden')) {
+            menu.classList.add('hidden');
+            menu.classList.remove('flex');
+            toggle.setAttribute('aria-expanded', 'false');
+          }
+        });
+      }
+
+      function openConnectSheet() {
+        if (sheet) sheet.classList.remove('hidden');
+      }
+
+      function hideConnectSheet() {
+        if (sheet) sheet.classList.add('hidden');
+      }
+
+      if (fab) fab.addEventListener('click', openConnectSheet);
+      if (dashedCard) {
+        dashedCard.addEventListener('click', openConnectSheet);
+        dashedCard.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openConnectSheet();
+          }
+        });
+      }
+      if (closeSheet) closeSheet.addEventListener('click', hideConnectSheet);
+      if (sheet) {
+        sheet.addEventListener('click', function (e) {
+          if (e.target === sheet) hideConnectSheet();
+        });
+      }
+    })();
+  </script>
+
+
+</body></html>

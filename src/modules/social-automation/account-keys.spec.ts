@@ -80,6 +80,52 @@ describe('editing Telegram and X keys', () => {
   });
 });
 
+describe('connecting a YouTube channel', () => {
+  const dto = { platform: 'youtube', accountName: '', integrationId: '3f2b1c9e-7a4d-4e1b-9c3a-0b6d5e8f1a21' } as never;
+
+  function make(channel: jest.Mock) {
+    const rows: Array<Record<string, unknown>> = [];
+    const accountRepo = {
+      findOne: jest.fn((q: { where: { id?: string } }) => Promise.resolve(q.where.id ? rows[0] : null)),
+      create: (v: Record<string, unknown>) => ({ id: 'acc-1', ...v }),
+      save: jest.fn((v: Record<string, unknown>) => {
+        rows.push(v);
+        return Promise.resolve(v);
+      }),
+    };
+    const none = {} as never;
+    const service = new SocialAutomationService(accountRepo as never, none, none, none, none, none, undefined, {
+      channel,
+    } as never);
+    return { service, accountRepo };
+  }
+
+  it('stores the channel with the integration id and no token', async () => {
+    const { service, accountRepo } = make(jest.fn().mockResolvedValue({ id: 'UC123', title: 'My Channel' }));
+    await service.createAccount('biz', dto);
+    expect(accountRepo.save.mock.calls[0][0]).toMatchObject({
+      platform: 'youtube',
+      accountId: 'UC123',
+      accountName: 'My Channel',
+      pageId: '3f2b1c9e-7a4d-4e1b-9c3a-0b6d5e8f1a21',
+      accessToken: '',
+      status: 'connected',
+    });
+  });
+
+  it('passes the Google message through when the lookup fails', async () => {
+    const { service, accountRepo } = make(
+      jest
+        .fn()
+        .mockRejectedValue(
+          new BadRequestException('YouTube Data API v3 has not been used in project 1 or it is disabled.'),
+        ),
+    );
+    await expect(service.createAccount('biz', dto)).rejects.toThrow('has not been used in project 1');
+    expect(accountRepo.save).not.toHaveBeenCalled();
+  });
+});
+
 describe('Telegram files', () => {
   it('keeps a photo DM with its caption instead of dropping it', () => {
     const update = {

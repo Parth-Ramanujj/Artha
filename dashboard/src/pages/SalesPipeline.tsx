@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { TrendingUp, DollarSign, Plus, Search, Users, Download, Phone, Trash2, BarChart2 } from 'lucide-react';
+import { TrendingUp, DollarSign, Plus, Search, Users, Download, Phone, Trash2, BarChart2, BellRing } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { dealsApi, crmContactApi, type CrmContact } from '../services/api';
+import { useReminders } from '../components/sales-pipeline/useReminders';
+import { RemindersPanel } from '../components/sales-pipeline/RemindersPanel';
+import { ReminderForm } from '../components/sales-pipeline/ReminderForm';
+import { isServerDealId } from '../utils/reminders';
 import './SalesPipeline.css';
 
 export interface Deal {
@@ -158,6 +162,17 @@ export function SalesPipeline() {
     expectedClose: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
     notes: '',
   });
+
+  const reminderState = useReminders();
+  // undefined = form closed; '' = open with no deal; otherwise the deal to pre-select.
+  const [reminderDealId, setReminderDealId] = useState<string | undefined>(undefined);
+  const openRemindersByDeal = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of reminderState.reminders) {
+      if (r.dealId) counts.set(r.dealId, (counts.get(r.dealId) ?? 0) + 1);
+    }
+    return counts;
+  }, [reminderState.reminders]);
 
   // Load from backend dealsApi on mount, falling back to localStorage
   useEffect(() => {
@@ -455,6 +470,13 @@ export function SalesPipeline() {
         </div>
       </div>
 
+      <RemindersPanel
+        state={reminderState}
+        deals={deals}
+        onAdd={() => setReminderDealId('')}
+        onOpenChat={phone => navigate(`/chats?phone=${encodeURIComponent(phone)}`)}
+      />
+
       {/* Kanban Board */}
       <div className="kanban-board-container">
         <div className="kanban-board">
@@ -525,6 +547,22 @@ export function SalesPipeline() {
                             </option>
                           ))}
                         </select>
+                        {isServerDealId(deal.id) && (
+                          <button
+                            type="button"
+                            className={`deal-remind-btn${openRemindersByDeal.has(deal.id) ? ' has-open' : ''}`}
+                            onClick={() => setReminderDealId(deal.id)}
+                            aria-label={`Add reminder for ${deal.title}`}
+                            title={
+                              openRemindersByDeal.has(deal.id)
+                                ? `${openRemindersByDeal.get(deal.id)} open reminder(s) — add another`
+                                : 'Add follow-up reminder'
+                            }
+                          >
+                            <BellRing size={12} aria-hidden />
+                            {openRemindersByDeal.get(deal.id) ?? ''}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="deal-delete-btn"
@@ -555,6 +593,15 @@ export function SalesPipeline() {
           })}
         </div>
       </div>
+
+      {reminderDealId !== undefined && (
+        <ReminderForm
+          deals={deals}
+          initialDealId={reminderDealId || undefined}
+          onSubmit={reminderState.create}
+          onClose={() => setReminderDealId(undefined)}
+        />
+      )}
 
       {/* Add / Edit Deal Modal */}
       {isModalOpen && (

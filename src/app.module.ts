@@ -61,6 +61,8 @@ import { MessageCostsModule } from './modules/message-costs/message-costs.module
 import { WalletModule } from './modules/wallet/wallet.module';
 import { WhatsAppLogsModule } from './modules/whatsapp-logs/whatsapp-logs.module';
 import { WaBusinessModule } from './modules/wa-business/wa-business.module';
+import { ProvisioningModule } from './modules/provisioning/provisioning.module';
+import { PlatformsModule } from './modules/platforms/platforms.module';
 
 // Only import QueueModule if explicitly enabled to avoid Redis connection errors
 const queueModules: Array<Type | DynamicModule> = [];
@@ -381,6 +383,8 @@ if (dashboardServingEnabled && dashboardBuildPresent) {
     WalletModule, // customer prepaid wallets: Razorpay recharge, per-message charges
     MessageCostsModule, // WhatsApp message costs from Meta pricing on status webhooks
     SocialAutomationModule, // Instagram & Facebook: scheduled posts, comment auto-reply/like/DM via Meta webhook
+    ProvisioningModule, // Multi-tenant provisioning API for partner integrations
+    PlatformsModule, // Unified platform connection API (WhatsApp Cloud, Meta, Google)
     ...mcpModules, // MCP Streamable-HTTP server (opt-in via MCP_ENABLED=true)
     ...serveStaticModules, // Bundled dashboard SPA (production single-port setup)
   ],

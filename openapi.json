@@ -45,7 +45,9 @@
                 "infra_data_exported",
                 "infra_data_imported",
                 "infra_storage_exported",
-                "infra_storage_imported"
+                "infra_storage_imported",
+                "api_request",
+                "system_log"
               ],
               "type": "string"
             }
@@ -3506,6 +3508,874 @@
         "summary": "Delete a deal",
         "tags": [
           "deals"
+        ]
+      }
+    },
+    "/api/reminders": {
+      "get": {
+        "operationId": "ReminderController_findAll",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "open",
+                "done"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "dealId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dueBefore",
+            "required": false,
+            "in": "query",
+            "description": "ISO date; returns reminders due at or before it",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List follow-up reminders (default: open ones, soonest first)",
+        "tags": [
+          "reminders"
+        ]
+      },
+      "post": {
+        "operationId": "ReminderController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReminderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a follow-up reminder for staff",
+        "tags": [
+          "reminders"
+        ]
+      }
+    },
+    "/api/reminders/{id}": {
+      "get": {
+        "operationId": "ReminderController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Get reminder by ID",
+        "tags": [
+          "reminders"
+        ]
+      },
+      "put": {
+        "operationId": "ReminderController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReminderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update, snooze or complete a reminder (status: open | done)",
+        "tags": [
+          "reminders"
+        ]
+      },
+      "delete": {
+        "operationId": "ReminderController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a reminder",
+        "tags": [
+          "reminders"
+        ]
+      }
+    },
+    "/api/message-costs/summary": {
+      "get": {
+        "operationId": "MessageCostsController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "What WhatsApp messages cost: totals, by category, by day and by campaign",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/message-costs/suggestions": {
+      "get": {
+        "operationId": "MessageCostsController_suggestions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Ways to spend less on WhatsApp messages, from the last period",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/message-costs/precheck": {
+      "post": {
+        "operationId": "MessageCostsController_precheck",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrecheckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Before a campaign: numbers inside their free window and numbers that failed before",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/message-costs/meta-bill": {
+      "get": {
+        "operationId": "MessageCostsController_metaBill",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Meta's own bill for a Cloud API number (pricing analytics)",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/message-costs/delivery": {
+      "get": {
+        "operationId": "MessageCostsController_delivery",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delivery status WhatsApp reported for one sent message, with the reason if it failed",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/message-costs/settings": {
+      "get": {
+        "operationId": "MessageCostsController_getSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "message-costs"
+        ]
+      },
+      "put": {
+        "operationId": "MessageCostsController_updateSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Set the monthly WhatsApp budget (an alert fires at 80%)",
+        "tags": [
+          "message-costs"
+        ]
+      }
+    },
+    "/api/businesses": {
+      "post": {
+        "operationId": "BusinessController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a new business",
+        "tags": [
+          "Businesses"
+        ]
+      },
+      "get": {
+        "operationId": "BusinessController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List all businesses",
+        "tags": [
+          "Businesses"
+        ]
+      }
+    },
+    "/api/businesses/{id}": {
+      "get": {
+        "operationId": "BusinessController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a business by ID",
+        "tags": [
+          "Businesses"
+        ]
+      },
+      "put": {
+        "operationId": "BusinessController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a business",
+        "tags": [
+          "Businesses"
+        ]
+      },
+      "delete": {
+        "operationId": "BusinessController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a business",
+        "tags": [
+          "Businesses"
+        ]
+      }
+    },
+    "/api/businesses/{id}/memberships": {
+      "post": {
+        "operationId": "BusinessController_addMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMembershipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add an API key membership to a business",
+        "tags": [
+          "Businesses"
+        ]
+      },
+      "get": {
+        "operationId": "BusinessController_listMemberships",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List memberships for a business",
+        "tags": [
+          "Businesses"
+        ]
+      }
+    },
+    "/api/businesses/{id}/memberships/{membershipId}": {
+      "put": {
+        "operationId": "BusinessController_updateMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMembershipDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update a membership role",
+        "tags": [
+          "Businesses"
+        ]
+      },
+      "delete": {
+        "operationId": "BusinessController_removeMembership",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "membershipId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a membership",
+        "tags": [
+          "Businesses"
+        ]
+      }
+    },
+    "/api/wallet": {
+      "get": {
+        "operationId": "WalletController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Wallet balance, prices per message and whether online recharge is available",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/transactions": {
+      "get": {
+        "operationId": "WalletController_transactions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/recharge/order": {
+      "post": {
+        "operationId": "WalletController_createOrder",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RechargeOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Start a Razorpay recharge; returns the order for the checkout",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/recharge/verify": {
+      "post": {
+        "operationId": "WalletController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm a Razorpay payment (checks the signature) and credit the wallet",
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/alert": {
+      "put": {
+        "operationId": "WalletController_setAlert",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/razorpay/webhook": {
+      "post": {
+        "operationId": "WalletController_webhook",
+        "parameters": [
+          {
+            "name": "x-razorpay-signature",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ],
+        "security": []
+      }
+    },
+    "/api/wallet/admin/wallets": {
+      "get": {
+        "operationId": "WalletController_listWallets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/admin/wallets/{businessId}": {
+      "put": {
+        "operationId": "WalletController_updateWallet",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminWalletDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/admin/wallets/{businessId}/adjust": {
+      "post": {
+        "operationId": "WalletController_adjust",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/wallet/admin/rates": {
+      "put": {
+        "operationId": "WalletController_setRates",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "wallet"
+        ]
+      }
+    },
+    "/api/whatsapp-logs": {
+      "get": {
+        "operationId": "WhatsAppLogsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Message and webhook log for your official numbers (newest first, kept 7 days)",
+        "tags": [
+          "whatsapp-logs"
+        ]
+      }
+    },
+    "/api/whatsapp-logs/health": {
+      "get": {
+        "operationId": "WhatsAppLogsController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Checks every link from sending to the delivery report for one number",
+        "tags": [
+          "whatsapp-logs"
+        ]
+      }
+    },
+    "/api/whatsapp-logs/health/subscribe": {
+      "post": {
+        "operationId": "WhatsAppLogsController_subscribe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Subscribe the app to the WhatsApp account so Meta sends webhooks",
+        "tags": [
+          "whatsapp-logs"
+        ]
+      }
+    },
+    "/api/whatsapp-logs/health/enable-ai": {
+      "post": {
+        "operationId": "WhatsAppLogsController_enableAi",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Turn on AI auto-reply for the business that owns this number",
+        "tags": [
+          "whatsapp-logs"
         ]
       }
     },
@@ -8196,295 +9066,6 @@
         ]
       }
     },
-    "/api/businesses": {
-      "post": {
-        "operationId": "BusinessController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBusinessDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Create a new business",
-        "tags": [
-          "Businesses"
-        ]
-      },
-      "get": {
-        "operationId": "BusinessController_findAll",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List all businesses",
-        "tags": [
-          "Businesses"
-        ]
-      }
-    },
-    "/api/businesses/{id}": {
-      "get": {
-        "operationId": "BusinessController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get a business by ID",
-        "tags": [
-          "Businesses"
-        ]
-      },
-      "put": {
-        "operationId": "BusinessController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateBusinessDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Update a business",
-        "tags": [
-          "Businesses"
-        ]
-      },
-      "delete": {
-        "operationId": "BusinessController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Delete a business",
-        "tags": [
-          "Businesses"
-        ]
-      }
-    },
-    "/api/businesses/{id}/memberships": {
-      "post": {
-        "operationId": "BusinessController_addMembership",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddMembershipDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Add an API key membership to a business",
-        "tags": [
-          "Businesses"
-        ]
-      },
-      "get": {
-        "operationId": "BusinessController_listMemberships",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "List memberships for a business",
-        "tags": [
-          "Businesses"
-        ]
-      }
-    },
-    "/api/businesses/{id}/memberships/{membershipId}": {
-      "put": {
-        "operationId": "BusinessController_updateMembership",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "membershipId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMembershipDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Update a membership role",
-        "tags": [
-          "Businesses"
-        ]
-      },
-      "delete": {
-        "operationId": "BusinessController_removeMembership",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "membershipId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Remove a membership",
-        "tags": [
-          "Businesses"
-        ]
-      }
-    },
     "/api/workflows/agents/list": {
       "get": {
         "operationId": "WorkflowController_listAgents",
@@ -9857,6 +10438,178 @@
           }
         },
         "summary": "Approved WhatsApp templates of a Cloud API number, with Meta approval status",
+        "tags": [
+          "message-studio"
+        ]
+      },
+      "post": {
+        "operationId": "MessageStudioController_createTemplate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMetaTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Submit a new WhatsApp template to Meta for approval (Cloud API numbers)",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/templates/{templateId}": {
+      "put": {
+        "operationId": "MessageStudioController_editTemplate",
+        "parameters": [
+          {
+            "name": "templateId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMetaTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Edit a WhatsApp template (same name and language); Meta reviews it again",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/templates/send": {
+      "post": {
+        "operationId": "MessageStudioController_sendApprovedTemplate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendApprovedTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Send an approved template to one phone now (Meta charges per its category)",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/templates/advice": {
+      "post": {
+        "operationId": "MessageStudioController_templateAdvice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateAdviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "AI review of a template draft: likely category, approval risks and a rewrite",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/templates/auto-tests": {
+      "get": {
+        "operationId": "MessageStudioController_listAutoTests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Templates waiting to be sent to the test number once approved, and what happened",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/templates/auto-tests/retry": {
+      "post": {
+        "operationId": "MessageStudioController_retryAutoTest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoTestRetryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Try sending an approved template to the test number again (still only when free)",
+        "tags": [
+          "message-studio"
+        ]
+      }
+    },
+    "/api/message-studio/media": {
+      "post": {
+        "operationId": "MessageStudioController_uploadImage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadStudioImageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Upload an image to a Cloud API number (template header for campaigns)",
         "tags": [
           "message-studio"
         ]
@@ -12283,6 +13036,187 @@
         ]
       }
     },
+    "/api/wa-business/ads": {
+      "get": {
+        "operationId": "WaBusinessController_ads",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Chats that started from Click-to-WhatsApp ads, grouped by ad",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/usage": {
+      "get": {
+        "operationId": "WaBusinessController_usage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Daily messaging limit and free monthly replies used, for one number",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/calls": {
+      "get": {
+        "operationId": "WaBusinessController_calls",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "WhatsApp Calling settings and call log for one number",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/calls/settings": {
+      "put": {
+        "operationId": "WaBusinessController_setCalling",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallingSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Turn WhatsApp Calling and the in-chat call button on or off",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/calls/permission": {
+      "post": {
+        "operationId": "WaBusinessController_askPermission",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallPermissionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Ask a customer for permission to call them on WhatsApp",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/invoices": {
+      "get": {
+        "operationId": "WaBusinessController_invoices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Invoices sent on WhatsApp (newest first)",
+        "tags": [
+          "wa-business"
+        ]
+      },
+      "post": {
+        "operationId": "WaBusinessController_createInvoice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvoiceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a GST invoice / receipt and optionally send it as a PDF on WhatsApp",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/invoices/{id}/send": {
+      "post": {
+        "operationId": "WaBusinessController_sendInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Send (again) an invoice PDF on WhatsApp",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
+    "/api/wa-business/invoices/{id}/pdf": {
+      "get": {
+        "operationId": "WaBusinessController_pdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Download an invoice PDF",
+        "tags": [
+          "wa-business"
+        ]
+      }
+    },
     "/api/search": {
       "get": {
         "operationId": "SearchController_search",
@@ -14305,6 +15239,544 @@
           "social-automation"
         ]
       }
+    },
+    "/api/social-automation/inbox": {
+      "get": {
+        "operationId": "SocialAutomationController_listInbox",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Instagram or Facebook conversations, newest first",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/inbox/broadcast-audience": {
+      "get": {
+        "operationId": "SocialAutomationController_broadcastAudience",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "How many Instagram / Facebook customers a broadcast would reach now (24-hour window)",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/inbox/broadcast": {
+      "post": {
+        "operationId": "SocialAutomationController_broadcast",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialBroadcastDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Message every Instagram / Facebook customer inside Meta's 24-hour window",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/inbox/{accountId}/{threadId}": {
+      "get": {
+        "operationId": "SocialAutomationController_listInboxMessages",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Messages of one Instagram / Facebook conversation",
+        "tags": [
+          "social-automation"
+        ]
+      },
+      "post": {
+        "operationId": "SocialAutomationController_sendInboxMessage",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSocialMessageDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Reply in an Instagram / Facebook conversation",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/social-automation/inbox/{accountId}/{threadId}/media": {
+      "post": {
+        "operationId": "SocialAutomationController_sendInboxMedia",
+        "parameters": [
+          {
+            "name": "accountId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "threadId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSocialMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Send a photo, video, audio or file in an Instagram / Facebook conversation",
+        "tags": [
+          "social-automation"
+        ]
+      }
+    },
+    "/api/provisioning/tenants": {
+      "post": {
+        "operationId": "ProvisioningController_createTenant",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant created with API key"
+          },
+          "409": {
+            "description": "Business name or slug already exists"
+          }
+        },
+        "summary": "Create a new tenant business and its admin API key",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "get": {
+        "operationId": "ProvisioningController_listTenants",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List all tenant businesses",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/api/provisioning/tenants/{businessId}": {
+      "get": {
+        "operationId": "ProvisioningController_getTenant",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Business not found"
+          }
+        },
+        "summary": "Get a single tenant business",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "put": {
+        "operationId": "ProvisioningController_updateTenant",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update a tenant business",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/api/provisioning/tenants/{businessId}/api-keys": {
+      "post": {
+        "operationId": "ProvisioningController_createTenantKey",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantKeyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Key created — the raw key is shown only once"
+          },
+          "404": {
+            "description": "Business not found"
+          }
+        },
+        "summary": "Issue a scoped API key for a tenant",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "get": {
+        "operationId": "ProvisioningController_listTenantKeys",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List API keys for a tenant",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/api/provisioning/tenants/{businessId}/api-keys/{keyId}": {
+      "delete": {
+        "operationId": "ProvisioningController_deleteTenantKey",
+        "parameters": [
+          {
+            "name": "businessId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Revoke a tenant API key",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/api/platforms/connected": {
+      "get": {
+        "operationId": "PlatformsController_listConnected",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Connected accounts grouped by platform"
+          }
+        },
+        "summary": "List all connected platforms for this business",
+        "tags": [
+          "platforms"
+        ]
+      }
+    },
+    "/api/platforms/connect/whatsapp": {
+      "post": {
+        "operationId": "PlatformsController_connectWhatsApp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectWhatsAppDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "WhatsApp session created"
+          },
+          "400": {
+            "description": "Missing credentials"
+          },
+          "409": {
+            "description": "Session name already exists"
+          }
+        },
+        "summary": "Connect an official WhatsApp number via Cloud API",
+        "tags": [
+          "platforms"
+        ]
+      }
+    },
+    "/api/platforms/connect/social": {
+      "post": {
+        "operationId": "PlatformsController_connectSocial",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSocialAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Social account connected"
+          },
+          "400": {
+            "description": "Invalid credentials or platform"
+          }
+        },
+        "summary": "Connect an Instagram, Facebook or Telegram account",
+        "tags": [
+          "platforms"
+        ]
+      }
+    },
+    "/api/platforms/connect/google": {
+      "post": {
+        "operationId": "PlatformsController_connectGoogle",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectGoogleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the Google consent URL to redirect the user to"
+          }
+        },
+        "summary": "Start Google OAuth and get the consent URL",
+        "tags": [
+          "platforms"
+        ]
+      }
+    },
+    "/api/platforms/test/{platform}/{id}": {
+      "post": {
+        "operationId": "PlatformsController_testConnection",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Test a platform connection",
+        "tags": [
+          "platforms"
+        ]
+      }
+    },
+    "/api/platforms/{platform}/{id}": {
+      "delete": {
+        "operationId": "PlatformsController_disconnect",
+        "parameters": [
+          {
+            "name": "platform",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnected"
+          }
+        },
+        "summary": "Disconnect / remove a platform account",
+        "tags": [
+          "platforms"
+        ]
+      }
     }
   },
   "info": {
@@ -14318,6 +15790,14 @@
     }
   },
   "tags": [
+    {
+      "name": "provisioning",
+      "description": "Tenant & API key provisioning for partner integrations"
+    },
+    {
+      "name": "platforms",
+      "description": "Unified platform connections (WhatsApp Cloud, Meta, Google, Telegram)"
+    },
     {
       "name": "sessions",
       "description": "WhatsApp session management"
@@ -15165,6 +16645,7 @@
                 "group.leave",
                 "group.update",
                 "call.received",
+                "social.message.received",
                 "*"
               ]
             }
@@ -15311,6 +16792,7 @@
                 "group.leave",
                 "group.update",
                 "call.received",
+                "social.message.received",
                 "*"
               ]
             }
@@ -15544,6 +17026,143 @@
             }
           }
         }
+      },
+      "CreateReminderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateReminderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "PrecheckDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "BudgetDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateBusinessDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Business display name",
+            "example": "Acme Corp"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe slug (auto-generated from name if omitted)",
+            "example": "acme-corp"
+          },
+          "plan": {
+            "type": "string",
+            "description": "Subscription plan",
+            "example": "growth"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Workspace settings"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateBusinessDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Business display name"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe slug"
+          },
+          "plan": {
+            "type": "string",
+            "description": "Subscription plan"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the business is active"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Workspace settings"
+          }
+        }
+      },
+      "AddMembershipDto": {
+        "type": "object",
+        "properties": {
+          "apiKeyId": {
+            "type": "string",
+            "description": "API key ID to add to the business"
+          },
+          "businessRole": {
+            "type": "string",
+            "description": "Role within the business",
+            "enum": [
+              "owner",
+              "admin",
+              "agent",
+              "viewer"
+            ],
+            "default": "agent"
+          }
+        },
+        "required": [
+          "apiKeyId"
+        ]
+      },
+      "UpdateMembershipDto": {
+        "type": "object",
+        "properties": {
+          "businessRole": {
+            "type": "string",
+            "description": "New role within the business",
+            "enum": [
+              "owner",
+              "admin",
+              "agent",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "businessRole"
+        ]
+      },
+      "RechargeOrderDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "VerifyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AlertDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdminWalletDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "AdjustDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "RatesDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SessionDto": {
+        "type": "object",
+        "properties": {}
       },
       "SendTextMessageDto": {
         "type": "object",
@@ -17006,99 +18625,6 @@
           }
         }
       },
-      "CreateBusinessDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Business display name",
-            "example": "Acme Corp"
-          },
-          "slug": {
-            "type": "string",
-            "description": "URL-safe slug (auto-generated from name if omitted)",
-            "example": "acme-corp"
-          },
-          "plan": {
-            "type": "string",
-            "description": "Subscription plan",
-            "example": "growth"
-          },
-          "settings": {
-            "type": "object",
-            "description": "Workspace settings"
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "UpdateBusinessDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Business display name"
-          },
-          "slug": {
-            "type": "string",
-            "description": "URL-safe slug"
-          },
-          "plan": {
-            "type": "string",
-            "description": "Subscription plan"
-          },
-          "isActive": {
-            "type": "boolean",
-            "description": "Whether the business is active"
-          },
-          "settings": {
-            "type": "object",
-            "description": "Workspace settings"
-          }
-        }
-      },
-      "AddMembershipDto": {
-        "type": "object",
-        "properties": {
-          "apiKeyId": {
-            "type": "string",
-            "description": "API key ID to add to the business"
-          },
-          "businessRole": {
-            "type": "string",
-            "description": "Role within the business",
-            "enum": [
-              "owner",
-              "admin",
-              "agent",
-              "viewer"
-            ],
-            "default": "agent"
-          }
-        },
-        "required": [
-          "apiKeyId"
-        ]
-      },
-      "UpdateMembershipDto": {
-        "type": "object",
-        "properties": {
-          "businessRole": {
-            "type": "string",
-            "description": "New role within the business",
-            "enum": [
-              "owner",
-              "admin",
-              "agent",
-              "viewer"
-            ]
-          }
-        },
-        "required": [
-          "businessRole"
-        ]
-      },
       "UpdateLeadStatusDto": {
         "type": "object",
         "properties": {
@@ -17196,6 +18722,299 @@
       "CopilotRequestDto": {
         "type": "object",
         "properties": {}
+      },
+      "StudioImageUploadDto": {
+        "type": "object",
+        "properties": {
+          "base64": {
+            "type": "string",
+            "description": "File bytes, base64 encoded (image 5 MB, video/PDF 16 MB)"
+          },
+          "mimetype": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "video/mp4",
+              "application/pdf"
+            ]
+          },
+          "filename": {
+            "type": "string",
+            "example": "banner.jpg"
+          }
+        },
+        "required": [
+          "base64",
+          "mimetype"
+        ]
+      },
+      "MetaTemplateButtonDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "QUICK_REPLY",
+              "URL",
+              "PHONE_NUMBER",
+              "VOICE_CALL",
+              "COPY_CODE",
+              "FLOW"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "example": "Register Now"
+          },
+          "url": {
+            "type": "string",
+            "description": "Required for URL buttons",
+            "example": "https://example.com/register"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Required for PHONE_NUMBER buttons, with country code",
+            "example": "+919876543210"
+          },
+          "code": {
+            "type": "string",
+            "description": "COPY_CODE: sample offer code",
+            "example": "SAVE20"
+          },
+          "flowId": {
+            "type": "string",
+            "description": "FLOW: the published Meta flow id"
+          },
+          "flowScreen": {
+            "type": "string",
+            "description": "FLOW: first screen to open"
+          }
+        },
+        "required": [
+          "type",
+          "text"
+        ]
+      },
+      "CreateMetaTemplateDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The WhatsApp number to check against"
+          },
+          "name": {
+            "type": "string",
+            "example": "padosi_agent_invite",
+            "description": "Lowercase letters, numbers and underscores"
+          },
+          "language": {
+            "type": "string",
+            "example": "en",
+            "description": "Meta's language code (en, en_US, hi, gu, …)"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "MARKETING",
+              "UTILITY"
+            ]
+          },
+          "parameterFormat": {
+            "type": "string",
+            "enum": [
+              "POSITIONAL",
+              "NAMED"
+            ],
+            "description": "Variables as numbers ({{1}}) or names ({{first_name}})"
+          },
+          "headerFormat": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "TEXT",
+              "IMAGE",
+              "VIDEO",
+              "DOCUMENT",
+              "LOCATION"
+            ]
+          },
+          "headerText": {
+            "type": "string",
+            "description": "Header text (may hold one variable)"
+          },
+          "headerExample": {
+            "type": "string",
+            "description": "Sample value for the header variable"
+          },
+          "headerMedia": {
+            "description": "Sample image/video/PDF for a media header",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StudioImageUploadDto"
+              }
+            ]
+          },
+          "ttlSeconds": {
+            "type": "number",
+            "description": "Utility only: drop the message if not delivered within this many seconds"
+          },
+          "body": {
+            "type": "string",
+            "description": "Body with {{1}}, {{2}} … variables"
+          },
+          "bodyExamples": {
+            "description": "Sample value for each body variable, in order",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "footer": {
+            "type": "string"
+          },
+          "buttons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetaTemplateButtonDto"
+            }
+          },
+          "autoTestPhone": {
+            "type": "string",
+            "description": "Send the template to this phone once Meta approves it (only when free: inside its 24h window)",
+            "example": "916352701839"
+          }
+        },
+        "required": [
+          "sessionId",
+          "name",
+          "language",
+          "category",
+          "body"
+        ]
+      },
+      "SendApprovedTemplateDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The WhatsApp number to check against"
+          },
+          "phone": {
+            "type": "string",
+            "example": "6352701839",
+            "description": "Mobile number (10 digits = India)"
+          },
+          "contactName": {
+            "type": "string",
+            "description": "Used for {{name}} in the values"
+          },
+          "metaTemplate": {
+            "type": "object",
+            "description": "Template and its filled values, same shape as a campaign metaTemplate"
+          }
+        },
+        "required": [
+          "sessionId",
+          "phone",
+          "metaTemplate"
+        ]
+      },
+      "TemplateAdviceDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "MARKETING",
+              "UTILITY"
+            ]
+          },
+          "language": {
+            "type": "string",
+            "example": "en"
+          },
+          "headerText": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "footer": {
+            "type": "string"
+          },
+          "buttons": {
+            "description": "Button labels",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "explainIn": {
+            "type": "string",
+            "enum": [
+              "en",
+              "gu"
+            ],
+            "description": "Language of the explanations"
+          }
+        },
+        "required": [
+          "category",
+          "language",
+          "body"
+        ]
+      },
+      "AutoTestRetryDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The WhatsApp number to check against"
+          },
+          "name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId",
+          "name",
+          "language"
+        ]
+      },
+      "UploadStudioImageDto": {
+        "type": "object",
+        "properties": {
+          "base64": {
+            "type": "string",
+            "description": "File bytes, base64 encoded (image 5 MB, video/PDF 16 MB)"
+          },
+          "mimetype": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "video/mp4",
+              "application/pdf"
+            ]
+          },
+          "filename": {
+            "type": "string",
+            "example": "banner.jpg"
+          },
+          "sessionId": {
+            "type": "string",
+            "description": "The Cloud API number the image will be sent from"
+          }
+        },
+        "required": [
+          "base64",
+          "mimetype",
+          "sessionId"
+        ]
       },
       "ValidateStudioMessageDto": {
         "type": "object",
@@ -17627,6 +19446,18 @@
           }
         }
       },
+      "CallingSettingsDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CallPermissionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateInvoiceDto": {
+        "type": "object",
+        "properties": {}
+      },
       "UpdateSalesAgentConfigDto": {
         "type": "object",
         "properties": {
@@ -18023,7 +19854,10 @@
             "type": "string",
             "enum": [
               "instagram",
-              "facebook"
+              "facebook",
+              "telegram",
+              "youtube",
+              "x"
             ]
           },
           "accountName": {
@@ -18033,11 +19867,27 @@
           "accountId": {
             "type": "string",
             "example": "17841400000000000",
-            "description": "Instagram Business account ID or Facebook Page ID"
+            "description": "Instagram Business account ID or Facebook Page ID. Not needed for Telegram (read from the bot)."
           },
           "accessToken": {
             "type": "string",
-            "description": "Long-lived Page access token from Meta (never returned by the API)"
+            "description": "Meta Page access token, or the Telegram bot token from @BotFather (never returned). Not for YouTube."
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "X only: API key (consumer key). The access token goes in accessToken."
+          },
+          "apiSecret": {
+            "type": "string",
+            "description": "X only: API key secret (consumer secret)"
+          },
+          "accessTokenSecret": {
+            "type": "string",
+            "description": "X only: access token secret"
+          },
+          "integrationId": {
+            "type": "string",
+            "description": "YouTube only: id of the connected google_youtube integration"
           },
           "pageId": {
             "type": "string",
@@ -18046,12 +19896,15 @@
           "webhookVerifyToken": {
             "type": "string",
             "description": "Webhook verify token to enter in the Meta app. Generated when empty."
+          },
+          "aiAutoReply": {
+            "type": "boolean",
+            "description": "AI chatbot answers DMs that no rule answered",
+            "default": false
           }
         },
         "required": [
-          "platform",
-          "accountId",
-          "accessToken"
+          "platform"
         ]
       },
       "UpdateSocialAccountDto": {
@@ -18061,7 +19914,10 @@
             "type": "string",
             "enum": [
               "instagram",
-              "facebook"
+              "facebook",
+              "telegram",
+              "youtube",
+              "x"
             ]
           },
           "accountName": {
@@ -18071,11 +19927,27 @@
           "accountId": {
             "type": "string",
             "example": "17841400000000000",
-            "description": "Instagram Business account ID or Facebook Page ID"
+            "description": "Instagram Business account ID or Facebook Page ID. Not needed for Telegram (read from the bot)."
           },
           "accessToken": {
             "type": "string",
-            "description": "Long-lived Page access token from Meta (never returned by the API)"
+            "description": "Meta Page access token, or the Telegram bot token from @BotFather (never returned). Not for YouTube."
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "X only: API key (consumer key). The access token goes in accessToken."
+          },
+          "apiSecret": {
+            "type": "string",
+            "description": "X only: API key secret (consumer secret)"
+          },
+          "accessTokenSecret": {
+            "type": "string",
+            "description": "X only: access token secret"
+          },
+          "integrationId": {
+            "type": "string",
+            "description": "YouTube only: id of the connected google_youtube integration"
           },
           "pageId": {
             "type": "string",
@@ -18084,6 +19956,11 @@
           "webhookVerifyToken": {
             "type": "string",
             "description": "Webhook verify token to enter in the Meta app. Generated when empty."
+          },
+          "aiAutoReply": {
+            "type": "boolean",
+            "description": "AI chatbot answers DMs that no rule answered",
+            "default": false
           },
           "status": {
             "type": "string",
@@ -18105,7 +19982,9 @@
             "type": "string",
             "enum": [
               "instagram",
-              "facebook"
+              "facebook",
+              "youtube",
+              "x"
             ]
           },
           "caption": {
@@ -18114,7 +19993,7 @@
           },
           "mediaUrl": {
             "type": "string",
-            "description": "Public HTTPS image or video URL that Meta can download"
+            "description": "Public HTTPS image or video URL that Meta or YouTube can download. Not used for X (text only)."
           },
           "mediaType": {
             "type": "string",
@@ -18135,8 +20014,7 @@
         },
         "required": [
           "platform",
-          "caption",
-          "mediaUrl"
+          "caption"
         ]
       },
       "UpdateSocialPostDto": {
@@ -18180,9 +20058,19 @@
             "enum": [
               "all",
               "instagram",
-              "facebook"
+              "facebook",
+              "youtube"
             ],
             "default": "all"
+          },
+          "appliesTo": {
+            "type": "string",
+            "enum": [
+              "comments",
+              "dms",
+              "both"
+            ],
+            "default": "comments"
           },
           "postId": {
             "type": "string",
@@ -18269,9 +20157,19 @@
             "enum": [
               "all",
               "instagram",
-              "facebook"
+              "facebook",
+              "youtube"
             ],
             "default": "all"
+          },
+          "appliesTo": {
+            "type": "string",
+            "enum": [
+              "comments",
+              "dms",
+              "both"
+            ],
+            "default": "comments"
           },
           "postId": {
             "type": "string",
@@ -18362,7 +20260,8 @@
             "type": "string",
             "enum": [
               "instagram",
-              "facebook"
+              "facebook",
+              "youtube"
             ]
           },
           "postId": {
@@ -18375,6 +20274,183 @@
         },
         "required": [
           "commentText"
+        ]
+      },
+      "SocialBroadcastDto": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "instagram",
+              "facebook"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "example": "Diwali offer: 20% off today only!"
+          }
+        },
+        "required": [
+          "platform",
+          "text"
+        ]
+      },
+      "SendSocialMessageDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "example": "Thanks for your message! The price is ₹499."
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "SendSocialMediaDto": {
+        "type": "object",
+        "properties": {
+          "base64": {
+            "type": "string",
+            "description": "File content, base64 (max 16 MB file)"
+          },
+          "mimetype": {
+            "type": "string",
+            "example": "image/jpeg"
+          },
+          "filename": {
+            "type": "string",
+            "example": "price-list.pdf"
+          }
+        },
+        "required": [
+          "base64",
+          "mimetype"
+        ]
+      },
+      "CreateTenantDto": {
+        "type": "object",
+        "properties": {
+          "businessName": {
+            "type": "string",
+            "description": "Business/tenant display name",
+            "example": "Acme Corp"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe slug (auto-generated from name when omitted)",
+            "example": "acme-corp"
+          },
+          "plan": {
+            "type": "string",
+            "description": "Billing plan",
+            "example": "free",
+            "default": "free"
+          }
+        },
+        "required": [
+          "businessName"
+        ]
+      },
+      "CreateTenantKeyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Friendly name for the API key",
+            "example": "Production Integration"
+          },
+          "role": {
+            "type": "string",
+            "description": "Permission level for this key",
+            "enum": [
+              "operator",
+              "viewer"
+            ],
+            "default": "operator"
+          },
+          "allowedFeatures": {
+            "description": "Restrict key to specific features (omit for all features)",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ConnectWhatsAppDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique session name (alphanumeric and hyphens)",
+            "example": "client-101-wa"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "Meta Graph API permanent system-user access token",
+            "example": "EAAx..."
+          },
+          "phoneNumberId": {
+            "type": "string",
+            "description": "WhatsApp phone number ID from Meta Business Manager",
+            "example": "123456789012345"
+          },
+          "wabaId": {
+            "type": "string",
+            "description": "WhatsApp Business Account ID",
+            "example": "987654321098765"
+          },
+          "appSecret": {
+            "type": "string",
+            "description": "Meta App Secret for webhook signature verification"
+          },
+          "verifyToken": {
+            "type": "string",
+            "description": "Webhook verify token for this number"
+          },
+          "graphApiVersion": {
+            "type": "string",
+            "description": "Graph API version",
+            "example": "v21.0",
+            "default": "v21.0"
+          }
+        },
+        "required": [
+          "name",
+          "accessToken",
+          "phoneNumberId"
+        ]
+      },
+      "ConnectGoogleDto": {
+        "type": "object",
+        "properties": {
+          "services": {
+            "type": "array",
+            "description": "Google services to authorize",
+            "example": [
+              "business",
+              "gmail"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "business",
+                "gmail",
+                "calendar",
+                "sheets",
+                "drive",
+                "youtube"
+              ]
+            }
+          }
+        },
+        "required": [
+          "services"
         ]
       }
     }

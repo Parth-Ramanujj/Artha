@@ -1,0 +1,391 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Sales Pipeline &amp; Kanban CRM</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary/30 selection:text-on-surface">
+  <div class="min-h-[1024px] w-full max-w-5xl mx-auto bg-surface relative flex flex-col" data-stitch-vh="min-h-[1024px]===min-h-screen">
+
+    <!-- 1. Header: Pipeline Selector, Metrics Bar & Quick Filter Pills -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-page-margin md:px-gutter-xl py-gutter-md flex flex-col gap-gutter-md">
+      <div class="flex flex-wrap items-center justify-between gap-gutter-sm">
+        <!-- Pipeline Selector -->
+        <button id="pipeline-selector" type="button" class="inline-flex items-center gap-gutter-xs px-gutter-md py-gutter-sm rounded-full bg-surface-container border border-outline-variant text-on-surface hover:bg-surface-container-high transition-colors duration-state-change ease-state-change">
+          <span class="material-symbols-outlined text-primary" style="font-size: 18px;" aria-hidden="true">view_kanban</span>
+          <span class="font-section text-section" data-design-text-token="section">Main Sales Pipeline</span>
+          <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 18px;" aria-hidden="true">expand_more</span>
+        </button>
+
+        <!-- Metrics Bar -->
+        <div class="flex items-center gap-gutter-sm flex-wrap">
+          <span class="px-gutter-md py-1 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface tabular-nums" data-design-text-token="micro">
+            Total Pipeline Value: ₹18,45,000
+          </span>
+          <span class="px-gutter-md py-1 rounded-full bg-primary/15 border border-primary/30 font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">
+            38 Active Deals
+          </span>
+        </div>
+      </div>
+
+      <!-- Quick Filter Pills -->
+      <div role="tablist" aria-label="Filter deals" class="flex items-center gap-gutter-sm overflow-x-auto no-scrollbar">
+        <button type="button" role="tab" aria-selected="true" data-filter="all" class="crm-filter shrink-0 px-gutter-md py-1.5 rounded-full bg-primary text-on-primary font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span data-design-text-token="micro">All Channels</span>
+        </button>
+
+        <button type="button" role="tab" aria-selected="false" data-filter="whatsapp" class="crm-filter shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span class="w-2 h-2 rounded-full bg-primary"></span>
+          <span data-design-text-token="micro">WhatsApp Leads</span>
+        </button>
+
+        <button type="button" role="tab" aria-selected="false" data-filter="instagram" class="crm-filter shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span class="w-2 h-2 rounded-full bg-instagram-pink"></span>
+          <span data-design-text-token="micro">Instagram DMs</span>
+        </button>
+
+        <button type="button" role="tab" aria-selected="false" data-filter="high" class="crm-filter shrink-0 inline-flex items-center gap-1.5 px-gutter-md py-1.5 rounded-full bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span class="material-symbols-outlined text-google-amber" style="font-size: 14px;" aria-hidden="true">local_fire_department</span>
+          <span data-design-text-token="micro">High Priority</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. Horizontal Swipeable Kanban Columns -->
+    <main class="flex-1 px-page-margin md:px-gutter-xl py-gutter-lg overflow-x-auto no-scrollbar">
+      <div class="flex items-start gap-gutter-lg snap-x snap-mandatory min-w-max pb-gutter-xl">
+
+        <!-- Column 1: New Leads (12) -->
+        <section aria-labelledby="col-1-title" class="snap-start w-80 shrink-0 rounded-lg bg-surface-container/80 border border-outline-variant p-gutter-md flex flex-col gap-gutter-md">
+          <header class="px-gutter-xs py-gutter-xs flex items-center justify-between gap-gutter-sm border-b border-outline-variant pb-gutter-md">
+            <div class="flex items-center gap-gutter-sm">
+              <span class="w-2 h-2 rounded-full bg-facebook"></span>
+              <h2 id="col-1-title" class="font-body text-body text-on-surface" data-design-text-token="body">New Leads (12)</h2>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">₹2,40,000</span>
+          </header>
+
+          <!-- Deal Card 1 -->
+          <article data-channel="whatsapp" data-priority="high" data-component-id="card-deal" data-component-type="card" data-component-variant="action" class="deal-card p-gutter-lg rounded-lg bg-surface border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md cursor-grab">
+            <div class="flex items-start justify-between gap-gutter-sm">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-google-amber/15 border border-google-amber/30 text-google-amber font-micro text-micro" data-design-text-token="micro">High Priority</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-micro text-micro tabular-nums" data-design-text-token="micro">₹45,000</span>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Wholesale Order - 50 Units</h3>
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-on-primary">
+                  <span class="material-symbols-outlined" style="font-size: 11px;" aria-hidden="true">call</span>
+                </span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Vikram Patel</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-0.5 pt-gutter-sm border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Stage changed 2h ago</span>
+              <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">Next reminder: Call at 4 PM</span>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-micro text-micro text-primary" data-design-text-token="micro">AP</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Agent Parth</span>
+              </div>
+              <span class="material-symbols-outlined text-outline" style="font-size: 16px;" aria-hidden="true">drag_indicator</span>
+            </footer>
+          </article>
+
+          <!-- Deal Card 2 -->
+          <article data-channel="instagram" data-priority="standard" data-component-id="card-deal" data-component-type="card" data-component-variant="action" class="deal-card p-gutter-lg rounded-lg bg-surface border border-outline-variant hover:border-instagram-pink/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md cursor-grab">
+            <div class="flex items-start justify-between gap-gutter-sm">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high border border-instagram-pink/40 text-on-surface font-micro text-micro" data-design-text-token="micro">Instagram DM</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-micro text-micro tabular-nums" data-design-text-token="micro">₹18,500</span>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Boutique Linen Assortment</h3>
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gradient-to-tr from-instagram-purple to-instagram-pink text-surface">
+                  <span class="material-symbols-outlined" style="font-size: 11px;" aria-hidden="true">photo_camera</span>
+                </span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">@naina.curates</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-0.5 pt-gutter-sm border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Stage changed 45m ago</span>
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Next reminder: Send size chart</span>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center font-micro text-micro text-on-surface-variant" data-design-text-token="micro">--</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Unassigned</span>
+              </div>
+              <span class="material-symbols-outlined text-outline" style="font-size: 16px;" aria-hidden="true">drag_indicator</span>
+            </footer>
+          </article>
+        </section>
+
+        <!-- Column 2: Requirement Understood (8) -->
+        <section aria-labelledby="col-2-title" class="snap-start w-80 shrink-0 rounded-lg bg-surface-container/80 border border-outline-variant p-gutter-md flex flex-col gap-gutter-md">
+          <header class="px-gutter-xs py-gutter-xs flex items-center justify-between gap-gutter-sm border-b border-outline-variant pb-gutter-md">
+            <div class="flex items-center gap-gutter-sm">
+              <span class="w-2 h-2 rounded-full bg-neural-violet"></span>
+              <h2 id="col-2-title" class="font-body text-body text-on-surface" data-design-text-token="body">Requirement Understood (8)</h2>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">₹4,10,000</span>
+          </header>
+
+          <article data-channel="whatsapp" data-priority="high" data-component-id="card-deal" data-component-type="card" data-component-variant="action" class="deal-card p-gutter-lg rounded-lg bg-surface border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md cursor-grab">
+            <div class="flex items-start justify-between gap-gutter-sm">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-google-amber/15 border border-google-amber/30 text-google-amber font-micro text-micro" data-design-text-token="micro">High Priority</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-micro text-micro tabular-nums" data-design-text-token="micro">₹1,20,000</span>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Corporate Festive Gifting - 150 Kits</h3>
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-on-primary">
+                  <span class="material-symbols-outlined" style="font-size: 11px;" aria-hidden="true">call</span>
+                </span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Ananya Kapoor</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-0.5 pt-gutter-sm border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Stage changed 5h ago</span>
+              <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">Next reminder: Share GST proforma</span>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-micro text-micro text-primary" data-design-text-token="micro">AP</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Agent Parth</span>
+              </div>
+              <span class="material-symbols-outlined text-outline" style="font-size: 16px;" aria-hidden="true">drag_indicator</span>
+            </footer>
+          </article>
+        </section>
+
+        <!-- Column 3: Quote / Catalog Sent (10) -->
+        <section aria-labelledby="col-3-title" class="snap-start w-80 shrink-0 rounded-lg bg-surface-container/80 border border-outline-variant p-gutter-md flex flex-col gap-gutter-md">
+          <header class="px-gutter-xs py-gutter-xs flex items-center justify-between gap-gutter-sm border-b border-outline-variant pb-gutter-md">
+            <div class="flex items-center gap-gutter-sm">
+              <span class="w-2 h-2 rounded-full bg-google-amber"></span>
+              <h2 id="col-3-title" class="font-body text-body text-on-surface" data-design-text-token="body">Quote / Catalog Sent (10)</h2>
+            </div>
+            <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">₹6,80,000</span>
+          </header>
+
+          <article data-channel="whatsapp" data-priority="standard" data-component-id="card-deal" data-component-type="card" data-component-variant="action" class="deal-card p-gutter-lg rounded-lg bg-surface border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md cursor-grab">
+            <div class="flex items-start justify-between gap-gutter-sm">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">Catalog Viewed</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-micro text-micro tabular-nums" data-design-text-token="micro">₹85,000</span>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Surat Franchise Restock</h3>
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-on-primary">
+                  <span class="material-symbols-outlined" style="font-size: 11px;" aria-hidden="true">call</span>
+                </span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Manish Desai</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-0.5 pt-gutter-sm border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Stage changed 1d ago</span>
+              <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">Next reminder: Follow-up at 11 AM</span>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-micro text-micro text-primary" data-design-text-token="micro">AP</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Agent Parth</span>
+              </div>
+              <span class="material-symbols-outlined text-outline" style="font-size: 16px;" aria-hidden="true">drag_indicator</span>
+            </footer>
+          </article>
+        </section>
+
+        <!-- Column 4: Won & Paid (8) - Emerald Header -->
+        <section aria-labelledby="col-4-title" class="snap-start w-80 shrink-0 rounded-lg bg-surface-container/80 border border-primary/40 p-gutter-md flex flex-col gap-gutter-md">
+          <header class="px-gutter-md py-gutter-sm rounded bg-primary/15 border border-primary/30 flex items-center justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-sm">
+              <span class="w-2 h-2 rounded-full bg-primary" style="box-shadow: 0 0 8px #10B981;"></span>
+              <h2 id="col-4-title" class="font-body text-body text-primary" data-design-text-token="body">Won &amp; Paid (8)</h2>
+            </div>
+            <span class="font-micro text-micro text-primary tabular-nums" data-design-text-token="micro">₹5,15,000</span>
+          </header>
+
+          <article data-channel="whatsapp" data-priority="standard" data-component-id="card-deal" data-component-type="card" data-component-variant="action" class="deal-card p-gutter-lg rounded-lg bg-surface border border-outline-variant hover:border-primary/40 transition-colors duration-state-change ease-state-change flex flex-col gap-gutter-md cursor-grab">
+            <div class="flex items-start justify-between gap-gutter-sm">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">Paid via UPI</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-micro text-micro tabular-nums" data-design-text-token="micro">₹64,000</span>
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Festive Handloom Batch #19</h3>
+              <div class="flex items-center gap-1.5">
+                <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-on-primary">
+                  <span class="material-symbols-outlined" style="font-size: 11px;" aria-hidden="true">call</span>
+                </span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Kavita Joshi</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-0.5 pt-gutter-sm border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Stage changed 3h ago</span>
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Dispatch scheduled today</span>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm">
+              <div class="flex items-center gap-1.5">
+                <span class="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center font-micro text-micro text-primary" data-design-text-token="micro">AP</span>
+                <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Agent Parth</span>
+              </div>
+              <span class="material-symbols-outlined text-primary" style="font-size: 16px;" aria-hidden="true">check_circle</span>
+            </footer>
+          </article>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    (function () {
+      const filters = document.querySelectorAll('.crm-filter');
+      const cards = document.querySelectorAll('.deal-card');
+
+      filters.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const f = btn.getAttribute('data-filter');
+          filters.forEach(function (b) {
+            const active = b === btn;
+            b.setAttribute('aria-selected', String(active));
+            b.classList.toggle('bg-primary', active);
+            b.classList.toggle('text-on-primary', active);
+            b.classList.toggle('bg-surface-container', !active);
+            b.classList.toggle('border', !active);
+            b.classList.toggle('border-outline-variant', !active);
+            b.classList.toggle('text-on-surface-variant', !active);
+          });
+
+          cards.forEach(function (card) {
+            const ch = card.getAttribute('data-channel');
+            const pr = card.getAttribute('data-priority');
+            const show =
+              f === 'all' ||
+              (f === 'whatsapp' && ch === 'whatsapp') ||
+              (f === 'instagram' && ch === 'instagram') ||
+              (f === 'high' && pr === 'high');
+            card.classList.toggle('hidden', !show);
+          });
+        });
+      });
+    })();
+  </script>
+
+
+</body></html>

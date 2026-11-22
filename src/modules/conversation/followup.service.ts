@@ -1,13 +1,24 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, In, IsNull } from 'typeorm';
 import { FollowupRule, FollowupTrigger } from './entities/followup-rule.entity';
 import { FollowupAttempt } from './entities/followup-attempt.entity';
 import { Conversation, ConversationStatus } from './entities/conversation.entity';
+import { Deal, DealStage } from './entities/deal.entity';
+import { ReminderReason } from './entities/reminder.entity';
 import { CreateFollowupRuleDto, UpdateFollowupRuleDto } from './dto/followup-rule.dto';
 import { EngineRegistry } from '../../engine/engine-registry.service';
 import { DateTransformer } from '../../common/transformers/date.transformer';
 import { notDndSql } from './dnd';
+import { ReminderService } from './reminder.service';
 
 const SCHEDULER_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_SENDS_PER_TICK = 50;
@@ -22,6 +33,46 @@ const MORNING_SEND_WINDOW_MINUTES = 180;
 // lastInboundAt is stored through DateTransformer (ISO text on SQLite), so bound parameters must use the
 // same encoding or SQLite compares strings in two formats.
 const toDbDate = (date: Date) => DateTransformer.to(date) as string | Date;
+
+const DEAL_STAGES: string[] = Object.values(DealStage);
+
+/** Deal stage a rule is scoped to (no_reply / conversation_idle only), or null for a plain conversation rule. */
+function dealStageOf(rule: FollowupRule): string | null {
+  const stage = rule.conditions?.dealStage;
+  return typeof stage === 'string' && stage !== '' ? stage : null;
+}
+
+/** Message for the nth nudge of a sequence; the last message repeats when the sequence is longer than the list. */
+function messageForStep(rule: FollowupRule, step: number): string {
+  const messages = rule.conditions?.messages;
+  if (Array.isArray(messages) && messages.length > 0) {
+    return String(messages[Math.min(step, messages.length - 1)]);
+  }
+  return rule.message;
+}
+
+/** Rejects lifecycle conditions that would silently do nothing, so a typo fails at save time, not never. */
+export function assertLifecycleConditions(
+  trigger: string,
+  conditions: Record<string, unknown> | null | undefined,
+): void {
+  if (!conditions) return;
+  if (conditions.dealStage !== undefined) {
+    if (typeof conditions.dealStage !== 'string' || !DEAL_STAGES.includes(conditions.dealStage)) {
+      throw new BadRequestException(`conditions.dealStage must be one of: ${DEAL_STAGES.join(', ')}`);
+    }
+    if (!SCHEDULABLE_TRIGGERS.includes(trigger)) {
+      throw new BadRequestException('conditions.dealStage only applies to no_reply and conversation_idle rules');
+    }
+  }
+  if (conditions.messages !== undefined) {
+    const ok =
+      Array.isArray(conditions.messages) &&
+      conditions.messages.length > 0 &&
+      conditions.messages.every(m => typeof m === 'string' && m.trim() !== '');
+    if (!ok) throw new BadRequestException('conditions.messages must be a non-empty list of non-empty strings');
+  }
+}
 
 function parseSendAt(value: unknown): number | null {
   if (typeof value !== 'string') return null;
@@ -52,6 +103,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(FollowupAttempt, 'data') private readonly attemptRepo: Repository<FollowupAttempt>,
     @InjectRepository(Conversation, 'data') private readonly convoRepo: Repository<Conversation>,
     @Optional() private readonly engineRegistry?: EngineRegistry,
+    @Optional() private readonly reminders?: ReminderService,
   ) {}
 
   onModuleInit() {
@@ -107,6 +159,11 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
         attempt.recoveredAt = new Date(convo.lastInboundAt);
         await this.attemptRepo.save(attempt);
         recovered++;
+        // The customer answered a stage nudge: tell the deal owner to pick it up.
+        const dealStage = dealStageOf(rule);
+        if (dealStage) {
+          await this.raiseReminder(rule, convo, dealStage, ReminderReason.CUSTOMER_REPLIED, attempt.sentAt);
+        }
       }
     }
     if (recovered > 0) await this.ruleRepo.increment({ id: rule.id }, 'totalRecovered', recovered);
@@ -132,6 +189,22 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
       qb.andWhere('c.chatId IN (:...targetChatIds)', { targetChatIds });
     }
     if (rule.sessionId) qb.andWhere('c.sessionId = :sessionId', { sessionId: rule.sessionId });
+    const dealStage = dealStageOf(rule);
+    if (dealStage) {
+      // Only chats whose deal is in this stage, and that has been in it for the idle delay. Won/lost deals
+      // and deals that moved on drop out here, which is what ends the sequence for them.
+      const inStage = this.convoRepo.manager
+        .createQueryBuilder()
+        .select('d.conversationId', 'conversationId')
+        .from(Deal, 'd')
+        .where('d.stage = :dealStage', { dealStage })
+        // Legacy deals have no stageChangedAt; they count as having been in the stage since before.
+        .andWhere('(d.stageChangedAt IS NULL OR d.stageChangedAt < :stageCutoff)', {
+          stageCutoff: toDbDate(idleCutoff),
+        });
+      if (rule.businessId) inStage.andWhere('d.businessId = :dealBusinessId', { dealBusinessId: rule.businessId });
+      qb.andWhere(`c.id IN (${inStage.getQuery()})`).setParameters(inStage.getParameters());
+    }
     const candidates = await qb.orderBy('c.lastMessageAt', 'ASC').take(CANDIDATE_BATCH).getMany();
 
     let sent = 0;
@@ -144,15 +217,44 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
         order: { sentAt: 'DESC' },
       });
       const sequence = attempts.filter(a => new Date(a.sentAt).getTime() > lastInbound);
-      if (sequence.length >= rule.maxAttempts) continue;
       const lastAttempt = sequence[0];
-      if (lastAttempt && now.getTime() - new Date(lastAttempt.sentAt).getTime() < rule.cooldownMinutes * 60 * 1000) {
+      const cooledDown =
+        !lastAttempt || now.getTime() - new Date(lastAttempt.sentAt).getTime() >= rule.cooldownMinutes * 60 * 1000;
+      if (sequence.length >= rule.maxAttempts) {
+        // Sequence used up with no reply: once the last nudge has had its cooldown, hand the chat to staff.
+        if (dealStage && lastAttempt && cooledDown) {
+          await this.raiseReminder(rule, convo, dealStage, ReminderReason.SEQUENCE_EXHAUSTED, lastAttempt.sentAt);
+        }
         continue;
       }
+      if (lastAttempt && !cooledDown) continue;
 
-      if (await this.deliver(rule, convo, now)) sent++;
+      if (await this.deliver(rule, convo, now, sequence.length)) sent++;
     }
     return sent;
+  }
+
+  /** Reminders are a side effect of the follow-up; a failure to raise one must not stop the nudges. */
+  private async raiseReminder(
+    rule: FollowupRule,
+    convo: Conversation,
+    dealStage: string,
+    reason: ReminderReason.SEQUENCE_EXHAUSTED | ReminderReason.CUSTOMER_REPLIED,
+    cycleAt: Date,
+  ): Promise<void> {
+    if (!this.reminders || !rule.businessId) return;
+    try {
+      await this.reminders.raiseAutomatic({
+        businessId: rule.businessId,
+        conversationId: convo.id,
+        dealStage,
+        sourceRuleId: rule.id,
+        reason,
+        cycleAt,
+      });
+    } catch (error) {
+      this.logger.warn(`Could not raise ${reason} reminder for ${convo.chatId}: ${error}`);
+    }
   }
 
   // One follow-up per lead, ever: the morning after their last message, if they have not written today.
@@ -192,7 +294,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
     return sent;
   }
 
-  private async deliver(rule: FollowupRule, convo: Conversation, now: Date): Promise<boolean> {
+  private async deliver(rule: FollowupRule, convo: Conversation, now: Date, step = 0): Promise<boolean> {
     const engine = this.engineRegistry?.get(convo.sessionId);
     if (!engine) return false;
 
@@ -209,7 +311,10 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
     );
 
     try {
-      await engine.sendTextMessage(convo.chatId, rule.message.replace(/\{\{name\}\}/g, convo.chatName || 'there'));
+      await engine.sendTextMessage(
+        convo.chatId,
+        messageForStep(rule, step).replace(/\{\{name\}\}/g, convo.chatName || 'there'),
+      );
       await this.ruleRepo.increment({ id: rule.id }, 'totalSent', 1);
       return true;
     } catch (error) {
@@ -230,6 +335,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
   }
 
   async createRule(businessId: string, dto: CreateFollowupRuleDto) {
+    assertLifecycleConditions(dto.trigger, dto.conditions);
     const rule = this.ruleRepo.create({ ...dto, businessId });
     return this.ruleRepo.save(rule);
   }
@@ -237,6 +343,7 @@ export class FollowupService implements OnModuleInit, OnModuleDestroy {
   async updateRule(id: string, businessId: string, dto: UpdateFollowupRuleDto) {
     const rule = await this.findOneRule(id, businessId);
     Object.assign(rule, dto);
+    assertLifecycleConditions(rule.trigger, rule.conditions);
     return this.ruleRepo.save(rule);
   }
 

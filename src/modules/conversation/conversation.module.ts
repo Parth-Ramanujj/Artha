@@ -34,6 +34,9 @@ import { SlaController } from './sla.controller';
 import { Deal } from './entities/deal.entity';
 import { DealService } from './deal.service';
 import { DealController } from './deal.controller';
+import { Reminder } from './entities/reminder.entity';
+import { ReminderService } from './reminder.service';
+import { ReminderController } from './reminder.controller';
 
 @Module({
   imports: [
@@ -52,6 +55,7 @@ import { DealController } from './deal.controller';
         FollowupAttempt,
         AdvisorAlertConfig,
         Deal,
+        Reminder,
       ],
       'data',
     ),
@@ -69,6 +73,7 @@ import { DealController } from './deal.controller';
     FeedbackController,
     FollowupController,
     DealController,
+    ReminderController,
   ],
   providers: [
     ConversationService,
@@ -81,6 +86,7 @@ import { DealController } from './deal.controller';
     FeedbackService,
     FollowupService,
     DealService,
+    ReminderService,
   ],
   exports: [
     ConversationService,
@@ -91,6 +97,7 @@ import { DealController } from './deal.controller';
     FeedbackService,
     FollowupService,
     DealService,
+    ReminderService,
   ],
 })
 export class ConversationModule {}

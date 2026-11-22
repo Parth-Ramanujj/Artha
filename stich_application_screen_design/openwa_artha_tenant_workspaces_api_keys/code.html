@@ -1,0 +1,383 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Tenant Workspaces &amp; API Keys</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .code-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-neural-indigo/30 selection:text-on-surface">
+  <div class="min-h-[1024px] w-full max-w-6xl mx-auto bg-surface relative flex flex-col" data-stitch-vh="min-h-[1024px]===min-h-screen">
+
+    <!-- 1. Top Developer Header -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-gutter-xl py-gutter-lg flex flex-wrap items-center justify-between gap-gutter-md">
+      <div class="flex items-center gap-gutter-md">
+        <div class="w-10 h-10 rounded bg-surface-container border border-outline-variant flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">terminal</span>
+        </div>
+        <div class="flex flex-col">
+          <h1 class="font-section text-section text-on-surface" data-design-text-token="section">Tenant Workspaces &amp; API Keys</h1>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">OpenWA / Artha Gateway · v2.4 Production</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-gutter-md">
+        <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+          <span class="w-2 h-2 rounded-full bg-primary" style="box-shadow: 0 0 8px #10B981;"></span>
+          <span>99.99% API Uptime</span>
+        </span>
+        <button id="open-create-tenant-btn" data-component-id="button-solid-primary" data-component-type="button" data-component-variant="primary" type="button" class="min-h-11 px-gutter-lg py-gutter-sm rounded-full bg-primary text-on-primary font-body text-body hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change inline-flex items-center gap-gutter-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" style="box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);">
+          <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">add</span>
+          <span data-design-text-token="body">Provision New Tenant (+)</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col gap-gutter-xl px-gutter-xl py-gutter-xl">
+
+      <!-- 2. Tenant Companies Table / Cards -->
+      <section aria-labelledby="tenants-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between gap-gutter-sm">
+          <h2 id="tenants-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Tenant Companies</h2>
+          <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">2 Active Workspaces</span>
+        </div>
+
+        <div class="rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-outline-variant bg-surface-container-low">
+                <th class="px-gutter-lg py-gutter-md font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Tenant / Slug</th>
+                <th class="px-gutter-lg py-gutter-md font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Plan</th>
+                <th class="px-gutter-lg py-gutter-md font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Business UUID</th>
+                <th class="px-gutter-lg py-gutter-md font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Active Channels</th>
+                <th class="px-gutter-lg py-gutter-md font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Created At</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant">
+              <!-- Row 1: Sunrise Retailers -->
+              <tr class="hover:bg-surface-container-high/40 transition-colors duration-state-change ease-state-change">
+                <td class="px-gutter-lg py-gutter-md">
+                  <div class="flex flex-col gap-0.5">
+                    <span class="font-body text-body text-on-surface" data-design-text-token="body">Sunrise Retailers</span>
+                    <span class="code-mono font-micro text-micro text-on-surface-variant" data-design-text-token="micro">sunrise-retailers</span>
+                  </div>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro" data-design-text-token="micro">Enterprise Pro</span>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface border border-outline-variant">
+                    <span class="code-mono font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">b8f52f36-4a1c-4d9e</span>
+                    <button type="button" aria-label="Copy Business UUID" class="copy-btn text-on-surface-variant hover:text-primary">
+                      <span class="material-symbols-outlined" style="font-size: 14px;" aria-hidden="true">content_copy</span>
+                    </button>
+                  </div>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface tabular-nums" data-design-text-token="micro">
+                    WhatsApp (1) · Instagram (1) · Google (1)
+                  </span>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Nov 21, 2026</span>
+                </td>
+              </tr>
+
+              <!-- Row 2: Sunrise Surat Hub -->
+              <tr class="hover:bg-surface-container-high/40 transition-colors duration-state-change ease-state-change">
+                <td class="px-gutter-lg py-gutter-md">
+                  <div class="flex flex-col gap-0.5">
+                    <span class="font-body text-body text-on-surface" data-design-text-token="body">Sunrise Surat Hub</span>
+                    <span class="code-mono font-micro text-micro text-on-surface-variant" data-design-text-token="micro">sunrise-surat</span>
+                  </div>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface font-micro text-micro" data-design-text-token="micro">Growth</span>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface border border-outline-variant">
+                    <span class="code-mono font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">a4c18e90-7b3d-41a2</span>
+                    <button type="button" aria-label="Copy Business UUID" class="copy-btn text-on-surface-variant hover:text-primary">
+                      <span class="material-symbols-outlined" style="font-size: 14px;" aria-hidden="true">content_copy</span>
+                    </button>
+                  </div>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface tabular-nums" data-design-text-token="micro">
+                    WhatsApp (1) · Google (1)
+                  </span>
+                </td>
+                <td class="px-gutter-lg py-gutter-md">
+                  <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">Nov 14, 2026</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. API Keys Management Section -->
+      <section aria-labelledby="apikeys-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between gap-gutter-sm">
+          <h2 id="apikeys-heading" class="font-section text-section text-on-surface" data-design-text-token="section">API Keys Management</h2>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Scoped Bearer Tokens</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-lg items-stretch">
+
+          <!-- API Key Card 1: Sunrise Production Key (ADMIN) -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="h-full p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <div class="flex flex-col gap-gutter-md">
+              <header class="flex items-start justify-between gap-gutter-sm">
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-gutter-sm">
+                    <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Sunrise Production Key</h3>
+                    <span class="px-2 py-0.5 rounded-full bg-neural-indigo/20 border border-neural-indigo/40 text-on-surface font-micro text-micro" data-design-text-token="micro">ADMIN</span>
+                  </div>
+                  <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Allowed Features: WhatsApp, Social, Google, Webhooks</span>
+                </div>
+
+                <button type="button" aria-label="Revoke Key" title="Revoke Key" class="w-8 h-8 rounded-full bg-error/10 border border-error/30 flex items-center justify-center text-error hover:bg-error/20 transition-colors duration-state-change ease-state-change shrink-0">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">delete</span>
+                </button>
+              </header>
+
+              <!-- Key Prefix + Copy Key Button -->
+              <div class="p-gutter-md rounded bg-surface border border-outline-variant flex items-center justify-between gap-gutter-sm">
+                <span class="code-mono font-micro text-micro text-on-surface truncate" data-design-text-token="micro">owa_k1_9f3b••••••••••••••••</span>
+                <button type="button" class="copy-btn shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-sm bg-surface-container-high border border-outline-variant text-on-surface hover:border-primary/50 font-micro text-micro transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 14px;" aria-hidden="true">content_copy</span>
+                  <span data-design-text-token="micro">Copy Key</span>
+                </button>
+              </div>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">124,500 requests this month</span>
+              <span class="font-micro text-micro text-primary" data-design-text-token="micro">Active</span>
+            </footer>
+          </article>
+
+          <!-- API Key Card 2: Webhook Worker Key (OPERATOR) -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="h-full p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <div class="flex flex-col gap-gutter-md">
+              <header class="flex items-start justify-between gap-gutter-sm">
+                <div class="flex flex-col gap-1">
+                  <div class="flex items-center gap-gutter-sm">
+                    <h3 class="font-body text-body text-on-surface" data-design-text-token="body">Webhook Worker Key</h3>
+                    <span class="px-2 py-0.5 rounded-full bg-neural-indigo/20 border border-neural-indigo/40 text-on-surface font-micro text-micro" data-design-text-token="micro">OPERATOR</span>
+                  </div>
+                  <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Allowed Features: WhatsApp, Webhooks</span>
+                </div>
+
+                <button type="button" aria-label="Revoke Key" title="Revoke Key" class="w-8 h-8 rounded-full bg-error/10 border border-error/30 flex items-center justify-center text-error hover:bg-error/20 transition-colors duration-state-change ease-state-change shrink-0">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">delete</span>
+                </button>
+              </header>
+
+              <!-- Key Prefix + Copy Key Button -->
+              <div class="p-gutter-md rounded bg-surface border border-outline-variant flex items-center justify-between gap-gutter-sm">
+                <span class="code-mono font-micro text-micro text-on-surface truncate" data-design-text-token="micro">owa_k1_4c8a••••••••••••••••</span>
+                <button type="button" class="copy-btn shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-sm bg-surface-container-high border border-outline-variant text-on-surface hover:border-primary/50 font-micro text-micro transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 14px;" aria-hidden="true">content_copy</span>
+                  <span data-design-text-token="micro">Copy Key</span>
+                </button>
+              </div>
+            </div>
+
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">38,920 requests this month</span>
+              <span class="font-micro text-micro text-primary" data-design-text-token="micro">Active</span>
+            </footer>
+          </article>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 4. Modal Overlay for "Create Tenant" -->
+    <div id="create-tenant-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="hidden fixed inset-0 z-50 flex items-center justify-center p-gutter-lg bg-surface/80 backdrop-blur-sm">
+      <div class="w-full max-w-md rounded-lg bg-surface-container border border-outline-variant p-gutter-xl flex flex-col gap-gutter-lg" style="box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);">
+        <div class="flex items-center justify-between gap-gutter-sm">
+          <h2 id="modal-title" class="font-section text-section text-on-surface" data-design-text-token="section">Create Tenant</h2>
+          <button id="close-tenant-modal" type="button" aria-label="Close modal" class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface">
+            <span class="material-symbols-outlined" style="font-size: 18px;" aria-hidden="true">close</span>
+          </button>
+        </div>
+
+        <form id="create-tenant-form" class="flex flex-col gap-gutter-md">
+          <div class="flex flex-col gap-1.5">
+            <label for="tenant-name" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Business Name</label>
+            <input id="tenant-name" type="text" placeholder="e.g., Artha Luxury Home" class="w-full h-11 px-gutter-md rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary">
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="tenant-slug" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Slug</label>
+            <input id="tenant-slug" type="text" placeholder="artha-luxury-home" class="code-mono w-full h-11 px-gutter-md rounded bg-surface border border-outline-variant text-on-surface placeholder:text-outline font-body text-body focus:outline-none focus:ring-2 focus:ring-primary">
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="tenant-plan" class="font-micro text-micro text-on-surface" data-design-text-token="micro">Tier Plan</label>
+            <select id="tenant-plan" class="w-full h-11 px-gutter-md rounded bg-surface border border-outline-variant text-on-surface font-body text-body focus:outline-none focus:ring-2 focus:ring-primary">
+              <option value="Enterprise Pro">Enterprise Pro</option>
+              <option value="Growth">Growth</option>
+              <option value="Starter">Starter</option>
+            </select>
+          </div>
+
+          <label class="flex items-center gap-gutter-sm pt-gutter-xs cursor-pointer">
+            <input type="checkbox" checked class="w-4 h-4 rounded bg-surface border-outline-variant text-primary focus:ring-primary">
+            <span class="font-body text-body text-on-surface" data-design-text-token="body">Automatically generate Admin API Key</span>
+          </label>
+
+          <div class="flex items-center justify-end gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+            <button id="cancel-tenant-modal" type="button" class="px-gutter-lg py-gutter-sm rounded-full bg-surface-container-high border border-outline-variant text-on-surface font-body text-body">
+              <span data-design-text-token="body">Cancel</span>
+            </button>
+            <button type="submit" class="px-gutter-lg py-gutter-sm rounded-full bg-primary text-on-primary font-body text-body">
+              <span data-design-text-token="body">Provision Tenant</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    (function () {
+      const openBtn = document.getElementById('open-create-tenant-btn');
+      const modal = document.getElementById('create-tenant-modal');
+      const closeBtn = document.getElementById('close-tenant-modal');
+      const cancelBtn = document.getElementById('cancel-tenant-modal');
+      const form = document.getElementById('create-tenant-form');
+
+      function showModal() { if (modal) modal.classList.remove('hidden'); }
+      function hideModal() { if (modal) modal.classList.add('hidden'); }
+
+      if (openBtn) openBtn.addEventListener('click', showModal);
+      if (closeBtn) closeBtn.addEventListener('click', hideModal);
+      if (cancelBtn) cancelBtn.addEventListener('click', hideModal);
+      if (modal) {
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) hideModal();
+        });
+      }
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          hideModal();
+        });
+      }
+
+      document.querySelectorAll('.copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const textNode = btn.querySelector('[data-design-text-token="micro"]');
+          if (textNode) {
+            const orig = textNode.textContent;
+            textNode.textContent = 'Copied';
+            setTimeout(function () { textNode.textContent = orig; }, 1200);
+          }
+        });
+      });
+    })();
+  </script>
+
+
+</body></html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html><html lang="en" class="dark"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenWA / Artha — Social Automation &amp; Scheduler</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#10B981',
+        'on-primary': '#022C22',
+        'primary-container': '#064E3B',
+        'on-primary-container': '#6EE7B7',
+        'surface': '#09090B',
+        'surface-container-lowest': '#09090B',
+        'surface-container-low': '#121215',
+        'surface-container': '#18181B',
+        'surface-container-high': '#27272A',
+        'on-surface': '#FAFAFA',
+        'on-surface-variant': '#A1A1AA',
+        'outline': '#71717A',
+        'outline-variant': '#27272A',
+        'whatsapp': '#10B981',
+        'on-whatsapp': '#022C22',
+        'instagram-purple': '#A855F7',
+        'instagram-pink': '#EC4899',
+        'facebook': '#3B82F6',
+        'on-facebook': '#1E1E1E',
+        'google-amber': '#F59E0B',
+        'on-google-amber': '#451A03',
+        'neural-indigo': '#6366F1',
+        'neural-violet': '#8B5CF6',
+        'voice-cyan': '#06B6D4',
+        'error': '#EF4444',
+        'on-error': '#1C1C1C',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '20px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '12px',
+        'gutter-lg': '16px',
+        'gutter-xl': '24px',
+        'section': '24px',
+        'page-margin': '16px',
+      },
+      fontFamily: {
+        'display': ['"Inter"', 'sans-serif'],
+        'section': ['"Inter"', 'sans-serif'],
+        'body': ['"Inter"', 'sans-serif'],
+        'micro': ['"Inter"', 'sans-serif'],
+      },
+      fontSize: {
+        'display': ['24px', { lineHeight: '32px', letterSpacing: '-0.48px', fontWeight: '700' }],
+        'section': ['18px', { lineHeight: '24px', letterSpacing: '-0.25px', fontWeight: '600' }],
+        'body': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'micro': ['11px', { lineHeight: '16px', letterSpacing: '0.2px', fontWeight: '500' }],
+      },
+      transitionDuration: {
+        'state-change': '150ms',
+        'surface-enter': '220ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>
+    .material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      line-height: 1 !important;
+      box-sizing: content-box;
+      overflow: hidden;
+      white-space: nowrap;
+      direction: ltr;
+      vertical-align: middle;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-instagram-purple/30 selection:text-on-surface">
+  <div class="min-h-[884px] w-full max-w-md md:max-w-3xl mx-auto bg-surface relative flex flex-col" data-stitch-vh="min-h-[884px]===min-h-screen">
+
+    <!-- 1. Top Bar: Header & Segmented Pill Tabs -->
+    <header class="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-outline-variant px-page-margin pt-gutter-md pb-gutter-md flex flex-col gap-gutter-md">
+      <div class="flex items-center justify-between gap-gutter-sm">
+        <div class="flex flex-col">
+          <h1 class="font-section text-section text-on-surface" data-design-text-token="section">Social Automation</h1>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Sunrise Retailers · Meta Publishing</span>
+        </div>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container border border-outline-variant font-micro text-micro text-on-surface-variant" data-design-text-token="micro">
+          <span class="w-2 h-2 rounded-full bg-primary"></span>
+          <span>IG + FB Synced</span>
+        </span>
+      </div>
+
+      <!-- Segmented Pill Tabs -->
+      <div role="tablist" aria-label="Social automation views" class="flex items-center gap-gutter-xs overflow-x-auto no-scrollbar p-1 rounded-lg bg-surface-container border border-outline-variant">
+        <button type="button" role="tab" aria-selected="true" data-tab="posts" class="scheduler-tab shrink-0 px-gutter-md py-gutter-sm rounded bg-surface-container-high border border-outline-variant text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span data-design-text-token="micro">Scheduled Posts (6)</span>
+        </button>
+
+        <button type="button" role="tab" aria-selected="false" data-tab="rules" class="scheduler-tab shrink-0 px-gutter-md py-gutter-sm rounded border border-transparent text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span data-design-text-token="micro">Auto-Comment Rules (14)</span>
+        </button>
+
+        <button type="button" role="tab" aria-selected="false" data-tab="logs" class="scheduler-tab shrink-0 px-gutter-md py-gutter-sm rounded border border-transparent text-on-surface-variant hover:text-on-surface font-micro text-micro transition-colors duration-state-change ease-state-change">
+          <span data-design-text-token="micro">Activity Logs</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col gap-section px-page-margin pt-gutter-lg pb-40">
+
+      <!-- 4. Auto-Comment Rules Quick Overview Card -->
+      <section aria-labelledby="rules-overview-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex flex-col items-start gap-gutter-xs sm:flex-row sm:items-center sm:justify-between">
+          <h2 id="rules-overview-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Auto-Comment Rule</h2>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro tabular-nums" data-design-text-token="micro">
+            1,420 comments answered automatically
+          </span>
+        </div>
+
+        <article data-component-id="card-rule" data-component-type="card" data-component-variant="action" class="p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col gap-gutter-md">
+          <div class="flex items-start justify-between gap-gutter-sm">
+            <div class="flex items-center gap-gutter-sm flex-wrap">
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Keyword Trigger:</span>
+              <span class="px-2 py-0.5 rounded-full bg-surface-container-high border border-instagram-pink/40 text-on-surface font-micro text-micro" data-design-text-token="micro">&#39;PRICE&#39;</span>
+              <span class="px-2 py-0.5 rounded-full bg-surface-container-high border border-instagram-pink/40 text-on-surface font-micro text-micro" data-design-text-token="micro">&#39;COST&#39;</span>
+            </div>
+            <span class="material-symbols-outlined text-instagram-purple shrink-0" style="font-size: 18px;" aria-hidden="true">bolt</span>
+          </div>
+
+          <div class="p-gutter-md rounded bg-surface border border-outline-variant flex items-center gap-gutter-sm">
+            <span class="material-symbols-outlined text-primary shrink-0" style="font-size: 18px;" aria-hidden="true">mail</span>
+            <p class="font-body text-body text-on-surface" data-design-text-token="body">
+              Auto-reply: &#34;Sent you details in DM!&#34;
+            </p>
+          </div>
+
+          <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-sm border-t border-outline-variant">
+            <div class="flex items-center gap-gutter-sm">
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">Auto-like: ON</span>
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/15 text-primary font-micro text-micro" data-design-text-token="micro">Auto-DM: ON</span>
+            </div>
+            <button type="button" class="font-micro text-micro text-on-surface-variant hover:text-on-surface" data-design-text-token="micro">Edit rule</button>
+          </footer>
+        </article>
+      </section>
+
+      <!-- 3. Posts Feed (Card Stack / Responsive Grid) -->
+      <section aria-labelledby="feed-heading" class="flex flex-col gap-gutter-md">
+        <div class="flex items-center justify-between">
+          <h2 id="feed-heading" class="font-section text-section text-on-surface" data-design-text-token="section">Upcoming Queue</h2>
+          <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Sorted by publish time</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-md items-stretch">
+
+          <!-- Post Card 1: 1:1 Square Image (Scheduled) -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="h-full p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <div class="flex flex-col gap-gutter-md">
+              <!-- Top Status & Timestamp Row -->
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">
+                  <span class="material-symbols-outlined text-google-amber" style="font-size: 14px;" aria-hidden="true">schedule</span>
+                  <span>Tomorrow, 10:30 AM</span>
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-google-amber/15 border border-google-amber/30 text-google-amber font-micro text-micro" data-design-text-token="micro">
+                  Scheduled
+                </span>
+              </div>
+
+              <!-- Preview Thumbnail (1:1) + Caption -->
+              <div class="flex items-start gap-gutter-md">
+                <div class="relative w-24 h-24 rounded overflow-hidden border border-outline-variant shrink-0 bg-surface">
+                  <img src="https://lh3.googleusercontent.com/aida/ALJJyrAuqrJiXQvJtyyScX1NgynAmwQd0lhJ-Vlbbnkh52MTP5MSYcrwBU7B6LcG1qyBOC0y-Fzb5-_7CbaZowmEpmLJ7jbu31hHnmdD2_Vip9jSuCCZPMfyi18N4DezfVnjpvmRfojjDbc-Chwcdgx2Q3bfeWukMy-IaCrqcoWMy11sX6znsOGdT4_lbgbQ6eIDAVeEKeatMP0FNmg12-O7r3FSOxpYEoh-ZhkNGrD8q2SnpxyPxnbOUxv5qg" alt="Sage linen kurta flat-lay" class="w-full h-full object-cover">
+                  <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm bg-surface/85 backdrop-blur-sm border border-outline-variant font-micro text-micro text-on-surface" data-design-text-token="micro">IMAGE</span>
+                </div>
+
+                <div class="flex-1 min-w-0 flex flex-col gap-gutter-sm">
+                  <!-- Platform Icons Pill -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-tr from-instagram-purple to-instagram-pink text-surface font-micro text-micro" data-design-text-token="micro">
+                      Instagram
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-facebook/15 border border-facebook/30 text-on-surface font-micro text-micro" data-design-text-token="micro">
+                      <span class="w-1.5 h-1.5 rounded-full bg-facebook"></span>
+                      <span>Facebook</span>
+                    </span>
+                  </div>
+
+                  <p class="font-body text-body text-on-surface text-pretty" data-design-text-token="body">
+                    Breathable handloom linen just landed in stores. Tap to DM for sizes! <span class="text-instagram-pink">#SummerLinen</span> <span class="text-facebook">#SunriseRetailers</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Icons Footer -->
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant" data-design-text-token="micro">Auto-comment rule linked</span>
+              <div class="flex items-center gap-gutter-xs">
+                <button type="button" aria-label="Edit post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">edit</span>
+                </button>
+                <button type="button" aria-label="Reschedule post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">event</span>
+                </button>
+                <button type="button" aria-label="Delete post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-error transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">delete</span>
+                </button>
+              </div>
+            </footer>
+          </article>
+
+          <!-- Post Card 2: 9:16 Reel Preview (Published) -->
+          <article data-component-id="card-action" data-component-type="card" data-component-variant="action" class="h-full p-gutter-lg rounded-lg bg-surface-container/80 backdrop-blur-md border border-outline-variant flex flex-col justify-between gap-gutter-md">
+            <div class="flex flex-col gap-gutter-md">
+              <!-- Top Status & Timestamp Row -->
+              <div class="flex items-center justify-between gap-gutter-sm">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-outline-variant font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">
+                  <span class="material-symbols-outlined text-primary" style="font-size: 14px;" aria-hidden="true">check_circle</span>
+                  <span>Today, 09:00 AM</span>
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary font-micro text-micro" data-design-text-token="micro">
+                  Published
+                </span>
+              </div>
+
+              <!-- Preview Thumbnail (9:16) + Caption -->
+              <div class="flex items-start gap-gutter-md">
+                <div class="relative w-20 h-36 rounded overflow-hidden border border-outline-variant shrink-0 bg-surface">
+                  <img src="https://lh3.googleusercontent.com/aida/ALJJyrCRCIteWZyXN1EILRbw9zyLh31pvjO2MzlDzS_-Gmoc-SQxzVL8j3BDNI5ppejs-DbJPYO8N72SeMqG5XQBp61iw-GtEw_b6AhBjwXB9jVDNid6ouDnZeoeZ_PUe7X9UqFUiRwRuu-EKHKbUIOnWEqBYLRmzN2iN3PYQCy3ot3594XCpbmrYG9YC5fsYMKJB6tA3JttHWuRfh6G6-fCtzs1cm-p98vjkOkRbX2NVJzs-JoM6OfesjkdmwabXZVg-6kr" alt="Boutique showroom festive reel" class="w-full h-full object-cover">
+                  <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm bg-surface/85 backdrop-blur-sm border border-outline-variant font-micro text-micro text-on-surface" data-design-text-token="micro">VIDEO</span>
+                </div>
+
+                <div class="flex-1 min-w-0 flex flex-col gap-gutter-sm">
+                  <!-- Platform Icons Pill -->
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-tr from-instagram-purple to-instagram-pink text-surface font-micro text-micro" data-design-text-token="micro">
+                      Instagram Reel
+                    </span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-facebook/15 border border-facebook/30 text-on-surface font-micro text-micro" data-design-text-token="micro">
+                      <span class="w-1.5 h-1.5 rounded-full bg-facebook"></span>
+                      <span>Facebook</span>
+                    </span>
+                  </div>
+
+                  <p class="font-body text-body text-on-surface text-pretty" data-design-text-token="body">
+                    Inside our Ahmedabad flagship showroom—new festive weaves now live. <span class="text-instagram-pink">#FestiveEdit</span> <span class="text-facebook">#AhmedabadBoutique</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Icons Footer -->
+            <footer class="flex items-center justify-between gap-gutter-sm pt-gutter-md border-t border-outline-variant">
+              <span class="font-micro text-micro text-on-surface-variant tabular-nums" data-design-text-token="micro">38 auto-DMs sent</span>
+              <div class="flex items-center gap-gutter-xs">
+                <button type="button" aria-label="Edit post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">edit</span>
+                </button>
+                <button type="button" aria-label="Reschedule post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">event</span>
+                </button>
+                <button type="button" aria-label="Delete post" class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-error transition-colors duration-state-change ease-state-change">
+                  <span class="material-symbols-outlined" style="font-size: 16px;" aria-hidden="true">delete</span>
+                </button>
+              </div>
+            </footer>
+          </article>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 2. Create Post Floating Action CTA Button with Gradient Purple Glow -->
+    <div class="fixed bottom-20 inset-x-0 z-40 max-w-md md:max-w-3xl mx-auto px-page-margin pointer-events-none flex justify-end">
+      <button id="schedule-cta-btn" data-component-id="button-gradient" data-component-type="button" data-component-variant="primary" type="button" class="pointer-events-auto min-h-12 px-gutter-lg py-gutter-md rounded-full bg-gradient-to-r from-instagram-purple to-instagram-pink text-surface font-body text-body hover:opacity-95 active:scale-95 transition-transform duration-state-change ease-state-change inline-flex items-center justify-center gap-gutter-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-instagram-purple" style="box-shadow: 0 0 28px rgba(168, 85, 247, 0.5);">
+        <span class="material-symbols-outlined" style="font-size: 20px;" aria-hidden="true">add_circle</span>
+        <span data-design-text-token="body">Schedule New Post (+)</span>
+      </button>
+    </div>
+
+    <!-- Bottom Sticky Navigation Bar -->
+    <nav aria-label="Primary navigation" class="fixed bottom-0 inset-x-0 z-30 max-w-md md:max-w-3xl mx-auto bg-surface/90 backdrop-blur-md border-t border-outline-variant px-gutter-md py-gutter-sm">
+      <ul class="grid grid-cols-4 items-center gap-gutter-xs">
+        <li>
+          <a href="#hub" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">grid_view</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Hub</span>
+          </a>
+        </li>
+        <li>
+          <a href="#inbox" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">inbox</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Inbox</span>
+          </a>
+        </li>
+        <li>
+          <a href="#campaigns" aria-current="page" class="flex flex-col items-center justify-center gap-1 py-1 text-primary">
+            <span class="material-symbols-outlined" style="font-size: 22px; font-variation-settings: &#39;FILL&#39; 1;" aria-hidden="true">campaign</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Campaigns</span>
+          </a>
+        </li>
+        <li>
+          <a href="#settings" class="flex flex-col items-center justify-center gap-1 py-1 text-on-surface-variant hover:text-on-surface transition-colors duration-state-change ease-state-change">
+            <span class="material-symbols-outlined" style="font-size: 22px;" aria-hidden="true">settings</span>
+            <span class="font-micro text-micro" data-design-text-token="micro">Settings</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+  </div>
+
+  <script>
+    (function () {
+      const tabs = document.querySelectorAll('.scheduler-tab');
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          tabs.forEach(function (t) {
+            const active = t === tab;
+            t.setAttribute('aria-selected', String(active));
+            t.classList.toggle('bg-surface-container-high', active);
+            t.classList.toggle('border-outline-variant', active);
+            t.classList.toggle('text-on-surface', active);
+            t.classList.toggle('border-transparent', !active);
+            t.classList.toggle('text-on-surface-variant', !active);
+          });
+        });
+      });
+    })();
+  </script>
+
+
+</body></html>

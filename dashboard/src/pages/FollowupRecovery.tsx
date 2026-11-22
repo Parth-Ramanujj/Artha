@@ -20,6 +20,13 @@ import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 import { followupApi } from '../services/api';
+import { LifecycleFields } from '../components/followup/LifecycleFields';
+import {
+  DEAL_STAGE_OPTIONS,
+  STAGE_CAPABLE_TRIGGERS,
+  buildLifecycleConditions,
+  lifecycleFromConditions,
+} from '../utils/followupLifecycle';
 import './FollowupRecovery.css';
 
 interface FollowupRule {
@@ -72,7 +79,30 @@ const triggerLabels: Record<string, { label: string; icon: string; desc: string 
   form_incomplete: { label: 'Form Incomplete', icon: '📝', desc: 'User left document or questionnaire incomplete' },
 };
 
-const RULE_PRESETS = [
+const RULE_PRESETS: {
+  name: string;
+  trigger: string;
+  delayMinutes: string;
+  message: string;
+  maxAttempts: string;
+  cooldownMinutes: string;
+  sendAt?: string;
+  dealStage?: string;
+  steps?: string[];
+}[] = [
+  {
+    name: 'Proposal Sent: 3-Step Sales Follow-up',
+    trigger: 'no_reply',
+    delayMinutes: '4320',
+    message: 'Hi {{name}}, did you get a chance to look at the proposal we sent?',
+    maxAttempts: '3',
+    cooldownMinutes: '2880',
+    dealStage: 'proposal',
+    steps: [
+      'Happy to clarify anything in the proposal, or adjust it to fit you better. Just reply here.',
+      'Checking in one last time on the proposal. Should we keep it open for you?',
+    ],
+  },
   {
     name: 'Next-Morning Lead Follow-up',
     trigger: LEAD_MORNING,
@@ -151,8 +181,11 @@ export function FollowupRecovery() {
     maxAttempts: '3',
     cooldownMinutes: '1440',
     sendAt: DEFAULT_SEND_AT,
+    dealStage: '',
+    steps: [] as string[],
   });
   const isMorningRule = form.trigger === LEAD_MORNING;
+  const isStageCapable = STAGE_CAPABLE_TRIGGERS.includes(form.trigger);
 
   // Modal: Send Follow-up to Dropped User
   const [sendTargetUser, setSendTargetUser] = useState<DroppedUser | null>(null);
@@ -191,6 +224,8 @@ export function FollowupRecovery() {
       maxAttempts: '3',
       cooldownMinutes: '1440',
       sendAt: DEFAULT_SEND_AT,
+      dealStage: '',
+      steps: [],
     });
     setShowModal(true);
   };
@@ -203,7 +238,9 @@ export function FollowupRecovery() {
       message: preset.message,
       maxAttempts: preset.maxAttempts,
       cooldownMinutes: preset.cooldownMinutes,
-      sendAt: 'sendAt' in preset && preset.sendAt ? preset.sendAt : DEFAULT_SEND_AT,
+      sendAt: preset.sendAt ?? DEFAULT_SEND_AT,
+      dealStage: preset.dealStage ?? '',
+      steps: preset.steps ?? [],
     });
   };
 
@@ -217,6 +254,7 @@ export function FollowupRecovery() {
       maxAttempts: String(rule.maxAttempts),
       cooldownMinutes: String(rule.cooldownMinutes),
       sendAt: ruleSendAt(rule),
+      ...lifecycleFromConditions(rule.conditions),
     });
     setShowModal(true);
   };
@@ -246,6 +284,16 @@ export function FollowupRecovery() {
       cooldownMinutes: parseInt(form.cooldownMinutes, 10) || 1440,
       ...(isMorningRule ? { conditions: { sendAt: form.sendAt, timezone: 'Asia/Kolkata' } } : {}),
     };
+    if (!isMorningRule) {
+      const conditions = buildLifecycleConditions({
+        existing: editRule?.conditions,
+        trigger: form.trigger,
+        message: form.message,
+        dealStage: form.dealStage,
+        steps: form.steps,
+      });
+      if (conditions) Object.assign(data, { conditions });
+    }
 
     setSavingRule(true);
     try {
@@ -258,8 +306,8 @@ export function FollowupRecovery() {
       }
       setShowModal(false);
       await load();
-    } catch {
-      toast.error('Failed to save follow-up rule');
+    } catch (err) {
+      toast.error('Failed to save follow-up rule', err instanceof Error ? err.message : undefined);
     } finally {
       setSavingRule(false);
     }
@@ -514,6 +562,16 @@ export function FollowupRecovery() {
                             ? `Daily at ${ruleSendAt(r)}`
                             : `Wait ${formatIdle(r.delayMinutes)}`}
                         </span>
+                        {(() => {
+                          const { dealStage, steps } = lifecycleFromConditions(r.conditions);
+                          const stage = DEAL_STAGE_OPTIONS.find(s => s.id === dealStage);
+                          return (
+                            <>
+                              {stage && <span className="fr-trigger-tag">💼 Deal: {stage.label}</span>}
+                              {steps.length > 0 && <span className="fr-delay-tag">{steps.length + 1} steps</span>}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       <div className="fr-rule-message-box">💬 &ldquo;{r.message}&rdquo;</div>
@@ -928,6 +986,15 @@ export function FollowupRecovery() {
                 />
               </label>
             </div>
+
+            {isStageCapable && (
+              <LifecycleFields
+                dealStage={form.dealStage}
+                steps={form.steps}
+                maxAttempts={parseInt(form.maxAttempts, 10) || 3}
+                onChange={next => setForm(f => ({ ...f, ...next }))}
+              />
+            )}
 
             {/* Live WhatsApp Preview */}
             {form.message && (
