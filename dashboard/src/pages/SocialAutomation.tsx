@@ -113,12 +113,20 @@ const XIcon = ({ size = 16, color = 'currentColor' }: { size?: number; color?: s
 );
 
 /** The small logo shown next to an account, post or rule. */
+const LinkedinIcon = ({ size = 16, color = '#0a66c2' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+    <rect x="2" y="2" width="20" height="20" rx="3" />
+    <path d="M7 10v7M7 7v.01M11 17v-7m0 3a3 3 0 0 1 6 0v4" />
+  </svg>
+);
+
 function PlatformIcon({ platform, size = 12 }: { platform: string; size?: number }) {
   if (platform === 'instagram') return <InstagramIcon size={size} />;
   if (platform === 'facebook') return <FacebookIcon size={size} />;
   if (platform === 'telegram') return <TelegramIcon size={size} />;
   if (platform === 'youtube') return <YoutubeIcon size={size} />;
   if (platform === 'x') return <XIcon size={size} />;
+  if (platform === 'linkedin') return <LinkedinIcon size={size} />;
   return null;
 }
 
@@ -177,7 +185,7 @@ export function SocialAutomation() {
 
   // Post form state
   const [newPost, setNewPost] = useState({
-    platform: 'instagram' as 'instagram' | 'facebook' | 'youtube' | 'x',
+    platform: 'instagram' as 'instagram' | 'facebook' | 'youtube' | 'x' | 'linkedin',
     caption: '',
     mediaUrl: '',
     mediaType: 'IMAGE' as SocialMediaType,
@@ -248,6 +256,15 @@ export function SocialAutomation() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('linkedin');
+    if (!result) return;
+    if (result === 'connected') setNotice('LinkedIn profile connected.');
+    else setError(`LinkedIn sign-in failed: ${params.get('message') || 'unknown error'}`);
+    window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
   useEffect(() => {
@@ -433,6 +450,10 @@ export function SocialAutomation() {
     e.preventDefault();
     setAccountError(null);
     try {
+      if (!editingAccount && newAccount.platform === 'linkedin') {
+        window.location.href = (await socialAutomationApi.linkedinConnect()).url;
+        return;
+      }
       if (editingAccount) {
         await socialAutomationApi.updateAccount(editingAccount.id, {
           platform: newAccount.platform,
@@ -1297,7 +1318,7 @@ export function SocialAutomation() {
                 className="input"
                 value={newPost.platform}
                 onChange={e => {
-                  const platform = e.target.value as 'instagram' | 'facebook' | 'youtube' | 'x';
+                  const platform = e.target.value as 'instagram' | 'facebook' | 'youtube' | 'x' | 'linkedin';
                   // YouTube only takes videos.
                   setNewPost({ ...newPost, platform, mediaType: platform === 'youtube' ? 'VIDEO' : newPost.mediaType });
                 }}
@@ -1306,6 +1327,7 @@ export function SocialAutomation() {
                 <option value="facebook">Facebook</option>
                 <option value="youtube">YouTube (video upload)</option>
                 <option value="x">X (text post)</option>
+                <option value="linkedin">LinkedIn (text post)</option>
               </select>
             </div>
             <div className="social-form-group">
@@ -1313,7 +1335,7 @@ export function SocialAutomation() {
               <select
                 className="input"
                 value={newPost.mediaType}
-                disabled={newPost.platform === 'youtube' || newPost.platform === 'x'}
+                disabled={newPost.platform === 'youtube' || newPost.platform === 'x' || newPost.platform === 'linkedin'}
                 onChange={e => setNewPost({ ...newPost, mediaType: e.target.value as 'IMAGE' | 'VIDEO' })}
               >
                 <option value="IMAGE">Photo / Image</option>
@@ -1322,7 +1344,7 @@ export function SocialAutomation() {
             </div>
           </div>
 
-          {newPost.platform !== 'x' && (
+          {newPost.platform !== 'x' && newPost.platform !== 'linkedin' && (
           <div className="social-form-group">
             <label>{newPost.platform === 'youtube' ? 'Public HTTPS Video URL' : 'Public HTTPS Media URL'}</label>
             <input
@@ -1366,6 +1388,11 @@ export function SocialAutomation() {
             {newPost.platform === 'x' && (
               <span className="sa-help">
                 X allows 280 characters (more with X Premium). Text only for now: no photos or videos.
+              </span>
+            )}
+            {newPost.platform === 'linkedin' && (
+              <span className="sa-help">
+                Posts publicly on your LinkedIn profile. Text only for now. LinkedIn allows 150 posting calls a day.
               </span>
             )}
           </div>
@@ -1610,6 +1637,7 @@ export function SocialAutomation() {
               <option value="facebook">Facebook Page</option>
               <option value="telegram">Telegram Bot</option>
               <option value="x">X (Twitter, text posts)</option>
+              <option value="linkedin">LinkedIn profile (sign in, text posts)</option>
               <option value="youtube">YouTube Channel (comment replies)</option>
             </select>
           </div>
@@ -1656,7 +1684,10 @@ export function SocialAutomation() {
             </div>
           )}
 
-          {newAccount.platform !== 'telegram' && newAccount.platform !== 'youtube' && newAccount.platform !== 'x' && (
+          {newAccount.platform !== 'telegram' &&
+            newAccount.platform !== 'youtube' &&
+            newAccount.platform !== 'x' &&
+            newAccount.platform !== 'linkedin' && (
             <div className="social-form-group">
               <label>{newAccount.platform === 'instagram' ? 'Instagram Business Account ID' : 'Facebook Page ID'}</label>
               <input
@@ -1745,7 +1776,14 @@ export function SocialAutomation() {
             </>
           )}
 
-          {newAccount.platform !== 'youtube' && (
+          {newAccount.platform === 'linkedin' && (
+            <p className="sa-help" style={{ margin: 0 }}>
+              Connect opens LinkedIn's sign-in page. After you allow access you come back here and your profile is
+              connected for text posts. LinkedIn sign-ins last 60 days; sign in again when it expires.
+            </p>
+          )}
+
+          {newAccount.platform !== 'youtube' && newAccount.platform !== 'linkedin' && (
             <>
           <div className="social-form-group">
             <label>

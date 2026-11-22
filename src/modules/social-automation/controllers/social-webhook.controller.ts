@@ -19,6 +19,7 @@ import { createHmac } from 'node:crypto';
 import * as express from 'express';
 import { constantTimeEqual } from '../../../common/security/constantTimeEqual';
 import { Public } from '../../auth/decorators/auth.decorators';
+import { dashboardBaseFor } from '../../integrations/google/google.controller';
 import type { SocialPlatform } from '../entities/social-automation.entity';
 import { MetaGraphService } from '../services/meta-graph.service';
 import { IncomingComment, SocialAutomationService } from '../social-automation.service';
@@ -185,6 +186,29 @@ export class SocialWebhookController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'private, max-age=900');
     res.status(HttpStatus.OK).send(data);
+  }
+
+  /** LinkedIn sends the browser here after the member approves; the one-time state ties it to the business. */
+  @Public()
+  @Get('linkedin/callback')
+  async linkedinCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error_description') error: string | undefined,
+    @Req() req: express.Request,
+    @Res() res: express.Response,
+  ): Promise<void> {
+    const back = (base: string, query: string) => res.redirect(`${base}/social-automation?${query}`);
+    const fallback = dashboardBaseFor(req);
+    if (error || !code || !state) {
+      return back(fallback, `linkedin=error&message=${encodeURIComponent(error ?? 'Sign-in was cancelled')}`);
+    }
+    try {
+      const { returnTo } = await this.socialService.completeLinkedin(code, state);
+      return back(returnTo || fallback, 'linkedin=connected');
+    } catch (err) {
+      return back(fallback, `linkedin=error&message=${encodeURIComponent((err as Error).message)}`);
+    }
   }
 
   /** Telegram delivery for one connected bot; authenticated by the secret set with setWebhook. */

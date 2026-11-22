@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { dashboardBaseFor, serverOriginFor } from '../../integrations/google/google.controller';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentApiKey, RequireRole, RequireUnscopedKey } from '../../auth/decorators/auth.decorators';
 import { ApiKey, ApiKeyRole } from '../../auth/entities/api-key.entity';
@@ -76,6 +78,17 @@ export class SocialAutomationController {
   async deleteAccount(@CurrentApiKey() apiKey: ApiKey, @Param('id', ParseUUIDPipe) id: string) {
     await this.socialService.deleteAccount(await this.businessId(apiKey), id);
     return { success: true };
+  }
+
+  @Get('linkedin/connect')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'LinkedIn sign-in link to connect a member profile for posting' })
+  async linkedinConnect(@CurrentApiKey() apiKey: ApiKey, @Req() req: Request) {
+    return this.socialService.linkedinConnectUrl(
+      await this.businessId(apiKey),
+      serverOriginFor(req),
+      dashboardBaseFor(req),
+    );
   }
 
   @Post('accounts/:id/test')

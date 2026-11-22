@@ -24,7 +24,7 @@ const PLATFORMS = ['instagram', 'facebook'] as const;
 /** Platforms comment rules and posts can target (YouTube has comments and video uploads but no DMs). */
 const RULE_PLATFORMS = [...PLATFORMS, 'youtube'] as const;
 /** X publishes text posts only; it has no comments or DMs here. */
-const POST_PLATFORMS = [...RULE_PLATFORMS, 'x'] as const;
+const POST_PLATFORMS = [...RULE_PLATFORMS, 'x', 'linkedin'] as const;
 const MEDIA_TYPES = ['IMAGE', 'VIDEO'] as const;
 const META_ID = /^\d{5,30}$/;
 const httpsUrl = { protocols: ['https'], require_protocol: true };
@@ -131,7 +131,7 @@ export class CreateSocialPostDto {
   @ApiPropertyOptional({
     description: 'Public HTTPS image or video URL that Meta or YouTube can download. Not used for X (text only).',
   })
-  @ValidateIf((o: CreateSocialPostDto) => o.platform !== 'x')
+  @ValidateIf((o: CreateSocialPostDto) => o.platform !== 'x' && o.platform !== 'linkedin')
   @IsUrl(httpsUrl)
   @MaxLength(2000)
   mediaUrl?: string;

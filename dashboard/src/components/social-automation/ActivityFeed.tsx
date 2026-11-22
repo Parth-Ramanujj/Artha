@@ -33,6 +33,7 @@ const NAMES: Record<string, string> = {
   telegram: 'Telegram',
   youtube: 'YouTube',
   x: 'X',
+  linkedin: 'LinkedIn',
 };
 const where = (p: string) => NAMES[p] ?? p;
 

@@ -3334,6 +3334,8 @@ const socialId = (kind: string, id: string, rest = '') => social(`/${kind}/${enc
 export const socialAutomationApi = {
   overview: () => request<SocialOverview>(social('/overview')),
   accounts: () => request<SocialAccount[]>(social('/accounts')),
+  /** LinkedIn sign-in link; the browser goes there and comes back to Social Automation. */
+  linkedinConnect: () => request<{ url: string }>(social('/linkedin/connect')),
   createAccount: (input: SocialAccountInput) =>
     request<SocialAccount>(social('/accounts'), { method: 'POST', body: JSON.stringify(input) }),
   updateAccount: (id: string, input: Partial<SocialAccountInput> & { status?: 'connected' | 'disconnected' }) =>

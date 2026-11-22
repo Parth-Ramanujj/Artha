@@ -1,4 +1,4 @@
-export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube' | 'x';
+export type SocialPlatform = 'instagram' | 'facebook' | 'telegram' | 'youtube' | 'x' | 'linkedin';
 export type SocialPostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed';
 export type SocialMediaType = 'IMAGE' | 'VIDEO';
 export type RuleMatchType = 'contains' | 'exact' | 'regex' | 'all';

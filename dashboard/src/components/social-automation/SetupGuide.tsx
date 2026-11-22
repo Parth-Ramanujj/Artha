@@ -853,6 +853,30 @@ export function SetupGuide(props: SetupGuideProps) {
             </li>
           </ol>
         </details>
+        <details className="sg-details">
+          <summary>LinkedIn profile (text posts)</summary>
+          <ol>
+            <li>
+              <Ext href="https://www.linkedin.com/developers/apps">linkedin.com/developers/apps</Ext> પર app બનાવો.
+            </li>
+            <li>
+              App ના <b>Products</b> માં <b>Sign In with LinkedIn using OpenID Connect</b> અને <b>Share on LinkedIn</b>
+              ઉમેરો.
+            </li>
+            <li>
+              <b>Auth</b> tab માં <b>Authorized redirect URLs</b> માં આ ઉમેરો:{' '}
+              <code>https://&lt;તમારું server&gt;/api/social-automation/webhook/linkedin/callback</code>
+            </li>
+            <li>
+              Server ના env માં <code>LINKEDIN_CLIENT_ID</code> અને <code>LINKEDIN_CLIENT_SECRET</code> (Auth tab માંથી)
+              મૂકો.
+            </li>
+            <li>
+              અહીં <b>Connect Account</b> → <b>LinkedIn</b> → Connect → LinkedIn માં Allow. 60 દિવસ પછી ફરી sign in કરવું
+              પડે.
+            </li>
+          </ol>
+        </details>
       </section>
 
       <section className="sg-stage" aria-label="કંઈ ન ચાલે તો">

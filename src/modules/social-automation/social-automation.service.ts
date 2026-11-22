@@ -34,6 +34,13 @@ import { SocialYoutubeService } from './services/social-youtube.service';
 import { constantTimeEqual } from '../../common/security/constantTimeEqual';
 import { telegramDeleteWebhook, telegramGetMe, telegramSetWebhook } from './services/telegram.api';
 import { xCreatePost, xGetMe, type XCredentials } from './services/x.api';
+import {
+  linkedinAuthorizeUrl,
+  linkedinExchangeCode,
+  linkedinMe,
+  linkedinPost,
+  type LinkedinApp,
+} from './services/linkedin.api';
 import { Session } from '../session/entities/session.entity';
 import { WebhookService } from '../webhook/webhook.service';
 
@@ -331,7 +338,8 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     } else if (
       account.platform !== 'telegram' &&
       account.platform !== 'youtube' &&
-      account.platform !== 'x' && // these three check their keys above (or have none)
+      account.platform !== 'x' &&
+      account.platform !== 'linkedin' && // these check their keys above, or sign in again (LinkedIn)
       (dto.accessToken || dto.accountId !== undefined || dto.platform !== undefined || dto.status)
     ) {
       const check = await this.metaGraph.connectAccount(
@@ -398,6 +406,67 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     account.status = 'connected';
   }
 
+  // ── LinkedIn sign-in ──
+
+  // shortcut: sign-in states live in memory (one API instance, 10 minutes); move to the DB if the API is scaled out.
+  private readonly linkedinPending = new Map<
+    string,
+    { businessId: string; returnTo: string; redirectUri: string; expiresAt: number }
+  >();
+
+  private linkedinApp(redirectUri: string): LinkedinApp {
+    const clientId = process.env.LINKEDIN_CLIENT_ID?.trim();
+    const clientSecret = process.env.LINKEDIN_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('Set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET on the server first');
+    }
+    return { clientId, clientSecret, redirectUri };
+  }
+
+  /** The LinkedIn consent page; the callback lands on this server and then sends the browser back to returnTo. */
+  linkedinConnectUrl(businessId: string, serverOrigin: string, returnTo: string): { url: string } {
+    const redirectUri =
+      process.env.LINKEDIN_REDIRECT_URI?.trim() || `${serverOrigin}/api/social-automation/webhook/linkedin/callback`;
+    const app = this.linkedinApp(redirectUri);
+    const now = Date.now();
+    for (const [key, v] of this.linkedinPending) if (v.expiresAt <= now) this.linkedinPending.delete(key);
+    const state = randomBytes(24).toString('base64url');
+    this.linkedinPending.set(state, { businessId, returnTo, redirectUri, expiresAt: now + 10 * 60_000 });
+    return { url: linkedinAuthorizeUrl(app, state) };
+  }
+
+  /** Finishes the sign-in: one LinkedIn member per business; signing in again renews its 60-day token. */
+  async completeLinkedin(code: string, state: string): Promise<{ returnTo: string }> {
+    const pending = this.linkedinPending.get(state);
+    this.linkedinPending.delete(state);
+    if (!pending || pending.expiresAt <= Date.now()) {
+      throw new BadRequestException('This LinkedIn sign-in link has expired. Start the connection again.');
+    }
+    const { accessToken, expiresAt } = await linkedinExchangeCode(this.linkedinApp(pending.redirectUri), code);
+    const me = await linkedinMe(accessToken);
+    const existing = await this.accountRepo.findOne({ where: { platform: 'linkedin', accountId: me.sub } });
+    if (existing && existing.businessId !== pending.businessId) {
+      throw new ConflictException('This LinkedIn account is already connected to another business');
+    }
+    await this.accountRepo.save(
+      this.accountRepo.create({
+        ...(existing ?? {}),
+        businessId: pending.businessId,
+        platform: 'linkedin',
+        accountName: existing?.accountName || me.name || 'LinkedIn',
+        accountId: me.sub,
+        accessToken,
+        pageId: null,
+        webhookVerifyToken: null,
+        aiAutoReply: false,
+        status: 'connected',
+        tokenExpiresAt: expiresAt,
+        metadata: JSON.stringify({ name: me.name }),
+      }),
+    );
+    return { returnTo: pending.returnTo };
+  }
+
   async deleteAccount(businessId: string, id: string): Promise<void> {
     const account = await this.withToken()
       .where('a.id = :id AND a.businessId = :businessId', { id, businessId })
@@ -413,6 +482,14 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     id: string,
   ): Promise<{ valid: boolean; name?: string; error?: string; webhookError?: string; messagesError?: string }> {
     const account = await this.getAccount(businessId, id, true);
+    if (account.platform === 'linkedin') {
+      const me = await linkedinMe(account.accessToken).catch((err: unknown) => err as Error);
+      const valid = !(me instanceof Error);
+      await this.accountRepo.update(account.id, { status: valid ? 'connected' : 'disconnected' });
+      return valid
+        ? { valid, name: me.name }
+        : { valid, error: `${me.message}. Sign in with LinkedIn again (tokens last 60 days).` };
+    }
     if (account.platform === 'x') {
       const me = await xGetMe(JSON.parse(account.accessToken) as XCredentials).catch((err: unknown) => err as Error);
       const valid = !(me instanceof Error);
@@ -492,8 +569,10 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException(`That account is a ${account.platform} account, not ${dto.platform}`);
       }
     }
-    if (dto.platform === 'x' && dto.mediaUrl) {
-      throw new BadRequestException('X posts are text only for now (no mediaUrl)');
+    if ((dto.platform === 'x' || dto.platform === 'linkedin') && dto.mediaUrl) {
+      throw new BadRequestException(
+        `${dto.platform === 'x' ? 'X' : 'LinkedIn'} posts are text only for now (no mediaUrl)`,
+      );
     }
     if (dto.platform === 'youtube' && dto.mediaType !== 'VIDEO') {
       throw new BadRequestException('YouTube posts must be a video (mediaType VIDEO)');
@@ -568,6 +647,21 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       if (!account) return await finish({ status: 'failed', error: `No connected ${post.platform} account` });
       if (account.status !== 'connected') {
         return await finish({ status: 'failed', error: `${account.accountName} is disconnected; reconnect it first` });
+      }
+
+      if (post.platform === 'linkedin') {
+        if (account.tokenExpiresAt && account.tokenExpiresAt.getTime() <= Date.now()) {
+          return await finish({ status: 'failed', error: 'The LinkedIn sign-in expired (60 days); sign in again' });
+        }
+        const urn = await linkedinPost(account.accessToken, account.accountId, post.caption);
+        return await finish({
+          status: 'published',
+          publishedAt: new Date(),
+          remotePostId: urn,
+          permalink: `https://www.linkedin.com/feed/update/${urn}/`,
+          accountId: account.id,
+          error: null,
+        });
       }
 
       if (post.platform === 'x') {
@@ -1083,6 +1177,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
       telegram: { ...empty },
       youtube: { ...empty },
       x: { ...empty },
+      linkedin: { ...empty },
     };
     for (const r of rows) {
       if (r.platform in stats) {

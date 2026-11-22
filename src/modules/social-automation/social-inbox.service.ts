@@ -52,6 +52,7 @@ const CHAT_PREFIX: Record<SocialPlatform, string> = {
   telegram: 'tg',
   youtube: 'yt',
   x: 'x',
+  linkedin: 'li',
 };
 
 @Injectable()
