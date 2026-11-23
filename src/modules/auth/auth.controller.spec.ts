@@ -113,4 +113,26 @@ describe('AuthController — API-key lifecycle audit logging', () => {
     await controller.revoke('k1', makeReq(), actor);
     expect(lastContextFor(AuditAction.API_KEY_REVOKED)?.metadata?.targetKeyId).toBe('k1');
   });
+
+  it('exports all credentials and logs INFRA_DATA_EXPORTED', async () => {
+    const mockExportResult = {
+      version: '1.0.0',
+      exportedAt: new Date().toISOString(),
+      summary: { totalSessions: 2, totalIntegrations: 1, totalSocialAccounts: 1, totalSystemApiKeys: 3 },
+    };
+    const mockExportService = {
+      exportAll: jest.fn().mockResolvedValue(mockExportResult),
+    };
+    const controllerWithExport = new AuthController(
+      authService as unknown as AuthService,
+      auditService as unknown as AuditService,
+      mockExportService as never,
+    );
+
+    const res = await controllerWithExport.exportAll(makeReq(), actor);
+    expect(res).toEqual(mockExportResult);
+    expect(mockExportService.exportAll).toHaveBeenCalled();
+    expect(lastContextFor(AuditAction.INFRA_DATA_EXPORTED)?.metadata?.action).toBe('credentials_exported');
+    expect(lastContextFor(AuditAction.INFRA_DATA_EXPORTED)?.metadata?.sessionsCount).toBe(2);
+  });
 });

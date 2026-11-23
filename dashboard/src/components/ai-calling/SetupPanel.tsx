@@ -7,6 +7,7 @@ import {
   ChevronUp,
   CircleAlert,
   Cpu,
+  Download,
   Globe,
   Key,
   Loader2,
@@ -1025,9 +1026,29 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
       {/* ── TAB 2: API Keys & Credentials (Unified, Clean) ── */}
       {activeTab === 'keys' && providers && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)' }}>
-            Keys are encrypted using AES-256 in the database. Saved keys are write-only and never shown again.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              Keys are encrypted using AES-256 in the database. Saved keys are write-only and never shown again.
+            </p>
+            <a
+              href="/api-keys?export=true"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#25d366',
+                textDecoration: 'none',
+                background: 'rgba(37, 211, 102, 0.1)',
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: '1px solid rgba(37, 211, 102, 0.25)',
+              }}
+            >
+              <Download size={13} /> Extract All Credentials
+            </a>
+          </div>
 
           <div style={{ display: 'grid', gap: 10 }}>
             {KEYS_META.map(k => {

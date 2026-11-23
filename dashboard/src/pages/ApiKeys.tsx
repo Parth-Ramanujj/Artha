@@ -20,8 +20,9 @@ import {
   KeyRound,
   AlertTriangle,
   AlertCircle,
+  Download,
 } from 'lucide-react';
-import { businessApi, type ApiKey } from '../services/api';
+import { businessApi, apiKeyApi, type ApiKey, type AllCredentialsExport } from '../services/api';
 import { FEATURE_IDS } from '../utils/features';
 import { EXPIRY_UNITS, expiresAtFrom, type ExpiryUnit } from '../utils/expiry';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -33,6 +34,7 @@ import {
 } from '../hooks/queries';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
+import { CredentialsExportModal } from '../components/CredentialsExportModal';
 import { useToast } from '../components/Toast';
 import { copyToClipboard } from '../utils/clipboard';
 import './ApiKeys.css';
@@ -86,6 +88,30 @@ export function ApiKeys() {
   const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'revoke'; id: string; name: string } | null>(
     null,
   );
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportData, setExportData] = useState<AllCredentialsExport | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleOpenExportModal = async () => {
+    try {
+      setIsExporting(true);
+      const data = await apiKeyApi.exportAll();
+      setExportData(data);
+      setShowExportModal(true);
+    } catch (err) {
+      console.error('Failed to export credentials:', err);
+      toast.error('Export Failed', err instanceof Error ? err.message : 'Could not export credentials');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('export') === 'true') {
+      handleOpenExportModal();
+    }
+  }, []);
 
   const windowWidth = useWindowSize();
   const isMobile = windowWidth < 768;
@@ -292,10 +318,34 @@ export function ApiKeys() {
         title={t('apiKeys.title')}
         subtitle={t('apiKeys.subtitle')}
         actions={
-          <button className="btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={18} />
-            {t('apiKeys.createBtn')}
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn-secondary"
+              onClick={handleOpenExportModal}
+              disabled={isExporting}
+              title="Extract all API keys, WhatsApp credentials, AI keys, and connected accounts"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: 'var(--surface-hover, #232730)',
+                color: '#fff',
+                border: '1px solid var(--border-color, #374151)',
+                padding: '0.5rem 0.85rem',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontWeight: 500,
+                fontSize: '0.875rem',
+              }}
+            >
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Extract All Credentials
+            </button>
+            <button className="btn-primary" onClick={() => setShowModal(true)}>
+              <Plus size={18} />
+              {t('apiKeys.createBtn')}
+            </button>
+          </div>
         }
       />
 
@@ -522,6 +572,14 @@ export function ApiKeys() {
             />
           </p>
         </Modal>
+      )}
+
+      {showExportModal && exportData && (
+        <CredentialsExportModal
+          open={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          data={exportData}
+        />
       )}
     </div>
   );

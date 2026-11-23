@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, HttpCode, HttpStatus, Optional } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
+import { CredentialsExportService } from './credentials-export.service';
 import { CreateApiKeyDto, UpdateApiKeyDto, ApiKeyResponseDto, ApiKeyCreatedResponseDto } from './dto';
 import { RequireRole, CurrentApiKey, RequireUnscopedKey } from './decorators/auth.decorators';
 import { type ApiKey, ApiKeyRole } from './entities/api-key.entity';
@@ -17,6 +18,8 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly auditService: AuditService,
+    @Optional()
+    private readonly credentialsExportService?: CredentialsExportService,
   ) {}
 
   // Build the request-context block for an API-key lifecycle audit entry: who did it (the admin key from
@@ -94,6 +97,31 @@ export class AuthController {
       usageCount: k.usageCount,
       createdAt: k.createdAt,
     }));
+  }
+
+  @Get('export-all')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Export / extract all credentials, API keys, and connected accounts (admin only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'All system credentials, API keys, and connected account secrets',
+  })
+  async exportAll(
+    @Req() req: Request,
+    @CurrentApiKey() actor?: ApiKey,
+  ) {
+    const result = await this.credentialsExportService?.exportAll();
+    await this.auditService.logInfo(AuditAction.INFRA_DATA_EXPORTED, {
+      ...this.auditContext(req, actor),
+      metadata: {
+        action: 'credentials_exported',
+        sessionsCount: result?.summary.totalSessions,
+        integrationsCount: result?.summary.totalIntegrations,
+        socialAccountsCount: result?.summary.totalSocialAccounts,
+        keysCount: result?.summary.totalSystemApiKeys,
+      },
+    });
+    return result;
   }
 
   @Get(':id')

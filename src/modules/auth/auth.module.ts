@@ -6,6 +6,7 @@ import { Session } from '../session/entities/session.entity';
 import { Business } from '../business/entities/business.entity';
 import { AuthService } from './auth.service';
 import { ApiKeyUsageTracker } from './api-key-usage-tracker.service';
+import { CredentialsExportService } from './credentials-export.service';
 import { AuthController } from './auth.controller';
 import { AuthValidateController } from './auth-validate.controller';
 import { ApiKeyGuard } from './guards/api-key.guard';
@@ -19,6 +20,7 @@ import { ProxyAwareThrottlerGuard } from '../../common/security/proxy-aware-thro
   providers: [
     AuthService,
     ApiKeyUsageTracker,
+    CredentialsExportService,
     {
       provide: APP_GUARD,
       useClass: ProxyAwareThrottlerGuard,
@@ -32,6 +34,6 @@ import { ProxyAwareThrottlerGuard } from '../../common/security/proxy-aware-thro
       useClass: BusinessScopeGuard,
     },
   ],
-  exports: [AuthService],
+  exports: [AuthService, CredentialsExportService],
 })
 export class AuthModule {}

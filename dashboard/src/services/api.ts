@@ -187,6 +187,167 @@ export interface ApiKey {
   apiKey?: string; // Only returned on creation
 }
 
+export interface AllCredentialsExport {
+  exportedAt: string;
+  version: string;
+  summary: {
+    totalSessions: number;
+    totalIntegrations: number;
+    totalSocialAccounts: number;
+    totalSystemApiKeys: number;
+    hasCloudApi: boolean;
+    hasTwilio: boolean;
+    hasElevenLabs: boolean;
+    hasSarvam: boolean;
+    hasDeepgram: boolean;
+    hasLlm: boolean;
+    activeAiProviders: string[];
+  };
+  whatsapp: {
+    cloudApi: {
+      isConfigured: boolean;
+      accessToken: string | null;
+      phoneNumberId: string | null;
+      wabaId: string | null;
+      verifyToken: string | null;
+      appSecret: string | null;
+      appId: string | null;
+      graphVersion: string;
+    };
+    sessions: Array<{
+      id: string;
+      name: string;
+      phone: string | null;
+      pushName: string | null;
+      engineType: string | null;
+      status: string;
+      businessId: string | null;
+      proxyUrl: string | null;
+      proxyType: string | null;
+      connectedAt: string | null;
+      cloudApiConfig?: {
+        accessToken?: string;
+        phoneNumberId?: string;
+        wabaId?: string;
+        verifyToken?: string;
+      } | null;
+      config: Record<string, unknown>;
+    }>;
+  };
+  aiAndCalling: {
+    telephonyPublicUrl: string | null;
+    twilio: {
+      isConfigured: boolean;
+      accountSid: string | null;
+      authToken: string | null;
+      phoneNumber: string | null;
+      source: 'database' | 'environment' | 'none';
+    };
+    elevenLabs: {
+      isConfigured: boolean;
+      apiKey: string | null;
+      voiceId: string | null;
+      model: string | null;
+      outputFormat: string | null;
+      source: 'database' | 'environment' | 'none';
+    };
+    sarvam: {
+      isConfigured: boolean;
+      apiKey: string | null;
+      defaultGujaratiVoice: string;
+      defaultHindiVoice: string;
+      source: 'database' | 'environment' | 'none';
+    };
+    deepgram: {
+      isConfigured: boolean;
+      apiKey: string | null;
+      source: 'database' | 'environment' | 'none';
+    };
+    llm: {
+      isConfigured: boolean;
+      provider: string;
+      customApiKey: string | null;
+      customBaseUrl: string | null;
+      customModel: string | null;
+      groqModel: string;
+      primaryGroqKey: string | null;
+      groqKeyPool: string[];
+      geminiApiKey: string | null;
+      openRouterApiKey: string | null;
+      openAiApiKey: string | null;
+      source: 'database' | 'environment' | 'none';
+    };
+  };
+  integrations: Array<{
+    id: string;
+    businessId: string;
+    type: string;
+    name: string;
+    status: string;
+    enabled: boolean;
+    config: Record<string, unknown> | null;
+    metadata: Record<string, unknown> | null;
+    lastError: string | null;
+    createdAt: string;
+  }>;
+  socialAccounts: Array<{
+    id: string;
+    businessId: string;
+    platform: string;
+    accountName: string;
+    accountId: string;
+    accessToken: string;
+    xCredentials?: {
+      apiKey: string;
+      apiSecret: string;
+      accessToken: string;
+      accessTokenSecret: string;
+    } | null;
+    pageId: string | null;
+    webhookVerifyToken: string | null;
+    status: string;
+    createdAt: string;
+  }>;
+  systemApiKeys: {
+    bootstrapAdminKey: string | null;
+    masterKeyFromEnv: string | null;
+    keys: Array<{
+      id: string;
+      name: string;
+      keyPrefix: string;
+      role: string;
+      allowedIps: string[] | null;
+      allowedSessions: string[] | null;
+      businessId: string | null;
+      allowedFeatures: string[] | null;
+      isActive: boolean;
+      expiresAt: string | null;
+      lastUsedAt: string | null;
+      usageCount: number;
+      createdAt: string;
+    }>;
+  };
+  platformSecrets: {
+    razorpay: {
+      keyId: string | null;
+      keySecret: string | null;
+      isConfigured: boolean;
+    };
+    storageS3: {
+      accessKeyId: string | null;
+      secretAccessKey: string | null;
+      bucket: string | null;
+      region: string | null;
+      endpoint: string | null;
+      isConfigured: boolean;
+    };
+    metricsToken: string | null;
+    metaAppSecret: string | null;
+    encryptionConfigured: boolean;
+    jwtSecretConfigured: boolean;
+  };
+}
+
 export interface AuditLog {
   id: string;
   action: string;
@@ -947,6 +1108,7 @@ export const apiKeyApi = {
     }),
   delete: (id: string) => request<void>(`/auth/api-keys/${id}`, { method: 'DELETE' }),
   revoke: (id: string) => request<ApiKey>(`/auth/api-keys/${id}/revoke`, { method: 'POST' }),
+  exportAll: () => request<AllCredentialsExport>('/auth/api-keys/export-all'),
 };
 
 // =============================================================================
