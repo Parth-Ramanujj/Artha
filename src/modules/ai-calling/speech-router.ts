@@ -120,7 +120,7 @@ export function speechFactoryFor(
           { ...options, apiKey: keys.elevenlabs },
           {
             voiceId: config.elevenVoiceId,
-            model: config.elevenModel || 'eleven_multilingual_v2',
+            model: config.elevenModel || 'eleven_turbo_v2_5',
             outputFormat: config.elevenOutputFormat || 'ulaw_8000',
           },
         );

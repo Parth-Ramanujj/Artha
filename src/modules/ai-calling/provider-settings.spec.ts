@@ -225,7 +225,7 @@ describe('speechFactoryFor router', () => {
     });
     expect(last().options).toMatchObject({ headers: { 'xi-api-key': 'xi-api-key-real' } });
     expect(last().url).toContain('voice_123');
-    expect(last().url).toContain('eleven_v4_turbo');
+    expect(last().url).toContain('eleven_turbo_v2_5');
     expect(last().url).toContain('ulaw_8000');
   });
 

@@ -19,6 +19,19 @@ const SPOKEN_QUIET_MS = 700;
 const INACTIVITY_TIMEOUT_S = 120;
 
 /**
+ * ElevenLabs WebSocket streaming (stream-input) supports:
+ * eleven_turbo_v2_5, eleven_flash_v2_5, eleven_multilingual_v2.
+ * eleven_v3 and eleven_v4 models are not supported on this WebSocket endpoint and return HTTP 400.
+ */
+export function normalizeElevenStreamingModel(model?: string): string {
+  const m = model?.trim();
+  if (!m || m === 'eleven_v4_turbo' || m === 'eleven_v3') {
+    return 'eleven_turbo_v2_5';
+  }
+  return m;
+}
+
+/**
  * Text-to-speech over ElevenLabs' stream-input WebSocket. Same contract as the Sarvam stream: say() queues
  * a sentence, 'audio' carries the audio, 'spoken' says the queued sentences are out, 'error' reports a failure.
  *
@@ -40,9 +53,10 @@ export class ElevenTts extends EventEmitter implements TtsStream {
   }
 
   private connect(): void {
+    const effectiveModel = normalizeElevenStreamingModel(this.options.model);
     const params = new URLSearchParams({
-      model_id: this.options.model,
-      output_format: this.options.outputFormat,
+      model_id: effectiveModel,
+      output_format: this.options.outputFormat || 'ulaw_8000',
       inactivity_timeout: String(INACTIVITY_TIMEOUT_S),
     });
     const url = `wss://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(this.options.voiceId)}/stream-input?${params}`;
@@ -67,16 +81,51 @@ export class ElevenTts extends EventEmitter implements TtsStream {
     ws.on('unexpected-response', (_req, res) => {
       if (ws !== this.ws) return;
       this.closed = true;
-      let errMsg = `ElevenLabs text-to-speech refused the connection (HTTP ${res.statusCode}). Check the voice id, model and output format.`;
-      if (res.statusCode === 404) {
-        errMsg = `ElevenLabs text-to-speech: Voice ID "${this.options.voiceId}" was not found (HTTP 404). If this is a Community Library voice, add it to your Voice Lab on elevenlabs.io.`;
-      } else if (res.statusCode === 401) {
-        errMsg = `ElevenLabs text-to-speech: Unauthorized (HTTP 401). Please check your ELEVENLABS_API_KEY.`;
+      let handled = false;
+      const processError = (bodyText: string) => {
+        if (handled) return;
+        handled = true;
+        let detailMessage = '';
+        try {
+          const parsed = JSON.parse(bodyText);
+          detailMessage = parsed?.detail?.message || parsed?.detail?.status || parsed?.message || parsed?.error || '';
+          if (typeof detailMessage !== 'string') detailMessage = JSON.stringify(detailMessage);
+        } catch {
+          detailMessage = bodyText.slice(0, 300).trim();
+        }
+
+        let errMsg = `ElevenLabs text-to-speech refused the connection (HTTP ${res.statusCode}${detailMessage ? `: ${detailMessage}` : ''}). Check the voice id, model and output format.`;
+        if (
+          res.statusCode === 404 ||
+          detailMessage.toLowerCase().includes('voice_does_not_exist') ||
+          detailMessage.toLowerCase().includes('voice_not_found')
+        ) {
+          errMsg = `ElevenLabs text-to-speech: Voice ID "${this.options.voiceId}" was not found (HTTP 404). If this is a Community Library voice, add it to your Voice Lab on elevenlabs.io.`;
+        } else if (res.statusCode === 401) {
+          errMsg = `ElevenLabs text-to-speech: Unauthorized (HTTP 401). Please check your ELEVENLABS_API_KEY.`;
+        } else if (res.statusCode === 400 && detailMessage) {
+          if (detailMessage.toLowerCase().includes('model')) {
+            errMsg = `ElevenLabs error: Model "${this.options.model}" is not supported on streaming endpoint. Please use eleven_turbo_v2_5 or eleven_multilingual_v2.`;
+          } else {
+            errMsg = `ElevenLabs text-to-speech error (HTTP 400): ${detailMessage}`;
+          }
+        }
+        aiCallingLog.error('tts', errMsg, {
+          details: { statusCode: res.statusCode, voiceId: this.options.voiceId, model: this.options.model, responseBody: bodyText },
+        });
+        this.emit('error', new Error(errMsg));
+      };
+
+      if (typeof (res as unknown as { on?: unknown })?.on === 'function') {
+        let body = '';
+        res.on('data', (chunk: Buffer | string) => {
+          body += chunk.toString();
+        });
+        res.on('end', () => processError(body));
+        setTimeout(() => processError(body), 400);
+      } else {
+        processError('');
       }
-      aiCallingLog.error('tts', errMsg, {
-        details: { statusCode: res.statusCode, voiceId: this.options.voiceId, model: this.options.model },
-      });
-      this.emit('error', new Error(errMsg));
     });
     ws.on('error', err => {
       if (ws === this.ws && !this.closed) {

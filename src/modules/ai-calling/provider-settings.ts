@@ -36,7 +36,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig = {
   sarvamGujaratiVoice: 'pooja_gu_customer',
   sarvamHindiVoice: 'ritu_hi_customer_warm',
   elevenVoiceId: '',
-  elevenModel: 'eleven_multilingual_v2',
+  elevenModel: 'eleven_turbo_v2_5',
   elevenOutputFormat: 'ulaw_8000',
   llm: 'groq',
   groqModel: 'llama-3.3-70b-versatile',
@@ -97,7 +97,9 @@ export function sanitizeProviders(input: Partial<Record<keyof ProviderConfig, un
     if (typeof value === 'string') (out as unknown as Record<string, unknown>)[key] = value.trim().slice(0, 500);
   }
   if (!out.elevenOutputFormat) out.elevenOutputFormat = DEFAULT_PROVIDERS.elevenOutputFormat;
-  if (!out.elevenModel) out.elevenModel = DEFAULT_PROVIDERS.elevenModel;
+  if (!out.elevenModel || out.elevenModel === 'eleven_v4_turbo' || out.elevenModel === 'eleven_v3') {
+    out.elevenModel = DEFAULT_PROVIDERS.elevenModel;
+  }
   if (!out.sarvamGujaratiVoice) out.sarvamGujaratiVoice = DEFAULT_PROVIDERS.sarvamGujaratiVoice;
   if (!out.sarvamHindiVoice) out.sarvamHindiVoice = DEFAULT_PROVIDERS.sarvamHindiVoice;
   if (!out.groqModel) out.groqModel = DEFAULT_PROVIDERS.groqModel;

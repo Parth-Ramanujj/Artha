@@ -900,12 +900,12 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                   <label style={labelStyle}>ElevenLabs Model</label>
                   <input
                     style={inputStyle}
-                    placeholder="eleven_v4_turbo or eleven_multilingual_v2"
+                    placeholder="eleven_turbo_v2_5 or eleven_multilingual_v2"
                     value={draft.elevenModel ?? ''}
                     onChange={e => setDraft({ ...draft, elevenModel: e.target.value.trim() })}
                   />
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                    {['eleven_v4_turbo', 'eleven_multilingual_v2', 'eleven_turbo_v2_5'].map(m => (
+                    {['eleven_turbo_v2_5', 'eleven_flash_v2_5', 'eleven_multilingual_v2'].map(m => (
                       <button
                         key={m}
                         type="button"
@@ -925,7 +925,7 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                     ))}
                   </div>
                   <p style={{ margin: '6px 0 0', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                    Note: Gujarati voice requires <code>eleven_v3</code> or <code>eleven_v4_turbo</code>.
+                    Real-time WebSocket models: <code>eleven_turbo_v2_5</code> (Recommended, low latency & multilingual), <code>eleven_flash_v2_5</code>, or <code>eleven_multilingual_v2</code>.
                   </p>
                 </div>
               </div>
