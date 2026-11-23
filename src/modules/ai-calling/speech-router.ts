@@ -45,6 +45,7 @@ export class ResilientTtsStream extends EventEmitter implements TtsStream {
       if (isPrimary && !this.hasFallenBack) {
         this.hasFallenBack = true;
         try {
+          stream.removeAllListeners();
           stream.close();
         } catch {
           // ignore
@@ -65,7 +66,9 @@ export class ResilientTtsStream extends EventEmitter implements TtsStream {
           return;
         }
       }
-      this.emit('error', err);
+      if (!isPrimary) {
+        this.emit('error', err);
+      }
     });
   }
 

@@ -264,6 +264,14 @@ describe('speechFactoryFor router', () => {
     expect(sarvamSocket.url).toContain('sarvam.ai');
     expect(warnings.length).toBeGreaterThan(0);
     expect(warnings[0]).toContain('ElevenLabs TTS failed');
+
+    // Subsequent close/error on the dead ElevenLabs socket must not leak an error to stream listeners
+    let errorEmitted = false;
+    stream.on('error', () => {
+      errorEmitted = true;
+    });
+    xiSocket.emit('close', 1008, Buffer.from('Invalid API key'));
+    expect(errorEmitted).toBe(false);
   });
 });
 

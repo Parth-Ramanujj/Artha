@@ -682,6 +682,12 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                   </select>
                 </div>
               )}
+              {draft.ttsGujarati === 'elevenlabs' && (
+                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 6, background: '#f59e0b15', border: '1px solid #f59e0b44', fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  <span style={{ color: '#d97706', fontWeight: 600 }}>⚠️ Gujarati Notice: </span>
+                  ElevenLabs models natively support Hindi and English, but not Gujarati. <strong>Sarvam Bulbul (Pooja)</strong> is recommended for Gujarati calls. If ElevenLabs is selected, Sarvam will automatically be used as a seamless fallback so calls never drop.
+                </div>
+              )}
             </div>
 
             {/* Hindi Voice */}
@@ -834,6 +840,10 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                     value={draft.elevenVoiceId ?? ''}
                     onChange={e => setDraft({ ...draft, elevenVoiceId: e.target.value.trim() })}
                   />
+
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    💡 <strong>Voice Lab Rule:</strong> Community Library voice IDs (e.g. <em>wS22teQFfZZKTTTGs9e5</em>) must first be added to your account's Voice Lab on <em>elevenlabs.io</em>. Otherwise, select a popular preset below (Rachel, Adam) which work immediately.
+                  </p>
 
                   {elevenVoiceError && (
                     <div

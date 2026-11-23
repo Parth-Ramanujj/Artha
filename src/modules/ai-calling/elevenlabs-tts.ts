@@ -42,6 +42,7 @@ export class ElevenTts extends EventEmitter implements TtsStream {
   private ws!: WebSocket;
   private open = false;
   private closed = false;
+  private hasErrored = false;
   private awaiting = 0;
   private quiet?: NodeJS.Timeout;
   private readonly queued: string[] = [];
@@ -50,6 +51,12 @@ export class ElevenTts extends EventEmitter implements TtsStream {
   constructor(private readonly options: ElevenOptions) {
     super();
     this.connect();
+  }
+
+  private emitError(err: Error): void {
+    if (this.hasErrored) return;
+    this.hasErrored = true;
+    this.emit('error', err);
   }
 
   private connect(): void {
@@ -113,7 +120,7 @@ export class ElevenTts extends EventEmitter implements TtsStream {
         aiCallingLog.error('tts', errMsg, {
           details: { statusCode: res.statusCode, voiceId: this.options.voiceId, model: this.options.model, responseBody: bodyText },
         });
-        this.emit('error', new Error(errMsg));
+        this.emitError(new Error(errMsg));
       };
 
       if (typeof (res as unknown as { on?: unknown })?.on === 'function') {
@@ -128,23 +135,23 @@ export class ElevenTts extends EventEmitter implements TtsStream {
       }
     });
     ws.on('error', err => {
-      if (ws === this.ws && !this.closed) {
+      if (ws === this.ws && !this.closed && !this.hasErrored) {
         const error = err instanceof Error ? err : new Error(String(err));
         aiCallingLog.error('tts', `ElevenLabs socket error: ${error.message}`, {
           details: { error: error.message, voiceId: this.options.voiceId },
         });
-        this.emit('error', error);
+        this.emitError(error);
       }
     });
     ws.on('close', (code, reason) => {
-      if (ws !== this.ws || this.closed) return;
+      if (ws !== this.ws || this.closed || this.hasErrored) return;
       this.open = false;
       const detail = reason && reason.length > 0 ? reason.toString('utf8') : `code ${code}`;
       const errMsg = `ElevenLabs text-to-speech connection closed (${detail})`;
       aiCallingLog.error('tts', errMsg, {
         details: { code, detail, voiceId: this.options.voiceId },
       });
-      this.emit('error', new Error(errMsg));
+      this.emitError(new Error(errMsg));
     });
   }
 
@@ -164,7 +171,7 @@ export class ElevenTts extends EventEmitter implements TtsStream {
       aiCallingLog.error('tts', errText, {
         details: { error: rawError, voiceId: this.options.voiceId },
       });
-      this.emit('error', new Error(errText));
+      this.emitError(new Error(errText));
       return;
     }
     if (msg.audio) {
