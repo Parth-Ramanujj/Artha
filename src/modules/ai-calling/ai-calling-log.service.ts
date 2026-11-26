@@ -1,8 +1,10 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import WebSocket from 'ws';
 import { AiCall, AiCallStatus } from './entities/ai-call.entity';
 import { ProviderSettingsService } from './provider-settings.service';
+import { TwilioClient } from './twilio.client';
 import { createLogger } from '../../common/services/logger.service';
 
 export type AiLogSubsystem = 'stt' | 'tts' | 'llm' | 'media' | 'dialer' | 'call' | 'config';
@@ -219,7 +221,8 @@ export class AiCallingLogService {
     }
   }
 
-  async runDiagnostics(): Promise<AiDiagnosticsReport> {
+  async runDiagnostics(options?: { live?: boolean }): Promise<AiDiagnosticsReport> {
+    const live = options?.live ?? !process.env.JEST_WORKER_ID;
     const items: AiDiagnosticItem[] = [];
     const resolved = this.providers ? await this.providers.resolve() : null;
     const config = resolved?.config;
@@ -236,6 +239,20 @@ export class AiCallingLogService {
           subsystem: 'stt',
           status: 'error',
           message: 'SARVAM_API_KEY is missing. Gujarati/Hindi speech recognition will fail.',
+        });
+      } else if (live) {
+        const probe = await probeWebSocket(
+          'wss://api.sarvam.ai/speech-to-text/ws?model=saaras:v3-realtime&mode=transcribe&sample_rate=8000&input_audio_codec=pcm_mulaw',
+          { 'api-subscription-key': sarvamKey },
+        );
+        items.push({
+          key: 'stt_sarvam',
+          name: 'Speech-to-Text (Sarvam)',
+          subsystem: 'stt',
+          status: probe.ok ? 'ok' : 'error',
+          message: probe.ok
+            ? `Sarvam STT WebSocket connected (${probe.latencyMs}ms).`
+            : `Sarvam STT WebSocket failed: ${probe.detail}`,
         });
       } else {
         items.push({
@@ -362,6 +379,19 @@ export class AiCallingLogService {
           status: 'error',
           message: 'SARVAM_API_KEY is missing (needed for Sarvam Bulbul TTS).',
         });
+      } else if (live) {
+        const probe = await probeWebSocket('wss://api.sarvam.ai/text-to-speech/ws?model=bulbul:v4-flash', {
+          'api-subscription-key': sarvamKey,
+        });
+        items.push({
+          key: 'tts_sarvam',
+          name: 'Text-to-Speech (Sarvam Bulbul)',
+          subsystem: 'tts',
+          status: probe.ok ? 'ok' : 'error',
+          message: probe.ok
+            ? `Sarvam TTS WebSocket connected (${probe.latencyMs}ms).`
+            : `Sarvam TTS WebSocket failed: ${probe.detail}`,
+        });
       } else {
         items.push({
           key: 'tts_sarvam',
@@ -426,6 +456,44 @@ export class AiCallingLogService {
         status: 'warning',
         message: 'Twilio credentials not configured (phone calls disabled, browser test calls still work).',
       });
+    } else if (live) {
+      const client = new TwilioClient(twilio);
+      try {
+        const account = await client.check();
+        const trialNote =
+          account.accountType === 'Trial'
+            ? ` Trial account (${account.verifiedCallerIds} verified number(s) — recipient must press a key after Twilio\x27s message).`
+            : '';
+        items.push({
+          key: 'telephony_twilio',
+          name: 'Twilio Outbound Phone Service',
+          subsystem: 'dialer',
+          status: account.fromNumberOwned ? 'ok' : 'warning',
+          message: account.fromNumberOwned
+            ? `Twilio ${account.accountType} verified with ${twilio.fromNumber}.${trialNote}`
+            : `Twilio connected (${account.accountType}), but From number ${twilio.fromNumber} is not owned in this account.`,
+        });
+      } catch (err) {
+        items.push({
+          key: 'telephony_twilio',
+          name: 'Twilio Outbound Phone Service',
+          subsystem: 'dialer',
+          status: 'error',
+          message: `Twilio API check failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+      const notes = await client.getRecentNotifications(5);
+      if (notes.length > 0) {
+        const latest = notes[0];
+        items.push({
+          key: 'twilio_notifications',
+          name: 'Twilio Debugger Alerts',
+          subsystem: 'dialer',
+          status: 'warning',
+          message: `Latest Twilio alert (${latest.errorCode || 'info'}): ${latest.messageText}`,
+          details: { notifications: notes },
+        });
+      }
     } else {
       items.push({
         key: 'telephony_twilio',
@@ -437,13 +505,30 @@ export class AiCallingLogService {
     }
 
     // 5. Media Gateway Audio WebSockets
-    items.push({
-      key: 'media_gateway',
-      name: 'Realtime Audio Gateway',
-      subsystem: 'media',
-      status: 'ok',
-      message: 'Twilio and browser audio WebSocket streams active on HTTP server upgrade.',
-    });
+    const publicUrl = live ? await this.resolvePublicUrl() : null;
+    if (live && publicUrl) {
+      const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+      const probe = await probeWebSocket(`wss://${host}/api/ai-calling/stream`, {
+        'User-Agent': 'Twilio.TmeWs/1.0',
+      });
+      items.push({
+        key: 'media_gateway',
+        name: 'Realtime Audio Gateway',
+        subsystem: 'media',
+        status: probe.ok ? 'ok' : 'error',
+        message: probe.ok
+          ? `Public Twilio stream WebSocket wss://${host}/api/ai-calling/stream reachable (${probe.latencyMs}ms).`
+          : `Public Twilio stream WebSocket wss://${host}/api/ai-calling/stream unreachable: ${probe.detail}`,
+      });
+    } else {
+      items.push({
+        key: 'media_gateway',
+        name: 'Realtime Audio Gateway',
+        subsystem: 'media',
+        status: 'ok',
+        message: 'Twilio and browser audio WebSocket streams active on HTTP server upgrade.',
+      });
+    }
 
     const allOk = items.every(i => i.status !== 'error');
     return {
@@ -452,6 +537,57 @@ export class AiCallingLogService {
       items,
     };
   }
+
+  private async resolvePublicUrl(): Promise<string | null> {
+    const fromEnv = process.env.AI_CALLING_PUBLIC_URL?.trim();
+    try {
+      const rows = (await this.callRepo?.manager.query(
+        `SELECT value FROM ai_calling_settings WHERE key = 'publicUrl' LIMIT 1`,
+      )) as Array<{ value?: string }> | undefined;
+      const fromDb = rows?.[0]?.value?.trim();
+      return (fromDb || fromEnv || '').replace(/\/+$/, '') || null;
+    } catch {
+      return (fromEnv || '').replace(/\/+$/, '') || null;
+    }
+  }
+}
+
+async function probeWebSocket(
+  url: string,
+  headers: Record<string, string>,
+  timeoutMs = 4500,
+): Promise<{ ok: boolean; latencyMs: number; detail?: string }> {
+  const startedAt = Date.now();
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = (ok: boolean, detail?: string) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok, latencyMs: Date.now() - startedAt, detail });
+    };
+    try {
+      const ws = new WebSocket(url, { headers });
+      const timer = setTimeout(() => {
+        ws.terminate();
+        finish(false, `timed out after ${timeoutMs}ms`);
+      }, timeoutMs);
+      ws.once('open', () => {
+        clearTimeout(timer);
+        ws.close();
+        finish(true);
+      });
+      ws.once('unexpected-response', (_req, res) => {
+        clearTimeout(timer);
+        finish(false, `HTTP ${res.statusCode ?? 'unknown'} rejecting WebSocket upgrade`);
+      });
+      ws.once('error', err => {
+        clearTimeout(timer);
+        finish(false, err.message);
+      });
+    } catch (err) {
+      finish(false, err instanceof Error ? err.message : String(err));
+    }
+  });
 }
 
 export const aiCallingLog = {

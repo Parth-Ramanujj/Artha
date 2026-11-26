@@ -114,9 +114,13 @@ describe('AI calling flow (SQLite)', () => {
     let sid = 0;
     fetchMock = jest
       .spyOn(global, 'fetch')
-      .mockImplementation(() =>
-        Promise.resolve(new Response(JSON.stringify({ sid: `CA${++sid}`, status: 'queued' }), { status: 201 })),
-      );
+      .mockImplementation((input: string | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.includes('/Notifications.json')) {
+          return Promise.resolve(new Response(JSON.stringify({ notifications: [] }), { status: 200 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify({ sid: `CA${++sid}`, status: 'queued' }), { status: 201 }));
+      });
   });
 
   afterEach(async () => {
@@ -507,5 +511,30 @@ describe('AI calling flow (SQLite)', () => {
     await dialer.onStreamEvent(call.id, 'stream-error', '31924 WebSocket handshake failed');
     await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '4' });
     expect((await calls())[0].error).toContain('31924 WebSocket handshake failed');
+  });
+
+  it('surfaces Twilio debugger notification errors on empty completed calls', async () => {
+    fetchMock.mockImplementation((input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('/Notifications.json')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              notifications: [
+                { error_code: '31920', message_text: 'Stream - Connection timeout', log: '0', call_sid: 'CA1' },
+              ],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify({ sid: 'CA1', status: 'queued' }), { status: 201 }));
+    });
+    await calling.queueCall(BIZ, { phone: '9876543210' });
+    await dialer.tick(NOON_IST);
+    const [call] = await calls();
+    await dialer.twimlFor(call.id);
+    await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '7' });
+    expect((await calls())[0].error).toBe('Twilio error 31920: Stream - Connection timeout');
   });
 });

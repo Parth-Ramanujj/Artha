@@ -7,7 +7,7 @@ import { VoiceAgent } from './entities/voice-agent.entity';
 import { AiCallingService } from './ai-calling.service';
 import { CallRunnerService } from './call-runner.service';
 import { CallOutcomeService } from './call-outcome.service';
-import { streamTwiml } from './twilio.client';
+import { TwilioClient, streamTwiml } from './twilio.client';
 import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
 import { telephonyFrom } from './telephony';
 import { aiCallingLog } from './ai-calling-log.service';
@@ -235,6 +235,11 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
         await this.callRepo.update(call.id, { twilioCallSid: result.sid });
         dialled++;
         this.logger.log(`Dialling ${call.phone} (call ${call.id})`);
+        aiCallingLog.info('dialer', `Twilio outbound call created for ${call.phone}`, {
+          callId: call.id,
+          channel: 'phone',
+          details: { sid: result.sid, status: result.status, publicUrl },
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         active.set(agent.id, (active.get(agent.id) ?? 1) - 1);
@@ -337,12 +342,14 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     this.connecting.add(call.id);
     this.logger.log(`Connecting answered call ${call.id} to the AI agent`);
     // Twilio reports stream start, stop and errors (e.g. it could not reach the websocket) here.
+    const streamUrl = `wss://${host}/api/ai-calling/stream`;
     const streamStatus = `${publicUrl}/api/ai-calling/twilio/stream-status?callId=${encodeURIComponent(call.id)}&key=${this.runner.tokens.callKey(call.id)}`;
-    return streamTwiml(
-      `wss://${host}/api/ai-calling/stream`,
-      { token: this.runner.tokens.issue(call.id), callId: call.id },
-      streamStatus,
-    );
+    aiCallingLog.info('dialer', `Twilio fetched TwiML -> streaming to ${streamUrl}`, {
+      callId: call.id,
+      channel: 'phone',
+      details: { streamUrl, streamStatus },
+    });
+    return streamTwiml(streamUrl, { token: this.runner.tokens.issue(call.id), callId: call.id }, streamStatus);
   }
 
   /** A Twilio stream error is the real reason a call never reached the AI; keep it on the call and log it. */
@@ -389,15 +396,32 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
           'The server restarted during the call; the transcript up to then was kept',
         );
       } else {
+        let twilioError = call.error ?? null;
+        if (!twilioError && sid) {
+          const twilioCfg = await this.calling.twilioConfig();
+          if (twilioCfg) {
+            const notes = await new TwilioClient(twilioCfg).getCallNotifications(sid);
+            if (notes.length > 0) {
+              const first = notes[0];
+              const codeLabel = first.errorCode ? `Twilio error ${first.errorCode}` : 'Twilio notification';
+              twilioError = `${codeLabel}: ${first.messageText || 'Call notification reported by Twilio'}`;
+              aiCallingLog.error('dialer', twilioError, {
+                callId: call.id,
+                channel: 'phone',
+                details: { callSid: sid, notifications: notes },
+              });
+            }
+          }
+        }
         await this.callRepo.update(
           { id: call.id, status: In(ACTIVE_CALL_STATUSES) },
           {
             status: AiCallStatus.COMPLETED,
             endedAt: new Date(),
             durationSeconds: Number(params.CallDuration ?? 0) || 0,
-            // Preserve any concrete stream/startup error already recorded (e.g. from stream-status or CallRunner).
+            // Preserve any concrete stream/startup or Twilio notification error before generic fallback.
             error:
-              call.error ||
+              twilioError ||
               (reached
                 ? 'The call was answered but the audio stream to the AI never opened. On a Twilio trial account, press any key after Twilio\x27s message, or the call ends.'
                 : 'The call ended before it reached the AI. On a Twilio trial account, press any key after Twilio\x27s message.'),

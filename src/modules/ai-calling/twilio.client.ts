@@ -12,6 +12,14 @@ export interface TwilioCallResult {
   status: string;
 }
 
+export interface TwilioNotification {
+  errorCode: string;
+  messageText: string;
+  logLevel: string;
+  dateCreated: string;
+  callSid?: string;
+}
+
 export class TwilioApiError extends TelephonyApiError {}
 
 const API = 'https://api.twilio.com/2010-04-01';
@@ -128,25 +136,65 @@ export class TwilioClient implements TelephonyProvider {
     await this.post(`/Calls/${callSid}.json`, { Status: 'completed' });
   }
 
+  private async getJson(path: string, timeoutMs = 10000): Promise<Record<string, unknown>> {
+    const res = await fetch(`${API}/Accounts/${this.config.accountSid}${path}`, {
+      headers: { Authorization: this.auth },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new TwilioApiError(typeof json.message === 'string' ? json.message : `HTTP ${res.status}`, res.status);
+    }
+    return json;
+  }
+
   /** Account type ("Trial"/"Full") and whether the configured From number belongs to it. */
   async check(): Promise<{ accountType: string; fromNumberOwned: boolean; verifiedCallerIds: number }> {
-    const get = async (path: string) => {
-      const res = await fetch(`${API}/Accounts/${this.config.accountSid}${path}`, {
-        headers: { Authorization: this.auth },
-        signal: AbortSignal.timeout(10000),
-      });
-      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-      if (!res.ok)
-        throw new TwilioApiError(typeof json.message === 'string' ? json.message : `HTTP ${res.status}`, res.status);
-      return json;
-    };
-    const account = await get('.json');
-    const numbers = await get(`/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(this.config.fromNumber)}`);
-    const callerIds = await get('/OutgoingCallerIds.json');
+    const account = await this.getJson('.json');
+    const numbers = await this.getJson(
+      `/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(this.config.fromNumber)}`,
+    );
+    const callerIds = await this.getJson('/OutgoingCallerIds.json');
     return {
       accountType: typeof account.type === 'string' ? account.type : 'unknown',
       fromNumberOwned: Array.isArray(numbers.incoming_phone_numbers) && numbers.incoming_phone_numbers.length > 0,
       verifiedCallerIds: Array.isArray(callerIds.outgoing_caller_ids) ? callerIds.outgoing_caller_ids.length : 0,
     };
   }
+
+  /** Fetch Twilio Debugger notifications recorded for a specific CallSid. */
+  async getCallNotifications(callSid: string): Promise<TwilioNotification[]> {
+    try {
+      const json = await this.getJson(`/Calls/${encodeURIComponent(callSid)}/Notifications.json?PageSize=10`, 4000);
+      return parseNotifications(json.notifications);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Fetch recent Twilio account Debugger notifications (errors/warnings). */
+  async getRecentNotifications(limit = 5): Promise<TwilioNotification[]> {
+    try {
+      const json = await this.getJson(`/Notifications.json?PageSize=${Math.max(1, Math.min(limit, 20))}`, 5000);
+      return parseNotifications(json.notifications);
+    } catch {
+      return [];
+    }
+  }
+}
+
+function parseNotifications(raw: unknown): TwilioNotification[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map(item => {
+      const row = item as Record<string, unknown>;
+      return {
+        errorCode: typeof row.error_code === 'string' ? row.error_code : String(row.error_code ?? ''),
+        messageText: typeof row.message_text === 'string' ? row.message_text.trim() : '',
+        logLevel: typeof row.log === 'string' ? row.log : '',
+        dateCreated: typeof row.date_created === 'string' ? row.date_created : '',
+        callSid: typeof row.call_sid === 'string' ? row.call_sid : undefined,
+      };
+    })
+    .filter(n => n.errorCode || n.messageText);
 }

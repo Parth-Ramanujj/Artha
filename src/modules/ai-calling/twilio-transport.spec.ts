@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import WebSocket from 'ws';
 import { TwilioTransport } from './transports';
-import { streamTwiml } from './twilio.client';
+import { TwilioClient, streamTwiml } from './twilio.client';
 
 class FakeSocket extends EventEmitter {
   readyState: number = WebSocket.OPEN;
@@ -139,5 +139,43 @@ describe('stream TwiML', () => {
     expect(xml).toContain('statusCallback="https://h.example/s?callId=1&amp;key=k" statusCallbackMethod="POST"');
     expect(xml).toContain('<Parameter name="token" value="a.b.c"/></Stream></Connect><Say>');
     expect(xml).not.toContain('<Start>');
+  });
+});
+
+describe('TwilioClient debugger notifications', () => {
+  it('parses call notifications and returns an empty array on HTTP or network errors', async () => {
+    const client = new TwilioClient({ accountSid: 'AC1', authToken: 'tok', fromNumber: '+15550001111' });
+    const fetchSpy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            notifications: [
+              {
+                error_code: '31924',
+                message_text: 'Stream - WebSocket handshake error',
+                log: '0',
+                date_created: 'Thu, 26 Nov 2026 18:00:00 +0000',
+                call_sid: 'CA99',
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockRejectedValueOnce(new Error('network error'));
+
+    const notes = await client.getCallNotifications('CA99');
+    expect(notes).toEqual([
+      {
+        errorCode: '31924',
+        messageText: 'Stream - WebSocket handshake error',
+        logLevel: '0',
+        dateCreated: 'Thu, 26 Nov 2026 18:00:00 +0000',
+        callSid: 'CA99',
+      },
+    ]);
+    await expect(client.getRecentNotifications(5)).resolves.toEqual([]);
+    fetchSpy.mockRestore();
   });
 });

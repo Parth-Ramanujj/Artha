@@ -115,6 +115,46 @@ describe('AiCallingLogService', () => {
     expect(twilio?.status).toBe('warning');
   });
 
+  it('reports recent Twilio debugger alerts when running live diagnostics', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ type: 'Trial' }), { status: 200 }));
+      }
+      if (url.includes('/IncomingPhoneNumbers.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ incoming_phone_numbers: [{ sid: 'PN1' }] }), { status: 200 }));
+      }
+      if (url.includes('/OutgoingCallerIds.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ outgoing_caller_ids: [{ sid: 'OC1' }] }), { status: 200 }));
+      }
+      if (url.includes('/Notifications.json')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              notifications: [{ error_code: '31924', message_text: 'WebSocket error', log: '0' }],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    const mockProviders = {
+      resolve: jest.fn().mockResolvedValue({
+        config: { stt: 'deepgram', ttsGujarati: 'elevenlabs', ttsHindi: 'elevenlabs', ttsEnglish: 'elevenlabs', llm: 'groq' },
+        secrets: { DEEPGRAM_API_KEY: 'dg', ELEVENLABS_API_KEY: 'el' },
+      }),
+      twilio: jest.fn().mockResolvedValue({ accountSid: 'AC1', authToken: 'tok', fromNumber: '+15550001111' }),
+    };
+
+    const svc = new AiCallingLogService(undefined, mockProviders as any);
+    const diag = await svc.runDiagnostics({ live: true });
+    fetchSpy.mockRestore();
+
+    expect(diag.items.find(i => i.key === 'telephony_twilio')?.message).toContain('Trial verified');
+    expect(diag.items.find(i => i.key === 'twilio_notifications')?.message).toContain('31924');
+  });
+
   it('global aiCallingLog singleton delegates correctly', () => {
     aiCallingLog.clear();
     aiCallingLog.warn('config', 'Missing key warning');
