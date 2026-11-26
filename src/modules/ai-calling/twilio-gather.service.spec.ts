@@ -114,7 +114,7 @@ describe('TwilioGatherService & Gather TwiML', () => {
         providers,
       );
       await calling.setPublicUrl('https://artha.example.com');
-      agent = await calling.ensureDefaultAgent('biz-1');
+      agent = await calling.getDefaultAgent('biz-1');
 
       outcomeProcess = jest.fn().mockResolvedValue(undefined);
       const outcome = { process: outcomeProcess } as unknown as CallOutcomeService;
@@ -139,8 +139,8 @@ describe('TwilioGatherService & Gather TwiML', () => {
     });
 
     afterEach(async () => {
-      dialer.onModuleDestroy();
-      gather.onModuleDestroy();
+      dialer?.onModuleDestroy();
+      gather?.onModuleDestroy();
       process.env = { ...savedEnv };
       await ds.destroy();
       jest.restoreAllMocks();
@@ -211,6 +211,7 @@ describe('TwilioGatherService & Gather TwiML', () => {
     });
 
     it('auto-selects Gather on Trial Twilio accounts and Live Stream on Full accounts', async () => {
+      const callRepo = ds.getRepository(AiCall);
       const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input: string | URL) => {
         const url = typeof input === 'string' ? input : input.toString();
         if (url.endsWith('.json')) {
@@ -219,7 +220,9 @@ describe('TwilioGatherService & Gather TwiML', () => {
         return Promise.resolve(new Response(JSON.stringify({ incoming_phone_numbers: [], outgoing_caller_ids: [] }), { status: 200 }));
       });
 
+      // twimlFor only serves calls that are DIALING/RINGING/IN_PROGRESS (Twilio fetches after dial)
       const trialCall = await calling.queueCall('biz-1', { agentId: agent.id, phone: '+919898555437' });
+      await callRepo.update(trialCall.id, { status: AiCallStatus.DIALING });
       const trialTwiml = await dialer.twimlFor(trialCall.id);
       expect(trialTwiml).toContain('<Gather input="speech"');
       expect(trialTwiml).not.toContain('<Connect><Stream');
@@ -227,6 +230,7 @@ describe('TwilioGatherService & Gather TwiML', () => {
       // Explicit stream override bypasses Trial auto-detection
       await providers.saveConfig({ twilioMode: 'stream' });
       const streamCall = await calling.queueCall('biz-1', { agentId: agent.id, phone: '+919898555438' });
+      await callRepo.update(streamCall.id, { status: AiCallStatus.DIALING });
       const streamXml = await dialer.twimlFor(streamCall.id);
       expect(streamXml).toContain('<Connect><Stream url="wss://artha.example.com/api/ai-calling/stream"');
 
@@ -241,6 +245,7 @@ describe('TwilioGatherService & Gather TwiML', () => {
       await providers.saveConfig({ twilioMode: 'auto' });
       (dialer as any).accountTypeCache = null;
       const fullCall = await calling.queueCall('biz-1', { agentId: agent.id, phone: '+919898555439' });
+      await callRepo.update(fullCall.id, { status: AiCallStatus.DIALING });
       const fullXml = await dialer.twimlFor(fullCall.id);
       expect(fullXml).toContain('<Connect><Stream url="wss://artha.example.com/api/ai-calling/stream"');
 
