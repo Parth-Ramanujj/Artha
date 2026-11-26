@@ -47,6 +47,38 @@ export function streamTwiml(streamUrl: string, params: Record<string, string>, s
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${escapeXml(streamUrl)}"${callback}>${parameters}</Stream></Connect><Say>Sorry, the assistant could not be connected. We will call you back.</Say></Response>`;
 }
 
+export interface GatherTwimlOptions {
+  /** HTTPS URL to pre-synthesized AI speech audio (Sarvam / ElevenLabs WAV). */
+  playUrl?: string;
+  /** Fallback text spoken by Twilio <Say> only if AI audio synthesis failed. */
+  sayText?: string;
+  language: 'gu-IN' | 'hi-IN';
+  actionUrl: string;
+  redirectUrl?: string;
+  timeoutSeconds?: number;
+  hangup?: boolean;
+}
+
+/**
+ * TwiML for turn-based Speech Recognition calls (included in Twilio Free Trial units).
+ * Nests <Play> inside <Gather input="speech"> so customers can naturally speak over the prompt.
+ */
+export function gatherTwiml(opts: GatherTwimlOptions): string {
+  const sayLang = opts.language === 'hi-IN' ? 'hi-IN' : 'gu-IN';
+  const sayVoice = opts.language === 'hi-IN' ? 'Google.hi-IN-Wavenet-D' : 'Google.gu-IN-Wavenet-D';
+  const promptXml = opts.playUrl
+    ? `<Play>${escapeXml(opts.playUrl)}</Play>`
+    : opts.sayText
+      ? `<Say language="${sayLang}" voice="${sayVoice}">${escapeXml(opts.sayText)}</Say>`
+      : '';
+  if (opts.hangup) {
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${promptXml}<Hangup/></Response>`;
+  }
+  const timeout = Math.max(3, Math.min(15, Math.round(opts.timeoutSeconds ?? 6)));
+  const redirectXml = opts.redirectUrl ? `<Redirect method="POST">${escapeXml(opts.redirectUrl)}</Redirect>` : '';
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Gather input="speech" language="${escapeXml(opts.language)}" speechTimeout="auto" timeout="${timeout}" action="${escapeXml(opts.actionUrl)}" method="POST">${promptXml}</Gather>${redirectXml}</Response>`;
+}
+
 /**
  * Twilio's X-Twilio-Signature: base64 HMAC-SHA1 over the full callback URL followed by every POST
  * parameter name and value, sorted by name.

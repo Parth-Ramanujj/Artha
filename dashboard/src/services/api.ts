@@ -1893,6 +1893,7 @@ export interface CallContact {
 
 export interface AiProviderConfig {
   overrideAgentSettings: boolean;
+  twilioMode?: 'auto' | 'stream' | 'gather';
   stt: 'sarvam' | 'deepgram';
   ttsGujarati: 'sarvam' | 'elevenlabs';
   ttsHindi: 'sarvam' | 'elevenlabs';

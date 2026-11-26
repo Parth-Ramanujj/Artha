@@ -2,10 +2,13 @@
 export type SttProvider = 'sarvam' | 'deepgram';
 export type TtsProvider = 'sarvam' | 'elevenlabs';
 export type LlmProvider = 'groq' | 'openai-compatible';
+export type TwilioCallMode = 'auto' | 'stream' | 'gather';
 
 export interface ProviderConfig {
   /** If true, outer engine choices (STT, Voices, LLM) override individual agent settings for all calls. */
   overrideAgentSettings: boolean;
+  /** auto: Speech Gather on Twilio Trial accounts, Live Media Stream on Full accounts. */
+  twilioMode: TwilioCallMode;
   stt: SttProvider;
   /** Text-to-speech engine per language. Sarvam is the proven default for Gujarati and Hindi. */
   ttsGujarati: TtsProvider;
@@ -29,6 +32,7 @@ export interface ProviderConfig {
 
 export const DEFAULT_PROVIDERS: ProviderConfig = {
   overrideAgentSettings: true,
+  twilioMode: 'auto',
   stt: 'sarvam',
   ttsGujarati: 'sarvam',
   ttsHindi: 'sarvam',
@@ -67,7 +71,8 @@ export const SECRET_ENV: Record<SecretName, string> = {
   TWILIO_PHONE_NUMBER: 'TWILIO_PHONE_NUMBER',
 };
 
-const ENUMS: Record<'stt' | 'ttsGujarati' | 'ttsHindi' | 'ttsEnglish' | 'llm', readonly string[]> = {
+const ENUMS: Record<'twilioMode' | 'stt' | 'ttsGujarati' | 'ttsHindi' | 'ttsEnglish' | 'llm', readonly string[]> = {
+  twilioMode: ['auto', 'stream', 'gather'],
   stt: ['sarvam', 'deepgram'],
   ttsGujarati: ['sarvam', 'elevenlabs'],
   ttsHindi: ['sarvam', 'elevenlabs'],

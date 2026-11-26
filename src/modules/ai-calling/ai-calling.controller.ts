@@ -8,6 +8,7 @@ import {
   Header,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Optional,
   Param,
   ParseUUIDPipe,
@@ -15,6 +16,7 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -32,6 +34,7 @@ import { DialerService } from './dialer.service';
 import { serverOriginFor } from '../integrations/google/google.controller';
 import { ProviderSettingsService } from './provider-settings.service';
 import { AiCallingLogService, aiCallingLog } from './ai-calling-log.service';
+import { TwilioGatherService } from './twilio-gather.service';
 import { SECRET_NAMES, type SecretName } from './provider-settings';
 import { parseContactsFile } from './contacts';
 import { isValidTwilioSignature } from './twilio.client';
@@ -306,6 +309,7 @@ export class AiCallingTwilioController {
     private readonly calling: AiCallingService,
     private readonly dialer: DialerService,
     private readonly runner: CallRunnerService,
+    @Optional() private readonly gather?: TwilioGatherService,
   ) {}
 
   /** Every Twilio request carries an HMAC of the exact URL it called; reject anything else. */
@@ -352,6 +356,46 @@ export class AiCallingTwilioController {
     // The URL carries a key only we can make for this call; Twilio's signature is the fallback.
     if (!this.runner.tokens.isCallKey(callId, key)) await this.assertFromTwilio(body, req, 'TwiML');
     return this.dialer.twimlFor(callId);
+  }
+
+  /** Speech Recognition turn webhook for Twilio Free Trial / Gather calls. */
+  @Public()
+  @Post('gather')
+  @HttpCode(HttpStatus.OK)
+  @Header('Content-Type', 'text/xml')
+  async gatherTurn(
+    @Body() body: Record<string, string>,
+    @Query('callId') callId: string | undefined,
+    @Query('key') key: string | undefined,
+    @Query('silent') silent: string | undefined,
+    @Req() req: express.Request,
+  ): Promise<string> {
+    if (!this.runner.tokens.isCallKey(callId, key)) await this.assertFromTwilio(body, req, 'gather');
+    const publicUrl = await this.calling.getPublicUrl();
+    if (!this.gather || !publicUrl) {
+      return '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>';
+    }
+    return this.gather.handleTurn(callId, body ?? {}, publicUrl, silent === '1');
+  }
+
+  /** Serves pre-synthesized AI speech WAV clips to Twilio <Play>; protected by per-clip HMAC key. */
+  @Public()
+  @Get('audio/:clipId')
+  async audioClip(
+    @Param('clipId') clipId: string,
+    @Query('key') key: string | undefined,
+    @Res() res: express.Response,
+  ): Promise<void> {
+    if (!this.runner.tokens.isCallKey(clipId, key)) {
+      throw new ForbiddenException('Invalid audio clip key');
+    }
+    const clip = this.gather?.getAudioClip(clipId);
+    if (!clip) {
+      throw new NotFoundException('Audio clip expired or missing');
+    }
+    res.setHeader('Content-Type', clip.contentType);
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(HttpStatus.OK).send(clip.data);
   }
 
   /** Twilio Media Stream events for a call; logged, because a stream error is otherwise invisible. */

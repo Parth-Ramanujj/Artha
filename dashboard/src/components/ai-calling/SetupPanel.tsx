@@ -12,6 +12,7 @@ import {
   Key,
   Loader2,
   Mic,
+  Phone,
   Save,
   Settings2,
   Sparkles,
@@ -773,6 +774,26 @@ export function SetupPanel({ setup, onChanged }: { setup: AiCallingSetup; onChan
                   </select>
                 </div>
               )}
+            </div>
+
+            {/* Twilio Call Mode */}
+            <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 10, border: '1px solid var(--border)' }}>
+              <label style={labelStyle}>
+                <Phone size={14} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+                Twilio Phone Call Mode
+              </label>
+              <select
+                style={inputStyle}
+                value={draft.twilioMode || 'auto'}
+                onChange={e => setDraft({ ...draft, twilioMode: e.target.value as 'auto' | 'stream' | 'gather' })}
+              >
+                <option value="auto">Auto — Speech Gather on Free Trial / Stream on Paid (Recommended)</option>
+                <option value="gather">Speech Gather + AI Voice (Twilio Free Trial Compatible)</option>
+                <option value="stream">Realtime Media Stream WebSocket (Paid Twilio Only)</option>
+              </select>
+              <p style={{ margin: '4px 0 0', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                Free Trial uses Twilio Speech Recognition + Sarvam AI voice (&lt;Gather&gt; + &lt;Play&gt;). Upgrading Twilio automatically switches Auto mode to ultra-fast WebSocket streaming.
+              </p>
             </div>
           </div>
 

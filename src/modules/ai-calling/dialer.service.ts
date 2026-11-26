@@ -1,12 +1,14 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Not, Repository } from 'typeorm';
+import { Injectable, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { AiCall, AiCallStatus, ACTIVE_CALL_STATUSES } from './entities/ai-call.entity';
 import { AiCallBatch, AiCallBatchStatus } from './entities/ai-call-batch.entity';
 import { VoiceAgent } from './entities/voice-agent.entity';
 import { AiCallingService } from './ai-calling.service';
 import { CallRunnerService } from './call-runner.service';
 import { CallOutcomeService } from './call-outcome.service';
+import { ProviderSettingsService } from './provider-settings.service';
+import { TwilioGatherService } from './twilio-gather.service';
 import { TwilioClient, streamTwiml } from './twilio.client';
 import { TelephonyApiError, type TelephonyProvider } from './telephony-types';
 import { telephonyFrom } from './telephony';
@@ -65,6 +67,7 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
   private readonly connecting = new Set<string>();
   /** When each quiet call was last checked with Twilio, so it is asked at most every 90 s. */
   private readonly reconciled = new Map<string, number>();
+  private accountTypeCache: { sid: string; type: string; checkedAt: number } | null = null;
 
   constructor(
     @InjectRepository(AiCall, 'data') private readonly callRepo: Repository<AiCall>,
@@ -73,6 +76,8 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     private readonly calling: AiCallingService,
     private readonly runner: CallRunnerService,
     private readonly outcome: CallOutcomeService,
+    @Optional() private readonly providers?: ProviderSettingsService,
+    @Optional() private readonly gather?: TwilioGatherService,
   ) {}
 
   onModuleInit(): void {
@@ -329,15 +334,43 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     await this.callRepo.update({ id: call.id, status: AiCallStatus.QUEUED }, { error: reason });
   }
 
+  private async resolveTwilioMode(): Promise<'stream' | 'gather'> {
+    if (!this.gather) return 'stream';
+    const cfg = this.providers ? await this.providers.config().catch(() => null) : null;
+    if (cfg?.twilioMode === 'gather') return 'gather';
+    if (cfg?.twilioMode === 'stream') return 'stream';
+    const twilio = await this.calling.twilioConfig().catch(() => null);
+    if (!twilio) return 'stream';
+    const now = Date.now();
+    if (
+      this.accountTypeCache &&
+      this.accountTypeCache.sid === twilio.accountSid &&
+      now - this.accountTypeCache.checkedAt < 5 * 60 * 1000
+    ) {
+      return this.accountTypeCache.type === 'Trial' ? 'gather' : 'stream';
+    }
+    try {
+      const check = await new TwilioClient(twilio).check();
+      this.accountTypeCache = { sid: twilio.accountSid, type: check.accountType, checkedAt: now };
+      return check.accountType === 'Trial' ? 'gather' : 'stream';
+    } catch {
+      return 'stream';
+    }
+  }
+
   /**
    * TwiML for an answered call (Twilio fetches it, signature already checked): connects the call to
-   * our media stream with a fresh one-call token, or hangs up a call we did not place or no longer want.
+   * our media stream (or Speech Gather on Twilio Trial) with a fresh token, or hangs up a call we no longer want.
    */
   async twimlFor(callId: string | undefined): Promise<string> {
     const hangup = '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>';
     const call = callId ? await this.callRepo.findOne({ where: { id: callId } }) : null;
     const publicUrl = await this.calling.getPublicUrl();
     if (!call || !publicUrl || call.channel !== 'phone' || !ACTIVE_CALL_STATUSES.includes(call.status)) return hangup;
+    const mode = await this.resolveTwilioMode();
+    if (mode === 'gather' && this.gather) {
+      return this.gather.startCall(call, publicUrl);
+    }
     const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
     this.connecting.add(call.id);
     this.logger.log(`Connecting answered call ${call.id} to the AI agent`);
@@ -388,6 +421,11 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (status === 'completed') {
+      if (this.gather?.hasActiveCall(call.id)) {
+        this.connecting.delete(call.id);
+        await this.gather.onTwilioCompleted(call.id, Number(params.CallDuration ?? 0) || 0);
+        return;
+      }
       const reached = this.connecting.delete(call.id);
       if (call.transcript?.length) {
         await this.finishOrphan(

@@ -21,6 +21,7 @@ import { ProviderSettingsService } from './provider-settings.service';
 import { sarvamSpeech } from './sarvam';
 import { MediaGatewayService } from './media-gateway.service';
 import { AiCallingLogService } from './ai-calling-log.service';
+import { TwilioGatherService } from './twilio-gather.service';
 import { AiCallingController, AiCallingTwilioController } from './ai-calling.controller';
 
 @Module({
@@ -41,6 +42,7 @@ import { AiCallingController, AiCallingTwilioController } from './ai-calling.con
     CallOutcomeService,
     CallRunnerService,
     DialerService,
+    TwilioGatherService,
     MediaGatewayService,
     ProviderSettingsService,
     AiCallingLogService,
