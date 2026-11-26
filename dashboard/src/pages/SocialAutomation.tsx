@@ -141,10 +141,10 @@ function parseList(json: string | null | undefined): string[] {
   }
 }
 
-function parseMeta(json: string | null | undefined): { lastError?: string; webhookError?: string } {
+function parseMeta(json: string | null | undefined): { lastError?: string; webhookError?: string; profilePictureUrl?: string } {
   try {
     const v: unknown = JSON.parse(json || '{}');
-    return v && typeof v === 'object' ? (v as { lastError?: string; webhookError?: string }) : {};
+    return v && typeof v === 'object' ? (v as { lastError?: string; webhookError?: string; profilePictureUrl?: string }) : {};
   } catch {
     return {};
   }
@@ -1016,8 +1016,7 @@ export function SocialAutomation() {
                 <table className="social-table">
                   <thead>
                     <tr>
-                      <th>Platform</th>
-                      <th>Account Name</th>
+                      <th>Account</th>
                       <th>Account ID</th>
                       <th>Linked Page ID</th>
                       <th>Status</th>
@@ -1025,17 +1024,55 @@ export function SocialAutomation() {
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts.map(acc => (
+                    {accounts.map(acc => {
+                      const meta = parseMeta(acc.metadata);
+                      const problem = acc.status === 'connected' ? meta.webhookError : meta.lastError;
+                      return (
                       <tr key={acc.id}>
                         <td>
-                          <span className={`social-platform-badge ${acc.platform}`}>
-                            <PlatformIcon platform={acc.platform} />
-                            {acc.platform}
-                          </span>
-                        </td>
-                        <td>
-                          <strong>{acc.accountName}</strong>
-                          {acc.aiAutoReply && <div className="sa-help">🤖 AI answers DMs</div>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            {meta.profilePictureUrl ? (
+                              <img
+                                src={meta.profilePictureUrl}
+                                alt={acc.accountName}
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  border: '2px solid var(--border)',
+                                  flexShrink: 0,
+                                }}
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  width: 36,
+                                  height: 36,
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: 'var(--bg-secondary, #f3f4f6)',
+                                  border: '2px solid var(--border)',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <PlatformIcon platform={acc.platform} size={18} />
+                              </span>
+                            )}
+                            <div>
+                              <strong>{acc.accountName}</strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.1rem' }}>
+                                <span className={`social-platform-badge ${acc.platform}`} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>
+                                  <PlatformIcon platform={acc.platform} size={10} />
+                                  {acc.platform}
+                                </span>
+                                {acc.aiAutoReply && <span className="sa-help" style={{ fontSize: '0.7rem' }}>🤖 AI DMs</span>}
+                              </div>
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <code>{acc.accountId}</code>
@@ -1045,16 +1082,12 @@ export function SocialAutomation() {
                           <span className={`sa-chip ${acc.status === 'connected' ? 'whatsapp' : 'warn'}`}>
                             {acc.status}
                           </span>
-                          {(() => {
-                            const meta = parseMeta(acc.metadata);
-                            const problem = acc.status === 'connected' ? meta.webhookError : meta.lastError;
-                            return problem ? (
+                          {problem ? (
                               <div className="sa-help" title={problem} style={{ marginTop: '0.25rem', maxWidth: 260 }}>
                                 {acc.status === 'connected' ? 'Webhooks off: ' : ''}
                                 {problem}
                               </div>
-                            ) : null;
-                          })()}
+                            ) : null}
                         </td>
                         <td>
                           <div className="sa-actions">
@@ -1082,7 +1115,8 @@ export function SocialAutomation() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -83,11 +83,13 @@ const connectionMetadata = (check: {
   error?: string;
   webhookError?: string;
   messagesError?: string;
+  profilePictureUrl?: string;
 }): string =>
   JSON.stringify(
     check.valid
       ? {
           verifiedName: check.name,
+          profilePictureUrl: check.profilePictureUrl || undefined,
           webhooks: check.webhookError ? 'failed' : 'subscribed',
           webhookError: check.webhookError,
           messagesError: check.messagesError,
@@ -461,7 +463,7 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
         aiAutoReply: false,
         status: 'connected',
         tokenExpiresAt: expiresAt,
-        metadata: JSON.stringify({ name: me.name }),
+        metadata: JSON.stringify({ name: me.name, profilePictureUrl: me.picture || undefined }),
       }),
     );
     return { returnTo: pending.returnTo };
@@ -485,7 +487,10 @@ export class SocialAutomationService implements OnModuleInit, OnModuleDestroy {
     if (account.platform === 'linkedin') {
       const me = await linkedinMe(account.accessToken).catch((err: unknown) => err as Error);
       const valid = !(me instanceof Error);
-      await this.accountRepo.update(account.id, { status: valid ? 'connected' : 'disconnected' });
+      await this.accountRepo.update(account.id, {
+        status: valid ? 'connected' : 'disconnected',
+        ...(valid ? { metadata: JSON.stringify({ name: me.name, profilePictureUrl: me.picture || undefined }) } : {}),
+      });
       return valid
         ? { valid, name: me.name }
         : { valid, error: `${me.message}. Sign in with LinkedIn again (tokens last 60 days).` };

@@ -72,14 +72,24 @@ export class MetaGraphService {
     platform: SocialPlatform,
     accountId: string,
     accessToken: string,
-  ): Promise<{ valid: boolean; name?: string; pageAccessToken?: string; error?: string }> {
+  ): Promise<{ valid: boolean; name?: string; pageAccessToken?: string; profilePictureUrl?: string; error?: string }> {
     if (this.isTestToken(accessToken)) return { valid: true, name: `${platform} demo account` };
     try {
-      const fields = platform === 'facebook' ? 'id,name,access_token' : 'id,username,name';
+      const fields =
+        platform === 'facebook'
+          ? 'id,name,access_token,picture{url}'
+          : platform === 'instagram'
+            ? 'id,username,name,profile_picture_url'
+            : 'id,username,name';
       const data = await this.graph('GET', encodeURIComponent(accountId), accessToken, { fields });
       const name = text(data.name) || text(data.username) || accountId;
       const pageAccessToken = typeof data.access_token === 'string' ? data.access_token : undefined;
-      return { valid: true, name, pageAccessToken };
+      // Instagram returns profile_picture_url; Facebook returns picture.data.url
+      const profilePictureUrl =
+        text(data.profile_picture_url) ||
+        text((data.picture as Record<string, Record<string, unknown>>)?.data?.url) ||
+        undefined;
+      return { valid: true, name, pageAccessToken, profilePictureUrl };
     } catch (err) {
       this.logger.warn(`Meta token check failed for ${platform} account ${accountId}: ${errMsg(err)}`);
       return { valid: false, error: errMsg(err) };
@@ -100,6 +110,7 @@ export class MetaGraphService {
     valid: boolean;
     name?: string;
     pageAccessToken?: string;
+    profilePictureUrl?: string;
     error?: string;
     webhookError?: string;
     /** Comments work but DMs won't arrive (usually a token without pages_messaging). */

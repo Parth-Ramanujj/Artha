@@ -52,7 +52,7 @@ export async function linkedinExchangeCode(
 }
 
 /** The signed-in member: `sub` is the id used in urn:li:person:{sub}. */
-export async function linkedinMe(token: string): Promise<{ sub: string; name: string }> {
+export async function linkedinMe(token: string): Promise<{ sub: string; name: string; picture?: string }> {
   const res = await fetch('https://api.linkedin.com/v2/userinfo', {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -60,7 +60,11 @@ export async function linkedinMe(token: string): Promise<{ sub: string; name: st
   const body = await json(res);
   const sub = typeof body.sub === 'string' ? body.sub : '';
   if (!sub) throw new Error('LinkedIn did not return the member id');
-  return { sub, name: typeof body.name === 'string' ? body.name : '' };
+  return {
+    sub,
+    name: typeof body.name === 'string' ? body.name : '',
+    picture: typeof body.picture === 'string' ? body.picture : undefined,
+  };
 }
 
 /** Publishes a public text post on the member's profile (Share on LinkedIn); returns the post URN. */
