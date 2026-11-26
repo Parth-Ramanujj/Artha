@@ -62,6 +62,10 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
     }
     if (path !== TWILIO_STREAM_PATH && path !== BROWSER_STREAM_PATH) return; // socket.io and others handle theirs
     this.wss.handleUpgrade(req, socket, head, ws => {
+      if (req.headers['x-openwa-probe'] === 'diagnostics') {
+        ws.close(1000, 'diagnostic-probe');
+        return;
+      }
       const browser = path === BROWSER_STREAM_PATH;
       const transport = browser ? new BrowserTransport(ws) : new TwilioTransport(ws, sid => this.hangupTwilio(sid));
       this.logger.log(`${browser ? 'Browser' : 'Twilio'} audio websocket opened`);

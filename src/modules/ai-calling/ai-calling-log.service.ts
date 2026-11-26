@@ -460,18 +460,23 @@ export class AiCallingLogService {
       const client = new TwilioClient(twilio);
       try {
         const account = await client.check();
-        const trialNote =
-          account.accountType === 'Trial'
-            ? ` Trial account (${account.verifiedCallerIds} verified number(s) — recipient must press a key after Twilio\x27s message).`
-            : '';
+        const isTrial = account.accountType === 'Trial';
+        const trialNote = isTrial
+          ? ` Trial account (${account.verifiedCallerIds} verified number(s) — recipient must press a key after Twilio\x27s message).`
+          : '';
+        // Twilio Trial accounts often return an empty /IncomingPhoneNumbers.json list from the API
+        // even when the trial number is active and placing calls.
+        const message = account.fromNumberOwned
+          ? `Twilio ${account.accountType} verified with ${twilio.fromNumber}.${trialNote}`
+          : isTrial
+            ? `Twilio Trial connected (${twilio.fromNumber}). Twilio\x27s API omits phone lists on Trial accounts; confirm ${twilio.fromNumber} is under Active Numbers in Twilio Console if calls fail.${trialNote}`
+            : `Twilio connected (${account.accountType}), but From number ${twilio.fromNumber} is not owned in this account.`;
         items.push({
           key: 'telephony_twilio',
           name: 'Twilio Outbound Phone Service',
           subsystem: 'dialer',
-          status: account.fromNumberOwned ? 'ok' : 'warning',
-          message: account.fromNumberOwned
-            ? `Twilio ${account.accountType} verified with ${twilio.fromNumber}.${trialNote}`
-            : `Twilio connected (${account.accountType}), but From number ${twilio.fromNumber} is not owned in this account.`,
+          status: account.fromNumberOwned || isTrial ? 'ok' : 'warning',
+          message,
         });
       } catch (err) {
         items.push({
@@ -510,6 +515,7 @@ export class AiCallingLogService {
       const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
       const probe = await probeWebSocket(`wss://${host}/api/ai-calling/stream`, {
         'User-Agent': 'Twilio.TmeWs/1.0',
+        'X-OpenWA-Probe': 'diagnostics',
       });
       items.push({
         key: 'media_gateway',

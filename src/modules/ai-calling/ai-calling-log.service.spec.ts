@@ -155,6 +155,38 @@ describe('AiCallingLogService', () => {
     expect(diag.items.find(i => i.key === 'twilio_notifications')?.message).toContain('31924');
   });
 
+  it('treats empty Trial phone-number lists as ok instead of false unowned warning', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation((input: string | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ type: 'Trial' }), { status: 200 }));
+      }
+      if (url.includes('/IncomingPhoneNumbers.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ incoming_phone_numbers: [] }), { status: 200 }));
+      }
+      if (url.includes('/OutgoingCallerIds.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ outgoing_caller_ids: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    const mockProviders = {
+      resolve: jest.fn().mockResolvedValue({
+        config: { stt: 'sarvam', ttsGujarati: 'sarvam', ttsHindi: 'sarvam', llm: 'groq' },
+        secrets: { SARVAM_API_KEY: 'test-key' },
+      }),
+      twilio: jest.fn().mockResolvedValue({ accountSid: 'AC1', authToken: 'tok', fromNumber: '+17372508034' }),
+    };
+
+    const svc = new AiCallingLogService(undefined, mockProviders as any);
+    const diag = await svc.runDiagnostics({ live: true });
+    fetchSpy.mockRestore();
+
+    const twilioItem = diag.items.find(i => i.key === 'telephony_twilio');
+    expect(twilioItem?.status).toBe('ok');
+    expect(twilioItem?.message).toContain('Twilio Trial connected (+17372508034)');
+    expect(twilioItem?.message).toContain('Active Numbers in Twilio Console');
+  });
+
   it('global aiCallingLog singleton delegates correctly', () => {
     aiCallingLog.clear();
     aiCallingLog.warn('config', 'Missing key warning');
