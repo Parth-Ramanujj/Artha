@@ -107,6 +107,21 @@ describe('TwilioTransport', () => {
     await new Promise(resolve => setImmediate(resolve));
     expect(ws.closed).toBe(true);
   });
+
+  it('waits for the Twilio REST hangup before closing the websocket so the fallback Say never plays', async () => {
+    const ws = new FakeSocket();
+    let resolveHangup!: () => void;
+    const endCall = jest.fn().mockImplementation(() => new Promise<void>(r => { resolveHangup = r; }));
+    const transport = new TwilioTransport(ws as unknown as WebSocket, endCall);
+    ws.twilio(start());
+    transport.hangup();
+    await Promise.resolve();
+    expect(endCall).toHaveBeenCalledWith('CA1');
+    expect(ws.closed).toBe(false);
+    resolveHangup();
+    await Promise.resolve();
+    expect(ws.closed).toBe(true);
+  });
 });
 
 describe('stream TwiML', () => {

@@ -12,6 +12,7 @@ import {
 } from './provider-settings';
 import { decryptSecret, encryptSecret } from '../integrations/google/google-token-crypto';
 import type { TwilioConfig } from './twilio.client';
+import { createLogger } from '../../common/services/logger.service';
 
 const CONFIG_KEY = 'providers.config';
 const secretKey = (name: SecretName) => `secret.${name}`;
@@ -27,6 +28,8 @@ export interface ResolvedProviders {
  */
 @Injectable()
 export class ProviderSettingsService {
+  private readonly logger = createLogger('ProviderSettings');
+
   constructor(@InjectRepository(AiCallingSetting, 'data') private readonly settings: Repository<AiCallingSetting>) {}
 
   async config(): Promise<ProviderConfig> {
@@ -97,7 +100,18 @@ export class ProviderSettingsService {
     for (const name of SECRET_NAMES) {
       const saved = await this.settings.findOne({ where: { key: secretKey(name) } });
       const fromEnv = process.env[SECRET_ENV[name]]?.trim() || null;
-      secrets[name] = saved ? decryptSecret(saved.value) : fromEnv;
+      if (saved) {
+        try {
+          secrets[name] = decryptSecret(saved.value);
+        } catch (err) {
+          this.logger.warn(
+            `Could not decrypt saved ${name} (falling back to environment): ${err instanceof Error ? err.message : String(err)}`,
+          );
+          secrets[name] = fromEnv;
+        }
+      } else {
+        secrets[name] = fromEnv;
+      }
     }
     return { config: await this.config(), secrets };
   }

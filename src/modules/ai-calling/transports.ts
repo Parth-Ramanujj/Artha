@@ -98,13 +98,19 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
       case 'connected':
         this.stage('connected');
         break;
-      case 'start':
+      case 'start': {
         this.streamSid = msg.start?.streamSid ?? msg.streamSid;
         this.callSid = msg.start?.callSid;
+        const callId = msg.start?.customParameters?.callId;
         this.stage('start', { hasToken: Boolean(msg.start?.customParameters?.token) });
         if (!this.streamSid) this.logger.warn('Twilio start event had no streamSid; audio cannot be sent back');
-        this.emit('start', { callSid: this.callSid, token: msg.start?.customParameters?.token });
+        this.emit('start', {
+          callSid: this.callSid,
+          token: msg.start?.customParameters?.token,
+          ...(callId ? { callId } : {}),
+        });
         break;
+      }
       case 'media':
         if (msg.media?.payload && (msg.media.track ?? 'inbound') === 'inbound') {
           if (++this.framesIn === 1) this.stage('first caller audio');
@@ -157,11 +163,31 @@ export class TwilioTransport extends EventEmitter implements CallTransport {
     if (this.closed) return;
     this.closed = true;
     if (this.callSid && this.endCall) {
-      this.endCall(this.callSid).catch(err =>
-        this.logger.warn(`Could not hang up call ${this.callSid}: ${err instanceof Error ? err.message : String(err)}`),
-      );
+      const sid = this.callSid;
+      let wsClosed = false;
+      const closeWs = () => {
+        if (wsClosed) return;
+        wsClosed = true;
+        clearTimeout(timer);
+        try {
+          this.ws.close();
+        } catch {
+          // ignore
+        }
+      };
+      const timer = setTimeout(closeWs, 2500);
+      timer.unref?.();
+      this.endCall(sid).then(closeWs, err => {
+        this.logger.warn(`Could not hang up call ${sid}: ${err instanceof Error ? err.message : String(err)}`);
+        closeWs();
+      });
+      return;
     }
-    this.ws.close();
+    try {
+      this.ws.close();
+    } catch {
+      // ignore
+    }
   }
 
   private onClose(): void {

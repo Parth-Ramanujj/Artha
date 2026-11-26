@@ -25,7 +25,7 @@ const MAX_PAYLOAD = 256 * 1024;
 @Injectable()
 export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = createLogger('AiCallMediaGateway');
-  private readonly wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD });
+  private readonly wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD, perMessageDeflate: false });
   private server?: Server;
   private readonly onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) =>
     this.handleUpgrade(req, socket, head);
@@ -69,6 +69,9 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
         channel: browser ? 'browser' : 'phone',
       });
       let started = false;
+      ws.on('error', err => {
+        this.logger.warn(`${browser ? 'Browser' : 'Twilio'} audio websocket error: ${err instanceof Error ? err.message : String(err)}`);
+      });
       ws.once('close', code => {
         if (!started) {
           this.logger.warn(`${browser ? 'Browser' : 'Twilio'} audio websocket closed before it started (code ${code})`);
@@ -78,16 +81,23 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
           });
         }
       });
-      const timeout = setTimeout(() => ws.close(), START_TIMEOUT_MS);
-      transport.once('start', ({ token }: { token?: string }) => {
+      const timeout = setTimeout(() => {
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      }, START_TIMEOUT_MS);
+      transport.once('start', ({ token, callId }: { token?: string; callId?: string }) => {
         started = true;
         clearTimeout(timeout);
         void this.runner
-          .attach(token, transport, browser ? 'browser' : 'phone')
+          .attach(token, transport, browser ? 'browser' : 'phone', callId)
           .then(ok => {
             if (!ok) {
               this.logger.warn(`Rejected ${browser ? 'browser' : 'Twilio'} stream with an invalid or stale token`);
               aiCallingLog.warn('media', `Rejected ${browser ? 'browser' : 'Twilio'} stream with an invalid or stale token`, {
+                callId: callId ?? null,
                 channel: browser ? 'browser' : 'phone',
               });
             }
@@ -95,10 +105,15 @@ export class MediaGatewayService implements OnApplicationBootstrap, OnModuleDest
           .catch(err => {
             this.logger.error('Could not start AI call', err instanceof Error ? err.message : String(err));
             aiCallingLog.error('media', `Could not start AI call: ${err instanceof Error ? err.message : String(err)}`, {
+              callId: callId ?? null,
               channel: browser ? 'browser' : 'phone',
               details: { error: err instanceof Error ? err.message : String(err) },
             });
-            ws.close();
+            try {
+              ws.close();
+            } catch {
+              // ignore
+            }
           });
       });
     });

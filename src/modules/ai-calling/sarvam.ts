@@ -178,6 +178,25 @@ class SarvamStt extends EventEmitter implements SttStream {
   }
 }
 
+const LEGACY_SPEAKER_MAP: Record<string, string> = {
+  pooja: 'pooja_gu_customer',
+  bhavik: 'bhavik_gu_conversation',
+  ritu: 'ritu_hi_customer_warm',
+  aparna: 'aparna_hi_customer',
+  aarti: 'aarti_hi_customer',
+  shubh: 'shubh_hi_customer',
+  amit: 'amit_hi_conversational',
+};
+
+/** Maps legacy v2/v3 short speaker names to valid bulbul:v4-flash persona IDs so TTS never rejects them with HTTP 400. */
+export function normalizeSarvamSpeaker(speaker: string | undefined, languageCode: string): string {
+  const clean = speaker?.trim() ?? '';
+  if (clean && clean.includes('_')) return clean;
+  const mapped = clean ? LEGACY_SPEAKER_MAP[clean.toLowerCase()] : undefined;
+  if (mapped) return mapped;
+  return languageCode === 'hi-IN' ? 'ritu_hi_customer_warm' : 'pooja_gu_customer';
+}
+
 /**
  * One Bulbul streaming socket. A reset (barge-in) swaps in a fresh socket, because audio for text
  * already sent would otherwise keep arriving after the customer interrupted.
@@ -207,7 +226,7 @@ class SarvamTts extends EventEmitter implements TtsStream {
         type: 'config',
         data: {
           language_code: this.options.languageCode,
-          speaker: this.options.speaker,
+          speaker: normalizeSarvamSpeaker(this.options.speaker, this.options.languageCode),
           pace: this.style.pace,
           temperature: this.style.temperature,
           speech_sample_rate: 8000,

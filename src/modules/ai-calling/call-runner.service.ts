@@ -24,7 +24,12 @@ const logger = createLogger('AiCallRunner');
 @Injectable()
 export class CallRunnerService {
   private readonly logger = logger;
-  readonly tokens = new CallTokens();
+  readonly tokens = new CallTokens(
+    process.env.AI_CALLING_STREAM_SECRET?.trim() ||
+      process.env.GOOGLE_TOKEN_ENCRYPTION_KEY?.trim() ||
+      process.env.API_MASTER_KEY?.trim() ||
+      '',
+  );
   private readonly live = new Map<string, CallSession>();
   /** Calls between token check and session start, so a second socket with the same token is refused. */
   private readonly attaching = new Set<string>();
@@ -62,15 +67,38 @@ export class CallRunnerService {
     token: string | undefined,
     transport: CallTransport,
     expectedChannel: 'phone' | 'browser',
+    fallbackCallId?: string,
   ): Promise<boolean> {
     const callId = this.tokens.verify(token);
     if (!callId || this.isLive(callId)) {
+      const targetCallId = callId || fallbackCallId || token?.split('.')[0];
+      const reason = !callId ? 'Stream rejected: invalid or expired stream token' : 'Stream rejected: call is already live';
+      logger.warn(`${reason}${targetCallId ? ` (call ${targetCallId})` : ''}`);
+      aiCallingLog.error('media', reason, { callId: targetCallId ?? null, channel: expectedChannel });
+      if (targetCallId && /^[0-9a-f-]{36}$/i.test(targetCallId) && !callId && typeof this.callRepo?.update === 'function') {
+        await this.callRepo.update({ id: targetCallId }, { error: reason }).catch(() => undefined);
+      }
       transport.hangup();
       return false;
     }
     this.attaching.add(callId);
     try {
       return await this.start(callId, transport, expectedChannel);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`Unexpected error starting AI call ${callId}: ${msg}`);
+      aiCallingLog.error('call', `Unexpected error starting AI call: ${msg}`, {
+        callId,
+        channel: expectedChannel,
+        details: { error: msg },
+      });
+      if (typeof this.callRepo?.update === 'function') {
+        await this.callRepo
+          .update({ id: callId }, { status: AiCallStatus.FAILED, error: msg, endedAt: new Date() })
+          .catch(() => undefined);
+      }
+      transport.hangup();
+      return false;
     } finally {
       this.attaching.delete(callId);
     }
@@ -84,13 +112,15 @@ export class CallRunnerService {
     const call = await this.callRepo.findOne({ where: { id: callId } });
     const startable = [AiCallStatus.DIALING, AiCallStatus.RINGING, AiCallStatus.IN_PROGRESS];
     if (!call || call.channel !== expectedChannel || !startable.includes(call.status)) {
-      logger.warn(
-        `Call ${callId} not started: ${!call ? 'not found' : `channel ${call.channel} / status ${call.status}`}`,
-      );
-      aiCallingLog.warn('call', `Call ${callId} not started: ${!call ? 'not found' : `channel ${call.channel} / status ${call.status}`}`, {
+      const reason = !call ? 'Call record not found' : `Call cannot start from channel ${call.channel} / status ${call.status}`;
+      logger.warn(`Call ${callId} not started: ${reason}`);
+      aiCallingLog.warn('call', `Call ${callId} not started: ${reason}`, {
         callId,
         channel: expectedChannel,
       });
+      if (call && typeof this.callRepo?.update === 'function') {
+        await this.callRepo.update({ id: call.id }, { error: reason }).catch(() => undefined);
+      }
       transport.hangup();
       return false;
     }

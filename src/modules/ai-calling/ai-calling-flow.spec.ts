@@ -498,4 +498,14 @@ describe('AI calling flow (SQLite)', () => {
     await dialer.onTwilioStatus({ CallSid: 'CA2', CallStatus: 'completed', CallDuration: '0' });
     expect((await calls())[1].error).toContain('ended before it reached the AI');
   });
+
+  it('preserves a real Twilio stream-error instead of overwriting it with the generic fallback error', async () => {
+    await calling.queueCall(BIZ, { phone: '9876543210' });
+    await dialer.tick(NOON_IST);
+    const [call] = await calls();
+    await dialer.twimlFor(call.id);
+    await dialer.onStreamEvent(call.id, 'stream-error', '31924 WebSocket handshake failed');
+    await dialer.onTwilioStatus({ CallSid: 'CA1', CallStatus: 'completed', CallDuration: '4' });
+    expect((await calls())[0].error).toContain('31924 WebSocket handshake failed');
+  });
 });

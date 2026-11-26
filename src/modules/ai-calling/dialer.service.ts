@@ -333,23 +333,31 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
     const call = callId ? await this.callRepo.findOne({ where: { id: callId } }) : null;
     const publicUrl = await this.calling.getPublicUrl();
     if (!call || !publicUrl || call.channel !== 'phone' || !ACTIVE_CALL_STATUSES.includes(call.status)) return hangup;
-    const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    const host = publicUrl.replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
     this.connecting.add(call.id);
     this.logger.log(`Connecting answered call ${call.id} to the AI agent`);
     // Twilio reports stream start, stop and errors (e.g. it could not reach the websocket) here.
     const streamStatus = `${publicUrl}/api/ai-calling/twilio/stream-status?callId=${encodeURIComponent(call.id)}&key=${this.runner.tokens.callKey(call.id)}`;
     return streamTwiml(
       `wss://${host}/api/ai-calling/stream`,
-      { token: this.runner.tokens.issue(call.id) },
+      { token: this.runner.tokens.issue(call.id), callId: call.id },
       streamStatus,
     );
   }
 
-  /** A Twilio stream error is the real reason a call never reached the AI; keep it on the call. */
+  /** A Twilio stream error is the real reason a call never reached the AI; keep it on the call and log it. */
   async onStreamEvent(callId: string | undefined, event: string, error?: string): Promise<void> {
-    if (!callId || event !== 'stream-error') return;
-    await this.callRepo.update(callId, {
-      error: `Twilio could not open the audio stream: ${error ?? 'unknown error'}`,
+    if (!callId) return;
+    if (event === 'stream-error') {
+      const msg = `Twilio could not open the audio stream: ${error ?? 'unknown error'}`;
+      aiCallingLog.error('media', msg, { callId, channel: 'phone', details: { event, error } });
+      await this.callRepo.update(callId, { error: msg });
+      return;
+    }
+    aiCallingLog.info('media', `Twilio stream event: ${event}`, {
+      callId,
+      channel: 'phone',
+      details: { event, ...(error ? { error } : {}) },
     });
   }
 
@@ -387,10 +395,12 @@ export class DialerService implements OnModuleInit, OnModuleDestroy {
             status: AiCallStatus.COMPLETED,
             endedAt: new Date(),
             durationSeconds: Number(params.CallDuration ?? 0) || 0,
-            // Say why the AI never spoke, so it is not a mystery in the call log.
-            error: reached
-              ? 'The call was answered but the audio stream to the AI never opened. On a Twilio trial account, press any key after Twilio\x27s message, or the call ends.'
-              : 'The call ended before it reached the AI. On a Twilio trial account, press any key after Twilio\x27s message.',
+            // Preserve any concrete stream/startup error already recorded (e.g. from stream-status or CallRunner).
+            error:
+              call.error ||
+              (reached
+                ? 'The call was answered but the audio stream to the AI never opened. On a Twilio trial account, press any key after Twilio\x27s message, or the call ends.'
+                : 'The call ended before it reached the AI. On a Twilio trial account, press any key after Twilio\x27s message.'),
           },
         );
       }

@@ -273,6 +273,14 @@ describe('speechFactoryFor router', () => {
     xiSocket.emit('close', 1008, Buffer.from('Invalid API key'));
     expect(errorEmitted).toBe(false);
   });
+
+  it('normalizes legacy short Sarvam speaker names to bulbul:v4-flash persona IDs', async () => {
+    const { normalizeSarvamSpeaker } = await import('./sarvam');
+    expect(normalizeSarvamSpeaker('pooja', 'gu-IN')).toBe('pooja_gu_customer');
+    expect(normalizeSarvamSpeaker('ritu', 'hi-IN')).toBe('ritu_hi_customer_warm');
+    expect(normalizeSarvamSpeaker('', 'gu-IN')).toBe('pooja_gu_customer');
+    expect(normalizeSarvamSpeaker('bhavik_gu_conversation', 'gu-IN')).toBe('bhavik_gu_conversation');
+  });
 });
 
 describe('OpenAI-compatible language model stream', () => {
