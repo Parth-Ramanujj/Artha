@@ -145,6 +145,26 @@ describe('conversational simulation (SQLite)', () => {
     expect(sendText).not.toHaveBeenCalled();
   });
 
+  it('an invalid menu choice keeps the run paused and sends nothing', async () => {
+    const wf = await saveFlow();
+    const run = (await service.createRun(
+      wf,
+      { isTest: true, simulate: true },
+      'sess',
+      undefined,
+      '919876543210@c.us',
+    ))!;
+    await executor.execute(wf, run, simCtx());
+
+    const paused = await runRepo.findOneByOrFail({ id: run.id });
+    await executor.resume(wf, paused, simCtx({ messageBody: 'Contact Us' }), 'Contact Us');
+
+    const after = await runRepo.findOneByOrFail({ id: run.id });
+    expect(after.status).toBe(RunStatus.PAUSED);
+    expect(after.triggerData).toMatchObject({ waitingForInput: true, invalidAttempts: 1 });
+    expect(sendText).not.toHaveBeenCalled();
+  });
+
   it('a plain dry-run test (no simulate) runs straight through without pausing', async () => {
     const wf = await saveFlow();
     const run = (await service.createRun(wf, { isTest: true }, 'sess', undefined, '919876543210@c.us'))!;

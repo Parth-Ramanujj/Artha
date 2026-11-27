@@ -220,6 +220,17 @@ export function validateAnswer(validation: string, reply: string): string | null
   }
 }
 
+/**
+ * A node may carry `translations: { <lang>: { message, buttons, retryPrompt, ... } }`. When the run's
+ * captured `language` variable has an entry, those keys replace the node's own config for this run.
+ */
+export function localizeAction(action: WorkflowAction, run?: WorkflowRun): WorkflowAction {
+  const translations = action.config['translations'] as Record<string, Record<string, unknown>> | undefined;
+  const captured = (run?.triggerData?.['capturedVariables'] as Record<string, unknown>) || {};
+  const override = translations?.[str(captured['language'] ?? '')];
+  return override ? { ...action, config: { ...action.config, ...override } } : action;
+}
+
 /** The URL with credentials and every query value masked: "…?key=abc&id=7" → "…?key=***&id=***". */
 export function redactUrlSecrets(url: string): string {
   try {
@@ -740,6 +751,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
     ctx: TriggerContext,
     run?: WorkflowRun,
   ): Promise<Record<string, unknown>> {
+    action = localizeAction(action, run);
     switch (action.type) {
       case ActionType.SEND_MESSAGE:
         return this.actionSendMessage(action, ctx, run);
@@ -2266,7 +2278,8 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
       if (!matchedChoiceId) {
         const invalidAttempts = Number(triggerData['invalidAttempts'] || 0) + 1;
         const givingUp = invalidAttempts >= MAX_INVALID_CHOICES;
-        if (this.messageService && ctx.sessionId && ctx.chatId) {
+        // Simulator/test runs never send a real message.
+        if (this.messageService && ctx.sessionId && ctx.chatId && !ctx.metadata?.isTest) {
           await this.messageService.sendText(ctx.sessionId, {
             chatId: ctx.chatId,
             text: givingUp
@@ -2316,7 +2329,7 @@ export class WorkflowExecutor implements OnModuleInit, OnModuleDestroy {
         const attempts = Number(triggerData['attempts'] || 0) + 1;
         triggerData['attempts'] = attempts;
         if (attempts < Number(triggerData['maxRetries'] || 3)) {
-          if (this.messageService && ctx.sessionId && ctx.chatId) {
+          if (this.messageService && ctx.sessionId && ctx.chatId && !ctx.metadata?.isTest) {
             await this.messageService.sendText(ctx.sessionId, {
               chatId: ctx.chatId,
               text: str(triggerData['retryPrompt'] || 'Invalid format, please try again:'),

@@ -33,6 +33,7 @@ import { RequireRole, CurrentApiKey } from '../auth/decorators/auth.decorators';
 import { ApiKeyRole, ApiKey } from '../auth/entities/api-key.entity';
 import { RequireActiveBusiness } from '../auth/guards/business-scope.guard';
 import { INSURANCE_PRESET_NODES, INSURANCE_PRESET_EDGES } from './presets/insurance-workflow.preset';
+import { LIAFI_PRESET_NODES, LIAFI_PRESET_EDGES } from './presets/liafi-padosi-workflow.preset';
 
 @ApiTags('workflows')
 @Controller('workflows')
@@ -144,6 +145,41 @@ export class WorkflowController {
           },
           nodes: INSURANCE_PRESET_NODES,
           edges: INSURANCE_PRESET_EDGES,
+        },
+      },
+      apiKey?.id,
+    );
+
+    return this.workflowService.publish(newWorkflow.id, businessId, apiKey?.id);
+  }
+
+  @Post('presets/seed-liafi')
+  @RequireRole(ApiKeyRole.ADMIN)
+  @ApiOperation({ summary: 'Create and publish the LIAFI × PadosiAgent agent-registration WhatsApp workflow' })
+  async seedLiafiPreset(@CurrentApiKey() apiKey: ApiKey) {
+    const businessId = this.getBusinessId(apiKey);
+    const existing = await this.workflowService.findAll(businessId, { limit: 50 });
+    const found = existing.find(w => w.name.includes('LIAFI'));
+    if (found) {
+      if (found.status !== WorkflowStatus.PUBLISHED) {
+        await this.workflowService.publish(found.id, businessId, apiKey?.id);
+      }
+      return this.workflowService.findOne(found.id, businessId);
+    }
+
+    const newWorkflow = await this.workflowService.create(
+      businessId,
+      {
+        name: 'LIAFI × PadosiAgent Registration Bot',
+        description:
+          'LIAFI General Council Meeting flow: welcome offer, language choice, agent registration (name, email, branch code), profile reservation, app/contest-group links and PadosiAgent contact cards.',
+        definition: {
+          trigger: {
+            type: TriggerType.KEYWORD_MATCH,
+            config: { keyword: 'hi, hello, liafi, padosi, padosiagent, register, start' },
+          },
+          nodes: LIAFI_PRESET_NODES,
+          edges: LIAFI_PRESET_EDGES,
         },
       },
       apiKey?.id,
